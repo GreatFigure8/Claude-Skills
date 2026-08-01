@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REGAL DEV-2 — SCM Setup Task Checklist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#212933;--slate:#4A5568;--mist:#7C878E;--paper:#fff;--canvas:#F4F6F9;--line:#E2E8F0;
+--brand:#F56601;--brand-deep:#C44E00;--brand-soft:#FDEBDD;--regal-dark:#212933;
+--green:#1E8E5A;--green-bg:#E6F4EC;--amber:#C77A11;--amber-bg:#FBF0DD;--red:#C0392B;--red-bg:#FBEAE8;--gray:#8A97A8;--gray-bg:#EEF1F5;}
+*{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--ink);font-family:"Inter",system-ui,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:32px 24px 64px}
+h1,h2,h3,h4{font-family:"Manrope",system-ui,sans-serif;margin:0;color:var(--ink)}
+code{font-family:"JetBrains Mono",monospace;font-size:.85em;background:var(--brand-soft);color:var(--brand-deep);padding:1px 6px;border-radius:5px;font-weight:500}
+.topbar{height:6px;background:linear-gradient(90deg,var(--regal-dark),var(--brand) 60%,#F8A56E);border-radius:6px;margin-bottom:22px}
+.rhead{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:6px}
+.rhead .ttl{font-size:30px;font-weight:800;letter-spacing:-.5px}.rhead .ttl .accent{color:var(--brand)}
+.rhead .sub{color:var(--slate);font-size:15px;margin-top:6px;font-weight:500}.rhead .date{color:var(--mist);font-size:13px;font-family:"JetBrains Mono",monospace;text-align:right}
+.scopenote{background:var(--brand-soft);border-left:3px solid var(--brand);color:var(--brand-deep);font-size:13.5px;padding:11px 15px;border-radius:0 8px 8px 0;margin:14px 0 26px;font-weight:500}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:26px 28px;margin-bottom:22px;box-shadow:0 1px 3px rgba(27,36,48,.04),0 8px 24px rgba(27,36,48,.03)}
+.eyebrow{font-family:"Manrope",sans-serif;text-transform:uppercase;letter-spacing:.13em;font-size:11px;font-weight:700;color:var(--brand-deep);margin-bottom:4px}
+.card>h2{font-size:20px;font-weight:700;margin-bottom:4px}.card>.lead{color:var(--slate);font-size:14px;margin-bottom:18px}
+.thesis{background:linear-gradient(135deg,#212933,#3C3C3B);color:#fff;border:none;position:relative;overflow:hidden}
+.thesis::after{content:"";position:absolute;top:0;right:0;width:170px;height:100%;background:linear-gradient(115deg,transparent 40%,rgba(245,102,1,.20) 41%,rgba(245,102,1,.20) 52%,transparent 53%,transparent 66%,rgba(248,165,110,.18) 67%,rgba(248,165,110,.18) 76%,transparent 77%)}
+.thesis .eyebrow{color:var(--brand)}.thesis h2{color:#fff;position:relative}.thesis .lead{color:#D9DEE4;position:relative}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:13px;margin-top:18px;position:relative}
+.stat{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);border-radius:11px;padding:14px 16px}
+.stat .v{font-family:"Manrope",sans-serif;font-size:30px;font-weight:800;line-height:1}.stat .l{font-size:11.5px;color:#C9D0D8;margin-top:6px;font-weight:500}
+.stat.g .v{color:#8FE3B6}.stat.a .v{color:#F8C572}.stat.r .v{color:#F2A9A0}.stat.o .v{color:#F8A56E}
+.verdict-big{display:flex;align-items:center;gap:12px;margin-top:18px;flex-wrap:wrap;position:relative}
+.verdict-big .label{font-size:13px;color:#C9D0D8;font-weight:600;text-transform:uppercase;letter-spacing:.1em}
+.bigpill{font-family:"Manrope",sans-serif;font-weight:700;font-size:15px;padding:7px 18px;border-radius:999px;background:var(--brand);color:#fff}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+thead th{background:var(--brand-soft);color:var(--brand-deep);font-family:"Manrope",sans-serif;font-weight:700;text-align:left;padding:11px 13px;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+tbody td{padding:10px 13px;border-top:1px solid var(--line);vertical-align:top}tbody tr:hover{background:#FAFBFD}
+td.tn{font-weight:600;color:var(--ink);min-width:200px}
+.num,td.num{text-align:center;font-family:"Manrope",sans-serif;font-weight:700;white-space:nowrap}
+td.det{color:var(--slate);max-width:340px}
+td.vc{white-space:nowrap;text-align:right}
+.v-green td:first-child{box-shadow:inset 3px 0 0 var(--green)}.v-amber td:first-child{box-shadow:inset 3px 0 0 var(--amber)}
+.v-red td:first-child{box-shadow:inset 3px 0 0 var(--red)}.v-gray td:first-child{box-shadow:inset 3px 0 0 var(--gray)}
+.pill{display:inline-block;font-family:"Manrope",sans-serif;font-weight:700;font-size:11px;padding:3px 10px;border-radius:999px;white-space:nowrap}
+.pill.green{background:var(--green-bg);color:var(--green)}.pill.amber{background:var(--amber-bg);color:var(--amber)}
+.pill.red{background:var(--red-bg);color:var(--red)}.pill.gray{background:var(--gray-bg);color:var(--gray)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:middle}
+.dot.green{background:var(--green)}.dot.amber{background:var(--amber)}.dot.red{background:var(--red)}.dot.gray{background:var(--gray)}
+.sblock{border:1px solid var(--line);border-left-width:4px;border-radius:0 10px 10px 0;padding:13px 17px;margin-bottom:12px;background:#FCFCFE}
+.sblock.v-red{border-left-color:var(--red)}.sblock.v-amber{border-left-color:var(--amber)}.sblock.v-green{border-left-color:var(--green)}
+.sblock h4{font-size:14.5px;margin:2px 0 6px}.sblock p{color:var(--slate);font-size:13.5px;margin:0}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--slate);align-items:center;font-weight:500}.legend .item{display:flex;align-items:center}
+.foot{color:var(--mist);font-size:12px;margin-top:14px;border-top:1px solid var(--line);padding-top:14px}
+@media(max-width:680px){.rhead .ttl{font-size:23px}}
+@media print{body{background:#fff}.card{box-shadow:none;break-inside:avoid}.wrap{max-width:none}.thesis{-webkit-print-color-adjust:exact;print-color-adjust:exact}tbody tr{break-inside:avoid}}
+</style></head><body><div class="wrap">
+<div class="topbar"></div>
+
+<!-- ============ HEADER: title + metadata block ============ -->
+<div class="rhead"><div>
+<div class="ttl">{{TITLE_MAIN}} <span class="accent">{{TITLE_ACCENT}}</span></div>
+<div class="sub">{{SUBTITLE}} · <code>{{MONO_TAG — env/pod/version/id}}</code></div>
+</div><div class="date">Generated {{YYYY-MM-DD}}<br>{{META_LINE_2 — report type}}<br>{{META_LINE_3 — source}}</div></div>
+
+<!-- ============ SCOPE NOTE: how to read this (optional but recommended) ============ -->
+<div class="scopenote"><b>How to read this:</b> {{SCOPE_AND_METHOD_CAVEATS}}</div>
+
+<!-- ============ THESIS CARD: the one-glance takeaway, always first ============ -->
+<div class="card thesis">
+<div class="eyebrow">{{THESIS_EYEBROW — e.g. Overall State / Executive Summary}}</div>
+<h2>{{THESIS — one declarative sentence}}</h2>
+<p class="lead">{{THESIS_LEAD — 2-3 sentences of support}}</p>
+<div class="stats">
+<div class="stat g"><div class="v">{{N}}</div><div class="l">{{GOOD_METRIC_LABEL}}</div></div>
+<div class="stat a"><div class="v">{{N}}</div><div class="l">{{WARN_METRIC_LABEL}}</div></div>
+<div class="stat r"><div class="v">{{N}}</div><div class="l">{{BAD_METRIC_LABEL}}</div></div>
+<div class="stat o"><div class="v">{{N}}</div><div class="l">{{TOTAL_OR_NEUTRAL_LABEL}}</div></div>
+</div>
+<div class="verdict-big"><span class="label">Verdict</span><span class="bigpill">{{VERDICT_PILL_TEXT}}</span></div>
+</div>
+
+<!-- ============ NUMBERED SECTIONS: cards with eyebrow labels ============ -->
+<div class="card">
+<div class="eyebrow">Section 01 · {{SECTION_LABEL}}</div>
+<h2>{{SECTION_HEADING}}</h2>
+<p class="lead">{{SECTION_LEAD}}</p>
+<div class="tw"><table>
+<thead><tr><th>#</th><th>{{COL}}</th><th class="num">{{NUM_COL}}</th><th>{{DETAIL_COL}}</th><th>{{STATUS_COL}}</th></tr></thead>
+<tbody>
+<!-- row status class (v-green|v-amber|v-red|v-gray) paints the left inset bar; pill class matches -->
+<tr class="v-green"><td class="num">1</td><td class="tn">{{ITEM}}</td><td class="num">{{N}}</td><td class="det">{{DETAIL — may include <code>inline_code</code> and <b>emphasis</b>}}</td><td class="vc"><span class="pill green">{{GOOD}}</span></td></tr>
+<tr class="v-amber"><td class="num">2</td><td class="tn">{{ITEM}}</td><td class="num">{{N}}</td><td class="det">{{DETAIL}}</td><td class="vc"><span class="pill amber">{{WARN}}</span></td></tr>
+<tr class="v-red"><td class="num">3</td><td class="tn">{{ITEM}}</td><td class="num">{{N}}</td><td class="det">{{DETAIL}}</td><td class="vc"><span class="pill red">{{BAD}}</span></td></tr>
+<tr class="v-gray"><td class="num">4</td><td class="tn">{{ITEM}}</td><td class="num">—</td><td class="det">{{DETAIL}}</td><td class="vc"><span class="pill gray">{{NEUTRAL}}</span></td></tr>
+</tbody></table></div></div>
+
+<div class="card">
+<div class="eyebrow">Section 02 · {{SECTION_LABEL — e.g. Interpretation / Findings}}</div>
+<h2>{{SECTION_HEADING}}</h2>
+<!-- finding blocks: left border color = finding tone -->
+<div class="sblock v-green"><h4>{{FINDING_TITLE}}</h4><p>{{FINDING_BODY}}</p></div>
+<div class="sblock v-amber"><h4>{{FINDING_TITLE}}</h4><p>{{FINDING_BODY}}</p></div>
+<div class="sblock v-red"><h4>{{FINDING_TITLE}}</h4><p>{{FINDING_BODY}}</p></div>
+</div>
+
+<div class="card">
+<div class="eyebrow">Section 03 · {{SECTION_LABEL — e.g. Recommendations / Next Steps}}</div>
+<h2>{{SECTION_HEADING}}</h2>
+<div class="tw"><table>
+<thead><tr><th>{{COL_1}}</th><th>{{COL_2}}</th><th>{{COL_3}}</th></tr></thead>
+<tbody>
+<tr class="v-red"><td class="num">1</td><td class="tn">{{ITEM}}</td><td class="det">{{RATIONALE}}</td></tr>
+</tbody></table></div></div>
+
+<!-- ============ LEGEND + FOOTER ============ -->
+<div class="card">
+<div class="legend">
+<span class="item"><span class="dot green"></span>{{GREEN_MEANING}}</span>
+<span class="item"><span class="dot amber"></span>{{AMBER_MEANING}}</span>
+<span class="item"><span class="dot red"></span>{{RED_MEANING}}</span>
+</div>
+<div class="foot">{{METHOD_AND_SOURCE_DISCLOSURE — how derived, from what, when; state limits honestly}} &nbsp;|&nbsp; © {{YEAR}} The Hackett Group, Inc. All Rights Reserved.</div>
+</div>
+</div></body></html>

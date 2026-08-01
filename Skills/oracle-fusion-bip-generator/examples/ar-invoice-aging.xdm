@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Example: AR Invoice Aging
+  Demonstrates:
+    - Single dataset with derived aging buckets via CASE
+    - Cascading LOVs: Business Unit drives Customer list
+    - Date range parameter for as-of-date aging
+    - Multi-select Business Unit (with multiValuesAllowed)
+  Status: Illustrative — re-validate column names against target pod before use.
+-->
+<dataModel xmlns="http://xmlns.oracle.com/oxp/xmlp"
+           xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+           defaultDataSourceRef="ApplicationDB_FSCM"
+           version="2.0">
+
+  <dataProperties>
+    <property name="include_parameters" value="true"/>
+    <property name="include_null_Element" value="true"/>
+    <property name="xml_tag_case" value="upper"/>
+    <property name="include_rowsettag" value="false"/>
+    <property name="default_calendar" value="GREGORIAN"/>
+    <property name="db_fetch_size" value="500"/>
+  </dataProperties>
+
+  <dataSets>
+    <dataSet name="Q_MAIN" type="simple">
+      <sql dataSourceRef="ApplicationDB_FSCM">
+        <![CDATA[
+          /* AR Invoice Aging — one row per AR transaction line, aged by due date */
+          SELECT rcta.trx_number               AS invoice_number,
+                 hp.party_name                 AS customer_name,
+                 rcta.trx_date                 AS invoice_date,
+                 rctla.due_date                AS due_date,
+                 rctla.amount_due_remaining    AS balance_due,
+                 :p_as_of_date                 AS as_of_date,
+                 (:p_as_of_date - rctla.due_date) AS days_past_due,
+                 CASE
+                   WHEN (:p_as_of_date - rctla.due_date) <= 0  THEN '00 - Current'
+                   WHEN (:p_as_of_date - rctla.due_date) <= 30 THEN '01 - 1-30 days'
+                   WHEN (:p_as_of_date - rctla.due_date) <= 60 THEN '02 - 31-60 days'
+                   WHEN (:p_as_of_date - rctla.due_date) <= 90 THEN '03 - 61-90 days'
+                   ELSE '04 - Over 90 days'
+                 END                            AS aging_bucket,
+                 fabuv.bu_name                  AS business_unit
+            FROM ra_customer_trx_all       rcta,
+                 ra_customer_trx_lines_all rctla,
+                 hz_cust_accounts          hca,
+                 hz_parties                 hp,
+                 fun_all_business_units_v  fabuv
+           WHERE rcta.customer_trx_id = rctla.customer_trx_id
+             AND rcta.bill_to_customer_id = hca.cust_account_id
+             AND hca.party_id = hp.party_id
+             AND rcta.org_id = fabuv.bu_id
+             AND rctla.amount_due_remaining <> 0
+             AND rctla.due_date <= :p_as_of_date
+             AND (:p_business_unit_ids IS NULL OR fabuv.bu_id IN (:p_business_unit_ids))
+             AND (:p_customer_id IS NULL OR hca.cust_account_id = :p_customer_id)
+           ORDER BY fabuv.bu_name,
+                    hp.party_name,
+                    rctla.due_date
+        ]]>
+      </sql>
+    </dataSet>
+  </dataSets>
+
+  <lovs>
+    <lov name="LOV_BUSINESS_UNIT" type="sql" dataSourceRef="ApplicationDB_FSCM">
+      <sqlText>
+        <![CDATA[
+          SELECT bu_id   AS value,
+                 bu_name AS display
+            FROM fun_all_business_units_v
+           ORDER BY bu_name
+        ]]>
+      </sqlText>
+    </lov>
+
+    <lov name="LOV_CUSTOMER" type="sql" dataSourceRef="ApplicationDB_FSCM">
+      <dataConstraints>
+        <dataConstraint name="BU_DEP" parameter="p_business_unit_ids"/>
+      </dataConstraints>
+      <sqlText>
+        <![CDATA[
+          SELECT DISTINCT hca.cust_account_id AS value,
+                          hp.party_name        AS display
+            FROM hz_cust_accounts         hca,
+                 hz_parties                hp,
+                 ra_customer_trx_all       rcta
+           WHERE hca.party_id = hp.party_id
+             AND rcta.bill_to_customer_id = hca.cust_account_id
+             AND hca.status = 'A'
+             AND (:p_business_unit_ids IS NULL OR rcta.org_id IN (:p_business_unit_ids))
+           ORDER BY hp.party_name
+        ]]>
+      </sqlText>
+    </lov>
+  </lovs>
+
+  <valueSets>
+    <valueSet id="VS_BUSINESS_UNIT" type="sql">
+      <sql dataSourceRef="ApplicationDB_FSCM" lovId="LOV_BUSINESS_UNIT"/>
+    </valueSet>
+    <valueSet id="VS_CUSTOMER" type="sql">
+      <sql dataSourceRef="ApplicationDB_FSCM" lovId="LOV_CUSTOMER"/>
+    </valueSet>
+  </valueSets>
+
+  <parameters>
+    <parameter name="p_as_of_date"
+               dataType="xsd:date"
+               defaultValue="{$SYSDATE()}"
+               rowPlacement="1">
+      <input label="As of Date" size="20"/>
+    </parameter>
+
+    <parameter name="p_business_unit_ids"
+               dataType="xsd:string"
+               defaultValue=""
+               multiValuesAllowed="true"
+               valueSet="VS_BUSINESS_UNIT"
+               rowPlacement="2">
+      <input label="Business Units" size="60"/>
+    </parameter>
+
+    <parameter name="p_customer_id"
+               dataType="xsd:string"
+               defaultValue=""
+               valueSet="VS_CUSTOMER"
+               rowPlacement="3">
+      <input label="Customer (optional)" size="40"/>
+    </parameter>
+  </parameters>
+
+  <output rootName="DATA_DS" uniqueRowName="false">
+    <nodeList name="data-structure">
+      <dataStructure>
+        <group name="G_INVOICE" dataType="xsd:string" source="Q_MAIN">
+          <element name="BUSINESS_UNIT"   value="business_unit"   dataType="xsd:string"/>
+          <element name="CUSTOMER_NAME"   value="customer_name"   dataType="xsd:string"/>
+          <element name="INVOICE_NUMBER"  value="invoice_number"  dataType="xsd:string"/>
+          <element name="INVOICE_DATE"    value="invoice_date"    dataType="xsd:date"/>
+          <element name="DUE_DATE"        value="due_date"        dataType="xsd:date"/>
+          <element name="DAYS_PAST_DUE"   value="days_past_due"   dataType="xsd:integer"/>
+          <element name="AGING_BUCKET"    value="aging_bucket"    dataType="xsd:string"/>
+          <element name="BALANCE_DUE"     value="balance_due"     dataType="xsd:decimal"/>
+          <element name="AS_OF_DATE"      value="as_of_date"      dataType="xsd:date"/>
+        </group>
+      </dataStructure>
+    </nodeList>
+  </output>
+
+</dataModel>

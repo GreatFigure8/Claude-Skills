@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Starter XDM skeleton for the oracle-fusion-bip-generator skill.
+  Placeholders are marked with {{DOUBLE_BRACES}} — replace all of them.
+  Delete the <lovs> and <valueSets> blocks if the report has no menu parameters.
+  Delete cascading <dataConstraints> if no LOV is cascading.
+-->
+<dataModel xmlns="http://xmlns.oracle.com/oxp/xmlp"
+           xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+           defaultDataSourceRef="{{DATA_SOURCE_REF}}"
+           version="2.0">
+
+  <dataProperties>
+    <property name="include_parameters" value="true"/>
+    <property name="include_null_Element" value="true"/>
+    <property name="xml_tag_case" value="upper"/>
+    <property name="include_rowsettag" value="false"/>
+    <property name="sql_monitor_report_enabled" value="false"/>
+    <property name="default_calendar" value="GREGORIAN"/>
+    <property name="db_fetch_size" value="500"/>
+    <property name="enable_sql_pruning" value="false"/>
+  </dataProperties>
+
+  <dataSets>
+    <dataSet name="Q_MAIN" type="simple">
+      <sql dataSourceRef="{{DATA_SOURCE_REF}}">
+        <![CDATA[
+{{MAIN_SQL_QUERY}}
+        ]]>
+      </sql>
+    </dataSet>
+  </dataSets>
+
+  <lovs>
+    <!-- Repeat one <lov> block per menu parameter. Delete this block if none. -->
+    <lov name="{{LOV_NAME_1}}" type="sql" dataSourceRef="{{DATA_SOURCE_REF}}">
+      <!-- Optional: <dataConstraints> for cascading LOVs.
+           Delete if this LOV is independent. -->
+      <dataConstraints>
+        <dataConstraint name="{{CASCADE_NAME}}" parameter="{{PARENT_PARAM_NAME}}"/>
+      </dataConstraints>
+      <sqlText>
+        <![CDATA[
+{{LOV_SQL_1}}
+        ]]>
+      </sqlText>
+    </lov>
+  </lovs>
+
+  <valueSets>
+    <!-- One <valueSet> per LOV. Delete block if no LOVs. -->
+    <valueSet id="{{VS_ID_1}}" type="sql">
+      <sql dataSourceRef="{{DATA_SOURCE_REF}}" lovId="{{LOV_NAME_1}}"/>
+    </valueSet>
+  </valueSets>
+
+  <parameters>
+    <!-- Repeat one <parameter> block per parameter.
+         For menu parameters, include the valueSet attribute.
+         For multi-select, add multiValuesAllowed="true".
+         For date parameters, use dataType="xsd:date".
+         For numeric, use dataType="xsd:integer" or "xsd:decimal". -->
+    <parameter name="{{PARAM_NAME_1}}"
+               dataType="{{PARAM_TYPE_1}}"
+               defaultValue="{{PARAM_DEFAULT_1}}"
+               valueSet="{{VS_ID_1}}"
+               rowPlacement="1">
+      <input label="{{PARAM_LABEL_1}}" size="40"/>
+    </parameter>
+  </parameters>
+
+  <output rootName="DATA_DS" uniqueRowName="false">
+    <nodeList name="data-structure">
+      <dataStructure>
+        <group name="{{GROUP_NAME}}" dataType="xsd:string" source="Q_MAIN">
+          <!-- One <element> per SQL output column.
+               value = SQL column alias (lowercase to match SELECT alias).
+               name = friendly XML element name (UPPERCASE, used in RTF tags). -->
+          <element name="{{ELEMENT_NAME_1}}"
+                   value="{{SQL_ALIAS_1}}"
+                   dataType="{{ELEMENT_TYPE_1}}"/>
+        </group>
+      </dataStructure>
+    </nodeList>
+  </output>
+
+</dataModel>

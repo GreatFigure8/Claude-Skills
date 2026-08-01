@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Worker Conversion Readiness Assessment — International Paper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1B2430; --slate:#4A5568; --mist:#8A97A8; --paper:#fff; --canvas:#F4F6F9; --line:#E2E8F0;
+  --brand:#1F4E79; --brand-soft:#EAF1F8;
+  --green:#1E8E5A; --green-bg:#E6F4EC; --amber:#C77A11; --amber-bg:#FBF0DD;
+  --red:#C0392B; --red-bg:#FBEAE8; --gray:#8A97A8; --gray-bg:#EEF1F5;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--ink);font-family:"Inter",system-ui,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1100px;margin:0 auto;padding:32px 24px 64px}
+h1,h2,h3,h4{font-family:"Manrope",system-ui,sans-serif;margin:0;color:var(--ink)}
+code{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.85em;background:var(--brand-soft);color:var(--brand);padding:1px 6px;border-radius:5px;font-weight:500}
+p{margin:.5em 0}
+/* header */
+.topbar{height:6px;background:linear-gradient(90deg,var(--brand),#2E6DA4);border-radius:6px;margin-bottom:22px}
+.rhead{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:6px}
+.rhead .ttl{font-size:30px;font-weight:800;letter-spacing:-.5px}
+.rhead .sub{color:var(--slate);font-size:15px;margin-top:6px;font-weight:500}
+.rhead .date{color:var(--mist);font-size:13px;font-family:"JetBrains Mono",monospace}
+.scopenote{background:var(--brand-soft);border-left:3px solid var(--brand);color:var(--brand);font-size:13.5px;padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0 26px;font-weight:500}
+/* cards */
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:26px 28px;margin-bottom:22px;box-shadow:0 1px 3px rgba(27,36,48,.04),0 8px 24px rgba(27,36,48,.03)}
+.eyebrow{font-family:"Manrope",sans-serif;text-transform:uppercase;letter-spacing:.13em;font-size:11px;font-weight:700;color:var(--brand);margin-bottom:4px}
+.card>h2{font-size:20px;font-weight:700;margin-bottom:4px}
+.card>.lead{color:var(--slate);font-size:14px;margin-bottom:18px}
+/* stat strip */
+.thesis{background:linear-gradient(135deg,#1F4E79,#2E6DA4);color:#fff;border:none}
+.thesis .eyebrow{color:#BED4EC}
+.thesis h2{color:#fff}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-top:16px}
+.stat{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);border-radius:11px;padding:16px 18px}
+.stat .v{font-family:"Manrope",sans-serif;font-size:30px;font-weight:800;line-height:1}
+.stat .l{font-size:12.5px;color:#D6E4F0;margin-top:7px;font-weight:500}
+.stat.g .v{color:#8FE3B6} .stat.a .v{color:#F4CE8B} .stat.r .v{color:#F2A9A0}
+.verdict-big{display:flex;align-items:center;gap:12px;margin-top:18px;flex-wrap:wrap}
+.verdict-big .label{font-size:13px;color:#D6E4F0;font-weight:600;text-transform:uppercase;letter-spacing:.1em}
+.bigpill{font-family:"Manrope",sans-serif;font-weight:700;font-size:15px;padding:7px 18px;border-radius:999px;background:#fff;color:var(--red)}
+/* tables */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+thead th{background:var(--brand-soft);color:var(--brand);font-family:"Manrope",sans-serif;font-weight:700;text-align:left;padding:11px 13px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+tbody td{padding:11px 13px;border-top:1px solid var(--line);vertical-align:top}
+tbody tr:hover{background:#FAFBFD}
+td.el{font-weight:600;color:var(--ink);min-width:160px}
+td.ctr{white-space:nowrap;color:var(--slate);font-weight:500}
+td.num,.num{text-align:center;font-family:"Manrope",sans-serif;font-weight:700;color:var(--ink);white-space:nowrap}
+td.mono-cell{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--slate);white-space:nowrap}
+td.gaps{color:var(--slate);min-width:280px;max-width:440px}
+td.vc{white-space:nowrap;text-align:right}
+.vtxt{font-size:12px;color:var(--slate);font-weight:600}
+/* verdict row accent */
+.v-green td:first-child{box-shadow:inset 3px 0 0 var(--green)}
+.v-amber td:first-child{box-shadow:inset 3px 0 0 var(--amber)}
+.v-red td:first-child{box-shadow:inset 3px 0 0 var(--red)}
+.v-gray td:first-child{box-shadow:inset 3px 0 0 var(--gray)}
+/* pills + dots */
+.pill{display:inline-block;font-family:"Manrope",sans-serif;font-weight:700;font-size:11.5px;padding:3px 11px;border-radius:999px;white-space:nowrap}
+.pill.green{background:var(--green-bg);color:var(--green)}
+.pill.amber{background:var(--amber-bg);color:var(--amber)}
+.pill.red{background:var(--red-bg);color:var(--red)}
+.pill.gray{background:var(--gray-bg);color:var(--gray)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:middle}
+.dot.green{background:var(--green)} .dot.amber{background:var(--amber)} .dot.red{background:var(--red)} .dot.gray{background:var(--gray)}
+/* sub-grids */
+.subgrid{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:8px}
+.subgrid h3{font-size:14px;margin-bottom:10px;color:var(--brand)}
+.prose-find{margin-top:20px}
+.prose-find p{color:var(--slate);font-size:14px}
+.prose-find b{color:var(--ink)}
+/* structural blocks */
+.sblock{border:1px solid var(--line);border-left-width:4px;border-radius:0 10px 10px 0;padding:14px 18px;margin-bottom:13px;background:#FCFCFE}
+.sblock.v-red{border-left-color:var(--red)} .sblock.v-amber{border-left-color:var(--amber)}
+.sblock h4{font-size:15px;margin:2px 0 6px}
+.sblock p{color:var(--slate);font-size:13.5px;margin:0}
+/* operating model */
+.omitem{padding:13px 0;border-top:1px solid var(--line)}
+.omitem:first-child{border-top:none}
+.omitem h4{font-size:15px;color:var(--brand);margin-bottom:4px}
+.omitem p{color:var(--slate);font-size:13.5px;margin:0}
+.tracks{margin:14px 0 0;padding-left:0;list-style:none}
+.tracks li{position:relative;padding:9px 0 9px 22px;border-top:1px solid var(--line);color:var(--slate);font-size:13.5px}
+.tracks li:before{content:"";position:absolute;left:0;top:15px;width:8px;height:8px;border-radius:2px;background:var(--brand)}
+.tracks li b{color:var(--ink)}
+/* blockers */
+.sev{font-family:"Manrope",sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;padding:6px 13px;border-radius:8px;display:inline-block;margin:20px 0 10px}
+.sev.hard{background:var(--red-bg);color:var(--red)}
+.sev.soft{background:var(--amber-bg);color:var(--amber)}
+.sev:first-child{margin-top:0}
+td.bid{font-family:"Manrope",sans-serif;font-weight:800;color:var(--red);text-align:center;width:42px}
+td.bid.amber-id{color:var(--amber)}
+/* decisions */
+ol.dec{margin:6px 0 0;padding-left:22px}
+ol.dec li{margin-bottom:13px;color:var(--slate);font-size:13.5px}
+ol.dec li b{color:var(--ink)}
+/* footer */
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--slate);align-items:center;font-weight:500}
+.legend .item{display:flex;align-items:center}
+.foot{color:var(--mist);font-size:12px;margin-top:14px;border-top:1px solid var(--line);padding-top:14px}
+@media(max-width:680px){.subgrid{grid-template-columns:1fr} .rhead .ttl{font-size:24px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media print{
+  body{background:#fff} .card{box-shadow:none;break-inside:avoid} .wrap{max-width:none}
+  .thesis{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  tbody tr{break-inside:avoid}
+}
+</style></head>
+<body><div class="wrap">
+
+<div class="topbar"></div>
+<div class="rhead">
+  <div>
+    <div class="ttl">Worker Conversion Readiness Assessment</div>
+    <div class="sub">Oracle Fusion HCM · Assignment-layer extract · International Paper Company · 40-person sample</div>
+  </div>
+  <div class="date">Generated 2026-06-09</div>
+</div>
+<div class="scopenote">Scope: this extract covers the <b>Assignment layer only</b>. Person, PersonName, national identifier, contact, and work-relationship required elements are <b>not assessable</b> from this file. Findings are based on the provided 40-row sample.</div>
+
+<!-- THESIS -->
+<div class="card thesis">
+  <div class="eyebrow">At a glance</div>
+  <h2>Conversion verdict</h2>
+  <div class="stats">
+    <div class="stat"><div class="v">40</div><div class="l">Persons in sample (no PersonNumber dups)</div></div>
+    <div class="stat g"><div class="v">8</div><div class="l">Required elements loadable</div></div>
+    <div class="stat a"><div class="v">12</div><div class="l">Loadable with cleanup</div></div>
+    <div class="stat r"><div class="v">4</div><div class="l">Blocked elements</div></div>
+    <div class="stat r"><div class="v">6</div><div class="l">Hard-reject blockers</div></div>
+  </div>
+  <div class="verdict-big"><span class="label">Overall</span><span class="bigpill">&#128308; Blocked — not loadable as-is</span></div>
+</div>
+
+<!-- POPULATION -->
+<div class="card">
+  <div class="eyebrow">Section 01</div><h2>Population summary</h2>
+  <p class="lead">Segment counts and workforce composition derived from the sample.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Segment</th><th style="text-align:center">Count</th><th>Notes</th></tr></thead>
+    <tbody><tr><td class="el">Total persons in sample</td><td class="num">40</td><td class="gaps">One row per person; no duplicates on PersonNumber detected</td></tr><tr><td class="el">ACTIVE_PROCESS</td><td class="num">18</td><td class="gaps">Active employees with real org / position / grade data</td></tr><tr><td class="el">INACTIVE_NO_PROCESS</td><td class="num">19</td><td class="gaps">Terminated; org data replaced with CONVERSION placeholders</td></tr><tr><td class="el">INACTIVE_PROCESS</td><td class="num">1</td><td class="gaps">PersonNumber 10631; future-dated termination 2026-01-01; unusual status for a termination</td></tr><tr><td class="el">IP_LOA_WITHOUT_PAY</td><td class="num">1</td><td class="gaps">PersonNumber 48817; custom LOA status code</td></tr><tr><td class="el">IP_LOA_WITH_PAY</td><td class="num">1</td><td class="gaps">PersonNumber 43039; custom LOA status code</td></tr><tr><td class="el">Active + LOA (working population)</td><td class="num">20</td><td class="gaps">The population with live org structure</td></tr><tr><td class="el">Inactive / terminated</td><td class="num">20</td><td class="gaps">All carry the CONVERSION placeholder pattern</td></tr></tbody>
+  </table></div>
+
+  <div class="prose-find">
+    <p><b>Single legal employer across all 40 records:</b> International Paper Company.</p>
+    <p><b>Worker type:</b> all PersonTypeCode = EMP / UserPersonTypeCode = Employee. No contingent, pending, or non-workers in this sample.</p>
+    <p><b>Full-time / permanent:</b> 100% FULL_TIME, 100% Regular (PermanentTemporary = R). No part-time workers.</p>
+    <p><b>Geographic spread</b> (active population, inferred from LocationCode prefix): New Jersey, Maryland, North Carolina, South Carolina, Indiana, Tennessee, Pennsylvania (two facilities — Reading Box and Reading Mill), Virginia (two facilities), Georgia. US-only; single legislation implied.</p>
+  </div>
+
+  <div class="prose-find">
+    <p><b>Workforce composition (active 20):</b></p>
+    <ul class="tracks"><li><b>Salaried / exempt</b> — Weekly hours (W / 40), grade codes like 12 CORE, 09 CORE, 14 CORE; HourlySalariedCode = S; no bargaining unit.</li><li><b>Hourly non-union</b> — Daily hours (D / 8, 10); grade pattern {LocationCode}-Non-Union-{step}; BargainingUnitCode = NU.</li><li><b>Hourly union</b> — Daily hours (D / 8, 10, 12); grade pattern {LocationCode}-{BargainingUnit}-{step}; standalone BU codes (USW, PPPWU) across multiple facilities.</li></ul>
+  </div>
+
+  <div class="subgrid" style="margin-top:24px">
+    <div>
+      <h3>Bargaining-unit distribution (active 20)</h3>
+      <div class="tw"><table>
+        <thead><tr><th>Category</th><th>Code</th><th style="text-align:center">Count</th></tr></thead>
+        <tbody><tr><td>Non-union</td><td class="mono-cell">NU</td><td class="num">9</td></tr><tr><td>USW 1419 (Reading Box)</td><td class="mono-cell">IP_STAND_USPA76_USW_1419</td><td class="num">4</td></tr><tr><td>PPPWU 285M (Cambridge Box)</td><td class="mono-cell">IP_STAND_USMD10_PPPWU_285M</td><td class="num">3</td></tr><tr><td>USW 1419-1 (Reading Mill)</td><td class="mono-cell">IP_STAND_USPA77_USW_1419</td><td class="num">2</td></tr><tr><td>Salaried (non-BU)</td><td class="mono-cell">Salaried</td><td class="num">4</td></tr><tr><td>USW 1354 (Riceboro Mill)</td><td class="mono-cell">IP_STAND_USGA98_USW_1354</td><td class="num">1</td></tr></tbody>
+      </table></div>
+    </div>
+    <div>
+      <h3>Termination reasons (20)</h3>
+      <div class="tw"><table>
+        <thead><tr><th>Action</th><th>Reason</th><th style="text-align:center">Count</th></tr></thead>
+        <tbody><tr><td class="mono-cell">INVOLUNTARY_TERMINATION</td><td class="mono-cell">IP_ZA_15_FOR_CAUSE_ATTENDANCE</td><td class="num">7</td></tr><tr><td class="mono-cell">RESIGNATION</td><td class="mono-cell">IP_ZA_8_RESIGNATION</td><td class="num">7</td></tr><tr><td class="mono-cell">INVOLUNTARY_TERMINATION</td><td class="mono-cell">IP_ZA_5_FACILITY_CLOSURE</td><td class="num">3 (incl. 10631)</td></tr><tr><td class="mono-cell">INVOLUNTARY_TERMINATION</td><td class="mono-cell">IP_ZA_17_FOR_CAUSE_PERFORMANCE</td><td class="num">2</td></tr><tr><td class="mono-cell">INVOLUNTARY_TERMINATION</td><td class="mono-cell">IP_ZA_12_REDUCTION_IN_FORCE</td><td class="num">1</td></tr><tr><td class="mono-cell">RESIGNATION</td><td class="mono-cell">IP_ZB_1_RETIREMENT</td><td class="num">1 (PersonNumber 10484)</td></tr></tbody>
+      </table></div>
+    </div>
+  </div>
+  <p class="prose-find" style="color:var(--slate);font-size:13px"><b>Termination date range:</b> 2024-01-17 through 2026-01-01; several in 2025 and one future-dated at 2026-01-01.</p>
+</div>
+
+<!-- SCORECARD -->
+<div class="card">
+  <div class="eyebrow">Section 02</div><h2>Required-element scorecard — Assignment entity</h2>
+  <p class="lead">Field-level completeness and load verdict for each Assignment required element.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Required Element</th><th>Present in Extract</th><th>% Populated (sample)</th><th>Gaps / Issues</th><th>Verdict</th></tr></thead>
+    <tbody><tr class="v-amber">
+      <td class="el">PersonNumber (person key)</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">100% (40/40)</td>
+      <td class="gaps">Two values with leading zeros (<code>06413</code>, <code>09646</code>) — cast-to-integer risk</td>
+      <td class="vc"><span class="pill amber">Cleanup</span></td>
+    </tr><tr class="v-green">
+      <td class="el">LegalEmployerName</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">100%</td>
+      <td class="gaps">Single value: International Paper Company</td>
+      <td class="vc"><span class="pill green">Loadable</span></td>
+    </tr><tr class="v-red">
+      <td class="el">ActionCode</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">100%</td>
+      <td class="gaps">ASG_CHANGE / INVOLUNTARY_TERMINATION / RESIGNATION — <b>no HIRE records in this sample</b> (see Structural Observations)</td>
+      <td class="vc"><span class="pill red">Blocked</span></td>
+    </tr><tr class="v-red">
+      <td class="el">WorkerType</td>
+      <td class="ctr">✅ column</td>
+      <td class="mono-cell">0% (0/40)</td>
+      <td class="gaps"><b>Blank for every record</b> — the WorkerType / AssignmentType / SystemPersonType triad cannot be validated and the field is required for HDL</td>
+      <td class="vc"><span class="pill red">Blocked</span></td>
+    </tr><tr class="v-red">
+      <td class="el">Assignment Sequence</td>
+      <td class="ctr">✅ column</td>
+      <td class="mono-cell">0% (0/40)</td>
+      <td class="gaps"><b>Blank universally</b> — required for same-day sequencing in HDL</td>
+      <td class="vc"><span class="pill red">Blocked</span></td>
+    </tr><tr class="v-amber">
+      <td class="el">EffectiveStartDate</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">100%</td>
+      <td class="gaps">Present; format is <code>YYYY-MM-DD</code> — HDL requires <code>YYYY/MM/DD</code> (dash vs. slash — silent corruption risk)</td>
+      <td class="vc"><span class="pill amber">Cleanup</span></td>
+    </tr><tr class="v-amber">
+      <td class="el">AssignmentStatusTypeCode</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">100%</td>
+      <td class="gaps">ACTIVE_PROCESS, INACTIVE_NO_PROCESS, INACTIVE_PROCESS, IP_LOA_WITHOUT_PAY, IP_LOA_WITH_PAY — two custom LOA codes must be configured as assignment status types in Fusion</td>
+      <td class="vc"><span class="pill amber">Cleanup</span></td>
+    </tr><tr class="v-gray">
+      <td class="el">BusinessUnitShortCode</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">100% (masked)</td>
+      <td class="gaps">All values show <code>REDACTED</code> in this sample — cannot validate content; FK dependency unverifiable</td>
+      <td class="vc"><span class="pill gray">Unverifiable</span></td>
+    </tr><tr class="v-amber">
+      <td class="el">PositionCode</td>
+      <td class="ctr">Partial</td>
+      <td class="mono-cell">52.5% (21/40)</td>
+      <td class="gaps">Active/LOA: populated with real codes; all terminated records blank. Numeric values carry a <code>.0</code> Excel-float suffix (e.g., <code>30001158.0</code>) — will fail FK match against Fusion position codes unless stripped</td>
+      <td class="vc"><span class="pill amber">Cleanup</span></td>
+    </tr><tr class="v-amber">
+      <td class="el">LocationCode</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">100%</td>
+      <td class="gaps">Active/LOA: real US location codes; Terminated: literal string <code>CONVERSION</code> — intentional placeholder</td>
+      <td class="vc"><span class="pill amber">Cleanup</span></td>
+    </tr><tr class="v-amber">
+      <td class="el">DepartmentName</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">100%</td>
+      <td class="gaps">Active/LOA: real department names; Terminated: <code>CONVERSION</code></td>
+      <td class="vc"><span class="pill amber">Cleanup</span></td>
+    </tr><tr class="v-amber">
+      <td class="el">GradeCode</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">100%</td>
+      <td class="gaps">Active/LOA: real grade codes; Terminated: <code>CONVERSION</code></td>
+      <td class="vc"><span class="pill amber">Cleanup</span></td>
+    </tr><tr class="v-amber">
+      <td class="el">JobCode</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">100%</td>
+      <td class="gaps">Active/LOA: numeric job codes; Terminated: <code>CONVERSION</code></td>
+      <td class="vc"><span class="pill amber">Cleanup</span></td>
+    </tr><tr class="v-green">
+      <td class="el">NormalHours</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">100%</td>
+      <td class="gaps">8, 10, 12 (daily hourly); 40 (weekly salaried and terminated placeholder)</td>
+      <td class="vc"><span class="pill green">Loadable</span></td>
+    </tr><tr class="v-green">
+      <td class="el">Frequency</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">100%</td>
+      <td class="gaps">D (daily) / W (weekly) — pairs correctly with NormalHours</td>
+      <td class="vc"><span class="pill green">Loadable</span></td>
+    </tr><tr class="v-green">
+      <td class="el">StandardFrequencyDB / StandardHours</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">100%</td>
+      <td class="gaps">Mirror Frequency / NormalHours — consistent</td>
+      <td class="vc"><span class="pill green">Loadable</span></td>
+    </tr><tr class="v-green">
+      <td class="el">FullPartTime</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">100%</td>
+      <td class="gaps">FULL_TIME across all 40 records</td>
+      <td class="vc"><span class="pill green">Loadable</span></td>
+    </tr><tr class="v-amber">
+      <td class="el">HourlySalariedCode</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">~50% meaningful</td>
+      <td class="gaps">Active: <code>H</code> or <code>S</code>; Terminated: <code>Conversion</code> (mixed-case — likely not matching the configured lookup value H or S)</td>
+      <td class="vc"><span class="pill amber">Cleanup</span></td>
+    </tr><tr class="v-amber">
+      <td class="el">BargainingUnitCode / UnionName</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">100% active</td>
+      <td class="gaps">Absent from terminated records (CONVERSION placeholder rows). Active: NU/Non-Union or standalone BU codes. Salaried coded <code>Salaried</code> — must verify this is a configured lookup value</td>
+      <td class="vc"><span class="pill amber">Cleanup</span></td>
+    </tr><tr class="v-red">
+      <td class="el">Line manager</td>
+      <td class="ctr">❌</td>
+      <td class="mono-cell">0% — not in extract</td>
+      <td class="gaps">No manager reference column present. Hierarchy cannot be assessed or loaded from this file</td>
+      <td class="vc"><span class="pill red">Blocked</span></td>
+    </tr><tr class="v-amber">
+      <td class="el">AssignmentName</td>
+      <td class="ctr">Partial</td>
+      <td class="mono-cell">~25% (10/40)</td>
+      <td class="gaps">Populated for ~half of active records; blank for salaried, several hourly, and all terminated. Not strictly required, but position-based names should default from Position if position management is active</td>
+      <td class="vc"><span class="pill amber">Cleanup</span></td>
+    </tr><tr class="v-amber">
+      <td class="el">WorkerCategory / AssignmentCategory</td>
+      <td class="ctr">✅ column</td>
+      <td class="mono-cell">0% (0/40)</td>
+      <td class="gaps">Blank for all records</td>
+      <td class="vc"><span class="pill amber">Cleanup</span></td>
+    </tr><tr class="v-green">
+      <td class="el">PersonTypeCode / UserPersonTypeCode</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">100%</td>
+      <td class="gaps">EMP / Employee for all — consistent</td>
+      <td class="vc"><span class="pill green">Loadable</span></td>
+    </tr><tr class="v-green">
+      <td class="el">PositionOverrideFlag</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">52.5% (active)</td>
+      <td class="gaps"><code>Y</code> for all active/LOA records; blank for terminated</td>
+      <td class="vc"><span class="pill green">Loadable</span></td>
+    </tr><tr class="v-green">
+      <td class="el">PermanentTemporary</td>
+      <td class="ctr">✅</td>
+      <td class="mono-cell">100%</td>
+      <td class="gaps"><code>R</code> (Regular) for all</td>
+      <td class="vc"><span class="pill green">Loadable</span></td>
+    </tr></tbody>
+  </table></div>
+</div>
+
+<!-- OBJECT VERDICTS -->
+<div class="card">
+  <div class="eyebrow">Section 03</div><h2>Per-object conversion-readiness verdict</h2>
+  <div class="tw"><table>
+    <thead><tr><th>Object</th><th>Verdict</th><th>Primary reason</th></tr></thead>
+    <tbody><tr><td class="el">Assignment (active)</td><td class="vc"><span class="pill red">Blocked</span></td><td class="gaps">WorkerType universally blank; no HIRE records; Assignment Sequence blank; date format wrong; manager absent; PositionCode .0 suffix</td></tr><tr><td class="el">Assignment (terminated)</td><td class="vc"><span class="pill red">Blocked</span></td><td class="gaps">Same structural issues; additionally CONVERSION placeholders need a decision on scope / handling</td></tr><tr><td class="el">Assignment status types</td><td class="vc"><span class="pill amber">Amber</span></td><td class="gaps">Custom LOA codes (IP_LOA_WITHOUT_PAY, IP_LOA_WITH_PAY) must be configured before load</td></tr></tbody>
+  </table></div>
+</div>
+
+<!-- STRUCTURAL -->
+<div class="card">
+  <div class="eyebrow">Section 04</div><h2>Structural-validation observations</h2>
+  <p class="lead">Findings mapped to the HDL structural-validation rules — each is a hard load failure independent of field completeness.</p>
+  <div class="sblock v-red">
+    <div class="eyebrow">Rule 11</div><h4>No HIRE records in this sample</h4><p>Every ActionCode is ASG_CHANGE, INVOLUNTARY_TERMINATION, or RESIGNATION. Zero records carry ActionCode = HIRE or ADD_CWK. Under HDL rules the first assignment row for every person must be a HIRE (or ADD_CWK for contingent). If this extract loads as-is, all 40 persons fail because no person's history opens with a HIRE action — the single most consequential structural finding. Most likely explanation: these are delta / change rows from a live Fusion system, with HIRE records in a separate historical file or a prior conversion. The engagement question is whether this file loads on top of an already-resident population or stands alone — that answer determines whether the missing HIRE records are a gap or by design.</p></div><div class="sblock v-red">
+    <div class="eyebrow">Rule 16</div><h4>WorkerType / AssignmentType / SystemPersonType triad</h4><p>WorkerType is blank for all 40 records. HDL requires a valid triad — WorkerType E + AssignmentType E + SystemPersonType EMP for employees. Without WorkerType the triad cannot be formed and the load rejects. A hard reject for every record as currently structured.</p></div><div class="sblock v-amber">
+    <div class="eyebrow">Rule 2 / 13</div><h4>Date format</h4><p>All EffectiveStartDate values are formatted YYYY-MM-DD (hyphens). HDL requires YYYY/MM/DD (slashes). A universal transformation gap — every date column must be reformatted before load, with silent-corruption risk if the loader misinterprets the delimiter.</p></div><div class="sblock v-amber">
+    <div class="eyebrow">Rule 25</div><h4>EffectiveSequence / EffectiveLatestChange absent</h4><p>Assignment Sequence is blank for all 40 records. For any person with multiple transactions on the same effective date — and given the 2026-01-01 cluster, co-incident transactions are likely — EffectiveSequence must increment and EffectiveLatestChange must be Y on the last same-day record and N on prior ones. No sequencing data is present.</p></div><div class="sblock v-amber">
+    <div class="eyebrow">Rule 15</div><h4>INACTIVE_PROCESS on a termination (PersonNumber 10631)</h4><p>PersonNumber 10631 carries ActionCode = INVOLUNTARY_TERMINATION (facility closure) with AssignmentStatusTypeCode = INACTIVE_PROCESS. Rule 15 expects termination rows to carry an INACTIVE status — the standard being INACTIVE_NO_PROCESS. INACTIVE_PROCESS on a termination is atypical and will either reject or trigger an unexpected workflow, depending on configuration. Requires explicit validation against IP's configured status mapping.</p></div><div class="sblock v-amber">
+    <div class="eyebrow">Rule 9</div><h4>Lookup value Conversion on HourlySalariedCode (terminated records)</h4><p>All 20 terminated records carry HourlySalariedCode = Conversion (mixed case). The configured lookup values are H (Hourly) and S (Salaried); Conversion is not a standard Fusion lookup. If these records are re-loaded or used as a template, this value will reject unless a custom lookup is configured.</p></div><div class="sblock v-amber">
+    <div class="eyebrow">Rule 18</div><h4>Foundation FK validation unverifiable for CONVERSION placeholders</h4><p>The 20 terminated records reference LocationCode / DepartmentName / GradeCode / JobCode = CONVERSION — literal strings, not real workforce-structure references. If terminated records must be re-loaded, none of these FKs resolve to real foundation objects. Decision required on terminated-population scope (see Open Decisions).</p></div><div class="sblock v-amber">
+    <div class="eyebrow">Rule 18</div><h4>PositionCode .0 suffix</h4><p>Active records carry PositionCode values like 30001158.0 — an Excel numeric-to-float artifact. Fusion position codes are strings; the .0 suffix causes FK match failures against the position master unless stripped in the transformation layer.</p></div><div class="sblock v-red">
+    <div class="eyebrow">Structural gap</div><h4>No manager reference column</h4><p>The extract contains no manager identifier (no LineManagerPersonNumber, ManagerPersonNumber, or equivalent). The manager hierarchy cannot be loaded from this file — a structural gap, not a data-quality gap. A separate manager-hierarchy extract is a required input.</p></div>
+</div>
+
+<!-- OPERATING MODEL -->
+<div class="card">
+  <div class="eyebrow">Section 05</div><h2>Operating-model inference</h2>
+  <p class="lead">Inferred from the sample — flag any that are incorrect.</p>
+  <div class="omitem"><h4>Single legal employer, US-only</h4><p>International Paper Company is the sole legal employer in this sample. All location codes are US state–prefixed, implying a single legislation (US) and a single Legislative Data Group, though multi-state payroll-tax complexity is visible from the geographic spread.</p></div><div class="omitem"><h4>Position management is active</h4><p>Every active worker carries a numeric PositionCode, and PositionOverrideFlag = Y on all active records suggests positions are in use but individual assignment attributes can be overridden — a common IP pattern where position controls the default but workers may carry different grades or hours.</p></div><div class="omitem"><h4>Facility-based org structure</h4><p>Department names follow {Facility Name} - {Function} - {Number} (e.g., Reading Box - Production - 167036). Functions visible: Production, Maintenance, Overhead, Shipping. The trailing numeric (167xxx, 250xxx) is likely a legacy cost-center / org-unit identifier — a useful join key if a separate org extract exists.</p></div><div class="omitem"><h4>Terminated population loaded with CONVERSION placeholders</h4><p>The 20 terminated records carry no real position, department, location, grade, or job data — a deliberate choice from the prior conversion to record the termination event, not the full org footprint. No terminated worker here can be used to reconstruct their last-active org assignment.</p></div><div class="omitem"><h4>Substantial custom action-reason vocabulary</h4><p>The IP_Z* reason codes (IP_ZA_15_FOR_CAUSE_ATTENDANCE, IP_ZA_5_FACILITY_CLOSURE, IP_ZA_12_REDUCTION_IN_FORCE, IP_ZA_8_RESIGNATION, IP_ZB_1_RETIREMENT, …) indicate a custom action-reason library that must be configured before any referencing load. Retirement (IP_ZB_1_RETIREMENT) carried on an ActionCode = RESIGNATION row (PersonNumber 10484) suggests the action was mapped to RESIGNATION rather than a distinct RETIREMENT action — intentional, or an action-mapping gap.</p></div><div class="omitem"><h4>Custom LOA assignment status types</h4><p>IP_LOA_WITHOUT_PAY and IP_LOA_WITH_PAY are client-specific assignment status type codes that must exist in Fusion's assignment-status configuration before the two LOA workers can load.</p></div>
+</div>
+
+<!-- BLOCKERS -->
+<div class="card">
+  <div class="eyebrow">Section 06</div><h2>Conversion blockers &amp; risks</h2>
+  <div class="sev hard">&#128308; Hard reject — load fails if not resolved</div>
+  <div class="tw"><table>
+    <thead><tr><th>#</th><th>Blocker</th><th style="text-align:center">Affected</th><th>Detail</th></tr></thead>
+    <tbody><tr><td class="bid">B1</td><td class="el">No HIRE records</td><td class="ctr num">All 40</td><td class="gaps">Every person's first assignment row must be ActionCode = HIRE. Zero HIRE rows in this sample. Either a separate HIRE/history file must precede this load, or these records cannot be loaded independently.</td></tr><tr><td class="bid">B2</td><td class="el">WorkerType universally blank</td><td class="ctr num">All 40</td><td class="gaps">HDL rejects any assignment row without a valid WorkerType. Must be populated (expected: E for all records given EMP person type).</td></tr><tr><td class="bid">B3</td><td class="el">Assignment Sequence universally blank</td><td class="ctr num">All 40</td><td class="gaps">HDL sequencing field absent. Required whenever multiple transactions share an effective date — and 2026-01-01 is shared by at least 20 active records, making same-day conflicts near-certain.</td></tr><tr><td class="bid">B4</td><td class="el">Date format YYYY-MM-DD vs. YYYY/MM/DD</td><td class="ctr num">All 40</td><td class="gaps">Universal format transformation required before any load attempt.</td></tr><tr><td class="bid">B5</td><td class="el">PositionCode .0 suffix</td><td class="ctr num">21 active/LOA</td><td class="gaps">30001158.0 will not match a Fusion position code of 30001158. Strip the decimal suffix in the transformation layer.</td></tr><tr><td class="bid">B6</td><td class="el">No manager hierarchy data</td><td class="ctr num">All 40</td><td class="gaps">Manager column absent. Line manager is required for hierarchy, security, and approvals. A separate manager-hierarchy extract is a prerequisite for a complete assignment load.</td></tr></tbody>
+  </table></div>
+  <div class="sev soft">&#128993; Cleanup / configuration — resolve before go-live</div>
+  <div class="tw"><table>
+    <thead><tr><th>#</th><th>Risk</th><th>Detail</th></tr></thead>
+    <tbody><tr><td class="bid amber-id">R1</td><td class="el">Custom LOA status codes not standard</td><td class="gaps">IP_LOA_WITHOUT_PAY and IP_LOA_WITH_PAY must be configured as assignment status types in Fusion before the two LOA workers load.</td></tr><tr><td class="bid amber-id">R2</td><td class="el">INACTIVE_PROCESS on termination (PersonNumber 10631)</td><td class="gaps">Non-standard status for a termination row. Validate against IP's configured status mapping; may need to change to INACTIVE_NO_PROCESS.</td></tr><tr><td class="bid amber-id">R3</td><td class="el">Conversion value on HourlySalariedCode (terminated)</td><td class="gaps">Mixed-case non-standard lookup value. If terminated records are re-loaded, map to H or S based on the worker's actual classification, or accept as a custom value only if explicitly configured.</td></tr><tr><td class="bid amber-id">R4</td><td class="el">CONVERSION placeholder org FKs (terminated)</td><td class="gaps">If terminated workers are re-loaded, position/dept/location/grade/job must resolve to real foundation objects — none of the CONVERSION strings will match. Design decision required on terminated-population scope.</td></tr><tr><td class="bid amber-id">R5</td><td class="el">Leading zeros on PersonNumber (06413, 09646)</td><td class="gaps">Must be preserved as strings throughout ETL. Any integer cast truncates the leading zero and breaks the person-key join.</td></tr><tr><td class="bid amber-id">R6</td><td class="el">Retirement coded as RESIGNATION (PersonNumber 10484)</td><td class="gaps">ActionCode = RESIGNATION, ReasonCode = IP_ZB_1_RETIREMENT. Confirm this is the intended mapping for retirement; if a distinct RETIREMENT action exists, the record should use it.</td></tr><tr><td class="bid amber-id">R7</td><td class="el">Custom IP_ action reason codes</td><td class="gaps">All reason codes carry the IP_Z* prefix and must be configured in Fusion's action-reason setup. Any unconfigured reason code causes a load rejection — verify the full library is loaded first.</td></tr></tbody>
+  </table></div>
+</div>
+
+<!-- DECISIONS + MISSING -->
+<div class="card">
+  <div class="eyebrow">Section 07</div><h2>Open decisions &amp; missing data</h2>
+  <p class="lead">Design decisions this sample raises.</p>
+  <ol class="dec"><li><b>Terminated-population scope & re-load strategy.</b> Are the 20 terminated workers in scope for conversion / re-conversion? If yes: what org data do they carry at termination — the CONVERSION placeholders cannot be used as real FK references, so either real last-active org data is sourced separately, or terminated workers continue to load with placeholders and a formal limitation is accepted. If no: only the 20 active/LOA workers are in scope. The largest scoping lever visible in this sample.</li><li><b>History vs. as-of-go-live.</b> The absence of HIRE records raises whether this is a history/delta file loading on top of existing person records, or a go-live snapshot that should include HIRE rows. Clarify the load context before building the transformation.</li><li><b>INACTIVE_PROCESS status mapping.</b> Is INACTIVE_PROCESS intentional for the facility-closure termination (PersonNumber 10631), or should it align with INACTIVE_NO_PROCESS per standard termination mapping? Confirm with IP's HR configuration team.</li><li><b>Position override strategy.</b> PositionOverrideFlag = Y for all active workers implies assignment-level attributes can differ from position defaults. Confirm which fields IP overrides at the assignment level vs. inherits from the position — this drives the HDL transformation rules.</li><li><b>Grade structure scope.</b> Grade codes embed facility and union designation (e.g., USPA76-USW 1419-09). The full population likely has many distinct grade codes. Confirm whether grades are a flat per-facility lookup or a grade-ladder / grade-step structure (GradeLadderPgmName and SpecialCeilingStep are present but blank here).</li></ol>
+  <h3 style="margin:22px 0 10px;color:var(--brand);font-size:15px">Data missing from this extract (items to request)</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Missing input</th><th>Why needed</th><th>Urgency</th></tr></thead>
+    <tbody><tr><td class="el">HIRE / history assignment file</td><td class="gaps">This extract has no HIRE records; HDL requires HIRE as the first assignment row per person</td><td class="vc"><span class="pill red">Blocker</span></td></tr><tr><td class="el">Manager hierarchy extract</td><td class="gaps">No manager column present; line-manager hierarchy is required for security, approvals, and org reporting</td><td class="vc"><span class="pill red">Blocker</span></td></tr><tr><td class="el">PersonName / Person extract</td><td class="gaps">This file carries no name, DOB, or demographic data; Person and PersonName must load before Assignment</td><td class="vc"><span class="pill red">Prerequisite</span></td></tr><tr><td class="el">Work Relationship extract</td><td class="gaps">Hire date, original hire date, and work-relationship legal-employer linkage are absent; Work Relationship must load before Assignment</td><td class="vc"><span class="pill red">Prerequisite</span></td></tr><tr><td class="el">National identifier / SSN extract</td><td class="gaps">Not present; required for US payroll</td><td class="vc"><span class="pill red">Payroll blocker</span></td></tr><tr><td class="el">Address / contact extract</td><td class="gaps">Not present; required for payroll tax and notifications</td><td class="vc"><span class="pill amber">Pre-go-live</span></td></tr><tr><td class="el">Foundation-object inventory</td><td class="gaps">BusinessUnitShortCode is masked; cannot validate BU FK. Need the configured list of BUs, departments, locations, jobs, positions, and grades to validate assignment FKs</td><td class="vc"><span class="pill amber">Pre-load</span></td></tr><tr><td class="el">Original hire date / service date file</td><td class="gaps">Not visible; required for seniority, benefits/absence accrual, and rehire handling</td><td class="vc"><span class="pill amber">Pre-go-live</span></td></tr><tr><td class="el">Last-active org data for terminated workers</td><td class="gaps">If terminated population is in scope, CONVERSION placeholders must be replaced with real org data at separation</td><td class="vc"><span class="pill gray">Scope-dependent</span></td></tr><tr><td class="el">Configured action-reason code list</td><td class="gaps">All IP_Z* reason codes must be validated against what is configured in the target Fusion instance</td><td class="vc"><span class="pill amber">Pre-load</span></td></tr></tbody>
+  </table></div>
+</div>
+
+<!-- FOOTER -->
+<div class="card">
+  <div class="legend">
+    <span class="item"><span class="dot green"></span><b style="color:var(--green);margin-right:4px">Loadable</b></span>
+    <span class="item"><span class="dot amber"></span><b style="color:var(--amber);margin-right:4px">Loadable with cleanup</b></span>
+    <span class="item"><span class="dot red"></span><b style="color:var(--red);margin-right:4px">Blocked</b></span>
+    <span class="item"><span class="dot gray"></span><b style="color:var(--gray);margin-right:4px">Unverifiable / masked</b></span>
+  </div>
+  <div class="foot">Confidential — prepared for client conversion planning. Findings are based on the provided sample and should be validated against the full extract and the target Fusion configuration prior to load.</div>
+</div>
+
+</div></body></html>

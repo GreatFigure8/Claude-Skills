@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  DigiKey wordmark (placeholder / approximation)
+  ----------------------------------------------
+  This is a TEXT-BASED approximation of the 2023+ DigiKey wordmark in
+  the official Pomegranate Red (#EE2821). It's useful when you don't
+  have the official SVG on hand.
+
+  For any client-facing, press, or public-facing deliverable, REPLACE
+  this file with the official DigiKey logo asset. Official assets are
+  available via DigiKey's press/newsroom contact or from Brandfetch:
+    https://brandfetch.com/digikey.com
+
+  DO NOT redraw, recolor (other than the approved white-on-dark
+  reversal), or stretch the DigiKey logo. Maintain at least 1x the
+  cap-height of the wordmark as clear space on all sides.
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 600 160"
+     role="img"
+     aria-label="DigiKey">
+  <title>DigiKey</title>
+  <rect width="600" height="160" fill="none"/>
+  <text x="300" y="108"
+        text-anchor="middle"
+        font-family="'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-weight="800"
+        font-size="112"
+        letter-spacing="-4"
+        fill="#EE2821">digikey</text>
+</svg>

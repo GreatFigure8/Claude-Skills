@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  DigiKey wordmark (WHITE/REVERSED placeholder)
+  ---------------------------------------------
+  White wordmark for use on dark or Pomegranate-red backgrounds.
+  This is a placeholder - replace with the official asset for
+  client-facing or public deliverables.
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 600 160"
+     role="img"
+     aria-label="DigiKey">
+  <title>DigiKey</title>
+  <rect width="600" height="160" fill="none"/>
+  <text x="300" y="108"
+        text-anchor="middle"
+        font-family="'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-weight="800"
+        font-size="112"
+        letter-spacing="-4"
+        fill="#FFFFFF">digikey</text>
+</svg>

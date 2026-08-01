@@ -1,0 +1,200 @@
+/* ============================================================
+   DigiKey Brand Design Tokens
+   Drop-in CSS variables for HTML / React / web artifacts
+   ============================================================ */
+
+/* Load brand typography from Google Fonts (Inter is a close,
+   free equivalent to the commercial typeface DigiKey uses in
+   its 2023+ identity system. Roboto is an equally acceptable
+   fallback.) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500&display=swap');
+
+:root {
+  /* ---------- CORE BRAND COLORS ---------- */
+  --dk-red:            #EE2821;   /* Pomegranate — primary, logo, CTAs          */
+  --dk-white:          #FFFFFF;   /* Primary surface                            */
+  --dk-charcoal:       #333333;   /* Mine Shaft — body text, headings           */
+
+  /* ---------- SUPPORTING NEUTRAL PALETTE ---------- */
+  --dk-black:          #000000;
+  --dk-near-black:     #1A1A1A;
+  --dk-dark-gray:      #4A4A4A;
+  --dk-gray:           #6C6C6C;
+  --dk-medium-gray:    #9A9A9A;
+  --dk-light-gray:     #D1D1D1;
+  --dk-lighter-gray:   #E8E8E8;
+  --dk-soft-gray:      #F4F4F4;   /* Card / section backgrounds                 */
+  --dk-off-white:      #FAFAFA;
+
+  /* ---------- DERIVED RED TINTS & SHADES ---------- */
+  --dk-red-dark:       #C31D17;   /* Hover / pressed state                      */
+  --dk-red-darker:     #8F1511;   /* Deep accent                                */
+  --dk-red-tint-10:    #FDE9E8;   /* Very light red wash for callouts           */
+  --dk-red-tint-25:    #F9B8B5;
+
+  /* ---------- STATUS / UTILITY COLORS ---------- */
+  --dk-success:        #2E7D32;
+  --dk-warning:        #F5A623;
+  --dk-info:           #0B6FB4;
+  --dk-error:          var(--dk-red);
+
+  /* ---------- TYPOGRAPHY ---------- */
+  --dk-font-sans:     'Inter', 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --dk-font-mono:     'Roboto Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+
+  /* Type scale (rem-based) */
+  --dk-fs-display:    3.5rem;    /* 56px */
+  --dk-fs-h1:         2.5rem;    /* 40px */
+  --dk-fs-h2:         2rem;      /* 32px */
+  --dk-fs-h3:         1.5rem;    /* 24px */
+  --dk-fs-h4:         1.25rem;   /* 20px */
+  --dk-fs-body:       1rem;      /* 16px */
+  --dk-fs-small:      0.875rem;  /* 14px */
+  --dk-fs-caption:    0.75rem;   /* 12px */
+
+  /* Weights */
+  --dk-fw-regular:    400;
+  --dk-fw-medium:     500;
+  --dk-fw-semibold:   600;
+  --dk-fw-bold:       700;
+  --dk-fw-black:      800;
+
+  /* ---------- LAYOUT ---------- */
+  --dk-radius-sm:     4px;
+  --dk-radius-md:     8px;
+  --dk-radius-lg:     12px;
+  --dk-radius-pill:   999px;
+
+  --dk-shadow-sm:     0 1px 2px rgba(0,0,0,0.06);
+  --dk-shadow-md:     0 4px 12px rgba(0,0,0,0.08);
+  --dk-shadow-lg:     0 12px 32px rgba(0,0,0,0.12);
+
+  --dk-space-xs:      4px;
+  --dk-space-sm:      8px;
+  --dk-space-md:      16px;
+  --dk-space-lg:      24px;
+  --dk-space-xl:      40px;
+  --dk-space-2xl:     64px;
+}
+
+/* ---------- BASE TYPOGRAPHY ---------- */
+body {
+  font-family: var(--dk-font-sans);
+  font-size: var(--dk-fs-body);
+  font-weight: var(--dk-fw-regular);
+  line-height: 1.55;
+  color: var(--dk-charcoal);
+  background: var(--dk-white);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--dk-font-sans);
+  color: var(--dk-charcoal);
+  font-weight: var(--dk-fw-bold);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin: 0 0 0.5em 0;
+}
+
+h1 { font-size: var(--dk-fs-h1); font-weight: var(--dk-fw-black); letter-spacing: -0.02em; }
+h2 { font-size: var(--dk-fs-h2); }
+h3 { font-size: var(--dk-fs-h3); }
+h4 { font-size: var(--dk-fs-h4); font-weight: var(--dk-fw-semibold); }
+
+a { color: var(--dk-red); text-decoration: none; }
+a:hover { color: var(--dk-red-dark); text-decoration: underline; }
+
+code, pre { font-family: var(--dk-font-mono); }
+
+/* ---------- COMPONENT HELPERS ---------- */
+
+/* Primary button — the signature red CTA */
+.dk-btn-primary {
+  display: inline-block;
+  background: var(--dk-red);
+  color: var(--dk-white);
+  font-family: var(--dk-font-sans);
+  font-weight: var(--dk-fw-semibold);
+  font-size: var(--dk-fs-body);
+  padding: 12px 24px;
+  border: none;
+  border-radius: var(--dk-radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.dk-btn-primary:hover { background: var(--dk-red-dark); color: var(--dk-white); text-decoration: none; }
+
+/* Secondary button — outlined */
+.dk-btn-secondary {
+  display: inline-block;
+  background: transparent;
+  color: var(--dk-charcoal);
+  font-family: var(--dk-font-sans);
+  font-weight: var(--dk-fw-semibold);
+  padding: 11px 23px;
+  border: 1px solid var(--dk-charcoal);
+  border-radius: var(--dk-radius-sm);
+  cursor: pointer;
+}
+.dk-btn-secondary:hover { background: var(--dk-charcoal); color: var(--dk-white); text-decoration: none; }
+
+/* Red accent bar — signature divider */
+.dk-accent-bar {
+  display: block;
+  width: 48px;
+  height: 4px;
+  background: var(--dk-red);
+  margin: var(--dk-space-md) 0;
+}
+
+/* Card surface */
+.dk-card {
+  background: var(--dk-white);
+  border: 1px solid var(--dk-lighter-gray);
+  border-radius: var(--dk-radius-md);
+  padding: var(--dk-space-lg);
+  box-shadow: var(--dk-shadow-sm);
+}
+
+/* Header bar — red banner */
+.dk-header {
+  background: var(--dk-red);
+  color: var(--dk-white);
+  padding: var(--dk-space-md) var(--dk-space-lg);
+}
+.dk-header h1, .dk-header h2, .dk-header h3 { color: var(--dk-white); }
+
+/* Stat callout — big number, red underline */
+.dk-stat {
+  display: inline-block;
+  border-bottom: 3px solid var(--dk-red);
+  padding-bottom: 4px;
+}
+.dk-stat-number {
+  font-size: var(--dk-fs-display);
+  font-weight: var(--dk-fw-black);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--dk-charcoal);
+}
+.dk-stat-label {
+  font-size: var(--dk-fs-small);
+  font-weight: var(--dk-fw-medium);
+  color: var(--dk-gray);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Tables */
+.dk-table { border-collapse: collapse; width: 100%; font-family: var(--dk-font-sans); font-size: var(--dk-fs-small); }
+.dk-table th {
+  background: var(--dk-charcoal);
+  color: var(--dk-white);
+  font-weight: var(--dk-fw-semibold);
+  text-align: left;
+  padding: 10px 14px;
+}
+.dk-table td { padding: 10px 14px; border-bottom: 1px solid var(--dk-lighter-gray); }
+.dk-table tr:nth-child(even) td { background: var(--dk-off-white); }
