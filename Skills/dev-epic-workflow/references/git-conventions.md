@@ -86,24 +86,11 @@ Rules that matter more than the format:
 
 ## PR body template
 
-```markdown
-## Work item
-Epic <name>, item <N> — <title>. Plan: <link/path>
-
-## In scope
-- <bullet per change, matching the plan's scope>
-
-## Deliberately not in scope
-- <the adjacent thing that was tempting; where it went in Deferred>
-
-## Verification
-- <command run> → <result>
-- <grep/query that proves the promised deletion or addition>
-- Gates: <lint / types / tests / build results>
-
-## Rollback
-Revert this merge commit. | Restore from tag <tag>.
-```
+The canonical template lives in `references/pr-template.md` — use it for every
+work-item PR, and drop it into repos as `.github/PULL_REQUEST_TEMPLATE.md`.
+Core sections: work item + plan link (`docs/epics/<NN>-<epic-slug>/plan.md`),
+summary, in scope, deliberately not in scope, change character, verification
+with pasted output + stack gates, rollback, plan impact.
 
 ## Verification commands
 
