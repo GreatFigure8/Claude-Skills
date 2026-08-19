@@ -10,8 +10,9 @@ An issue labelled `claude-intake` produces a reviewed epic plan without anyone p
 **local scheduled runner** on Jonathan's Mac performs Phase 0 grounding and Phase 1 drafting
 headlessly and opens a **pull request** carrying the plan at `Status: planning`. Nothing is approved, nothing is
 dispatched, no code is written. Jonathan reviews the PR the way he reviews any PR; merging
-it plus setting `Status: approved` is the approval gate, unchanged and still human. No CI, no
-repository secret, no new billing surface — the runner uses the machine's existing auth.
+it plus setting `Status: approved` is the approval gate, unchanged and still human. No CI and no
+repository secret; the runner authenticates with an `ANTHROPIC_API_KEY` read from a
+0600 file outside the repo.
 
 ## Grounding
 - **Verified:** the repo has **no CI whatsoever** — no `.github/` directory at all. This is
@@ -37,10 +38,18 @@ repository secret, no new billing surface — the runner uses the machine's exis
   reaching for `--dangerously-skip-permissions`.
 - **Verified:** `~/Library/LaunchAgents/` exists and holds only third-party updaters, so adding
   one opt-in agent is clean and precedented.
-- **Verified:** there is **no** `~/.claude/.credentials.json` and **no** `ANTHROPIC_API_KEY` in
-  the environment — so Claude Code's auth almost certainly lives in the login Keychain. That
-  works interactively; whether a launchd job can reach it (especially with the Mac locked) is
-  the single biggest unknown in this design and cannot be settled by a manual test.
+- **Verified:** interactive `claude` authenticates via an OAuth account whose credentials live
+  in the login Keychain (`Claude Code-credentials`); there is no credentials file, no
+  `ANTHROPIC_API_KEY`, and no `apiKeyHelper`. Existence was confirmed without reading the value.
+- **Decided by Jonathan, against the recommendation on this page:** the Keychain is not to be
+  used by anything built here. The runner therefore authenticates with an `ANTHROPIC_API_KEY`
+  read at runtime from a **0600 file outside the repository**. The trade is explicit: a
+  plaintext credential on disk replaces a hardened store. Mitigations are in scope and
+  enumerated in the item; the residual risk is accepted, not eliminated.
+- **Constraint:** Claude does not handle the key value. Jonathan populates the file; the item
+  builds the mechanism, the permission checks, and the refusal-to-start behaviour around it.
+- **Consequence:** runs bill against the API account rather than the subscription the
+  interactive OAuth session uses.
 - **Verified:** the `claude-intake` label does not exist in this repo yet.
 - **Rejected after grounding (was the original design):** a GitHub Action. This repo has nothing
   to build, test, or deploy — CI would be serving only as a trigger and a rented machine, at the
@@ -101,6 +110,15 @@ repository secret, no new billing surface — the runner uses the machine's exis
   `assets/claude-config/launchd/`, and instructions to load it — **not** installed by
   `install.sh`'s default path, since scheduling is a per-machine choice. The runner creates the
   `claude-intake` label if missing.
+
+  **Credential handling (load-bearing — get this wrong and the rest does not matter):** the key
+  lives in a single file outside the repo (proposed `~/.config/claude-intake/env`), mode 0600,
+  owned by Jonathan, containing only `ANTHROPIC_API_KEY=...`. The runner sources it and exports
+  the variable **only** for the `claude` invocation. The key is never written into the launchd
+  plist (plists in `~/Library/LaunchAgents/` are world-readable), never passed as a command-line
+  argument (argv is visible in `ps`), never echoed, and never written to the log — the log
+  redacts anything resembling a key. The path is documented and the repo's `.gitignore` is
+  irrelevant to it because the file lives outside the working tree by design.
 - **Not in scope:** GitHub Actions or any CI; Azure DevOps; unattended *execution* (dispatching
   work items); auto-approval or auto-merge; changing the interactive `/intake` path.
 - **Definition of done:**
@@ -116,6 +134,11 @@ repository secret, no new billing surface — the runner uses the machine's exis
     by absolute path or an explicitly set PATH, not inherited from an interactive shell.
   - **Auth works under launchd**, or the run fails loudly with a clear message rather than
     silently producing nothing.
+  - The runner **refuses to start** — loudly, non-zero, no tracker writes — when the key file is
+    missing, empty, or has permissions looser than 0600.
+  - The key appears in **no** log line, **no** `ps` output during a run, and **nowhere** in the
+    plist. Asserted by grepping the log and by inspecting the process table mid-run.
+  - Nothing under `~/.claude/` is read for credentials, and the Keychain is never consulted.
 - **Verification:** manual `--dry-run`, then a manual real run against a throwaway issue with
   output pasted and `git log origin/main` showing `main` untouched. Then — and this is the part
   that cannot be skipped — **a genuine launchd-triggered run**, with the agent's log pasted,
@@ -131,7 +154,10 @@ repository secret, no new billing surface — the runner uses the machine's exis
 | Risk | Likelihood | Blast radius | Mitigation |
 |---|---|---|---|
 | An unattended agent with repo write does something unintended | Low | Unwanted commits/PRs | PR-only, never `main`; explicit tool allowlist; hard stop before dispatch or code |
-| **launchd cannot reach the login Keychain, so runs fail silently** | **Medium** | Automation appears installed but never produces anything | Fail loudly with a clear message; verification requires a genuine scheduled run, not a manual one |
+| **A plaintext API key sits on disk** | **Certain — accepted by decision** | Anyone with the account's file access, or a backup of it, holds a working credential | 0600, outside the repo, never in the plist, never in argv, never logged; refuse to start on loose permissions; rotate on suspicion. **Residual risk is accepted, not removed.** |
+| The key leaks into a log, `ps`, or the plist | Medium | Silent credential exposure | Sourced not argv-passed; log redaction; explicit DoD assertions for all three surfaces |
+| Runs bill the API account rather than the subscription | Certain | Metered cost per run | Opt-in label only; single-instance lock; failure never re-labels |
+| launchd's environment differs from the shell's | Medium | Runs fail only under the scheduler | Absolute paths for `git`/`gh`/`claude`; verification requires a genuine scheduled run |
 | Mac asleep or logged out → no runs | Certain | Intake simply waits for the next wake | Accepted: this is a personal repo; the interactive path always works |
 | Runaway or looping runs burn credits | Medium | Cost | Opt-in label only; single-instance lock; label removed on completion; **failure comments and never re-labels** (Jonathan's decision) |
 | The approval gate erodes in practice — a `planning` plan gets treated as approved | Medium | The load-bearing gate stops bearing | `planning` documented as non-dispatchable; session-start names it "awaiting approval"; the plan arrives as a PR needing human merge |
@@ -159,3 +185,8 @@ repository secret, no new billing surface — the runner uses the machine's exis
   deploy, so CI would have been a trigger and a rented machine, bought with a repository secret
   and per-run billing. Replaced with a local scheduled runner using existing auth. Item 1 was
   already in flight and is mechanism-agnostic, so it was left running.
+- 2026-08-19 — Jonathan ruled out Keychain use entirely. That removes the local runner's
+  original auth path, so the item now reads an `ANTHROPIC_API_KEY` from a 0600 file outside the
+  repo. The recommendation had been to drop automation or use a GitHub-managed secret; the
+  decision to keep it local with an on-disk key was made with the trade stated, and the residual
+  risk is accepted rather than mitigated away.
