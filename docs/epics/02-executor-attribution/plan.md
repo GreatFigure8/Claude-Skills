@@ -1,6 +1,6 @@
 # Epic: executor attribution and isolation
 
-**Status:** in flight (item 1 of 3)
+**Status:** in flight (item 2 of 3)
 **Source:** GH #2, GH #3, GH #5
 **Live branch:** main   **Integration branch:** main   **Pre-epic tag:** n/a
 
@@ -126,6 +126,13 @@ can never land on the item branch.
   path from the epic plus the owning agent rather than the live branch (or writing the
   `START` bracket to the same file the `STOP` will use). Update Layer 1/Layer 3 wording in
   `references/executor-control-plane.md` where it describes the bracket pair.
+  **Also required (observed on item 1's dispatch):** in worktree mode the executor writes
+  `status/<item-branch>.json` inside its *worktree* while the hooks write
+  `status/<orchestrator-branch>.log` in the *main checkout* — two filesystems, and
+  `SubagentStop` looks for `<orchestrator-branch>.json`, which does not exist, so
+  **`terminal` is never stamped at all**. Layer 3's "terminal + PR on origin = done" rule is
+  therefore unsatisfiable in worktree mode, which item 1 just made the default. The fix must
+  put executor-written and hook-written status in the same place.
   **Required by the answered question:** the status/log path must key on the epic plus the
   item or owning agent, not on the resolved branch — otherwise parallel worktree executors
   all write one file. This subsumes the split-bracket defect: both are branch-derived paths.
@@ -186,3 +193,9 @@ on the item branch — the exact defect #3 describes.
   follow the orchestrator's checkout. Items 2 and 3 gained required scope as a result, and
   the finding was added to GH #5. Orchestrator committed this amendment to `main` while the
   executor worked in its worktree — which is item 1's premise, validated live.
+- 2026-08-19 — item 1 merged as PR #6 (merge commit fc295a4), verified cold: 3 files,
+  +34/-13, no hook touched, every parallelism-conditioned phrase confirmed gone on the
+  branch and still present on main. Worktree removed, branch deleted both sides.
+  Item 1 exceeded spec usefully: worktree creation moved from the executor to the
+  orchestrator as dispatch setup, and direct mode was explicitly exempted.
+  Its dispatch also exposed that `terminal` is never stamped in worktree mode (see item 3).
