@@ -65,13 +65,29 @@ check() { # $1 label  $2 expected  $3 actual  $4 variant
 # A PATH with no jq and no python3 — and no network tool at all. gh/curl/nc are
 # deliberately absent, so anything reaching for the network fails loudly instead
 # of silently succeeding on the developer's machine.
-BIN_BARE="$SANDBOX/bin-bare"; mkdir -p "$BIN_BARE"
+BIN_BARE="$SANDBOX/bin-bare"       # no jq, no python3, no gh/curl/nc
+BIN_MIN="$SANDBOX/bin-min"         # bare minus grep/sed/head/tr, and
+BIN_NOSORT="$SANDBOX/bin-nosort"   # bare minus sort: the section is builtin
+mkdir -p "$BIN_BARE" "$BIN_MIN" "$BIN_NOSORT"   # -only, so neither may matter.
 for t in cat grep sed head tr cut wc git ls mkdir rm mv dirname basename date printf env sort find touch sleep pgrep kill mktemp; do
   p="$(command -v "$t" 2>/dev/null)" || continue
-  ln -sf "$p" "$BIN_BARE/$t"
+  case "$p" in /*) ;; *) continue ;; esac    # builtins/aliases: a bare name here
+  ln -sf "$p" "$BIN_BARE/$t"                 # would make a DANGLING symlink and
+  case "$t" in grep|sed|head|tr) ;; *) ln -sf "$p" "$BIN_MIN/$t" ;; esac
+  case "$t" in sort) ;; *) ln -sf "$p" "$BIN_NOSORT/$t" ;; esac
 done
+[ -x "$BIN_BARE/grep" ] || { echo "ERROR: bare PATH has no working grep" >&2; exit 1; }
+[ -e "$BIN_MIN/grep" ] && { echo "ERROR: min PATH still has grep" >&2; exit 1; }
+[ -e "$BIN_NOSORT/sort" ] && { echo "ERROR: nosort PATH still has sort" >&2; exit 1; }
 PATH_FULL="$PATH"
-path_for() { case "$1" in bare) printf '%s' "$BIN_BARE" ;; *) printf '%s' "$PATH_FULL" ;; esac; }
+path_for() {
+  case "$1" in
+    bare)   printf '%s' "$BIN_BARE" ;;
+    min)    printf '%s' "$BIN_MIN" ;;
+    nosort) printf '%s' "$BIN_NOSORT" ;;
+    *)      printf '%s' "$PATH_FULL" ;;
+  esac
+}
 
 plan_file() { # $1 = epic dir, $2 = Status value ("" = no Status line at all)
   sandboxed "$1"
@@ -296,6 +312,25 @@ commit_all "$R"
 git_q -C "$R" worktree add -q -b feat/item "$SANDBOX/I-wt" main >/dev/null 2>&1
 check "same line from the linked worktree" \
       "- 1 epic awaiting dispatch: 05-next-epic." "$(queue_line "$SANDBOX/I-wt" full)" "full"
+
+echo
+echo "=== J. no external tool is used at all ================================="
+echo "    (parse and ordering are both shell builtins, so stripping grep, sed,"
+echo "     head, tr and even sort out of PATH changes nothing about the line)"
+R="$SANDBOX/J"; mkrepo "$R"
+plan_file "$R/docs/epics/03-done-epic"    "closed"
+plan_file "$R/docs/epics/04-running-epic" "in flight (item 1 of 2)"
+plan_file "$R/docs/epics/05-next-epic"    "approved"
+plan_file "$R/docs/epics/06-later-epic"   "approved"
+commit_all "$R"
+EXPECT_J="- 2 epics awaiting dispatch: 05-next-epic, 06-later-epic — dispatch the lowest number first."
+check "bare PATH (no jq/python3)" "$EXPECT_J" "$(queue_line "$R" bare)" "bare"
+check "no grep/sed/head/tr: identical line" "$EXPECT_J" "$(queue_line "$R" min)" "min"
+check "no sort either: identical line" "$EXPECT_J" "$(queue_line "$R" nosort)" "nosort"
+check "no sort: exit status still 0" "0" \
+      "$(run_hook "$R" nosort >/dev/null 2>&1; echo $?)" "nosort"
+check "no sort: the rest of the injection survives" "1" \
+      "$(run_hook "$R" nosort 2>/dev/null | grep -c '^### Git state' | tr -d ' ')" "nosort"
 
 echo
 echo "=== hook stderr (empty unless the hook errored on its own) ============="

@@ -70,6 +70,11 @@ The ritual (commit + push, write handoff, commit + push handoff, announce safe-t
 
 The **SessionStart hook** fires on `startup`, `resume`, `clear`, and `compact`, and injects into context: current branch, short status, recent log, worktree list, the newest `handoff.md` under `docs/epics/`, and — loudly — any `handoff-autosnapshot.md` left by a compaction or a dirty session end (which it then deletes, so warnings never go stale).
 
+It then adds two one-line *queue* views, each emitted only when it has something to say — so a session that is simply resuming an epic sees neither:
+
+- **Epics awaiting dispatch** — every filed plan whose `Status:` is neither `closed` nor `in flight …`, named in **folder-number order**, because Phase 1 numbers epic folders by implementation sequence: `- 2 epics awaiting dispatch: 05-<slug>, 06-<slug> — dispatch the lowest number first.` This is what makes planning several epics ahead visible: without it a fresh session can see the epic in flight and the newest plan, but not that a queue exists or in what order to take it. It is pure local filesystem work — no tracker call, no network, and no subprocess at all (the header parse and the ordering are shell builtins, so it adds ~1ms to session start) — and a plan with an unparseable or missing `Status:` line is listed rather than hidden, so a malformed header never makes queued work invisible.
+- **Open issues with no epic yet** — untriaged tracker items, `- Open issues with no epic yet (N): …`, best-effort and capped at ~2s; a missing `gh`, a non-GitHub remote, or a slow or unauthenticated tracker simply produces no line.
+
 The session then applies Phase 0's resume rule: **the handoff describes where the previous session believed it was; the repo is where the work is.** Everything under "Claimed but NOT yet verified" gets verified before anything is built on it. If the handoff says a test passed, run it.
 
 ## Compaction — the exception, instrumented

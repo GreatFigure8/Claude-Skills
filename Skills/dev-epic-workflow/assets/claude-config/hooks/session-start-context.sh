@@ -87,69 +87,111 @@ else
 fi
 
 # Epics filed but NOT yet dispatched — the queue Jonathan plans ahead into.
-# Purely local: a read of the docs/epics/*/plan.md headers already on disk. No
-# gh, no network, no bearing on the tracker call below or its ~2s cap; a queue
-# of filed epics must never be a reason session start is slow.
+# Purely local: it reads plan headers already on disk. No gh, no network, no
+# bearing on the tracker call below or its ~2s cap.
 #
 # "Awaiting dispatch" = a filed plan whose Status is neither `closed` nor
 # `in flight …` (vocabulary: references/plan-template.md —
 # planning | approved | in flight (item N of M) | closed). In-flight epics are
 # already surfaced by the handoff / newest-plan section above, and closed ones
-# are done. Matching is on the `in flight` PHRASE, not on the first word, so
-# `in flight (items 1-2 of 2, parallel)` is still recognised as in flight.
+# are done. The `in flight` PHRASE is matched, not the first-word truncation the
+# Status parser produces, so `in flight (items 1-2 of 2, parallel)` still counts.
 #
-# A plan with no parseable Status line counts as awaiting dispatch — the same
+# A plan with no parseable Status counts as awaiting dispatch — the same
 # fail-toward-visibility rule the control-plane hooks use when resolving the
-# active epic. A malformed header must never make queued work invisible, and it
-# must never fail the injection either: every command here is guarded and the
-# section emits nothing at all unless it has something to say.
+# active epic. A malformed header must never make queued work invisible.
 #
 # Order is FOLDER NUMBER, not mtime: Phase 1 numbers epic folders by
 # implementation sequence, so 05- is dispatched before 06- however recently
 # either plan was edited. An unnumbered folder sorts last rather than first.
 #
-# The rows are collected in the main shell rather than inside $( ), because
-# bash 3.2 mis-parses a `case` pattern's `)` inside command substitution — and
-# `bash -n` does not catch it, only running it does.
+# Cost discipline: this runs on EVERY session start, so the whole section is
+# shell builtins — it forks nothing, at all. A head|grep|sed|tr pipeline per
+# plan measured +20ms at 6 epics and +90ms at 30; piping the rows through
+# sort|cut still cost ~9ms; this costs ~1ms and, having no external tool to
+# lose, cannot go wrong on a stripped PATH either.
 EPIC_QUEUE_MAX_NAMED=5
+EPIC_QUEUE_HEADER_LINES=10
 
 epic_queue_section() {
   [ -d docs/epics ] || return 0
 
-  EQ_ROWS=""
+  EQ_KEYS=()      # folder numbers, kept sorted as rows are inserted
+  EQ_NAMES=()     # folder names, in the same positions
+  EQ_TOTAL=0
   for EQ_PLAN in docs/epics/*/plan.md; do
     [ -f "$EQ_PLAN" ] || continue
     EQ_NAME="${EQ_PLAN%/plan.md}"
     EQ_NAME="${EQ_NAME##*/}"
-    EQ_STATE="$(head -10 "$EQ_PLAN" 2>/dev/null \
-      | grep -E '^[[:space:]]*[*_]*Status:' 2>/dev/null | head -1 \
-      | sed -e 's/^[[:space:]]*[*_]*Status:[*_]*[[:space:]]*//' -e 's/[[:space:]]*$//' 2>/dev/null \
-      | tr '[:upper:]' '[:lower:]' 2>/dev/null || true)"
+
+    # Status from the plan header. Only the first EPIC_QUEUE_HEADER_LINES lines
+    # are considered — the same window the control-plane resolver uses — so
+    # prose further down a plan can never be mistaken for the header.
+    EQ_STATE=""
+    EQ_N=0
+    while IFS= read -r EQ_LINE || [ -n "$EQ_LINE" ]; do
+      EQ_N=$((EQ_N + 1))
+      [ "$EQ_N" -gt "$EPIC_QUEUE_HEADER_LINES" ] && break
+      EQ_L="$EQ_LINE"
+      while :; do                       # leading space and ** / _ emphasis
+        case "$EQ_L" in
+          [[:space:]]*|'*'*|'_'*) EQ_L="${EQ_L#?}" ;;
+          *) break ;;
+        esac
+      done
+      case "$EQ_L" in [Ss][Tt][Aa][Tt][Uu][Ss]:*) ;; *) continue ;; esac
+      EQ_STATE="${EQ_L#*:}"
+      while :; do                       # and again after the colon: `**Status:** x`
+        case "$EQ_STATE" in             # leaves `** x` behind otherwise
+          [[:space:]]*|'*'*|'_'*) EQ_STATE="${EQ_STATE#?}" ;;
+          *) break ;;
+        esac
+      done
+      while :; do                       # trailing space, \r, and emphasis
+        case "$EQ_STATE" in
+          *[[:space:]]|*'*'|*'_') EQ_STATE="${EQ_STATE%?}" ;;
+          *) break ;;
+        esac
+      done
+      break
+    done < "$EQ_PLAN" 2>/dev/null
+
     case "$EQ_STATE" in
-      closed*|'in flight'*|in-flight*) continue ;;
+      [Cc][Ll][Oo][Ss][Ee][Dd]*) continue ;;
+      [Ii][Nn][-[:space:]][Ff][Ll][Ii][Gg][Hh][Tt]*) continue ;;
     esac
-    EQ_NUM="${EQ_NAME%%-*}"                 # sort key: the NN of NN-slug
+
+    EQ_NUM="${EQ_NAME%%-*}"                              # the NN of NN-slug
     case "$EQ_NUM" in ''|*[!0-9]*) EQ_NUM=9999 ;; esac   # unnumbered folder: last
-    EQ_ROWS="${EQ_ROWS}${EQ_NUM} ${EQ_NAME}"$'\n'
+    EQ_NUM=$((10#$EQ_NUM))                               # 08 is eight, not octal
+
+    # Insertion sort by folder number, so 9- comes before 10- (which a lexical
+    # sort gets backwards) and equal numbers keep glob order. n is the number of
+    # epics in the repo; this is cheaper than starting sort(1) would be.
+    EQ_I="$EQ_TOTAL"
+    while [ "$EQ_I" -gt 0 ] && [ "${EQ_KEYS[$((EQ_I - 1))]}" -gt "$EQ_NUM" ]; do
+      EQ_KEYS[$EQ_I]="${EQ_KEYS[$((EQ_I - 1))]}"
+      EQ_NAMES[$EQ_I]="${EQ_NAMES[$((EQ_I - 1))]}"
+      EQ_I=$((EQ_I - 1))
+    done
+    EQ_KEYS[$EQ_I]="$EQ_NUM"
+    EQ_NAMES[$EQ_I]="$EQ_NAME"
+    EQ_TOTAL=$((EQ_TOTAL + 1))
   done
-  [ -n "$EQ_ROWS" ] || return 0
+  [ "$EQ_TOTAL" -gt 0 ] || return 0
 
   EQ_NAMED=""
   EQ_COUNT=0
-  while IFS= read -r EQ_NAME; do
-    [ -n "$EQ_NAME" ] || continue
-    EQ_COUNT=$((EQ_COUNT + 1))
-    [ "$EQ_COUNT" -gt "$EPIC_QUEUE_MAX_NAMED" ] && continue
+  while [ "$EQ_COUNT" -lt "$EQ_TOTAL" ] && [ "$EQ_COUNT" -lt "$EPIC_QUEUE_MAX_NAMED" ]; do
+    EQ_NAME="${EQ_NAMES[$EQ_COUNT]}"
     if [ -z "$EQ_NAMED" ]; then
       EQ_NAMED="$EQ_NAME"
     else
       EQ_NAMED="${EQ_NAMED}, ${EQ_NAME}"
     fi
-  done <<EOF
-$(printf '%s' "$EQ_ROWS" | sort -n 2>/dev/null | cut -d' ' -f2- 2>/dev/null)
-EOF
-
-  [ "$EQ_COUNT" -gt 0 ] || return 0
+    EQ_COUNT=$((EQ_COUNT + 1))
+  done
+  EQ_COUNT="$EQ_TOTAL"
   echo
   if [ "$EQ_COUNT" -eq 1 ]; then
     echo "- 1 epic awaiting dispatch: ${EQ_NAMED}."
