@@ -86,24 +86,41 @@ else
   fi
 fi
 
-# Epics filed but NOT yet dispatched — the queue Jonathan plans ahead into.
+# Epics filed but NOT yet dispatched — the queue Jonathan plans ahead into,
+# split into the TWO things that queue can mean.
 # Purely local: it reads plan headers already on disk. No gh, no network, no
 # bearing on the tracker call below or its ~2s cap.
 #
-# "Awaiting dispatch" = a filed plan whose Status is neither `closed` nor
-# `in flight …` (vocabulary: references/plan-template.md —
-# planning | approved | in flight (item N of M) | closed). In-flight epics are
+# Vocabulary: references/plan-template.md —
+# planning | approved | in flight (item N of M) | closed. In-flight epics are
 # already surfaced by the handoff / newest-plan section above, and closed ones
-# are done. The `in flight` PHRASE is matched, not the first-word truncation the
-# Status parser produces, so `in flight (items 1-2 of 2, parallel)` still counts.
+# are done; everything else queues, in one of two buckets:
 #
-# A plan with no parseable Status counts as awaiting dispatch — the same
+#   approved  -> "awaiting dispatch"  — the orchestrator can start it now.
+#   planning  -> "awaiting approval"  — Phase 1's gate has NOT been crossed.
+#
+# The split exists because those two are not interchangeable and conflating them
+# erodes the one gate this workflow actually leans on. Unattended intake
+# (references/issue-intake.md) opens PRs carrying plans at `Status: planning`, so
+# `planning` plans now arrive without a human ever having seen them; a line that
+# called them "awaiting dispatch" would be inviting exactly the mistake the gate
+# exists to prevent. A `planning` plan is never dispatchable.
+#
+# The `in flight` PHRASE is matched, not the first-word truncation the Status
+# parser produces, so `in flight (items 1-2 of 2, parallel)` still counts.
+#
+# A plan with no parseable Status is listed, never hidden — the same
 # fail-toward-visibility rule the control-plane hooks use when resolving the
-# active epic. A malformed header must never make queued work invisible.
+# active epic. A malformed header must never make queued work invisible. It is
+# listed as AWAITING APPROVAL, because that is the bucket whose mistake is
+# harmless: an approved epic shown as needing approval costs one glance at the
+# header, while a `planning` epic shown as dispatchable costs the gate.
 #
-# Order is FOLDER NUMBER, not mtime: Phase 1 numbers epic folders by
-# implementation sequence, so 05- is dispatched before 06- however recently
-# either plan was edited. An unnumbered folder sorts last rather than first.
+# Order within each line is FOLDER NUMBER, not mtime: Phase 1 numbers epic
+# folders by implementation sequence, so 05- is dispatched before 06- however
+# recently either plan was edited. An unnumbered folder sorts last rather than
+# first. Dispatch is printed before approval — it is the actionable queue, and
+# keeping it first leaves the pre-split line exactly where it was.
 #
 # Cost discipline: this runs on EVERY session start, so the whole section is
 # shell builtins — it forks nothing, at all. A head|grep|sed|tr pipeline per
@@ -113,12 +130,62 @@ fi
 EPIC_QUEUE_MAX_NAMED=5
 EPIC_QUEUE_HEADER_LINES=10
 
+# Emit one queue line, or nothing if that bucket is empty. $1 = dispatch|approval.
+# Reads the EQ_* arrays built by epic_queue_section; EQ_BLANK_DONE makes the two
+# lines share a single leading blank so they render as one markdown list.
+epic_queue_line() {
+  EQL_BUCKET="$1"
+  EQL_NAMED=""
+  EQL_COUNT=0
+  EQL_I=0
+  while [ "$EQL_I" -lt "$EQ_TOTAL" ]; do
+    if [ "${EQ_QUEUES[$EQL_I]}" = "$EQL_BUCKET" ]; then
+      EQL_COUNT=$((EQL_COUNT + 1))
+      if [ "$EQL_COUNT" -le "$EPIC_QUEUE_MAX_NAMED" ]; then
+        if [ -z "$EQL_NAMED" ]; then
+          EQL_NAMED="${EQ_NAMES[$EQL_I]}"
+        else
+          EQL_NAMED="${EQL_NAMED}, ${EQ_NAMES[$EQL_I]}"
+        fi
+      fi
+    fi
+    EQL_I=$((EQL_I + 1))
+  done
+  [ "$EQL_COUNT" -gt 0 ] || return 0
+
+  # The approval line carries its warning in BOTH forms; the dispatch line keeps
+  # the exact singular/plural wording it had before the split.
+  if [ "$EQL_BUCKET" = "approval" ]; then
+    EQL_NOUN="awaiting approval"
+    EQL_TAIL=" — approve before dispatch; \`planning\` is never dispatchable."
+    EQL_SOLO_TAIL="$EQL_TAIL"
+  else
+    EQL_NOUN="awaiting dispatch"
+    EQL_TAIL=" — dispatch the lowest number first."
+    EQL_SOLO_TAIL="."
+  fi
+
+  [ "$EQ_BLANK_DONE" -eq 0 ] && { echo; EQ_BLANK_DONE=1; }
+
+  if [ "$EQL_COUNT" -eq 1 ]; then
+    echo "- 1 epic ${EQL_NOUN}: ${EQL_NAMED}${EQL_SOLO_TAIL}"
+    return 0
+  fi
+  EQL_MORE=""
+  if [ "$EQL_COUNT" -gt "$EPIC_QUEUE_MAX_NAMED" ]; then
+    EQL_MORE=" (+$((EQL_COUNT - EPIC_QUEUE_MAX_NAMED)) more)"
+  fi
+  echo "- ${EQL_COUNT} epics ${EQL_NOUN}: ${EQL_NAMED}${EQL_MORE}${EQL_TAIL}"
+}
+
 epic_queue_section() {
   [ -d docs/epics ] || return 0
 
   EQ_KEYS=()      # folder numbers, kept sorted as rows are inserted
   EQ_NAMES=()     # folder names, in the same positions
+  EQ_QUEUES=()    # dispatch | approval, in the same positions
   EQ_TOTAL=0
+  EQ_BLANK_DONE=0
   for EQ_PLAN in docs/epics/*/plan.md; do
     [ -f "$EQ_PLAN" ] || continue
     EQ_NAME="${EQ_PLAN%/plan.md}"
@@ -159,6 +226,8 @@ epic_queue_section() {
     case "$EQ_STATE" in
       [Cc][Ll][Oo][Ss][Ee][Dd]*) continue ;;
       [Ii][Nn][-[:space:]][Ff][Ll][Ii][Gg][Hh][Tt]*) continue ;;
+      [Aa][Pp][Pp][Rr][Oo][Vv][Ee][Dd]*) EQ_QUEUE="dispatch" ;;
+      *) EQ_QUEUE="approval" ;;         # `planning`, and anything unparseable
     esac
 
     EQ_NUM="${EQ_NAME%%-*}"                              # the NN of NN-slug
@@ -167,41 +236,24 @@ epic_queue_section() {
 
     # Insertion sort by folder number, so 9- comes before 10- (which a lexical
     # sort gets backwards) and equal numbers keep glob order. n is the number of
-    # epics in the repo; this is cheaper than starting sort(1) would be.
+    # epics in the repo; this is cheaper than starting sort(1) would be. Both
+    # buckets read out of this one ordered list, so each stays in folder order.
     EQ_I="$EQ_TOTAL"
     while [ "$EQ_I" -gt 0 ] && [ "${EQ_KEYS[$((EQ_I - 1))]}" -gt "$EQ_NUM" ]; do
       EQ_KEYS[$EQ_I]="${EQ_KEYS[$((EQ_I - 1))]}"
       EQ_NAMES[$EQ_I]="${EQ_NAMES[$((EQ_I - 1))]}"
+      EQ_QUEUES[$EQ_I]="${EQ_QUEUES[$((EQ_I - 1))]}"
       EQ_I=$((EQ_I - 1))
     done
     EQ_KEYS[$EQ_I]="$EQ_NUM"
     EQ_NAMES[$EQ_I]="$EQ_NAME"
+    EQ_QUEUES[$EQ_I]="$EQ_QUEUE"
     EQ_TOTAL=$((EQ_TOTAL + 1))
   done
   [ "$EQ_TOTAL" -gt 0 ] || return 0
 
-  EQ_NAMED=""
-  EQ_COUNT=0
-  while [ "$EQ_COUNT" -lt "$EQ_TOTAL" ] && [ "$EQ_COUNT" -lt "$EPIC_QUEUE_MAX_NAMED" ]; do
-    EQ_NAME="${EQ_NAMES[$EQ_COUNT]}"
-    if [ -z "$EQ_NAMED" ]; then
-      EQ_NAMED="$EQ_NAME"
-    else
-      EQ_NAMED="${EQ_NAMED}, ${EQ_NAME}"
-    fi
-    EQ_COUNT=$((EQ_COUNT + 1))
-  done
-  EQ_COUNT="$EQ_TOTAL"
-  echo
-  if [ "$EQ_COUNT" -eq 1 ]; then
-    echo "- 1 epic awaiting dispatch: ${EQ_NAMED}."
-    return 0
-  fi
-  EQ_MORE=""
-  if [ "$EQ_COUNT" -gt "$EPIC_QUEUE_MAX_NAMED" ]; then
-    EQ_MORE=" (+$((EQ_COUNT - EPIC_QUEUE_MAX_NAMED)) more)"
-  fi
-  echo "- ${EQ_COUNT} epics awaiting dispatch: ${EQ_NAMED}${EQ_MORE} — dispatch the lowest number first."
+  epic_queue_line dispatch
+  epic_queue_line approval
 }
 
 epic_queue_section

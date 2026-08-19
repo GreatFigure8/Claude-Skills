@@ -1,15 +1,29 @@
 #!/usr/bin/env bash
-# Fixture harness for the EPICS-AWAITING-DISPATCH line in the SessionStart hook:
+# Fixture harness for the EPIC-QUEUE lines in the SessionStart hook:
 #   ../session-start-context.sh
 #
-# The rule under test (GH #11, epic 04 item 2): a fresh session must be able to
+# The original rule (GH #11, epic 04 item 2): a fresh session must be able to
 # see which epics are FILED BUT NOT STARTED, and in what order they should be
-# picked up. The line is emitted only when such epics exist:
+# picked up. Order is FOLDER NUMBER (Phase 1's implementation sequence), never
+# mtime, and a line is emitted only when it has something to name.
+#
+# The rule added here (GH #16, epic 05 item 1): that queue means two different
+# things and they are not interchangeable, so it is TWO lines:
 #
 #   - 2 epics awaiting dispatch: 05-<slug>, 06-<slug> — dispatch the lowest number first.
+#   - 1 epic awaiting approval: 07-<slug> — approve before dispatch; `planning` is never dispatchable.
 #
-# "Awaiting dispatch" = Status is neither `closed` nor `in flight …`; order is
-# FOLDER NUMBER (Phase 1's implementation sequence), never mtime.
+#   Status `approved`                 -> awaiting dispatch
+#   Status `planning`                 -> awaiting approval
+#   Status unparseable / absent       -> awaiting approval (listed, never hidden;
+#                                        the bucket whose error is harmless)
+#   Status `closed` / `in flight …`   -> neither line
+#
+# Unattended intake (references/issue-intake.md) opens PRs carrying plans at
+# `planning`, so `planning` epics now arrive without a human having read them.
+# Calling those "awaiting dispatch" is the exact mistake the approval gate
+# exists to prevent, which is why case L re-runs the new cases against the
+# pre-split (single-queue) implementation and requires them to FAIL.
 #
 # Everything here is local filesystem work: the sandboxes have no GitHub remote,
 # so the tracker/backlog section never runs and every assertion below is about
@@ -79,6 +93,20 @@ done
 [ -x "$BIN_BARE/grep" ] || { echo "ERROR: bare PATH has no working grep" >&2; exit 1; }
 [ -e "$BIN_MIN/grep" ] && { echo "ERROR: min PATH still has grep" >&2; exit 1; }
 [ -e "$BIN_NOSORT/sort" ] && { echo "ERROR: nosort PATH still has sort" >&2; exit 1; }
+UNSPLIT_HOOK="$SANDBOX/session-start-context.unsplit.sh"
+sandboxed "$UNSPLIT_HOOK"
+sed -e 's/EQ_QUEUE="approval"/EQ_QUEUE="dispatch"/' "$HOOK" > "$UNSPLIT_HOOK"
+chmod +x "$UNSPLIT_HOOK"
+cmp -s "$HOOK" "$UNSPLIT_HOOK" && {
+  echo "ERROR: the unsplit mutant is identical to the hook — the bucket assignment" >&2
+  echo "       moved, so cases B and L would be proving nothing. Fix the sed above." >&2
+  exit 1
+}
+grep -q 'EQ_QUEUE="approval"' "$UNSPLIT_HOOK" && {
+  echo "ERROR: the unsplit mutant still has an approval bucket" >&2; exit 1
+}
+/bin/bash -n "$UNSPLIT_HOOK" || { echo "ERROR: unsplit mutant does not parse" >&2; exit 1; }
+
 PATH_FULL="$PATH"
 path_for() {
   case "$1" in
@@ -112,15 +140,39 @@ commit_all() {
   git_q -C "$1" commit -qm fixture >/dev/null 2>&1
 }
 
+HOOK_UNDER_TEST="$HOOK"          # cases B and L swap this for the pre-split hook
+
 run_hook() { # $1 project dir  $2 variant -> full stdout
   sandboxed "$1"
   printf '{"source":"startup","session_id":"sess-1","cwd":"%s","hook_event_name":"SessionStart"}' "$1" \
-    | CLAUDE_PROJECT_DIR="$1" PATH="$(path_for "$2")" /bin/bash "$HOOK" 2>> "$SANDBOX/stderr.log"
+    | CLAUDE_PROJECT_DIR="$1" PATH="$(path_for "$2")" /bin/bash "$HOOK_UNDER_TEST" 2>> "$SANDBOX/stderr.log"
 }
 
-queue_line() { # $1 project dir  $2 variant -> the awaiting-dispatch line, or <none>
+queue_line() { # $1 project dir  $2 variant -> the awaiting-DISPATCH line, or <none>
   L="$(run_hook "$1" "$2" | grep 'awaiting dispatch' || true)"
   [ -n "$L" ] && printf '%s' "$L" || printf '<none>'
+}
+
+approval_line() { # $1 project dir  $2 variant -> the awaiting-APPROVAL line, or <none>
+  L="$(run_hook "$1" "$2" | grep 'awaiting approval' || true)"
+  [ -n "$L" ] && printf '%s' "$L" || printf '<none>'
+}
+
+queue_block() { # $1 project dir  $2 variant -> both queue lines, in emitted order
+  L="$(run_hook "$1" "$2" | grep -E 'awaiting (dispatch|approval)' || true)"
+  [ -n "$L" ] && printf '%s' "$L" || printf '<none>'
+}
+
+# Which bucket an epic folder landed in, as one word — the whole contract in a
+# single comparable token.
+bucket_of() { # $1 project dir  $2 variant  $3 epic folder name
+  B="$(run_hook "$1" "$2" | grep -E 'awaiting (dispatch|approval)' | grep -F "$3" || true)"
+  case "$B" in
+    *"awaiting dispatch"*"awaiting approval"*) printf 'BOTH' ;;
+    *"awaiting dispatch"*) printf 'dispatch' ;;
+    *"awaiting approval"*) printf 'approval' ;;
+    *) printf 'none' ;;
+  esac
 }
 
 echo "sandbox: $SANDBOX"
@@ -155,11 +207,14 @@ done
 
 # ============================================================================
 echo
-echo "=== B. nothing awaiting dispatch -> NO line, rest byte-identical ======="
+echo "=== B. nothing queued -> NO lines, rest byte-identical ================="
 echo "    (the whole injection is captured twice — once with nothing queued and"
 echo "     once with one epic queued — from the SAME file set, SAME newest plan"
 echo "     and SAME single commit, so the only admissible difference is the"
-echo "     queue block itself: strip it back out and the two must be identical)"
+echo "     queue block itself: strip it back out and the two must be identical."
+echo "     Then the empty case is diffed against the PRE-SPLIT hook, which is"
+echo "     the epic-05 requirement: with both queues empty the injection must be"
+echo "     byte-identical to what epic 04 item 2 shipped — not merely similar)"
 norm_sha() { sed -e 's/^[0-9a-f]\{7,\} fixture$/<sha> fixture/' "$1"; }
 for V in full bare; do
   R="$SANDBOX/B-$V"; mkrepo "$R"
@@ -168,11 +223,19 @@ for V in full bare; do
   plan_file "$R/docs/epics/04-running-epic" "in flight (item 1 of 2)"
   commit_all "$R"
   run_hook "$R" "$V" > "$SANDBOX/B-$V.none"
-  check "no awaiting-dispatch line at all" "<none>" "$(queue_line "$R" "$V")" "$V"
-  check "no stray 'awaiting dispatch' wording anywhere" "0" \
-        "$(grep -c 'awaiting dispatch' "$SANDBOX/B-$V.none" | tr -d ' ')" "$V"
+  check "neither queue line at all" "<none>" "$(queue_block "$R" "$V")" "$V"
+  check "no stray 'awaiting …' wording anywhere" "0" \
+        "$(grep -cE 'awaiting (dispatch|approval)' "$SANDBOX/B-$V.none" | tr -d ' ')" "$V"
   check "every other section still emitted" "1" \
         "$(grep -c '^### Git state' "$SANDBOX/B-$V.none" | tr -d ' ')" "$V"
+
+  # THE byte-identity proof: same repo, same run conditions, pre-split hook.
+  # Nothing is normalised away here — an empty diff is an empty diff.
+  HOOK_UNDER_TEST="$UNSPLIT_HOOK"
+  run_hook "$R" "$V" > "$SANDBOX/B-$V.presplit"
+  HOOK_UNDER_TEST="$HOOK"
+  check "both queues empty: byte-identical to the PRE-SPLIT hook" "" \
+        "$(diff "$SANDBOX/B-$V.presplit" "$SANDBOX/B-$V.none" | head -20)" "$V"
 
   # Flip the in-flight epic to approved IN PLACE and amend, so file set, newest
   # plan, commit count and clean-tree status are all unchanged.
@@ -183,8 +246,8 @@ for V in full bare; do
   check "one queued epic -> singular phrasing" \
         "- 1 epic awaiting dispatch: 04-running-epic." "$(queue_line "$R" "$V")" "$V"
 
-  # Strip the queue block (its line, then the blank line it added) back out.
-  grep -v 'awaiting dispatch' "$SANDBOX/B-$V.one" | sed -e '${/^$/d;}' > "$SANDBOX/B-$V.stripped"
+  # Strip the queue block (its lines, then the blank line it added) back out.
+  grep -vE 'awaiting (dispatch|approval)' "$SANDBOX/B-$V.one" | sed -e '${/^$/d;}' > "$SANDBOX/B-$V.stripped"
   norm_sha "$SANDBOX/B-$V.none"     > "$SANDBOX/B-$V.none.norm"
   norm_sha "$SANDBOX/B-$V.stripped" > "$SANDBOX/B-$V.stripped.norm"
   check "injection is byte-identical apart from the queue block" "" \
@@ -198,7 +261,7 @@ for V in full bare; do
   printf 'hello\n' > "$R/README.md"; commit_all "$R"
   OUT="$(run_hook "$R" "$V")"; RC=$?
   check "exit status 0" "0" "$RC" "$V"
-  check "no awaiting-dispatch line" "<none>" "$(queue_line "$R" "$V")" "$V"
+  check "neither queue line" "<none>" "$(queue_block "$R" "$V")" "$V"
   check "the rest of the injection still emitted" "1" \
         "$(printf '%s' "$OUT" | grep -c '^## Session grounding' | tr -d ' ')" "$V"
 done
@@ -228,35 +291,50 @@ for V in full bare; do
   commit_all "$R"
   OUT="$(run_hook "$R" "$V")"; RC=$?
   check "exit status 0" "0" "$RC" "$V"
-  check "unparseable Status counts as awaiting dispatch" \
-        "- 3 epics awaiting dispatch: 05-no-status, 06-binary-ish, 07-empty — dispatch the lowest number first." \
-        "$(queue_line "$R" "$V")" "$V"
+  # Epic 04's decision — list it, never hide it — is unchanged. Epic 05 only
+  # decides WHICH queue it lands in: approval, the bucket whose error is
+  # harmless. An unreadable header must never make a plan look dispatchable.
+  check "unparseable Status counts as awaiting APPROVAL" \
+        "- 3 epics awaiting approval: 05-no-status, 06-binary-ish, 07-empty — approve before dispatch; \`planning\` is never dispatchable." \
+        "$(approval_line "$R" "$V")" "$V"
+  check "and never as awaiting dispatch" "<none>" "$(queue_line "$R" "$V")" "$V"
   check "a folder with no plan.md is not named" "0" \
-        "$(queue_line "$R" "$V" | grep -c '08-no-plan-file' | tr -d ' ')" "$V"
+        "$(queue_block "$R" "$V" | grep -c '08-no-plan-file' | tr -d ' ')" "$V"
 done
 
 # ============================================================================
 echo
 echo "=== F. the documented Status vocabulary, and variations on it =========="
 # references/plan-template.md: planning | approved | in flight (item N of M) | closed
+# Each expectation is now the BUCKET, not a yes/no: dispatch | approval | none.
 for V in full bare; do
-  for S in "approved:yes" "planning:yes" "Approved:yes" "APPROVED:yes" \
-           "closed:no" "Closed:no" "CLOSED:no" "closed (superseded):no" \
-           "in flight (item 1 of 3):no" "in flight (items 1-2 of 2, parallel):no" \
-           "In Flight (item 2 of 4):no" "in-flight:no" "in flight:no"; do
+  for S in "approved:dispatch" "Approved:dispatch" "APPROVED:dispatch" \
+           "approved (rev 2):dispatch" \
+           "planning:approval" "Planning:approval" "PLANNING:approval" \
+           "planning (draft from #16):approval" \
+           "closed:none" "Closed:none" "CLOSED:none" "closed (superseded):none" \
+           "in flight (item 1 of 3):none" "in flight (items 1-2 of 2, parallel):none" \
+           "In Flight (item 2 of 4):none" "in-flight:none" "in flight:none"; do
     STATUS="${S%:*}"; WANT="${S##*:}"
     R="$SANDBOX/F-$V"; mkrepo "$R"
     plan_file "$R/docs/epics/05-subject" "$STATUS"
     commit_all "$R"
-    GOT="$(queue_line "$R" "$V")"
-    case "$GOT" in *05-subject*) LISTED="yes" ;; *) LISTED="no" ;; esac
-    check "Status [$STATUS] listed?" "$WANT" "$LISTED" "$V"
+    check "Status [$STATUS] -> which queue?" "$WANT" \
+          "$(bucket_of "$R" "$V" 05-subject)" "$V"
   done
   # CRLF line endings must not defeat the match
   R="$SANDBOX/Fcrlf-$V"; mkrepo "$R"; mkdir -p "$R/docs/epics/05-crlf"
   printf '# Epic: fixture\r\n\r\n**Status:** closed\r\n\r\n' > "$R/docs/epics/05-crlf/plan.md"
   commit_all "$R"
-  check "CRLF closed plan is still closed" "<none>" "$(queue_line "$R" "$V")" "$V"
+  check "CRLF closed plan is still closed" "<none>" "$(queue_block "$R" "$V")" "$V"
+  # CRLF must not push `planning` into the wrong bucket either: the trailing \r
+  # is stripped before the bucket match, so `planning\r` is still `planning`.
+  R="$SANDBOX/Fcrlf2-$V"; mkrepo "$R"; sandboxed "$R/docs/epics/05-crlf-planning"
+  mkdir -p "$R/docs/epics/05-crlf-planning"
+  printf '# Epic: fixture\r\n\r\n**Status:** planning\r\n\r\n' > "$R/docs/epics/05-crlf-planning/plan.md"
+  commit_all "$R"
+  check "CRLF planning plan awaits APPROVAL" "approval" \
+        "$(bucket_of "$R" "$V" 05-crlf-planning)" "$V"
 done
 
 # ============================================================================
@@ -312,6 +390,8 @@ commit_all "$R"
 git_q -C "$R" worktree add -q -b feat/item "$SANDBOX/I-wt" main >/dev/null 2>&1
 check "same line from the linked worktree" \
       "- 1 epic awaiting dispatch: 05-next-epic." "$(queue_line "$SANDBOX/I-wt" full)" "full"
+check "and no approval line, the plan being approved" "<none>" \
+      "$(approval_line "$SANDBOX/I-wt" full)" "full"
 
 echo
 echo "=== J. no external tool is used at all ================================="
@@ -331,6 +411,146 @@ check "no sort: exit status still 0" "0" \
       "$(run_hook "$R" nosort >/dev/null 2>&1; echo $?)" "nosort"
 check "no sort: the rest of the injection survives" "1" \
       "$(run_hook "$R" nosort 2>/dev/null | grep -c '^### Git state' | tr -d ' ')" "nosort"
+
+# ============================================================================
+echo
+echo "=== K. THE SPLIT: two queues, two gates ================================"
+echo "    (planning only / approved only / both / neither, plus ordering,"
+echo "     capping and emission order within the split)"
+
+EXPECT_K_D5="- 1 epic awaiting dispatch: 05-ready."
+EXPECT_K_A6="- 1 epic awaiting approval: 06-proposed — approve before dispatch; \`planning\` is never dispatchable."
+
+for V in full bare; do
+  # --- K1. approved only -> dispatch line ONLY ------------------------------
+  R="$SANDBOX/K1-$V"; mkrepo "$R"
+  plan_file "$R/docs/epics/05-ready" "approved"
+  commit_all "$R"
+  check "K1 approved only: dispatch line" "$EXPECT_K_D5" "$(queue_line "$R" "$V")" "$V"
+  check "K1 approved only: NO approval line" "<none>" "$(approval_line "$R" "$V")" "$V"
+
+  # --- K2. planning only -> approval line ONLY ------------------------------
+  R="$SANDBOX/K2-$V"; mkrepo "$R"
+  plan_file "$R/docs/epics/06-proposed" "planning"
+  commit_all "$R"
+  check "K2 planning only: approval line" "$EXPECT_K_A6" "$(approval_line "$R" "$V")" "$V"
+  check "K2 planning only: NO dispatch line" "<none>" "$(queue_line "$R" "$V")" "$V"
+
+  # --- K3. both -> both lines, dispatch first, one blank line above ---------
+  R="$SANDBOX/K3-$V"; mkrepo "$R"
+  plan_file "$R/docs/epics/05-ready"    "approved"
+  plan_file "$R/docs/epics/06-proposed" "planning"
+  commit_all "$R"
+  check "K3 both: dispatch line, then approval line" \
+        "$(printf '%s\n%s' "$EXPECT_K_D5" "$EXPECT_K_A6")" \
+        "$(queue_block "$R" "$V")" "$V"
+  # The two lines are ONE markdown list: adjacent, with exactly one blank line
+  # before the pair and no blank line between them.
+  check "K3 both: the two lines are adjacent" "1" \
+        "$(run_hook "$R" "$V" | grep -n 'awaiting' | cut -d: -f1 | tr '\n' ' ' \
+           | awk '{print ($2 - $1)}')" "$V"
+  # ...preceded by exactly one blank line: the section above ends non-blank,
+  # then one blank, then the pair. Two blanks would mean each line emitted its
+  # own separator instead of sharing one.
+  check "K3 both: exactly one blank line above the pair" "nonblank|blank" \
+        "$(run_hook "$R" "$V" | grep -B2 'awaiting dispatch' | head -2 \
+           | awk '{ printf "%s%s", (NR>1 ? "|" : ""), (length($0) ? "nonblank" : "blank") }')" "$V"
+
+  # --- K4. neither (all closed / in flight) -> no queue output at all -------
+  R="$SANDBOX/K4-$V"; mkrepo "$R"
+  plan_file "$R/docs/epics/03-done"    "closed"
+  plan_file "$R/docs/epics/04-running" "in flight (item 1 of 2)"
+  commit_all "$R"
+  check "K4 neither: no queue output" "<none>" "$(queue_block "$R" "$V")" "$V"
+
+  # --- K5. interleaved numbers: each line keeps FOLDER order independently --
+  R="$SANDBOX/K5-$V"; mkrepo "$R"
+  plan_file "$R/docs/epics/04-a" "planning"
+  plan_file "$R/docs/epics/05-b" "approved"
+  plan_file "$R/docs/epics/06-c" "planning"
+  plan_file "$R/docs/epics/07-d" "approved"
+  plan_file "$R/docs/epics/08-e" "closed"
+  plan_file "$R/docs/epics/09-f" "in flight (items 1-2 of 2, parallel)"
+  commit_all "$R"
+  sleep 1; touch "$R/docs/epics/04-a/plan.md"        # mtime order != folder order
+  check "K5 dispatch line in folder order" \
+        "- 2 epics awaiting dispatch: 05-b, 07-d — dispatch the lowest number first." \
+        "$(queue_line "$R" "$V")" "$V"
+  check "K5 approval line in folder order" \
+        "- 2 epics awaiting approval: 04-a, 06-c — approve before dispatch; \`planning\` is never dispatchable." \
+        "$(approval_line "$R" "$V")" "$V"
+
+  # --- K6. the cap applies to each line independently -----------------------
+  R="$SANDBOX/K6-$V"; mkrepo "$R"
+  for N in 01 02 03 04 05 06 07; do plan_file "$R/docs/epics/$N-app$N" "approved"; done
+  for N in 11 12 13 14 15 16; do plan_file "$R/docs/epics/$N-pln$N" "planning"; done
+  commit_all "$R"
+  check "K6 dispatch capped at 5 named (+2 more)" \
+        "- 7 epics awaiting dispatch: 01-app01, 02-app02, 03-app03, 04-app04, 05-app05 (+2 more) — dispatch the lowest number first." \
+        "$(queue_line "$R" "$V")" "$V"
+  check "K6 approval capped at 5 named (+1 more)" \
+        "- 6 epics awaiting approval: 11-pln11, 12-pln12, 13-pln13, 14-pln14, 15-pln15 (+1 more) — approve before dispatch; \`planning\` is never dispatchable." \
+        "$(approval_line "$R" "$V")" "$V"
+
+  # --- K7. the unattended-intake shape: a planning plan sitting on main -----
+  # A merged intake PR puts docs/epics/NN/plan.md at `planning` on the
+  # integration branch. It is committed, clean, and still NOT dispatchable.
+  R="$SANDBOX/K7-$V"; mkrepo "$R"
+  plan_file "$R/docs/epics/07-from-ci" "planning"
+  commit_all "$R"
+  check "K7 committed planning plan is awaiting APPROVAL" "approval" \
+        "$(bucket_of "$R" "$V" 07-from-ci)" "$V"
+  check "K7 and the word 'dispatch' never precedes its name" "0" \
+        "$(queue_line "$R" "$V" | grep -c '07-from-ci' | tr -d ' ')" "$V"
+done
+
+# ============================================================================
+echo
+echo "=== L. MUTATION CHECK: the new cases fail on the PRE-SPLIT hook ========"
+echo "    (same fixtures, run against the single-queue implementation. Every"
+echo "     row below must read PASS, and each one asserts that the pre-split"
+echo "     hook gets the split WRONG — so these cases can actually detect a"
+echo "     regression that silently un-splits the queue.)"
+HOOK_UNDER_TEST="$UNSPLIT_HOOK"
+
+R="$SANDBOX/L1"; mkrepo "$R"
+plan_file "$R/docs/epics/06-proposed" "planning"
+commit_all "$R"
+check "L pre-split: emits NO approval line for a planning plan" "<none>" \
+      "$(approval_line "$R" full)" "mutant"
+check "L pre-split: calls the planning plan 'awaiting dispatch'" \
+      "- 1 epic awaiting dispatch: 06-proposed." "$(queue_line "$R" full)" "mutant"
+check "L pre-split: K2's expectation therefore does NOT hold" "differs" \
+      "$([ "$(approval_line "$R" full)" = "$EXPECT_K_A6" ] && echo same || echo differs)" "mutant"
+
+R="$SANDBOX/L2"; mkrepo "$R"
+plan_file "$R/docs/epics/05-ready"    "approved"
+plan_file "$R/docs/epics/06-proposed" "planning"
+commit_all "$R"
+check "L pre-split: both epics collapse into ONE dispatch line" \
+      "- 2 epics awaiting dispatch: 05-ready, 06-proposed — dispatch the lowest number first." \
+      "$(queue_line "$R" full)" "mutant"
+check "L pre-split: K3's two-line block therefore does NOT hold" "differs" \
+      "$([ "$(queue_block "$R" full)" = "$(printf '%s\n%s' "$EXPECT_K_D5" "$EXPECT_K_A6")" ] \
+         && echo same || echo differs)" "mutant"
+
+R="$SANDBOX/L3"; mkrepo "$R"
+plan_file "$R/docs/epics/05-no-status" ""
+commit_all "$R"
+check "L pre-split: a Status-less plan is called dispatchable" \
+      "- 1 epic awaiting dispatch: 05-no-status." "$(queue_line "$R" full)" "mutant"
+
+# And the case that must be IDENTICAL either way — the empty-queue injection —
+# so the mutation check cannot be dismissed as "the mutant just differs always".
+R="$SANDBOX/L4"; mkrepo "$R"
+plan_file "$R/docs/epics/03-done"    "closed"
+plan_file "$R/docs/epics/04-running" "in flight (item 1 of 2)"
+commit_all "$R"
+run_hook "$R" full > "$SANDBOX/L4.presplit"
+HOOK_UNDER_TEST="$HOOK"
+run_hook "$R" full > "$SANDBOX/L4.split"
+check "L both queues empty: mutant and hook agree byte for byte" "" \
+      "$(diff "$SANDBOX/L4.presplit" "$SANDBOX/L4.split" | head -20)" "mutant"
 
 echo
 echo "=== hook stderr (empty unless the hook errored on its own) ============="

@@ -145,6 +145,74 @@ recency), let Jonathan choose, then run pickup per item chosen. One tracker item
 epic; genuinely-coupled items merge into one epic whose plan header lists every source
 ref, and each source item gets the link-back.
 
+## Unattended intake — the `claude-intake` label
+
+Everything above assumes Jonathan is in the session. **Unattended intake** is the same
+Pickup path run headlessly by CI when nobody is present, and it stops one step short of
+everything above: it produces a **proposal**, never a filed, approved epic.
+
+**Trigger — opt-in, and nothing else.** Applying the `claude-intake` label to a GitHub
+issue. No label, no run; there is no schedule, no "all new issues", no inference from
+title or content. Removing the label after a run is what stops it recurring. (A manual
+`workflow_dispatch` with an issue number exists for testing the pipeline itself — same
+contract, same stops.)
+
+**What it does.** Exactly two phases of the workflow, in order:
+
+- **Phase 0 — grounding.** Fetch the issue with its comments, then read the *repo*: tree,
+  the modules the issue implicates, existing epics, CI config, `git log`/`git branch -a`.
+  The issue says what hurts; the repo says what's true. Unverifiable claims become **Open
+  questions** in the draft, never silent assumptions — an unattended run has nobody to ask,
+  so its honesty about what it could not check is the only thing standing in for judgement.
+- **Phase 1 — drafting.** Write the plan per `references/plan-template.md`, with
+  `Source: GH #<n>` in the header and the issue's acceptance criteria reflected in the work
+  items' definitions of done. Then **stop.**
+
+**What it produces.** One branch and one pull request, plus one tracker comment:
+
+| Artifact | Content |
+|---|---|
+| Branch | `docs/intake-<NN>-<slug>` — the `docs` type of `references/git-conventions.md`, cut from the integration branch |
+| Commit | `docs/epics/<NN>-<slug>/plan.md` at `**Status:** planning` — and nothing else |
+| PR | Against the integration branch, body per `references/pr-template.md`, carrying `Part of #<n>` — never `Closes #<n>`, because an unattended run cannot know it is anyone's final item |
+| Tracker comment | The standard link-back on the source issue: the epic path and the PR URL, one or two lines |
+
+The PR body also states, in its own words, the two things a reviewer needs to know that
+aren't visible in the diff: that the plan is **unapproved**, and how the epic number was
+chosen (below).
+
+**The hard stops.** These are stops, not defaults — there is no flag, label, or issue body
+that turns any of them off:
+
+- It **never approves.** `**Status:** planning` is the only status it may write.
+- It **never dispatches an executor.** Not for item 1, not for a "trivial" item.
+- It **never writes code.** Its diff touches `docs/epics/<NN>-<slug>/` and nothing else.
+- It **never merges** — not the PR it opened, not anything else. It never pushes to the
+  integration branch.
+- It **never closes an issue**, and never applies `epic:planned` / `epic:in-progress`. Those
+  are Phase 1-approval and Phase 3-dispatch touches; the label the run *does* manage is
+  removing its own `claude-intake` trigger.
+
+Approval remains exactly where it was: Jonathan reads the PR the way he reads any PR. The
+epic becomes real when he merges it **and** sets `**Status:** approved`; until that edit
+lands, the plan is a draft that happens to be version-controlled. A `planning` plan is
+**never dispatchable** — the SessionStart injection lists it under *awaiting approval*,
+deliberately not *awaiting dispatch*, so the distinction survives a fresh context.
+
+**Numbering.** The run claims the **next free `NN`** at draft time, because a plan has to
+be written somewhere and there is no approver present to assign one. That number is
+therefore a *reservation, not a fact*: two runs, or a run plus a locally filed epic, can
+both claim `05`. **A collision is resolved by renumbering at approval** — whoever approves
+second renames the folder to the next free number before merging, which is a `git mv` and
+a header edit, and costs nothing because no branch, status file, or tracker item points at
+the number yet. The PR body says this in plain words so the reviewer is not surprised by
+a rename request.
+
+**Failure behaviour.** A run that fails part-way leaves no half-filed epic on the
+integration branch — the branch and PR are the unit, so an incomplete run is a branch
+nobody merges. The failure is reported as a comment on the issue, and the trigger label
+stays off so a failing run cannot loop.
+
 ## Failure modes this section exists to prevent
 
 - **Two systems of record.** The plan drifting from the issue, or the issue silently
