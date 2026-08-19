@@ -142,8 +142,17 @@ FAILED=0
 # list, its own epic folder and worktrees. One repo failing is logged and
 # skipped — it must never stop the others. The lock is held across the WHOLE
 # run, not per repo, so two repos are never processed concurrently.
-while IFS= read -r REPO_DIR; do
-  [ -n "$REPO_DIR" ] || continue
+while IFS= read -r RENTRY; do
+  [ -n "$RENTRY" ] || continue
+  # "<path>" or "<path>|<base-branch>". Split on the LAST pipe: checkout paths
+  # here contain spaces, so whitespace is not a safe separator.
+  case "$RENTRY" in
+    *\|*) REPO_DIR="${RENTRY%|*}"; BASE_OVERRIDE="${RENTRY##*|}" ;;
+    *)     REPO_DIR="$RENTRY";      BASE_OVERRIDE="" ;;
+  esac
+  REPO_DIR="${REPO_DIR%"${REPO_DIR##*[![:space:]]}"}"
+  BASE_OVERRIDE="${BASE_OVERRIDE#"${BASE_OVERRIDE%%[![:space:]]*}"}"
+  BASE_OVERRIDE="${BASE_OVERRIDE%"${BASE_OVERRIDE##*[![:space:]]}"}"
   if [ ! -d "$REPO_DIR/.git" ]; then
     log "skip: not a git repo -> $REPO_DIR"
     continue
@@ -154,8 +163,22 @@ while IFS= read -r REPO_DIR; do
     log "skip: no GitHub remote (or gh unauthenticated) -> $REPO_DIR"
     continue
   fi
+  # Default branch per repo — never assume 'main'. This is also the PR base.
+  # An explicit base in the repos list wins; the GitHub default is only a
+  # fallback. Default branch and INTEGRATION branch are not the same thing —
+  # this repo integrates on main, LODE integrates on dev.
+  if [ -n "$BASE_OVERRIDE" ]; then
+    BASE_BRANCH="$BASE_OVERRIDE"
+  else
+    BASE_BRANCH="$("$GH_BIN" repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null || true)"
+    [ -n "$BASE_BRANCH" ] || BASE_BRANCH=main
+  fi
+  if ! "$GIT_BIN" ls-remote --exit-code --heads origin "$BASE_BRANCH" >/dev/null 2>&1; then
+    log "skip: base branch '$BASE_BRANCH' does not exist on origin -> $REPO_DIR"
+    continue
+  fi
   WT_ROOT="${WORKTREE_ROOT:-$(dirname "$REPO_DIR")}"
-  log "== repo $REPO_SLUG ($REPO_DIR)"
+  log "== repo $REPO_SLUG ($REPO_DIR) base=$BASE_BRANCH"
 
   # Ensure the label exists so a first run does not fail on a missing label.
   if ! "$GH_BIN" label list --limit 200 2>/dev/null | grep -q "^${LABEL}[[:space:]]"; then
@@ -228,10 +251,13 @@ while IFS= read -r REPO_DIR; do
       continue
     fi
 
-    "$GIT_BIN" switch -q main 2>/dev/null || true
-    "$GIT_BIN" pull -q --ff-only 2>/dev/null || true
+    # NEVER touch the target checkout — no switch, no pull. The user may be
+    # mid-edit on another branch, and this runs unattended on a timer. Fetching
+    # is enough: the worktree is cut from origin/<default>, so no local branch
+    # needs to exist or be current (GH #27).
+    "$GIT_BIN" fetch -q origin "$BASE_BRANCH" 2>/dev/null || true
 
-    if ! "$GIT_BIN" worktree add -q "$WT" -b "$BRANCH" main 2>/dev/null; then
+    if ! "$GIT_BIN" worktree add -q "$WT" -b "$BRANCH" "origin/$BASE_BRANCH" 2>/dev/null; then
       fail_issue "$N" "could not create worktree $WT on $BRANCH"
       continue
     fi
@@ -267,7 +293,7 @@ while IFS= read -r REPO_DIR; do
       continue
     fi
 
-    if ! "$GIT_BIN" -C "$WT" log --oneline main.."$BRANCH" 2>/dev/null | grep -q .; then
+    if ! "$GIT_BIN" -C "$WT" log --oneline "origin/$BASE_BRANCH".."$BRANCH" 2>/dev/null | grep -q .; then
       fail_issue "$N" "headless run produced no commit" "$WT" "$BRANCH"
       continue
     fi
@@ -277,7 +303,7 @@ while IFS= read -r REPO_DIR; do
       continue
     fi
 
-    PR_URL="$("$GH_BIN" pr create --base main --head "$BRANCH" \
+    PR_URL="$("$GH_BIN" pr create --base "$BASE_BRANCH" --head "$BRANCH" \
         --title "intake: proposed epic for #$N — ${SLUG}" \
         --body "Proposed epic plan drafted by **unattended intake** from #$N.
 
