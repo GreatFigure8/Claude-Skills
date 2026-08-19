@@ -221,8 +221,25 @@ tracker item — so the rename is a `git mv` and a header edit. The `proposed-` 
 an unapproved draft obvious in a folder listing, which reinforces the same gate the
 `Status: planning` header enforces.
 
-**Repos — opt in by listing.** The runner reads `~/.config/claude-intake/repos`, one absolute
-path per line (`#` comments and blank lines ignored). A repo joins the poller by being listed,
+**Repos — opt in by listing.** The runner reads `~/.config/claude-intake/repos`, one entry per
+line (`#` comments and blank lines ignored):
+
+```
+/Users/you/Source/some-repo              # proposals target the GitHub default branch
+/Users/you/Source/other-repo|dev         # proposals target dev instead
+```
+
+An entry is an absolute path, optionally followed by `|<base-branch>`. The separator is a pipe
+rather than whitespace because checkout paths contain spaces. **The base is the repo's
+*integration* branch, which is not necessarily its GitHub default** — a repo can default to
+`main` while work actually integrates on `dev`. Without an override the GitHub default is used;
+a base that does not exist on `origin` causes that repo to be skipped with a logged reason
+rather than a failed run.
+
+**The runner never touches your checkout.** It does not `switch`, does not `pull`, and does not
+care which branch you are standing on: it fetches, then cuts its worktree from
+`origin/<base>`. It runs unattended on a timer, so it could otherwise have moved you off your
+working branch mid-edit (GH #27). A repo joins the poller by being listed,
 never by existing on disk — the same opt-in principle the `claude-intake` label applies at the
 issue level. A missing or empty list falls back to a single configured repo. Each listed repo is
 processed in full isolation, with its own label check, issue list, epic folder, and worktrees;
