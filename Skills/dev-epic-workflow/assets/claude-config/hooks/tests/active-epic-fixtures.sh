@@ -5,13 +5,22 @@
 #
 # Both must answer the same question the same way: WHICH epic is in flight, and
 # therefore which docs/epics/<NN>-<slug>/status/ tree receives this agent's
-# telemetry. The rule under test (GH #9):
+# telemetry. The rule under test (GH #9, then GH #11):
 #   (a) the explicit pointer $REPO_ROOT/.claude/signals/active-epic, when it
-#       names a real epic directory;
-#   (b) otherwise the newest plan.md whose "**Status:**" is NOT closed;
-#   (c) otherwise nothing at all — exit 0, write nothing, say nothing.
+#       names a real epic directory whose plan is NOT closed;
+#   (b) otherwise the newest plan.md whose "**Status:**" reads "in flight";
+#   (c) otherwise the newest plan.md that is open but not started — planning,
+#       approved, or no parseable Status line at all;
+#   (d) otherwise nothing at all — exit 0, write nothing, say nothing.
 # It used to be bare mtime, so touching a CLOSED epic's plan.md stole a live
-# executor's telemetry.
+# executor's telemetry (#9). Then it was "the newest plan that is not closed",
+# so FILING an epic ahead of the running one stole it just as effectively (#11):
+# a queued plan is, by construction, the newest plan.md in the repo.
+#
+# Sections A-J are epic 03's original cases, re-run here as regression; K-N are
+# the queue rule. Section E changed with the behaviour it describes: "newest
+# open epic wins" is now "newest epic IN THE SAME STATE wins", because state is
+# the primary key and mtime only breaks ties within a state.
 #
 # Runs the REPO copies of the hooks against synthetic hook-input JSON in a
 # throwaway sandbox: every git repo, worktree, pointer, plan and status tree
@@ -48,6 +57,10 @@ AGENT="c0ffee1234567890abcd"
 OPEN_EPIC="docs/epics/02-open-epic"
 CLOSED_EPIC="docs/epics/01-closed-epic"
 THIRD_EPIC="docs/epics/03-third-epic"
+# The GH #11 shape, named as the issue names it: 05 is being worked, 06 was filed
+# ahead of it and is therefore the newest plan.md in the repo.
+RUNNING_EPIC="docs/epics/05-running"
+QUEUED_EPIC="docs/epics/06-queued"
 
 git_q() { git -c user.email=fixture@example.com -c user.name=fixture \
               -c commit.gpgsign=false -c init.defaultBranch=main "$@"; }
@@ -225,17 +238,22 @@ done
 
 # ============================================================================
 echo
-echo "=== E. two OPEN epics, no pointer: newest open wins ===================="
+echo "=== E. two epics in the SAME state, no pointer: the newest of them wins ="
+echo "    (covers both states: two in flight, and two merely approved)"
 for V in full nojq bare; do
-  B="$SANDBOX/E-$V"; mkrepo "$B"; ORCH="$B/orch"
-  plan_file "$ORCH/$THIRD_EPIC" "approved"
-  sleep 1; touch "$ORCH/$THIRD_EPIC/plan.md"
-  run_life "$ORCH" SubagentStart "$AGENT" "$V"
-  check "newest open epic wins" "$THIRD_EPIC" "$(life_epic "$ORCH" "$AGENT")" "$V"
-  rm -rf "$ORCH"/docs/epics/*/status
-  sleep 1; touch "$ORCH/$OPEN_EPIC/plan.md"     # the other open epic becomes newest
-  run_life "$ORCH" SubagentStart "$AGENT" "$V"
-  check "order follows mtime AMONG OPEN epics" "$OPEN_EPIC" "$(life_epic "$ORCH" "$AGENT")" "$V"
+  for S in "approved" "in flight (item 1 of 1)"; do
+    B="$SANDBOX/E-$V"; mkrepo "$B"; ORCH="$B/orch"
+    plan_file "$ORCH/$OPEN_EPIC"  "$S"            # both open epics in the SAME state,
+    plan_file "$ORCH/$THIRD_EPIC" "$S"            # so mtime is the only variable left
+    sleep 1; touch "$ORCH/$THIRD_EPIC/plan.md"
+    run_life "$ORCH" SubagentStart "$AGENT" "$V"
+    check "[$S] newest of the two wins" "$THIRD_EPIC" "$(life_epic "$ORCH" "$AGENT")" "$V"
+    rm -rf "$ORCH"/docs/epics/*/status
+    sleep 1; touch "$ORCH/$OPEN_EPIC/plan.md"     # the other one becomes newest
+    run_life "$ORCH" SubagentStart "$AGENT" "$V"
+    check "[$S] order follows mtime WITHIN a state" "$OPEN_EPIC" \
+          "$(life_epic "$ORCH" "$AGENT")" "$V"
+  done
 done
 
 # ============================================================================
@@ -381,6 +399,190 @@ for V in full nojq bare; do
         "$(ls "$ORCH/.claude/signals/" | grep -c 'subagent-active' | tr -d ' ')" "$V"
   check "pointer NOT consumed by the hooks" "present" \
         "$([ -f "$ORCH/.claude/signals/active-epic" ] && echo present || echo gone)" "$V"
+done
+
+# ============================================================================
+echo
+echo "=== K. THE QUEUE DEFECT (GH #11): filing ahead must not steal telemetry ="
+echo "    (05 in flight; 06 filed after it as approved, so 06 is the NEWEST plan)"
+for V in full nojq bare; do
+  B="$SANDBOX/K-$V"; mkrepo "$B"; ORCH="$B/orch"
+  rm -rf "$ORCH/$OPEN_EPIC"                        # exactly the shape in the issue
+  plan_file "$ORCH/$RUNNING_EPIC" "in flight (item 1 of 3)"
+  sleep 1
+  plan_file "$ORCH/$QUEUED_EPIC" "approved"        # filed AFTER: newest of them all
+  NEWEST="$(ls -t "$ORCH"/docs/epics/*/plan.md | head -1)"
+  check "precondition: the QUEUED epic IS the newest plan.md" \
+        "$QUEUED_EPIC/plan.md" "${NEWEST#$ORCH/}" "$V"
+  run_life "$ORCH" SubagentStart "$AGENT" "$V"
+  check "telemetry goes to the IN-FLIGHT epic" "$RUNNING_EPIC" \
+        "$(life_epic "$ORCH" "$AGENT")" "$V"
+  check "queued epic got no status tree" "0" \
+        "$(ls "$ORCH/$QUEUED_EPIC/status" 2>/dev/null | wc -l | tr -d ' ')" "$V"
+  run_life "$ORCH" SubagentStop "$AGENT" "$V"
+  check "START+STOP both landed in the in-flight epic" "2" \
+        "$(grep -c 'SUBAGENT ST' "$ORCH/$RUNNING_EPIC/status/agent-$AGENT.log" 2>/dev/null | tr -d ' ')" "$V"
+  check "queued epic still has no status tree after stop" "0" \
+        "$(ls "$ORCH/$QUEUED_EPIC/status" 2>/dev/null | wc -l | tr -d ' ')" "$V"
+
+  # A whole queue behind the running epic changes nothing — including a filed
+  # plan with no Status line at all, which is OPEN but is still not IN FLIGHT.
+  rm -rf "$ORCH"/docs/epics/*/status
+  plan_file "$ORCH/docs/epics/07-also-queued" "planning"
+  plan_file "$ORCH/docs/epics/08-also-queued" ""
+  run_life "$ORCH" SubagentStart "$AGENT" "$V"
+  check "three queued epics behind it: still the in-flight one" "$RUNNING_EPIC" \
+        "$(life_epic "$ORCH" "$AGENT")" "$V"
+  check "queued 'planning' epic got nothing" "0" \
+        "$(ls "$ORCH/docs/epics/07-also-queued/status" 2>/dev/null | wc -l | tr -d ' ')" "$V"
+  check "queued Status-less epic got nothing" "0" \
+        "$(ls "$ORCH/docs/epics/08-also-queued/status" 2>/dev/null | wc -l | tr -d ' ')" "$V"
+
+  # ...and the logger agrees on the same repo (its log LINE needs a parser, so
+  # the bare variant asserts resolution through the lifecycle bracket only).
+  case "$V" in bare) ;; *)
+    rm -rf "$ORCH"/docs/epics/*/status
+    run_life "$ORCH" SubagentStart "$AGENT" "$V"
+    run_log  "$ORCH" "$AGENT" "git status --short" "$V"
+    check "logger picks the in-flight epic too" "$RUNNING_EPIC" \
+          "$(log_epic "$ORCH" "$AGENT")" "$V" ;;
+  esac
+done
+
+# ============================================================================
+echo
+echo "=== L. state beats recency, in both directions =========================="
+for V in full nojq bare; do
+  B="$SANDBOX/L-$V"; mkrepo "$B"; ORCH="$B/orch"
+  rm -rf "$ORCH/$OPEN_EPIC"
+  plan_file "$ORCH/$RUNNING_EPIC" "approved"
+  sleep 1
+  plan_file "$ORCH/$QUEUED_EPIC" "approved"        # newest, and nothing is in flight
+  run_life "$ORCH" SubagentStart "$AGENT" "$V"
+  check "nothing in flight: newest APPROVED wins, as before" "$QUEUED_EPIC" \
+        "$(life_epic "$ORCH" "$AGENT")" "$V"
+  rm -rf "$ORCH"/docs/epics/*/status
+  plan_file "$ORCH/$RUNNING_EPIC" "in flight (item 1 of 3)"   # dispatch starts on 05
+  sleep 1; touch "$ORCH/$QUEUED_EPIC/plan.md"                 # 06 is the newer file again
+  NEWEST="$(ls -t "$ORCH"/docs/epics/*/plan.md | head -1)"
+  check "precondition: 06 is still the newest plan.md" \
+        "$QUEUED_EPIC/plan.md" "${NEWEST#$ORCH/}" "$V"
+  run_life "$ORCH" SubagentStart "$AGENT" "$V"
+  check "one goes in flight: it wins although it is OLDER" "$RUNNING_EPIC" \
+        "$(life_epic "$ORCH" "$AGENT")" "$V"
+  # closed is unreachable from either fallback pass, even when it is newest
+  rm -rf "$ORCH"/docs/epics/*/status
+  sleep 1; touch "$ORCH/$CLOSED_EPIC/plan.md"
+  run_life "$ORCH" SubagentStart "$AGENT" "$V"
+  check "closed epic newest of all: still never chosen" "$RUNNING_EPIC" \
+        "$(life_epic "$ORCH" "$AGENT")" "$V"
+  check "closed epic got no status tree" "0" \
+        "$(ls "$ORCH/$CLOSED_EPIC/status" 2>/dev/null | wc -l | tr -d ' ')" "$V"
+done
+
+# ============================================================================
+echo
+echo "=== M. the pointer: still wins, EXCEPT when it names a closed epic ======"
+for V in full nojq bare; do
+  B="$SANDBOX/M-$V"; mkrepo "$B"; ORCH="$B/orch"
+  rm -rf "$ORCH/$OPEN_EPIC"
+  plan_file "$ORCH/$RUNNING_EPIC" "in flight (item 1 of 3)"
+  sleep 1
+  plan_file "$ORCH/$QUEUED_EPIC" "approved"
+  # (i) a pointer naming a queued epic still overrides the in-flight one: the
+  #     pointer is an explicit instruction and outranks every inference.
+  printf '06-queued\n' > "$ORCH/.claude/signals/active-epic"
+  run_life "$ORCH" SubagentStart "$AGENT" "$V"
+  check "pointer -> APPROVED epic still wins over in-flight" "$QUEUED_EPIC" \
+        "$(life_epic "$ORCH" "$AGENT")" "$V"
+  # (ii) and a pointer naming the in-flight epic wins too
+  rm -rf "$ORCH"/docs/epics/*/status
+  printf '05-running\n' > "$ORCH/.claude/signals/active-epic"
+  run_life "$ORCH" SubagentStart "$AGENT" "$V"
+  check "pointer -> IN-FLIGHT epic wins" "$RUNNING_EPIC" \
+        "$(life_epic "$ORCH" "$AGENT")" "$V"
+  # (iii) a pointer that outlived its epic's close is a missed cleanup, not an
+  #       intent (plan Gap 3): ignore it and fall back, in every pointer form.
+  for FORM in "01-closed-epic" "docs/epics/01-closed-epic" "docs/epics/01-closed-epic/" \
+              "$ORCH/docs/epics/01-closed-epic" "docs/epics/01-closed-epic/plan.md"; do
+    rm -rf "$ORCH"/docs/epics/*/status
+    printf '%s\n' "$FORM" > "$ORCH/.claude/signals/active-epic"
+    run_life "$ORCH" SubagentStart "$AGENT" "$V"; RC=$?
+    LABEL="$(printf '%s' "$FORM" | sed "s|$ORCH|<root>|")"
+    check "closed pointer [$LABEL] ignored, falls back" "$RUNNING_EPIC" \
+          "$(life_epic "$ORCH" "$AGENT")" "$V"
+    check "closed pointer [$LABEL] wrote nothing into the closed epic" "0" \
+          "$(ls "$ORCH/$CLOSED_EPIC/status" 2>/dev/null | wc -l | tr -d ' ')" "$V"
+    check "closed pointer [$LABEL] exit code" 0 "$RC" "$V"
+  done
+  # (iv) a pointer to a directory with NO plan.md is still honoured: only a plan
+  #      that actually says closed disqualifies it (fail toward writing telemetry).
+  rm -rf "$ORCH"/docs/epics/*/status
+  mkdir -p "$ORCH/docs/epics/09-no-plan"
+  printf '09-no-plan\n' > "$ORCH/.claude/signals/active-epic"
+  run_life "$ORCH" SubagentStart "$AGENT" "$V"
+  check "pointer -> epic dir with no plan.md is honoured" "docs/epics/09-no-plan" \
+        "$(life_epic "$ORCH" "$AGENT")" "$V"
+  rm -rf "$ORCH/docs/epics/09-no-plan"
+  # (v) closed pointer AND nothing open anywhere -> nothing at all, quietly
+  rm -rf "$ORCH"/docs/epics/*/status "$ORCH/$RUNNING_EPIC" "$ORCH/$QUEUED_EPIC"
+  printf '01-closed-epic\n' > "$ORCH/.claude/signals/active-epic"
+  : > "$SANDBOX/stderr-M.log"
+  fx_lifecycle SubagentStart "$AGENT" | CLAUDE_PROJECT_DIR="$ORCH" PATH="$(path_for "$V")" \
+    /bin/bash "$LIFECYCLE" > "$SANDBOX/stdout-M.log" 2> "$SANDBOX/stderr-M.log"
+  check "closed pointer + nothing open: exit code" 0 "$?" "$V"
+  check "closed pointer + nothing open: nothing written" "<none>" \
+        "$(life_epic "$ORCH" "$AGENT")" "$V"
+  check "closed pointer + nothing open: no stderr" "0" \
+        "$(wc -c < "$SANDBOX/stderr-M.log" | tr -d ' ')" "$V"
+  check "closed pointer + nothing open: no stdout" "0" \
+        "$(wc -c < "$SANDBOX/stdout-M.log" | tr -d ' ')" "$V"
+done
+
+# ============================================================================
+echo
+echo "=== N. the documented Status vocabulary, driven through the hook ========"
+echo "    (references/plan-template.md: planning | approved | in flight (item N of M) | closed)"
+# One row per Status line, with BOTH expectations written out rather than derived
+# from the rule under test. The epic under test is always rewritten last, so it
+# is always the newest plan.md and can only win on its state.
+#   p1: an older epic is genuinely IN FLIGHT   -> "third" iff this status is in-flight
+#   p2: the only other epic is merely APPROVED -> "third" unless this status is closed
+for V in full nojq bare; do
+  for PASS in p1 p2; do
+    B="$SANDBOX/N-$V-$PASS"; mkrepo "$B"; ORCH="$B/orch"
+    rm -rf "$ORCH/$OPEN_EPIC" "$ORCH/$THIRD_EPIC"
+    case "$PASS" in
+      p1) plan_file "$ORCH/$RUNNING_EPIC" "in flight (item 2 of 4)" ;;
+      p2) plan_file "$ORCH/$RUNNING_EPIC" "approved" ;;
+    esac
+    sleep 1                                   # everything below is strictly newer
+    for ROW in \
+        "in flight (item 1 of 3)|third|third" \
+        "in flight (items 1-2 of 2, parallel)|third|third" \
+        "in flight|third|third" \
+        "In Flight (item 2 of 4)|third|third" \
+        "IN FLIGHT|third|third" \
+        "in flight(item 1 of 2)|third|third" \
+        "in flight, resumed|third|third" \
+        "planning|running|third" \
+        "approved|running|third" \
+        "in progress|running|third" \
+        "in flightless mode|running|third" \
+        "Closed-ish|running|third" \
+        "closed|running|running" \
+        "closed (2026-08-19)|running|running" \
+        "Closed|running|running" \
+        "CLOSED|running|running" ; do
+      S="${ROW%%|*}"; EXPS="${ROW#*|}"
+      case "$PASS" in p1) WHO="${EXPS%%|*}" ;; p2) WHO="${EXPS##*|}" ;; esac
+      case "$WHO" in third) EXP="$THIRD_EPIC" ;; *) EXP="$RUNNING_EPIC" ;; esac
+      rm -rf "$ORCH"/docs/epics/*/status
+      plan_file "$ORCH/$THIRD_EPIC" "$S"      # rewritten => newest plan.md in the repo
+      run_life "$ORCH" SubagentStart "$AGENT" "$V"
+      check "[$PASS] Status [$S]" "$EXP" "$(life_epic "$ORCH" "$AGENT")" "$V"
+    done
+  done
 done
 
 echo

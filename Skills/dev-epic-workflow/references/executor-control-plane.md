@@ -65,17 +65,42 @@ also have to pick the epic. They resolve, in order:
 1. **The pointer** — `$REPO_ROOT/.claude/signals/active-epic`, holding an epic folder
    name (`03-active-epic-resolution`), a repo-relative path, or an absolute path;
    blank lines and `#` comments are skipped, and a trailing `/plan.md` or `/` is
-   tolerated. Used whenever it names a directory that exists.
-2. **The newest `plan.md` whose `**Status:**` line is not `closed`** — mtime order, but
-   only ever among **open** epics.
-3. **Nothing.** Both hooks exit 0, write nothing, print nothing.
+   tolerated. Used whenever it names a directory that exists **and whose plan does not
+   read `closed`**.
+2. **The newest `plan.md` whose `**Status:**` line reads `in flight`.**
+3. **The newest `plan.md` that is open but not started** — `planning`, `approved`, or no
+   parseable `**Status:**` line at all.
+4. **Nothing.** Both hooks exit 0, write nothing, print nothing.
+
+**State is the primary key; mtime only breaks ties within a state**, and no step can
+reach a closed epic. That ordering is what makes it safe to plan ahead: epics are filed
+in numbered folders as `**Status:** approved` while another epic is being worked, and a
+just-filed plan is by construction the newest `plan.md` in the repo. While the rule was
+"the newest plan that is not closed", filing epic 06 during epic 05 handed 05's live
+executor telemetry to 06 — brackets, tool log, owner record and `terminal` stamp all
+landed in a folder nobody was working in (GH #11). Being open and being in flight are
+different states, and only the second one is an address.
+
+The state test reads the documented Status vocabulary of `references/plan-template.md`
+(`planning | approved | in flight (item N of M) | closed`) from the line's first **two**
+words, case-insensitively, and tolerates anything after the phrase — `in flight (items
+1-2 of 2, parallel)` is in flight. It deliberately does not key on the first word alone,
+which truncates `in flight` to `in`; that truncation is exactly why `approved` and
+`in flight` were once indistinguishable. Marking a plan `**Status:** in flight` at
+dispatch is therefore load-bearing, not bookkeeping — Phase 3 sets it, Phase 5 sets
+`closed`.
 
 A plan with no parseable `**Status:**` line counts as **open**: the failure direction is
-"write the telemetry somewhere" rather than "silently lose it". A pointer to a deleted or
-misspelled epic simply falls through to (2), so a stale pointer degrades instead of
-breaking. The pointer is read from the **canonical root**, deliberately not
-`CLAUDE_PROJECT_DIR` — a hook firing inside an executor's worktree finds the pointer the
-orchestrator wrote in the main checkout, without either path having to coincide.
+"write the telemetry somewhere" rather than "silently lose it" — but open is not in
+flight, so a Status-less plan still loses to a running epic. A pointer to a deleted or
+misspelled epic simply falls through to (2)/(3), so a stale pointer degrades instead of
+breaking; so does a pointer naming an epic whose plan reads `closed`, because Phase 5
+removes the pointer at close and one that outlived the close is a missed cleanup, not an
+intent. A pointer to a directory with no readable `plan.md` is still honoured — only a
+plan that actually says `closed` disqualifies it. The pointer is read from the
+**canonical root**, deliberately not `CLAUDE_PROJECT_DIR` — a hook firing inside an
+executor's worktree finds the pointer the orchestrator wrote in the main checkout,
+without either path having to coincide.
 
 It used to be bare mtime — `ls -t docs/epics/*/plan.md | head -1` — which answers
 "whichever plan file was touched last", not "the epic in flight". During epic 02 an
@@ -85,7 +110,8 @@ executor legitimately edited **epic 01's** `plan.md` (a retro correction), makin
 (GH #9). The resolution block is byte-identical in `subagent-lifecycle.sh` and
 `subagent-tool-logger.sh` — between `BEGIN/END active-epic resolution` markers — so the
 two can never disagree about which epic is live; `hooks/tests/active-epic-fixtures.sh`
-asserts both the byte-identity and that both hooks choose the same directory.
+asserts both the byte-identity and that both hooks choose the same directory, across all
+three parser variants (`jq`, `python3`-only, and neither).
 
 Repo-mode installs gitignore these automatically. With a user-level install, add the
 three lines (`.claude/signals/`, `docs/epics/*/status/`, `docs/epics/*/CANCEL`) to the
@@ -126,6 +152,11 @@ Three independent feeds, cheapest first:
    activity never pollutes it. Tail it live:
    `tail -f docs/epics/<NN>-<slug>/status/agent-*.log`; map an agent back to its item with
    `grep -l '"agent_id"' docs/epics/<NN>-<slug>/status/*.json`.
+
+Feeds 2 and 3 land under the **epic in flight** — the one the pointer names, else the
+one whose plan says `in flight` — never under an epic that is merely filed and waiting.
+So the queue can grow while a dispatch is running and `tail -f` keeps working (see
+"Which epic, decided explicitly" above).
 
 On top of these, Claude Code's own surfaces (`/tasks`, the agent view) show status and
 progress for background agents — use them freely, but never as the source of truth
