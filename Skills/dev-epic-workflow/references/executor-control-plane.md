@@ -78,7 +78,7 @@ Two tiers:
 
   Semantics: an **empty** sentinel cancels every active executor; a sentinel containing
   branch names (one per line) cancels only executors whose current git branch matches —
-  that's the granular form for parallel worktree items. The orchestrator itself is never
+  that's the granular form for picking one executor out of several. The orchestrator itself is never
   gated (the gate only fires while a subagent marker is armed), so cleanup is always
   possible. **Remove the sentinel** once the situation is resolved, or the next
   dispatched executor dies on its first tool call — that failure mode is loud and
@@ -109,9 +109,24 @@ Two tiers:
 A dispatch names: epic folder, work item number, branch name, and any decisions resolved
 since the plan was filed — and instructs the executor to read `plan.md` itself. One
 executor per item; items that the plan sequences as dependent are never in flight
-together. For parallel independent items, create the worktrees first (Phase 2) and run
-executors as background tasks, one per worktree. Foreground dispatch is fine for
-single-item flow — Esc is then also a cancel tier.
+together.
+
+**Every dispatch gets its own git worktree**, created before the executor starts
+(`git worktree add ../<repo>-<branch-slug> -b <branch> <integration>`, Phase 2) and removed
+at land-and-reset (Phase 3 step 10). This is not a parallel-mode optimisation: the
+orchestrator keeps committing to the epic folder — plan amendments, handoffs, the next
+dispatch's prep — while the executor owns the item branch, so concurrency exists at one
+item, not just at two. In a shared checkout those orchestrator commits land on the item
+branch; that is epic 01's GH #3, observed, not theorised. Parallel independent items simply
+repeat the rule — one worktree each, executors as background tasks. Foreground dispatch
+into a worktree is fine for single-item flow — Esc is then also a cancel tier.
+
+**Interim limitation (until epic 02 items 2–3 land).** The hooks resolve the current branch
+from the orchestrator's checkout, not from the calling agent's worktree. In worktree mode
+that means branch-scoped sentinels match nothing (an empty sentinel still cancels every
+executor), and `status/<branch-slug>.json`/`.log` are written under the orchestrator's
+branch slug rather than the item's. Dispatch serially until that is fixed, so per-item
+status cannot collide.
 
 After the executor returns: Phase 4 verification → merge (orchestrator's job, per Phase 3
 steps 9–10) → land-and-reset → dispatch the next item. The orchestrator does **not**
