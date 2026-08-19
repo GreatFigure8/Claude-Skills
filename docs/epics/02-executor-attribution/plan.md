@@ -30,15 +30,21 @@ can never land on the item branch.
   run in parallel"; line 79 step 2 makes the worktree a parenthetical "(In parallel mode:
   …)". Phase 5 line 142 and step 10 already handle worktree cleanup.
 - **Verified (state):** all seven installed hooks are byte-identical to the repo copies.
-- **OPEN QUESTION (must be answered before item 2's design is final):** in worktree mode,
-  do the hooks resolve "current branch" from the executor's worktree or from the
-  orchestrator's checkout? They `cd "${CLAUDE_PROJECT_DIR:-$(pwd)}"`, and
-  `CLAUDE_PROJECT_DIR` is unset in the tool environment. If they resolve the orchestrator's
-  checkout, then branch-scoped cancel sentinels naming an executor's branch match nothing
-  and granular cancellation is silently dead in worktree mode — and status logs land under
-  the orchestrator's branch slug. Epic 01 cannot settle this: there the executor branched
-  the *shared* checkout, so both resolutions gave the same answer. **Item 1's dispatch is
-  the experiment** — it runs in a worktree, so the log filename and reported branch answer it.
+- **ANSWERED, and worse than assumed (verified live during item 1's dispatch):** the hooks
+  resolve the **orchestrator's checkout**, never the executor's worktree. Evidence: with the
+  executor working in
+  `../claude-skills-fix-executor-attribution-worktree-isolation`, the lifecycle hook wrote
+  `docs/epics/02-executor-attribution/status/main.log` in the MAIN checkout, with the bracket
+  reading `── SUBAGENT START (a71a4bb…) on branch main ──`; the marker landed in the main
+  checkout's `.claude/signals/`; the worktree's `.claude/signals/` was never touched.
+  Two consequences:
+  1. **Branch-scoped cancellation is dead in worktree mode.** A sentinel naming an executor's
+     branch never matches, because the gate compares against the orchestrator's branch. Worse,
+     a sentinel naming the orchestrator's branch would match *every* executor at once — the
+     precise opposite of granular.
+  2. **Per-item status collides.** Every executor writes `<orchestrator-branch>.json/.log`, so
+     parallel worktree items overwrite each other's status. Observability breaks in exactly the
+     mode item 1 makes the default.
 - **Assumed:** the two unexplained `SubagentStop` events seen in epic 01 (`af496cdec8c7d1d96`,
   `a6e1ee0f8c0afd15b`) originate from agents whose `SubagentStart` did not reach the hook.
   Owner-matching makes their origin irrelevant, so the epic does not depend on identifying
@@ -84,9 +90,10 @@ can never land on the item branch.
   unchanged for subagent calls. `subagent-tool-logger.sh` — same test, so orchestrator
   calls stop polluting the executor's log. Update the false Layer 2 claim in
   `references/executor-control-plane.md` to describe the real mechanism.
-  Resolve the open question above: if branch resolution follows the orchestrator's
-  checkout, branch-scoped matching must instead derive the branch from the calling agent's
-  worktree (or the sentinel must key on `agent_id` rather than branch).
+  **Required by the answered question:** branch-scoped matching must stop reading the
+  orchestrator's branch. Key the sentinel on `agent_id`, or resolve the calling agent's
+  actual working directory — comparing against `CLAUDE_PROJECT_DIR`'s branch is wrong in
+  every worktree dispatch.
 - **Not in scope:** changing sentinel file locations or the empty-vs-branch-scoped
   semantics; the marker files themselves (still used by the lifecycle hook).
 - **Definition of done:**
@@ -119,6 +126,9 @@ can never land on the item branch.
   path from the epic plus the owning agent rather than the live branch (or writing the
   `START` bracket to the same file the `STOP` will use). Update Layer 1/Layer 3 wording in
   `references/executor-control-plane.md` where it describes the bracket pair.
+  **Required by the answered question:** the status/log path must key on the epic plus the
+  item or owning agent, not on the resolved branch — otherwise parallel worktree executors
+  all write one file. This subsumes the split-bracket defect: both are branch-derived paths.
 - **Not in scope:** identifying where the unexplained stops originate; changing the
   `status.json` milestone vocabulary; the stale-marker sweep.
 - **Definition of done:**
@@ -149,6 +159,7 @@ on the item branch — the exact defect #3 describes.
 | Fixing attribution regresses cancellation itself | Medium | Kill switch silently stops working | DoD tests denial and allowance in both directions, not just allowance |
 | `agent_id` semantics differ from the documented behaviour | Low | Item 2's premise fails | Fixture tests are the proof; if `agent_id` turns out present for main-session calls, the executor reports `blocked` rather than guessing |
 | Doc-only item 1 drifts from hook behaviour | Medium | Docs describe a system that doesn't exist | Items 2 and 3 each update the same reference alongside their code |
+| **Item 1 alone makes worktree mode the default while branch-scoped cancel and per-item status are still broken in it** | Certain until item 2+3 land | Granular cancel silently dead; parallel status collides | Interim window is single-user and known; item 1's text notes the limitation; do not run parallel worktree items until item 3 lands |
 
 ## Deferred / out of scope
 - Add a shell/hook section to `references/stack-gates.md` — carried over from epic 01, now
@@ -171,3 +182,7 @@ on the item branch — the exact defect #3 describes.
 - 2026-08-19 — item 1 dispatched into a git worktree, ahead of its own documentation
   change, because the #3 hazard is live today. Its dispatch doubles as the experiment for
   the worktree branch-resolution open question above.
+- 2026-08-19 — worktree branch-resolution question ANSWERED by item 1's own dispatch: hooks
+  follow the orchestrator's checkout. Items 2 and 3 gained required scope as a result, and
+  the finding was added to GH #5. Orchestrator committed this amendment to `main` while the
+  executor worked in its worktree — which is item 1's premise, validated live.
