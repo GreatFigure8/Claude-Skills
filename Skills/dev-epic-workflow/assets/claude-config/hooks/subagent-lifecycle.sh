@@ -85,7 +85,7 @@ AGENT_ID="$(field agent_id)"
 # Same sanitisation cancel-gate.sh applies to selectors and subagent-tool-logger.sh
 # applies to log names, so marker, log, owner record and selector all agree.
 AGENT_ID="$(printf '%s' "$AGENT_ID" | tr -c 'A-Za-z0-9._-' '-' | cut -c1-64)"
-AGENT_TYPE="$(field agent_type | tr -c 'A-Za-z0-9._ -' '-' | cut -c1-40)"
+AGENT_TYPE="$(printf '%s' "$(field agent_type)" | tr -c 'A-Za-z0-9._ -' '-' | cut -c1-40)"
 
 case "$EVENT" in SubagentStart|SubagentStop) ;; *) exit 0 ;; esac
 
@@ -149,7 +149,7 @@ if not isinstance(d, dict): sys.exit(1)
 d["agent_id"] = agent
 fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or ".")
 with os.fdopen(fd, "w") as f:
-    json.dump(d, f, indent=2); f.write("\n")
+    json.dump(d, f, indent=2, ensure_ascii=False); f.write("\n")
 os.replace(tmp, path)
 PYEOF
   fi
@@ -177,7 +177,7 @@ d["terminal"] = True
 d["updated"] = now
 fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or ".")
 with os.fdopen(fd, "w") as f:
-    json.dump(d, f, indent=2); f.write("\n")
+    json.dump(d, f, indent=2, ensure_ascii=False); f.write("\n")
 os.replace(tmp, path)
 PYEOF
   fi

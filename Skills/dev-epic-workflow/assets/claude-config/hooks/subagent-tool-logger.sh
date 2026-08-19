@@ -116,7 +116,7 @@ if not isinstance(d, dict): sys.exit(1)
 d["agent_id"] = agent
 fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or ".")
 with os.fdopen(fd, "w") as f:
-    json.dump(d, f, indent=2); f.write("\n")
+    json.dump(d, f, indent=2, ensure_ascii=False); f.write("\n")
 os.replace(tmp, path)
 PYEOF
     fi
