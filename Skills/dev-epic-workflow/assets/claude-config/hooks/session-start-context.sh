@@ -340,4 +340,62 @@ backlog_section() {
 
 backlog_section
 
+# Unattended intake config for THIS repo — armed or not, and against which base.
+#
+# The config is per-repo and lives outside the repo, so from inside a session it
+# is invisible: an orchestrator can work all day believing labelled issues will
+# be drafted while the agent is unloaded, or believing proposals target `dev`
+# when they would target `main`. This states the facts; SKILL.md tells the
+# orchestrator to confirm them with Jonathan rather than assume.
+#
+# Silent when unattended intake has never been configured — a repo that does not
+# use it must not grow a nag line. Purely local: reads one file and asks launchd.
+# No gh, no network, no bearing on the tracker call's ~2s cap.
+intake_config_section() {
+  IC_LIST="${INTAKE_REPO_LIST:-$HOME/.config/claude-intake/repos}"
+  [ -f "$IC_LIST" ] && [ -r "$IC_LIST" ] || return 0     # never configured → say nothing
+
+  IC_ROOT="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  if [ -n "$IC_ROOT" ]; then IC_ROOT="$(dirname "$IC_ROOT" 2>/dev/null || true)"; fi
+  [ -n "$IC_ROOT" ] || IC_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  [ -n "$IC_ROOT" ] || return 0
+
+  IC_LISTED=no
+  IC_BASE=""
+  while IFS= read -r IC_LINE || [ -n "$IC_LINE" ]; do
+    IC_LINE="${IC_LINE%"${IC_LINE##*[![:space:]]}"}"
+    IC_LINE="${IC_LINE#"${IC_LINE%%[![:space:]]*}"}"
+    case "$IC_LINE" in ''|'#'*) continue ;; esac
+    case "$IC_LINE" in '~'*) IC_LINE="$HOME${IC_LINE#\~}" ;; esac
+    case "$IC_LINE" in
+      *\|*) IC_PATH="${IC_LINE%|*}"; IC_B="${IC_LINE##*|}" ;;
+      *)     IC_PATH="$IC_LINE";      IC_B="" ;;
+    esac
+    IC_PATH="${IC_PATH%"${IC_PATH##*[![:space:]]}"}"
+    if [ "$IC_PATH" = "$IC_ROOT" ]; then
+      IC_LISTED=yes
+      IC_BASE="$IC_B"
+      break
+    fi
+  done < "$IC_LIST"
+
+  IC_AGENT=no
+  launchctl list 2>/dev/null | grep -q 'unattended-intake' && IC_AGENT=yes
+
+  echo
+  if [ "$IC_LISTED" = no ]; then
+    echo "- Unattended intake: this repo is **not** listed in \`$IC_LIST\` — labelling \`claude-intake\` here does nothing."
+  else
+    if [ -n "$IC_BASE" ]; then IC_SHOWN="$IC_BASE"; else IC_SHOWN="(GitHub default)"; fi
+    if [ "$IC_AGENT" = yes ]; then
+      echo "- Unattended intake: **armed** — proposals target \`$IC_SHOWN\`, agent loaded and polling."
+    else
+      echo "- Unattended intake: listed (base \`$IC_SHOWN\`) but the **agent is not loaded** — nothing polls until it is."
+    fi
+  fi
+  echo "  Confirm this is right for this repo before relying on it (dev-epic-workflow: intake config check)."
+}
+
+intake_config_section
+
 exit 0
