@@ -86,6 +86,84 @@ else
   fi
 fi
 
+# Epics filed but NOT yet dispatched — the queue Jonathan plans ahead into.
+# Purely local: a read of the docs/epics/*/plan.md headers already on disk. No
+# gh, no network, no bearing on the tracker call below or its ~2s cap; a queue
+# of filed epics must never be a reason session start is slow.
+#
+# "Awaiting dispatch" = a filed plan whose Status is neither `closed` nor
+# `in flight …` (vocabulary: references/plan-template.md —
+# planning | approved | in flight (item N of M) | closed). In-flight epics are
+# already surfaced by the handoff / newest-plan section above, and closed ones
+# are done. Matching is on the `in flight` PHRASE, not on the first word, so
+# `in flight (items 1-2 of 2, parallel)` is still recognised as in flight.
+#
+# A plan with no parseable Status line counts as awaiting dispatch — the same
+# fail-toward-visibility rule the control-plane hooks use when resolving the
+# active epic. A malformed header must never make queued work invisible, and it
+# must never fail the injection either: every command here is guarded and the
+# section emits nothing at all unless it has something to say.
+#
+# Order is FOLDER NUMBER, not mtime: Phase 1 numbers epic folders by
+# implementation sequence, so 05- is dispatched before 06- however recently
+# either plan was edited. An unnumbered folder sorts last rather than first.
+#
+# The rows are collected in the main shell rather than inside $( ), because
+# bash 3.2 mis-parses a `case` pattern's `)` inside command substitution — and
+# `bash -n` does not catch it, only running it does.
+EPIC_QUEUE_MAX_NAMED=5
+
+epic_queue_section() {
+  [ -d docs/epics ] || return 0
+
+  EQ_ROWS=""
+  for EQ_PLAN in docs/epics/*/plan.md; do
+    [ -f "$EQ_PLAN" ] || continue
+    EQ_NAME="${EQ_PLAN%/plan.md}"
+    EQ_NAME="${EQ_NAME##*/}"
+    EQ_STATE="$(head -10 "$EQ_PLAN" 2>/dev/null \
+      | grep -E '^[[:space:]]*[*_]*Status:' 2>/dev/null | head -1 \
+      | sed -e 's/^[[:space:]]*[*_]*Status:[*_]*[[:space:]]*//' -e 's/[[:space:]]*$//' 2>/dev/null \
+      | tr '[:upper:]' '[:lower:]' 2>/dev/null || true)"
+    case "$EQ_STATE" in
+      closed*|'in flight'*|in-flight*) continue ;;
+    esac
+    EQ_NUM="${EQ_NAME%%-*}"                 # sort key: the NN of NN-slug
+    case "$EQ_NUM" in ''|*[!0-9]*) EQ_NUM=9999 ;; esac   # unnumbered folder: last
+    EQ_ROWS="${EQ_ROWS}${EQ_NUM} ${EQ_NAME}"$'\n'
+  done
+  [ -n "$EQ_ROWS" ] || return 0
+
+  EQ_NAMED=""
+  EQ_COUNT=0
+  while IFS= read -r EQ_NAME; do
+    [ -n "$EQ_NAME" ] || continue
+    EQ_COUNT=$((EQ_COUNT + 1))
+    [ "$EQ_COUNT" -gt "$EPIC_QUEUE_MAX_NAMED" ] && continue
+    if [ -z "$EQ_NAMED" ]; then
+      EQ_NAMED="$EQ_NAME"
+    else
+      EQ_NAMED="${EQ_NAMED}, ${EQ_NAME}"
+    fi
+  done <<EOF
+$(printf '%s' "$EQ_ROWS" | sort -n 2>/dev/null | cut -d' ' -f2- 2>/dev/null)
+EOF
+
+  [ "$EQ_COUNT" -gt 0 ] || return 0
+  echo
+  if [ "$EQ_COUNT" -eq 1 ]; then
+    echo "- 1 epic awaiting dispatch: ${EQ_NAMED}."
+    return 0
+  fi
+  EQ_MORE=""
+  if [ "$EQ_COUNT" -gt "$EPIC_QUEUE_MAX_NAMED" ]; then
+    EQ_MORE=" (+$((EQ_COUNT - EPIC_QUEUE_MAX_NAMED)) more)"
+  fi
+  echo "- ${EQ_COUNT} epics awaiting dispatch: ${EQ_NAMED}${EQ_MORE} — dispatch the lowest number first."
+}
+
+epic_queue_section
+
 # Tracker backlog: open GitHub issues that no epic has picked up yet.
 # Strictly best-effort and silent — a missing gh, a non-GitHub remote, an auth
 # or network failure, or a slow tracker all produce NO output, leaving every
