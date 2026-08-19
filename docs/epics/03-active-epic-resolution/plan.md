@@ -1,6 +1,6 @@
 # Epic: active-epic resolution
 
-**Status:** approved
+**Status:** closed
 **Source:** GH #9
 **Live branch:** main   **Integration branch:** main   **Pre-epic tag:** n/a
 
@@ -109,3 +109,34 @@ Single item.
 - 2026-08-19 — filed from GH #9, found during epic 02's Phase 5 cleanup. Phase 0 confirmed
   the mtime selection survives epic 02 untouched, and that the `Status:` marker is uniform
   enough to drive a closed-aware fallback.
+- 2026-08-19 — item 1 merged as PR #10 (merge commit 43b0d26) and installed. Verified cold:
+  171-case new harness plus both prior harnesses re-run unchanged (107 + 111, provably
+  unmodified in the diff), 11 scripts parse under bash 3.2, `cancel-gate.sh` untouched, plus
+  6 independent fixtures. Verified LIVE after install: a closed epic's `plan.md` was
+  deliberately made newest by mtime — the exact accidental condition from epic 02 — and a real
+  dispatch's telemetry routed to the OPEN epic, not the closed one. Epic closed.
+
+## Retro
+
+**One item, landed whole, no split.** The fix works and is proven in production, not just in
+fixtures.
+
+**The executor's mutation check is the practice worth keeping.** It restored the old mtime line
+in a scratch copy and reran its own harness: 84 of 171 cases failed, including the exact
+reported defect. That is the difference between "my tests pass" and "my tests would have caught
+this" — the strongest evidence any executor has produced in three epics, and it should become
+standard for harness work.
+
+**A requirement arrived after approval, and the plan is the reason that was caught cleanly.**
+Jonathan asked whether epics can be planned ahead and queued. Testing the shipped resolver
+against that workflow shows a filed-but-unstarted epic (`Status: approved`) is "newest and not
+closed", so it captures the *running* epic's telemetry — reintroducing #9 by the front door.
+The executor met its definition of done exactly; the specification simply did not contemplate
+queuing. Recorded as a follow-on rather than blamed on the item.
+
+**Two open questions the item surfaced rather than silently decided.** A pointer naming a
+*closed* epic is still honoured (verified — a stale pointer can aim telemetry at a finished
+epic), and `**Status:** closed (<date>)` also reads as closed because the parser compares the
+first word. Both were reported as decisions needing a yes/no, not buried.
+
+**Deliberately not done.** No release tag; skill content, not a versioned artifact.
