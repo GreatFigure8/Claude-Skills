@@ -1,6 +1,6 @@
 # Epic: executor attribution and isolation
 
-**Status:** in flight (item 3 of 3)
+**Status:** closed
 **Source:** GH #2, GH #3, GH #5
 **Live branch:** main   **Integration branch:** main   **Pre-epic tag:** n/a
 
@@ -219,3 +219,53 @@ on the item branch — the exact defect #3 describes.
   and the orchestrator then removed the sentinel from inside the session, the exact
   operation GH #2 made impossible. This also observed, for the first time, that real
   PreToolUse payloads carry agent_id for subagents and omit it for the main session.
+- 2026-08-19 — item 3 merged as PR #8 (merge commit 9af3b76) and installed. Verified cold
+  (107-case lifecycle harness + item 2's 111-case regression + 5 independent fixtures), then
+  verified LIVE post-install on a real dispatch: exactly one START/STOP pair, co-located in
+  one `agent-<id>.log`, owner record written, nothing stamped for an agent owning no status
+  file. Epic closed.
+
+## Retro
+
+**All three items landed as planned; nothing was split or re-scoped downward.** What did
+change was scope *growth* — twice, and both times because the epic's own execution produced
+evidence rather than because anyone speculated.
+
+**The epic kept generating its own test data.** Item 1's dispatch was deliberately used as the
+experiment for the worktree branch-resolution question, and answered it in the worst direction:
+hooks follow the orchestrator's checkout, so branch-scoped cancellation was dead and status
+collided — consequences the plan had not accounted for, which expanded items 2 and 3. Then
+item 3's own run reproduced defect #5 live: a phantom `SUBAGENT STOP` from an agent that never
+started fired fifteen seconds in, while the executor worked for another twenty-five minutes.
+The defect demonstrated itself during its own fix.
+
+**Two root causes, not one — and the distinction mattered.** #2 and #5 were attribution: hooks
+could not tell which agent caused an event, fixed by keying on `agent_id`. #3 was shared
+mutable state: one working tree owned by two agents, fixed by worktree isolation. Per-call
+attribution would not have prevented #3, and worktrees would not have prevented #2. Epic 01's
+retro originally conflated them; item 1 corrected that.
+
+**Verification was kept independent of the thing being verified.** Each executor shipped a
+fixture harness, and each harness passed — but a harness written by the author of a fix is not
+independent evidence, so every item was also checked with fixtures written from scratch: 14 for
+item 2, 5 for item 3. `install.sh` was removed from executor scope entirely for items 2 and 3;
+the orchestrator installed only after re-verifying, on the principle that the agent which could
+brick the machine should not be the one to pull the trigger. That mattered: item 2 edits a
+`PreToolUse` hook that runs before every tool call on this machine.
+
+**The kill switch is now real, and was proven so rather than asserted.** With an empty sentinel
+and a subagent armed, the subagent was denied on its first tool call while an orchestrator call
+succeeded, and the orchestrator then removed the sentinel from inside the session — the exact
+operation #2 made impossible. That run also produced the first direct observation that real
+`PreToolUse` payloads carry `agent_id` for subagents and omit it for the main session; every
+prior step had rested on documentation.
+
+**What is deliberately still open.** Branch-name cancel selectors are a no-op under worktree
+dispatch (granular cancel needs an agent id); stamping has a concurrency gap when several
+executors run with none naming its own status file, which fails safe rather than wrong; the
+`agent_id` extraction block now exists in three copies. All recorded in Deferred, none blocking.
+
+**Deliberately not done.** No release tag — this repo ships skill content, not a versioned
+artifact, and `pre-epic` tagging was judged n/a at Phase 2.
+
+**Parallel dispatch is now unblocked**, which was the gating constraint on roadmap Tier 2.
