@@ -67,7 +67,7 @@ If the epic starts from a divergent state, reconcile it as step zero of the plan
 
 **Parallel items relax nothing** — each parallel item still gets its own worktree, and parallel executors run as background tasks, one per worktree. Items that depend on each other per the plan's sequence do not run in parallel; parallelism is for independent items only.
 
-**Interim limitation — remove when the control-plane fix lands (epic 02, items 2–3).** The control-plane hooks resolve "current branch" from the orchestrator's checkout, not from the executor's worktree. In worktree mode that means branch-scoped cancel sentinels match nothing (the empty, cancel-everything sentinel still works), and each executor's `status/` files land under the *orchestrator's* branch slug instead of the item's. Until that is fixed, **dispatch serially** — one worktree executor at a time — so per-item status cannot collide.
+**Interim limitation — remove when the control-plane fix lands (epic 02, item 3).** The control-plane hooks resolve "current branch" from the orchestrator's checkout, not from the executor's worktree. Cancellation no longer depends on that — a scoped sentinel names an **agent id** (from `.claude/signals/subagent-active-<id>` or the `SUBAGENT START` bracket), and branch-name selectors are honoured only in direct dispatch — but each executor's `status/` files still land under the *orchestrator's* branch slug instead of the item's. Until that is fixed, **dispatch serially** — one worktree executor at a time — so per-item status cannot collide.
 
 ## Phase 3 — Execute one work item at a time
 

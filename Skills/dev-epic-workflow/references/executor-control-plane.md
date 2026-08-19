@@ -28,7 +28,8 @@ docs/epics/<NN>-<slug>/
   CANCEL                       ← cancel sentinel for this epic (create to cancel)
 .claude/signals/
   cancel                       ← project-wide cancel sentinel
-  subagent-active-<id>         ← lifecycle markers (SubagentStart/Stop hook maintains)
+  subagent-active-<id>         ← lifecycle markers (SubagentStart/Stop hook maintains);
+                                 <id> is also the selector you write into a sentinel
 ```
 
 Repo-mode installs gitignore these automatically. With a user-level install, add the
@@ -52,9 +53,9 @@ Three independent feeds, cheapest first:
    executor's run actually ends, whatever the model last wrote.
 3. **`status/<branch-slug>.log` — the deterministic tool-call stream.** The PostToolUse
    hook appends one line per executor tool call (timestamp | tool | command/file),
-   bracketed by SUBAGENT START/STOP lines from the lifecycle hook. It logs only while
-   a subagent marker is armed, so orchestrator activity never pollutes it. Tail it
-   live: `tail -f docs/epics/<NN>-<slug>/status/<branch>.log`.
+   bracketed by SUBAGENT START/STOP lines from the lifecycle hook. It logs only calls
+   that carry an `agent_id` — i.e. calls made inside a subagent — so orchestrator
+   activity never pollutes it. Tail it live: `tail -f docs/epics/<NN>-<slug>/status/<branch>.log`.
 
 On top of these, Claude Code's own surfaces (`/tasks`, the agent view) show status and
 progress for background agents — use them freely, but never as the source of truth
@@ -73,16 +74,39 @@ Two tiers:
   ```bash
   touch docs/epics/<NN>-<slug>/CANCEL          # cancel this epic's executors
   touch .claude/signals/cancel                  # cancel all executors in this project dir
-  echo "feature/item-3-branch" >> docs/epics/<NN>-<slug>/CANCEL   # cancel ONE item
+  ls .claude/signals/subagent-active-*          # what's running, and its agent id
+  echo "a71a4bb0c9d2" >> docs/epics/<NN>-<slug>/CANCEL   # cancel ONE executor, by agent id
   ```
 
-  Semantics: an **empty** sentinel cancels every active executor; a sentinel containing
-  branch names (one per line) cancels only executors whose current git branch matches —
-  that's the granular form for picking one executor out of several. The orchestrator itself is never
-  gated (the gate only fires while a subagent marker is armed), so cleanup is always
-  possible. **Remove the sentinel** once the situation is resolved, or the next
-  dispatched executor dies on its first tool call — that failure mode is loud and
+  Semantics: an **empty** sentinel — or one holding nothing but blank lines and
+  `#` comments — cancels every active executor. A sentinel with content cancels only the
+  executors it names, one selector per line:
+
+  - an **agent id**, exact or any prefix of 8+ characters. Read it from
+    `.claude/signals/subagent-active-<id>` or from the `SUBAGENT START (<id>)` bracket in
+    the status log. This is the granular form, and the only one that works under worktree
+    dispatch.
+  - a **branch name**, honoured only in direct (single-checkout) dispatch, where the
+    project dir's branch genuinely is the executor's. Under worktree dispatch branch
+    selectors are ignored by design: hooks always resolve `CLAUDE_PROJECT_DIR` — the
+    orchestrator's checkout — so the item branch would never match, and the
+    orchestrator's branch would match every executor at once.
+
+  **The orchestrator is never gated**, because attribution is per call rather than per
+  session: `PreToolUse` input carries `agent_id` only inside a subagent, so its absence
+  identifies the main session and the gate allows the call before it even looks for a
+  sentinel. The lifecycle markers are deliberately not consulted — a marker proves only
+  that *some* executor is running, which is exactly why the gate used to deny the
+  orchestrator too and left the sentinel unremovable from inside the session. Cleanup is
+  therefore always possible. **Remove the sentinel** once the situation is resolved, or the
+  next dispatched executor dies on its first tool call — that failure mode is loud and
   harmless, but annoying.
+
+  The gate fails open by construction: malformed hook input, `jq` and `python3` both
+  missing, no git, an unreadable sentinel — every error path allows the call. All of that
+  is exercised by `assets/claude-config/hooks/tests/cancel-gate-fixtures.sh`, which builds
+  a throwaway sandbox and never touches a real repo. Run it after changing either hook,
+  **before** `install.sh` puts the change live.
 
   Cancellation is loss-free by construction: everything pushed is safe, and the executor
   pushed on its first commit. After a cancel, the orchestrator decides: re-dispatch with
@@ -121,12 +145,12 @@ branch; that is epic 01's GH #3, observed, not theorised. Parallel independent i
 repeat the rule — one worktree each, executors as background tasks. Foreground dispatch
 into a worktree is fine for single-item flow — Esc is then also a cancel tier.
 
-**Interim limitation (until epic 02 items 2–3 land).** The hooks resolve the current branch
-from the orchestrator's checkout, not from the calling agent's worktree. In worktree mode
-that means branch-scoped sentinels match nothing (an empty sentinel still cancels every
-executor), and `status/<branch-slug>.json`/`.log` are written under the orchestrator's
-branch slug rather than the item's. Dispatch serially until that is fixed, so per-item
-status cannot collide.
+**Interim limitation (until epic 02 item 3 lands).** The hooks resolve `CLAUDE_PROJECT_DIR`
+— the orchestrator's checkout — not the calling agent's worktree. Cancellation no longer
+depends on that (sentinels select by agent id), but `status/<branch-slug>.json` and `.log`
+are still written under the *orchestrator's* branch slug rather than the item's, so parallel
+worktree executors would overwrite each other's status. Dispatch serially until item 3 keys
+those paths on the epic plus the item.
 
 After the executor returns: Phase 4 verification → merge (orchestrator's job, per Phase 3
 steps 9–10) → land-and-reset → dispatch the next item. The orchestrator does **not**
@@ -141,5 +165,5 @@ that's what `/handoff` still exists for.
 | Executor hangs or dies mid-item | `status.json` `updated` goes stale while marker is armed; log stream stops; branch is pushed so nothing is lost |
 | Task UI stuck "in progress" after real completion | `terminal: true` stamp + "repo decides" rule |
 | Cancel ignored by the model | Impossible — PreToolUse denial is system-level, not advisory |
-| Stale marker after a crashed run keeps the gate/logger armed | SubagentStop clears markers >24h old; markers are also safe to delete by hand |
+| Stale marker after a crashed run | Harmless to the gate and logger — both attribute per call by `agent_id` and never read markers; SubagentStop still clears markers >24h old, and they are safe to delete by hand |
 | Scope grows mid-item | Executor's hard boundary: finish the agreed slice, propose the split in its return summary |
