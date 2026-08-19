@@ -1,6 +1,6 @@
 # Epic: executor attribution and isolation
 
-**Status:** approved
+**Status:** in flight (item 1 of 3)
 **Source:** GH #2, GH #3, GH #5
 **Live branch:** main   **Integration branch:** main   **Pre-epic tag:** n/a
 
@@ -30,6 +30,15 @@ can never land on the item branch.
   run in parallel"; line 79 step 2 makes the worktree a parenthetical "(In parallel mode:
   …)". Phase 5 line 142 and step 10 already handle worktree cleanup.
 - **Verified (state):** all seven installed hooks are byte-identical to the repo copies.
+- **OPEN QUESTION (must be answered before item 2's design is final):** in worktree mode,
+  do the hooks resolve "current branch" from the executor's worktree or from the
+  orchestrator's checkout? They `cd "${CLAUDE_PROJECT_DIR:-$(pwd)}"`, and
+  `CLAUDE_PROJECT_DIR` is unset in the tool environment. If they resolve the orchestrator's
+  checkout, then branch-scoped cancel sentinels naming an executor's branch match nothing
+  and granular cancellation is silently dead in worktree mode — and status logs land under
+  the orchestrator's branch slug. Epic 01 cannot settle this: there the executor branched
+  the *shared* checkout, so both resolutions gave the same answer. **Item 1's dispatch is
+  the experiment** — it runs in a worktree, so the log filename and reported branch answer it.
 - **Assumed:** the two unexplained `SubagentStop` events seen in epic 01 (`af496cdec8c7d1d96`,
   `a6e1ee0f8c0afd15b`) originate from agents whose `SubagentStart` did not reach the hook.
   Owner-matching makes their origin irrelevant, so the epic does not depend on identifying
@@ -75,6 +84,9 @@ can never land on the item branch.
   unchanged for subagent calls. `subagent-tool-logger.sh` — same test, so orchestrator
   calls stop polluting the executor's log. Update the false Layer 2 claim in
   `references/executor-control-plane.md` to describe the real mechanism.
+  Resolve the open question above: if branch resolution follows the orchestrator's
+  checkout, branch-scoped matching must instead derive the branch from the calling agent's
+  worktree (or the sentinel must key on `agent_id` rather than branch).
 - **Not in scope:** changing sentinel file locations or the empty-vs-branch-scoped
   semantics; the marker files themselves (still used by the lifecycle hook).
 - **Definition of done:**
@@ -156,3 +168,6 @@ on the item branch — the exact defect #3 describes.
   surfaced all three. Phase 0 confirmed via Claude Code hook documentation that
   `PreToolUse`/`PostToolUse` carry `agent_id` only inside subagent calls, which is what
   makes item 2 a small fix rather than a redesign.
+- 2026-08-19 — item 1 dispatched into a git worktree, ahead of its own documentation
+  change, because the #3 hazard is live today. Its dispatch doubles as the experiment for
+  the worktree branch-resolution open question above.
