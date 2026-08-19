@@ -82,9 +82,83 @@ else
 fi
 [ -n "$REPO_ROOT" ] && [ -d "$REPO_ROOT" ] || REPO_ROOT="$(pwd)"
 
-EPIC_PLAN="$(ls -t "$REPO_ROOT"/docs/epics/*/plan.md 2>/dev/null | head -1)"
-[ -n "$EPIC_PLAN" ] || exit 0
-STATUS_DIR="$(dirname "$EPIC_PLAN")/status"
+# ------------------------------------------------------------------ epic ----
+# --- BEGIN active-epic resolution (identical block in subagent-lifecycle.sh
+# --- and subagent-tool-logger.sh; drift between them is a fixture failure) ---
+#
+# Which epic is in flight, in order:
+#   (a) the explicit pointer $REPO_ROOT/.claude/signals/active-epic — epic folder
+#       name, repo-relative path, or absolute path — when it names a real epic
+#       directory. The orchestrator writes it at dispatch setup (Phase 3 step 2)
+#       and removes it at epic close (Phase 5).
+#   (b) otherwise the newest plan.md whose "**Status:**" line is NOT closed.
+#   (c) otherwise nothing: the caller degrades to silence and exits 0.
+#
+# It used to be bare mtime — "whichever plan.md was touched last" — which is not
+# "the epic in flight". Editing a CLOSED epic's plan is a legitimate act (a retro
+# correction), and doing it during epic 02 redirected a live executor's telemetry
+# into closed epic 01: two SUBAGENT STOP brackets landed there while the real
+# epic's own bracket landed two minutes later, one dispatch split across two epic
+# folders (GH #9). Hence: an explicit signal first, and a fallback that can never
+# choose a closed epic.
+#
+# A plan with no parseable Status: line counts as OPEN — fail toward writing
+# telemetry, never toward silently losing it. The pointer is read relative to
+# REPO_ROOT (the canonical checkout), not CLAUDE_PROJECT_DIR, so the hooks stay
+# correct when an executor runs from inside a linked worktree.
+#
+# Tools used here are only those the parser-free fixture variant provides
+# (head/grep/sed/ls plus shell builtins): no jq, no python3, no awk, bash 3.2.
+
+plan_is_open() { # $1 = plan.md path; false ONLY when its Status line reads closed
+  EPIC_STATE="$(head -10 "$1" 2>/dev/null | grep '^\*\*Status:\*\*' 2>/dev/null \
+                 | head -1 | sed 's/^\*\*Status:\*\*[[:space:]]*//' 2>/dev/null || true)"
+  EPIC_STATE="${EPIC_STATE%%[[:space:]]*}"          # first word; also drops a trailing \r
+  case "$EPIC_STATE" in closed|Closed|CLOSED) return 1 ;; *) return 0 ;; esac
+}
+
+resolve_epic_dir() { # echo the epic folder in flight, or nothing at all
+  # (a) explicit pointer: first non-blank, non-comment line.
+  EPIC_POINTER="$REPO_ROOT/.claude/signals/active-epic"
+  EPIC_PTR=""
+  if [ -f "$EPIC_POINTER" ] && [ -r "$EPIC_POINTER" ]; then
+    EPIC_LINE=""
+    while IFS= read -r EPIC_LINE || [ -n "$EPIC_LINE" ]; do
+      EPIC_LINE="${EPIC_LINE%"${EPIC_LINE##*[![:space:]]}"}"   # rtrim (drops \r too)
+      EPIC_LINE="${EPIC_LINE#"${EPIC_LINE%%[![:space:]]*}"}"   # ltrim
+      case "$EPIC_LINE" in ''|'#'*) continue ;; esac
+      EPIC_PTR="$EPIC_LINE"; break
+    done 2>/dev/null < "$EPIC_POINTER"
+  fi
+  case "$EPIC_PTR" in
+    ''|*..*) EPIC_PTR="" ;;        # empty, or a path escaping the repo: ignore it
+  esac
+  if [ -n "$EPIC_PTR" ]; then
+    EPIC_PTR="${EPIC_PTR%/}"; EPIC_PTR="${EPIC_PTR%/plan.md}"; EPIC_PTR="${EPIC_PTR%/}"
+    case "$EPIC_PTR" in
+      /*)  EPIC_CAND="$EPIC_PTR" ;;                          # absolute path
+      */*) EPIC_CAND="$REPO_ROOT/$EPIC_PTR" ;;               # repo-relative path
+      *)   EPIC_CAND="$REPO_ROOT/docs/epics/$EPIC_PTR" ;;    # bare epic folder name
+    esac
+    if [ -d "$EPIC_CAND" ]; then printf '%s' "$EPIC_CAND"; return 0; fi
+    # Pointer names nothing that exists (deleted epic, typo): fall through to (b).
+  fi
+  # (b) newest plan.md that is not closed. ls -t is newest-first, so the first
+  #     open plan wins and closed epics are never selected at all.
+  ls -t "$REPO_ROOT"/docs/epics/*/plan.md 2>/dev/null | while IFS= read -r EPIC_P; do
+    [ -f "$EPIC_P" ] || continue
+    plan_is_open "$EPIC_P" || continue
+    printf '%s' "${EPIC_P%/plan.md}"
+    break
+  done
+  # (c) nothing resolvable: print nothing.
+}
+
+EPIC_DIR="$(resolve_epic_dir)"
+# --- END active-epic resolution ---
+
+[ -n "$EPIC_DIR" ] || exit 0
+STATUS_DIR="$EPIC_DIR/status"
 mkdir -p "$STATUS_DIR" 2>/dev/null || exit 0
 LOG="$STATUS_DIR/agent-$AGENT_ID.log"
 

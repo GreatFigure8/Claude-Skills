@@ -30,10 +30,13 @@ docs/epics/<NN>-<slug>/                  ← always in the CANONICAL repo root (
   status/.agents/<id>.json     ← owner record written at SubagentStart (hook-private:
                                  who started, when, on what branch, which log)
   CANCEL                       ← cancel sentinel for this epic (create to cancel)
-.claude/signals/                         ← always in CLAUDE_PROJECT_DIR (the orchestrator's)
+.claude/signals/                         ← sentinels and markers: CLAUDE_PROJECT_DIR
   cancel                       ← project-wide cancel sentinel
   subagent-active-<id>         ← lifecycle markers (SubagentStart/Stop hook maintains);
                                  <id> is also the selector you write into a sentinel
+  active-epic                  ← WHICH epic is in flight: the orchestrator writes it at
+                                 dispatch setup and removes it at close. Read from the
+                                 CANONICAL root, not CLAUDE_PROJECT_DIR (see below)
 ```
 
 **One status tree, and it is the main checkout's.** Hooks and executors alike resolve
@@ -56,9 +59,38 @@ Paths key on the **item** (`<branch-slug>.json`) and the **agent** (`agent-<id>.
 never on the branch the hook happens to observe — the executor branches at step 2 of every
 item, which used to split each agent's own bracket pair across two files.
 
+**Which epic, decided explicitly.** Knowing the root is only half the address; the hooks
+also have to pick the epic. They resolve, in order:
+
+1. **The pointer** — `$REPO_ROOT/.claude/signals/active-epic`, holding an epic folder
+   name (`03-active-epic-resolution`), a repo-relative path, or an absolute path;
+   blank lines and `#` comments are skipped, and a trailing `/plan.md` or `/` is
+   tolerated. Used whenever it names a directory that exists.
+2. **The newest `plan.md` whose `**Status:**` line is not `closed`** — mtime order, but
+   only ever among **open** epics.
+3. **Nothing.** Both hooks exit 0, write nothing, print nothing.
+
+A plan with no parseable `**Status:**` line counts as **open**: the failure direction is
+"write the telemetry somewhere" rather than "silently lose it". A pointer to a deleted or
+misspelled epic simply falls through to (2), so a stale pointer degrades instead of
+breaking. The pointer is read from the **canonical root**, deliberately not
+`CLAUDE_PROJECT_DIR` — a hook firing inside an executor's worktree finds the pointer the
+orchestrator wrote in the main checkout, without either path having to coincide.
+
+It used to be bare mtime — `ls -t docs/epics/*/plan.md | head -1` — which answers
+"whichever plan file was touched last", not "the epic in flight". During epic 02 an
+executor legitimately edited **epic 01's** `plan.md` (a retro correction), making that
+**closed** epic newest, and two `SUBAGENT STOP` brackets were written into epic 01's
+`status/` while epic 02 was live: one dispatch's telemetry split across two epic folders
+(GH #9). The resolution block is byte-identical in `subagent-lifecycle.sh` and
+`subagent-tool-logger.sh` — between `BEGIN/END active-epic resolution` markers — so the
+two can never disagree about which epic is live; `hooks/tests/active-epic-fixtures.sh`
+asserts both the byte-identity and that both hooks choose the same directory.
+
 Repo-mode installs gitignore these automatically. With a user-level install, add the
 three lines (`.claude/signals/`, `docs/epics/*/status/`, `docs/epics/*/CANCEL`) to the
 repo's `.gitignore` when filing the plan — Phase 1's "file the plan" step includes it.
+The pointer needs no fourth line: it lives under `.claude/signals/`.
 
 ## Layer 1 — Telemetry
 
@@ -143,8 +175,12 @@ Two tiers:
   The gate fails open by construction: malformed hook input, `jq` and `python3` both
   missing, no git, an unreadable sentinel — every error path allows the call. All of that
   is exercised by `assets/claude-config/hooks/tests/cancel-gate-fixtures.sh`, which builds
-  a throwaway sandbox and never touches a real repo. Run it after changing either hook,
-  **before** `install.sh` puts the change live.
+  a throwaway sandbox and never touches a real repo. It is one of three harnesses under
+  `assets/claude-config/hooks/tests/` — `cancel-gate-fixtures.sh` (the kill switch),
+  `lifecycle-fixtures.sh` (brackets, ownership, terminal stamping) and
+  `active-epic-fixtures.sh` (which epic the telemetry goes to). Run **all three** after
+  changing any control-plane hook, **before** `install.sh` puts the change live; each
+  builds and destroys its own sandbox, so they are safe to run at any time.
 
   Cancellation is loss-free by construction: everything pushed is safe, and the executor
   pushed on its first commit. After a cancel, the orchestrator decides: re-dispatch with
@@ -190,6 +226,20 @@ branch; that is epic 01's GH #3, observed, not theorised. Parallel independent i
 repeat the rule — one worktree each, executors as background tasks. Foreground dispatch
 into a worktree is fine for single-item flow — Esc is then also a cancel tier.
 
+**Dispatch setup writes the pointer.** Alongside creating the worktree, in the main
+checkout:
+
+```bash
+printf '%s\n' '<NN>-<slug>' > .claude/signals/active-epic   # which epic the hooks feed
+```
+
+One line, overwritten at every dispatch, `rm -f`'d at Phase 5 close. It is the precision
+layer, not the safety net — forget it and resolution falls back to the newest **open**
+`plan.md`, which is already correct in the observed failure case. What it buys is the case
+the fallback cannot decide: two epics open at once, or an epic whose plan is being edited
+while another epic's executor runs. Nothing consumes the pointer — the hooks only read it,
+so it stays valid for the whole epic.
+
 **Status survives the worktree split.** Hooks still resolve `CLAUDE_PROJECT_DIR` for
 sentinels and markers, but every status path now resolves the canonical repo root, so the
 executor's own writes and the hooks' writes land in one directory and key on the item and
@@ -216,6 +266,8 @@ that's what `/handoff` still exists for.
 | Executor hangs or dies mid-item | `status.json` `updated` goes stale while marker is armed; log stream stops; branch is pushed so nothing is lost |
 | Task UI stuck "in progress" after real completion | `terminal: true` stamp + "repo decides" rule |
 | A stop event from an agent that never started declaring someone's item finished | Owner-matched stamping: no start record, no stamp — and the stray stop lands in its own `agent-<id>.log`, so the real executor's bracket pair stays intact |
+| Telemetry landing in an old or closed epic because its `plan.md` was edited most recently | Explicit `active-epic` pointer, and a fallback that only ever considers epics whose `**Status:**` is not `closed` (GH #9) |
+| The pointer goes stale after an epic closes | Phase 5 removes it; a pointer to a missing directory falls back rather than erroring; the next dispatch overwrites it |
 | Cancel ignored by the model | Impossible — PreToolUse denial is system-level, not advisory |
 | Stale marker after a crashed run | Harmless to the gate and logger — both attribute per call by `agent_id` and never read markers; SubagentStop still clears markers >24h old, and they are safe to delete by hand |
 | Scope grows mid-item | Executor's hard boundary: finish the agreed slice, propose the split in its return summary |
