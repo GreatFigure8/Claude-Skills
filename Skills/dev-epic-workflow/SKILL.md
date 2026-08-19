@@ -63,7 +63,11 @@ Establish, explicitly, before item 1:
 
 If the epic starts from a divergent state, reconcile it as step zero of the plan (collapse the stale branch, tag, then branch fresh) rather than carrying divergence into every item.
 
-**When work items will run in parallel**, give each parallel item its own **git worktree** (`git worktree add ../<repo>-<branch-slug> <branch>`) so every executor has its own checked-out branch and working tree — no two executors fighting over one checkout. One executor per worktree, one worktree per in-flight work item; run parallel executors as background tasks, one per worktree. Worktrees share the repo's committed `.claude/` config, so hooks, the cancel gate, and commands work identically in each. Items that depend on each other per the plan's sequence do not run in parallel — parallelism is for independent items only.
+**Give every dispatched executor its own git worktree** (`git worktree add ../<repo>-<branch-slug> -b <branch> <integration>`) — the default for *every* dispatch, not a parallel-mode special case. **Concurrency exists at one item, not just at two:** while the executor owns the item branch, the orchestrator keeps working in the main checkout — amending `plan.md`, writing the handoff, committing the epic folder — and in a shared checkout those commits land on whatever branch the executor last switched to. This is not theoretical. It happened in epic 01 (GH #3): an orchestrator commit was silently diverted onto the item branch, and a `git push origin main` reported success while landing nothing. One executor per worktree, one worktree per in-flight work item; the worktree is created before dispatch and removed at land-and-reset (Phase 3 step 10). Worktrees share the repo's committed `.claude/` config, so hooks, the cancel gate, and commands work identically in each.
+
+**Parallel items relax nothing** — each parallel item still gets its own worktree, and parallel executors run as background tasks, one per worktree. Items that depend on each other per the plan's sequence do not run in parallel; parallelism is for independent items only.
+
+**Interim limitation — remove when the control-plane fix lands (epic 02, items 2–3).** The control-plane hooks resolve "current branch" from the orchestrator's checkout, not from the executor's worktree. In worktree mode that means branch-scoped cancel sentinels match nothing (the empty, cancel-everything sentinel still works), and each executor's `status/` files land under the *orchestrator's* branch slug instead of the item's. Until that is fixed, **dispatch serially** — one worktree executor at a time — so per-item status cannot collide.
 
 ## Phase 3 — Execute one work item at a time
 
@@ -73,10 +77,10 @@ If the epic starts from a divergent state, reconcile it as step zero of the plan
 
 **Direct mode** (the orchestrator-less fallback — executing an item in the interactive session itself) remains valid when Jonathan wants to drive an item hands-on, or when subagents aren't available. In direct mode the old rule applies unchanged: one session per work item, ending at land-and-reset via Phase 3.5's checkpoint.
 
-The item lifecycle, whoever executes it — **the executor runs steps 1–8 and stops; steps 9–10 belong to the orchestrator** (in direct mode, the session does all ten):
+The item lifecycle, whoever executes it — **in orchestrated mode the orchestrator performs steps 1–2 as dispatch setup (refresh the base, create the item's worktree), the executor runs steps 3–8 in that worktree and stops, and steps 9–10 belong to the orchestrator** (in direct mode, one session does all ten):
 
-1. **Refresh the base first**: `git switch <integration> && git pull --ff-only`. Never branch item N+1 from a stale local integration — the previous item's merge must be your starting commit.
-2. Branch from the freshly-synced integration branch — `git switch -c <branch>` — using the naming in `references/git-conventions.md`. (In parallel mode: create the worktree instead — `git worktree add ../<repo>-<branch-slug> -b <branch> <integration>` — and dispatch the executor there.)
+1. **Refresh the base first**, in the main checkout: `git switch <integration> && git pull --ff-only`. Never branch item N+1 from a stale local integration — the previous item's merge must be your starting commit.
+2. **Create the item's worktree, branched from the freshly-synced integration branch** — `git worktree add ../<repo>-<branch-slug> -b <branch> <integration>`, using the naming in `references/git-conventions.md` — and dispatch the executor into that directory. This is the path for **every** dispatch, single-item flow included (Phase 2): the orchestrator keeps the main checkout, the executor owns the worktree, and neither can commit onto the other's branch. An executor that arrives in a prepared worktree **verifies** its branch (`git branch --show-current`) rather than re-creating it. *(Direct mode — one session doing all ten steps, no second agent, so no concurrency to isolate — needs no worktree: `git switch -c <branch>` in the main checkout is enough.)*
 3. **Push the branch on the very first commit**, before it's finished. An unpushed branch is unbacked work — and the pushed commit stream is also the truest live telemetry the control plane has.
 4. Commit early, commit often. Each commit is one reversible idea with a working tree that at least imports and passes typecheck. Commit before every context switch, before every sync, and before any context ends — never leave uncommitted work behind.
 5. **Keep pure moves separate from behavior changes.** A rename/move/restructure commit contains zero logic change and says so; the behavior change is its own commit. This is what makes a big restructure reviewable.
@@ -88,7 +92,7 @@ The item lifecycle, whoever executes it — **the executor runs steps 1–8 and 
     - `git switch <integration> && git pull --ff-only` — confirm the merge commit is actually there (`git log --oneline -3`).
     - Delete the work-item branch **remotely**: `git push origin --delete <branch>` (skip if the platform auto-deletes on merge).
     - Delete it **locally**: `git branch -d <branch>` — use `-d`, not `-D`; if `-d` refuses, that's a signal something didn't land, so stop and check before forcing.
-    - If the item ran in a worktree: `git worktree remove ../<repo>-<branch-slug>` then `git worktree prune`.
+    - Remove the item's worktree — `git worktree remove ../<repo>-<branch-slug>` then `git worktree prune`. Every dispatched item has one, so this step is unconditional in orchestrated mode (direct mode has no worktree to remove).
     - `git fetch --prune` so stale remote-tracking refs disappear.
     - For intake epics: apply the merge touch from `references/issue-intake.md` — tick the item's checklist line (GH) or close the child Task (ADO).
     - Clean the item's control-plane state: remove `docs/epics/<NN-slug>/status/<branch-slug>.json` and `.log`, and any lingering `CANCEL` sentinel (all gitignored, so this is an `rm`, not a commit).
@@ -139,7 +143,7 @@ Report the verification, then update the plan: mark the item done, move any disc
 
 - Every work item verified done or explicitly deferred.
 - Temporary scaffolding actually deleted (legacy shims, compat shims, feature flags that served the migration, **the epic's `handoff.md`, any `handoff-autosnapshot.md`, and the epic's `status/` directory and any `CANCEL` sentinel**). Scaffolding is temporary by design; leaving it converts a migration into permanent maintenance.
-- Stale worktrees removed (`git worktree list` should show only the main checkout and any worktrees belonging to a *different* in-flight epic).
+- Every item worktree removed at its own land-and-reset (Phase 3 step 10), so at close `git worktree list` shows only the main checkout and any worktree belonging to a *different* in-flight epic. A surviving worktree for a merged item means step 10 was skipped — check the branch actually landed before removing it.
 - Integration branch exercised as a whole, then merged to live as a drop-in replacement — stable external contracts (tool names, endpoints, schemas) so existing installs don't notice.
 - For intake epics: close the loop in the tracker — retro summary comment on the source item; the final PR's `Closes #<n>` (GH) or a state transition to Resolved/Closed (ADO) retires it.
 - Tag the release, then write the short retro into the plan doc: what got split, what got deferred, what surprised us.

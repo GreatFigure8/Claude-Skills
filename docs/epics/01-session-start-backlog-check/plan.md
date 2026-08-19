@@ -120,9 +120,11 @@ and it found three defects that no amount of desk-checking had surfaced:
 - **GH #5** — any agent's stop stamps the in-flight item `terminal:true`, which can satisfy
   half the Layer 3 "done" rule mid-run.
 
-All three are the same root cause wearing different clothes: **the hooks cannot attribute an
-event to the agent that caused it.** That is the thing to fix next, and it is one fix, not
-three.
+**Two root causes, not one.** #2 and #5 are the same fault wearing different clothes — **the
+hooks cannot attribute an event to the agent that caused it** — and they are one fix. #3 is a
+different fault: **shared mutable state**, one working tree owned by two agents at once.
+Per-call attribution would not have prevented it; only isolating the executor's checkout does.
+Both are the thing to fix next, as one epic with two distinct remedies.
 
 **What surprised us.** Known-unknown #1 was a false alarm — `agent_id` was read correctly on
 the first dispatch. The real risks were the ones nobody had written down.
