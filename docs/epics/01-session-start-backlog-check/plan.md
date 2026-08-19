@@ -82,6 +82,13 @@ Single item. Nothing to serialise.
   artifact is shell, and the gates file covers none of it.
 - Azure DevOps equivalent of the backlog query (`az boards`).
 - Roadmap Tier 2 — unattended intake via CI on `claude-intake`.
+- **GH #2** — `cancel-gate.sh` cannot distinguish orchestrator tool calls from executor
+  ones (marker-existence test only), so a cancel sentinel would deny the orchestrator too and
+  block its own `rm` of the sentinel. Found during item 1's dispatch; filed separately.
 
 ## Log
 - 2026-08-19 — epic drafted from GH #1; Phase 0 grounding recorded above.
+- 2026-08-19 — item 1 dispatched (agent a6ab485e4e0012f06). Known-unknown #1 RESOLVED: the
+  `SUBAGENT START` bracket and the `subagent-active-*` marker both appeared, so
+  `subagent-lifecycle.sh` reads `agent_id` correctly and the gate arms. Tool logger confirmed
+  writing live telemetry. Separately surfaced GH #2 (see Deferred).
