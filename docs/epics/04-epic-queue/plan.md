@@ -1,6 +1,6 @@
 # Epic: epic queue — plan ahead, pick up in order
 
-**Status:** in flight (items 1-2 of 2, parallel)
+**Status:** closed
 **Source:** GH #11
 **Live branch:** main   **Integration branch:** main   **Pre-epic tag:** n/a
 
@@ -137,7 +137,66 @@ Both edit documentation, but different documents/sections; if they collide, item
 - Multi-epic concurrency (several epics in flight at once) — the larger redesign; this epic
   makes queuing safe, not simultaneity.
 
+- **Harness sandbox guard (filed separately):** item 2's harness hit a variable collision that
+  produced `git -C "" add -A`, which git treats as "stay here" — it committed the executor's own
+  worktree. Recovered on its branch; `main` never affected (verified independently). The new
+  harness now aborts on any path outside its `mktemp` sandbox; the three older harnesses do not.
+- `bash -n` is necessary but **not sufficient** on bash 3.2: a `case` pattern's `)` inside `$( )`
+  parses clean and fails only at runtime. Belongs in the missing `stack-gates.md` shell section.
+- The resolution block is now **110 lines copied verbatim into two hooks** — a third instance of
+  the shared-logic problem. A `hooks/lib/` source file would replace copy-discipline with a
+  mechanism, at the cost of adding a "missing file" failure mode to hooks whose first rule is
+  never to fail a session.
+- `references/plan-template.md` documents the Status vocabulary but does not say it is **parsed**,
+  or that free text after the phrase is fine. Doc-only follow-on.
+- Dispatch now has **three** things to remember — worktree, pointer, and the plan's `in flight`
+  header — which strengthens the deferred `/dispatch` command.
+- Singular phrasing reads `- 1 epic awaiting dispatch: 05-slug.`; one line if uniform phrasing is wanted.
+
 ## Log
 - 2026-08-19 — filed from GH #11, which was raised by testing the shipped epic 03 resolver
   against the plan-ahead workflow. Phase 0 confirmed the single-line cause (`plan_is_open`
   treats `approved` and `in flight` alike) and that both hooks share a byte-identical block.
+- 2026-08-19 — items 1 and 2 dispatched **in parallel** (first real concurrent run), merged as
+  PR #13 and #14 (merge commits 36f7656, c37343d), installed, and verified live: with a queued
+  `approved` epic made newest by mtime, a real dispatch's telemetry landed in the IN-FLIGHT
+  epic, and the installed session-start hook rendered `1 epic awaiting dispatch: 99-…`.
+  Epic closed.
+
+## Retro
+
+**The first genuinely parallel dispatch, and it worked.** Two executors, two worktrees, two
+branches, concurrent — with cleanly separated telemetry: one owner record and one
+`agent-<id>.log` each, no interleaving, no collisions, both status files in the canonical tree.
+In epic 01 this same configuration would have produced a single `main.log` with both executors'
+calls interleaved, phantom stops marking items terminal at random, and orchestrator commits
+landing on whichever branch an executor last switched to. Epics 02 and 03 existed to make this
+possible; this is the first time it was used rather than described.
+
+**Both items landed whole.** No splits, no scope negotiation, disjoint files exactly as planned.
+
+**Mutation checking has become the standard, and it earned it twice.** Item 1's executor ran two
+disjoint mutants; I rebuilt the precedence mutant independently and reproduced #11 exactly
+(`exp=05-running got=06-queued`) across all three tool variants. My first attempt at that
+mutation was itself botched — perl interpolated `$(` as its group-id variable and produced
+garbage that still parsed — which is a small reminder that a check you didn't watch fail proves
+nothing.
+
+**An executor broke something, and the isolation held.** Item 2's harness bug committed its own
+worktree mid-run. It recovered on its own branch, force-pushed with lease, and `main` was never
+touched — independently verified at `42138c5`, clean tree, no stray artefacts. That is exactly
+the failure worktree isolation (epic 02, GH #3) was built for, arriving unannounced.
+
+**One scope call, ruled in the executor's favour.** Item 1's stated scope named
+`executor-control-plane.md` only, but three sentences in `SKILL.md` described the fallback as
+"the newest **open** plan" — which this change makes false. Shipping a documented lie is worse
+than a 6-line diff outside the letter of the scope. It also added the instruction to set
+`Status: in flight` at dispatch, which the resolver now reads — making that header load-bearing
+rather than decorative.
+
+**What this epic does not do.** It makes *queuing* safe — filing plans ahead without disturbing
+what runs. It does **not** deliver multiple epics in flight at once: the resolver still picks
+exactly one, and two simultaneous epics would still collapse to the newest in-flight. That
+remains the multi-epic redesign.
+
+**Deliberately not done.** No release tag; skill content, not a versioned artifact.
