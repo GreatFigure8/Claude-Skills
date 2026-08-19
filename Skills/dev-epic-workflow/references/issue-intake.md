@@ -206,14 +206,28 @@ lands, the plan is a draft that happens to be version-controlled. A `planning` p
 **never dispatchable** — the SessionStart injection lists it under *awaiting approval*,
 deliberately not *awaiting dispatch*, so the distinction survives a fresh context.
 
-**Numbering.** The run claims the **next free `NN`** at draft time, because a plan has to
-be written somewhere and there is no approver present to assign one. That number is
-therefore a *reservation, not a fact*: two runs, or a run plus a locally filed epic, can
-both claim `05`. **A collision is resolved by renumbering at approval** — whoever approves
-second renames the folder to the next free number before merging, which is a `git mv` and
-a header edit, and costs nothing because no branch, status file, or tracker item points at
-the number yet. The PR body says this in plain words so the reviewer is not surprised by
-a rename request.
+**Numbering — there isn't any.** An unattended run claims **no epic number at all**. Phase 1
+assigns the number *at approval*, and a runner reserving one early both contradicted that rule
+and collided whenever two issues were labelled before either proposal merged. Proposals are
+named for their issue, which is already unique:
+
+```
+docs/epics/proposed-<issue>-<slug>/plan.md      on branch  intake/proposed-<issue>-<slug>
+```
+
+Approving is what assigns the number: rename `proposed-<issue>-<slug>` to `<NN>-<slug>` and set
+`Status: approved`. Nothing points at the number beforehand — no branch, no status file, no
+tracker item — so the rename is a `git mv` and a header edit. The `proposed-` prefix also makes
+an unapproved draft obvious in a folder listing, which reinforces the same gate the
+`Status: planning` header enforces.
+
+**Repos — opt in by listing.** The runner reads `~/.config/claude-intake/repos`, one absolute
+path per line (`#` comments and blank lines ignored). A repo joins the poller by being listed,
+never by existing on disk — the same opt-in principle the `claude-intake` label applies at the
+issue level. A missing or empty list falls back to a single configured repo. Each listed repo is
+processed in full isolation, with its own label check, issue list, epic folder, and worktrees;
+one repo failing is logged and skipped and never stops the others. A single lock covers the
+whole run, so two repos are never processed concurrently.
 
 **Failure behaviour.** A run that fails part-way leaves no half-filed epic on the
 integration branch — the branch and PR are the unit, so an incomplete run is a branch
