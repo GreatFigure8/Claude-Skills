@@ -1,6 +1,6 @@
 # Epic: executor attribution and isolation
 
-**Status:** in flight (item 2 of 3)
+**Status:** in flight (item 3 of 3)
 **Source:** GH #2, GH #3, GH #5
 **Live branch:** main   **Integration branch:** main   **Pre-epic tag:** n/a
 
@@ -181,6 +181,18 @@ on the item branch — the exact defect #3 describes.
 - Explaining the unexplained `SubagentStop` events. Owner-matching makes them harmless;
   understanding them is a separate question.
 
+- **Follow-on from item 2 (not a blocker):** under worktree dispatch a *branch-name*
+  selector in a sentinel is now ignored by design, so an attempted granular cancel written
+  as a branch name is a silent no-op. Not a regression — it never matched before either, and
+  the far worse "sentinel naming the orchestrator's branch cancels every executor" hazard is
+  gone. Once item 3 records the owning `agent_id` in `status.json`, the gate could map a
+  branch selector to its owning agent and restore branch granularity.
+- The `agent_id` extraction block (~15 lines) is now duplicated across `cancel-gate.sh` and
+  `subagent-tool-logger.sh`; sharing needs a fourth file and a sourcing dependency. Revisit
+  if a third hook needs it.
+- `assets/claude-config/agents/work-item-executor.md` still says a sentinel denies "your tool
+  calls" — imprecise now that selectors are scoped.
+
 ## Log
 - 2026-08-19 — epic drafted from GH #2, #3, #5 after epic 01's first orchestrated run
   surfaced all three. Phase 0 confirmed via Claude Code hook documentation that
@@ -199,3 +211,11 @@ on the item branch — the exact defect #3 describes.
   Item 1 exceeded spec usefully: worktree creation moved from the executor to the
   orchestrator as dispatch setup, and direct mode was explicitly exempted.
   Its dispatch also exposed that `terminal` is never stamped in worktree mode (see item 3).
+- 2026-08-19 — item 2 merged as PR #7 (merge commit 9e57f80) and INSTALLED. Verified cold
+  before install: executor's 111-case harness plus 14 fixtures written independently.
+  Verified live after install, the test the plan owed: with an empty cancel-everything
+  sentinel and a subagent armed, the subagent was denied on its first tool call
+  ("matched: empty sentinel (all executors)") while an orchestrator tool call succeeded —
+  and the orchestrator then removed the sentinel from inside the session, the exact
+  operation GH #2 made impossible. This also observed, for the first time, that real
+  PreToolUse payloads carry agent_id for subagents and omit it for the main session.
