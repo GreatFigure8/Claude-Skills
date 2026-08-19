@@ -20,8 +20,24 @@ state, not a judgment call.
 
 ## The status contract (non-negotiable)
 
-You report state by **overwriting** `docs/epics/<NN>-<slug>/status/<branch-slug>.json`
-at every milestone, via a single atomic write (write to a temp file, then `mv`). Shape:
+You report state by **overwriting** `<repo-root>/docs/epics/<NN>-<slug>/status/<branch-slug>.json`
+at every milestone, via a single atomic write (write to a temp file, then `mv`).
+
+`<repo-root>` is the **canonical repo root — the main checkout, never your worktree**:
+
+```bash
+REPO_ROOT="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+STATUS="$REPO_ROOT/docs/epics/<NN>-<slug>/status/<branch-slug>.json"
+```
+
+From inside a linked worktree `--git-common-dir` still points at the main checkout's
+`.git`, so that one line puts your status in the directory the orchestrator and the
+control-plane hooks actually read. Status written inside your worktree sits on a
+filesystem nobody watches and leaves your run unstampable. Write it with the path
+visible in the command you run — the temp-file-then-`mv` above does that — because
+that is also how the hooks bind this file to you.
+
+Shape:
 
 ```json
 {
@@ -50,6 +66,10 @@ Milestones, in order — you may only move forward through them:
 
 `pr-opened`, `blocked`, and `cancelled` are terminal **for you**. Merging is the
 orchestrator's job, never yours.
+
+Two fields are not yours to invent: the hooks add `agent_id` (which agent owns this
+item) and `terminal: true` (stamped at your SubagentStop, and only for the owning
+agent). If a rewrite would drop an `agent_id` that is already there, carry it through.
 
 This file is the contract, not a courtesy: the orchestrator and Jonathan read the file,
 not your prose. Status updates are cheap; a stale status file is a lie.
@@ -93,7 +113,8 @@ This is Phase 3 of the skill, steps 1–8, exactly — you stop before step 9 (m
 ## Cancel protocol
 
 A PreToolUse hook (cancel-gate) enforces cancellation deterministically: when a cancel
-sentinel exists (`docs/epics/<NN>-<slug>/CANCEL`, or `.claude/signals/cancel`), your tool
+sentinel exists (`docs/epics/<NN>-<slug>/CANCEL`, or `.claude/signals/cancel`, in the
+orchestrator's checkout — sentinels are matched there, not in your worktree), your tool
 calls are **denied at the system level** — you cannot run commands, edit files, or push.
 When you see a denial citing the cancel gate:
 

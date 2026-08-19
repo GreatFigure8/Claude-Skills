@@ -22,15 +22,39 @@ every guarantee is enforced by a hook or read from disk.
 ## Runtime state on disk (all gitignored)
 
 ```
-docs/epics/<NN>-<slug>/
-  status/<branch-slug>.json    ← the status contract (executor overwrites at milestones)
-  status/<branch-slug>.log     ← tool-call telemetry (PostToolUse hook appends)
+docs/epics/<NN>-<slug>/                  ← always in the CANONICAL repo root (see below)
+  status/<branch-slug>.json    ← the status contract, one per ITEM (executor overwrites
+                                 at milestones; hooks add agent_id + terminal)
+  status/agent-<id>.log        ← one per executor LIFE: SUBAGENT START/STOP brackets
+                                 (SubagentStart/Stop) + tool lines (PostToolUse)
+  status/.agents/<id>.json     ← owner record written at SubagentStart (hook-private:
+                                 who started, when, on what branch, which log)
   CANCEL                       ← cancel sentinel for this epic (create to cancel)
-.claude/signals/
+.claude/signals/                         ← always in CLAUDE_PROJECT_DIR (the orchestrator's)
   cancel                       ← project-wide cancel sentinel
   subagent-active-<id>         ← lifecycle markers (SubagentStart/Stop hook maintains);
                                  <id> is also the selector you write into a sentinel
 ```
+
+**One status tree, and it is the main checkout's.** Hooks and executors alike resolve
+`docs/epics/` from the *canonical* repo root:
+
+```bash
+REPO_ROOT="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+```
+
+From inside a linked worktree `--git-common-dir` still names the main checkout's `.git`,
+so every agent — orchestrator, executor, hook — lands in the same directory. Before this,
+under worktree dispatch the executor wrote `status/<item-branch>.json` inside its worktree
+while the hooks wrote `status/<orchestrator-branch>.log` in the main checkout, and
+`SubagentStop` looked for a third path that existed nowhere: `terminal` was never stamped
+at all, which made Layer 3's "terminal + PR on origin = done" rule unsatisfiable in the
+mode that is now the default (GH #5). Sentinels and markers deliberately stay in
+`CLAUDE_PROJECT_DIR`, because only hooks read them and every hook runs there.
+
+Paths key on the **item** (`<branch-slug>.json`) and the **agent** (`agent-<id>.log`),
+never on the branch the hook happens to observe — the executor branches at step 2 of every
+item, which used to split each agent's own bracket pair across two files.
 
 Repo-mode installs gitignore these automatically. With a user-level install, add the
 three lines (`.claude/signals/`, `docs/epics/*/status/`, `docs/epics/*/CANCEL`) to the
@@ -49,13 +73,27 @@ Three independent feeds, cheapest first:
    `grounding → branched → first-push → implementing → gates-running → gates-passed → pr-opened`,
    with `blocked` and `cancelled` as exceptional terminals. Fields: `item`, `branch`,
    `state`, `detail` (one line — PR URL, gate failure, or the blocking question),
-   `commit`, `updated`. The SubagentStop hook stamps `terminal: true` when the
-   executor's run actually ends, whatever the model last wrote.
-3. **`status/<branch-slug>.log` — the deterministic tool-call stream.** The PostToolUse
+   `commit`, `updated`. Two fields are the hooks': `agent_id` records which executor owns
+   the item, and `terminal: true` is stamped by SubagentStop when that agent's run actually
+   ends, whatever the model last wrote.
+
+   **Ownership, and why it is not optional.** The stamp used to be applied to whatever
+   status file matched the current branch, by whichever agent happened to stop — epic 01
+   saw three STOP brackets against one START, two of them from agents that never started,
+   while the real executor was demonstrably still working (GH #5). Now an agent may stamp
+   only what it owns. Binding happens the moment the executor writes its own status file
+   (the PostToolUse hook sees the path in that agent's own tool call and records
+   `agent_id`), or failing that at stop, for an unowned file modified during the agent's
+   life *when that agent is the only live executor*. Anything ambiguous is left unstamped
+   rather than guessed, and a stop from an agent with no start record stamps nothing at all.
+3. **`status/agent-<id>.log` — the deterministic tool-call stream.** The PostToolUse
    hook appends one line per executor tool call (timestamp | tool | command/file),
-   bracketed by SUBAGENT START/STOP lines from the lifecycle hook. It logs only calls
-   that carry an `agent_id` — i.e. calls made inside a subagent — so orchestrator
-   activity never pollutes it. Tail it live: `tail -f docs/epics/<NN>-<slug>/status/<branch>.log`.
+   bracketed by SUBAGENT START/STOP lines from the lifecycle hook — one file per executor
+   life, so the pair is co-located even though the executor changes branch mid-run. It logs
+   only calls that carry an `agent_id` — i.e. calls made inside a subagent — so orchestrator
+   activity never pollutes it. Tail it live:
+   `tail -f docs/epics/<NN>-<slug>/status/agent-*.log`; map an agent back to its item with
+   `grep -l '"agent_id"' docs/epics/<NN>-<slug>/status/*.json`.
 
 On top of these, Claude Code's own surfaces (`/tasks`, the agent view) show status and
 progress for background agents — use them freely, but never as the source of truth
@@ -119,6 +157,13 @@ Two tiers:
   an item's truth is `status.json` + `origin`. If `state: pr-opened` and the PR exists,
   the item is ready for review no matter what any sidebar claims; if the marker file is
   gone and `terminal: true` is stamped, the run is over.
+- **`terminal` is now evidence, not decoration.** It is stamped only by the agent that
+  owns the item, so its presence means *that executor's run ended* — it can no longer be
+  produced by an unrelated stop. The converse is weaker on purpose: an absent stamp with a
+  gone marker means the run ended without a binding (concurrent executors where nobody
+  named its own status file), so fall back to the commit stream and the PR rather than
+  concluding the executor is alive. Marker gone + PR on origin + `state: pr-opened` is a
+  complete answer on its own.
 - **Phase 4 runs cold, always.** The orchestrator never shared the executor's context,
   so it verifies the return summary against `git log <base>..HEAD`,
   `git diff --stat <base>...HEAD`, and greps for the promised symbols — the same
@@ -145,12 +190,18 @@ branch; that is epic 01's GH #3, observed, not theorised. Parallel independent i
 repeat the rule — one worktree each, executors as background tasks. Foreground dispatch
 into a worktree is fine for single-item flow — Esc is then also a cancel tier.
 
-**Interim limitation (until epic 02 item 3 lands).** The hooks resolve `CLAUDE_PROJECT_DIR`
-— the orchestrator's checkout — not the calling agent's worktree. Cancellation no longer
-depends on that (sentinels select by agent id), but `status/<branch-slug>.json` and `.log`
-are still written under the *orchestrator's* branch slug rather than the item's, so parallel
-worktree executors would overwrite each other's status. Dispatch serially until item 3 keys
-those paths on the epic plus the item.
+**Status survives the worktree split.** Hooks still resolve `CLAUDE_PROJECT_DIR` for
+sentinels and markers, but every status path now resolves the canonical repo root, so the
+executor's own writes and the hooks' writes land in one directory and key on the item and
+the agent rather than on whichever branch a hook observed. Parallel worktree executors no
+longer overwrite each other's status, and each item's `terminal` stamp is owner-matched.
+
+**Residual limitation.** A **branch-name** selector in a cancel sentinel is still a no-op
+under worktree dispatch — the gate compares against the orchestrator's branch, so the item
+branch never matches (and, deliberately, the orchestrator's branch no longer matches every
+executor at once). Cancel one executor by its **agent id**. The owner record now written at
+`SubagentStart` makes a branch→agent mapping possible; restoring branch-selector granularity
+on top of it is a recorded follow-on, not a shipped behaviour.
 
 After the executor returns: Phase 4 verification → merge (orchestrator's job, per Phase 3
 steps 9–10) → land-and-reset → dispatch the next item. The orchestrator does **not**
@@ -164,6 +215,7 @@ that's what `/handoff` still exists for.
 | Executor claims a milestone it didn't reach | Phase 4 cold verification; commit stream disagrees with `status.json` |
 | Executor hangs or dies mid-item | `status.json` `updated` goes stale while marker is armed; log stream stops; branch is pushed so nothing is lost |
 | Task UI stuck "in progress" after real completion | `terminal: true` stamp + "repo decides" rule |
+| A stop event from an agent that never started declaring someone's item finished | Owner-matched stamping: no start record, no stamp — and the stray stop lands in its own `agent-<id>.log`, so the real executor's bracket pair stays intact |
 | Cancel ignored by the model | Impossible — PreToolUse denial is system-level, not advisory |
 | Stale marker after a crashed run | Harmless to the gate and logger — both attribute per call by `agent_id` and never read markers; SubagentStop still clears markers >24h old, and they are safe to delete by hand |
 | Scope grows mid-item | Executor's hard boundary: finish the agreed slice, propose the split in its return summary |

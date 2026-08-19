@@ -67,7 +67,7 @@ If the epic starts from a divergent state, reconcile it as step zero of the plan
 
 **Parallel items relax nothing** — each parallel item still gets its own worktree, and parallel executors run as background tasks, one per worktree. Items that depend on each other per the plan's sequence do not run in parallel; parallelism is for independent items only.
 
-**Interim limitation — remove when the control-plane fix lands (epic 02, item 3).** The control-plane hooks resolve "current branch" from the orchestrator's checkout, not from the executor's worktree. Cancellation no longer depends on that — a scoped sentinel names an **agent id** (from `.claude/signals/subagent-active-<id>` or the `SUBAGENT START` bracket), and branch-name selectors are honoured only in direct dispatch — but each executor's `status/` files still land under the *orchestrator's* branch slug instead of the item's. Until that is fixed, **dispatch serially** — one worktree executor at a time — so per-item status cannot collide.
+**The control plane follows the item, not the checkout.** Hooks and executors both resolve the *canonical* repo root — `dirname "$(git rev-parse --path-format=absolute --git-common-dir)"`, which is the main checkout even from inside a linked worktree — so one epic has one `status/` tree: `<branch-slug>.json` per item, `agent-<id>.log` per executor life, and a `terminal` stamp applied only by the agent that owns the item. Parallel worktree executors no longer collide there. **One thing still follows the checkout:** cancel sentinels are matched against `CLAUDE_PROJECT_DIR` — the orchestrator's — so a scoped sentinel names an **agent id** (from `.claude/signals/subagent-active-<id>` or the `SUBAGENT START` bracket in the agent's log); a branch-name selector is honoured only in direct dispatch and is a silent no-op under a worktree.
 
 ## Phase 3 — Execute one work item at a time
 
@@ -95,7 +95,7 @@ The item lifecycle, whoever executes it — **in orchestrated mode the orchestra
     - Remove the item's worktree — `git worktree remove ../<repo>-<branch-slug>` then `git worktree prune`. Every dispatched item has one, so this step is unconditional in orchestrated mode (direct mode has no worktree to remove).
     - `git fetch --prune` so stale remote-tracking refs disappear.
     - For intake epics: apply the merge touch from `references/issue-intake.md` — tick the item's checklist line (GH) or close the child Task (ADO).
-    - Clean the item's control-plane state: remove `docs/epics/<NN-slug>/status/<branch-slug>.json` and `.log`, and any lingering `CANCEL` sentinel (all gitignored, so this is an `rm`, not a commit).
+    - Clean the item's control-plane state in the canonical status dir: remove `docs/epics/<NN-slug>/status/<branch-slug>.json`, the executor's `agent-<id>.log` and its `status/.agents/<id>.json` owner record, and any lingering `CANCEL` sentinel (all gitignored, so this is an `rm`, not a commit).
     - *(Orchestrated mode: dispatch the next item — the orchestrator session continues; no handoff, no clear.)* *(Direct mode: remove any stale `handoff.md` for the merged item, commit that cleanup, and **prompt Jonathan to end the session** — the next work item starts in a fresh session from this clean state.)*
     A merged branch that still exists is clutter; an unmerged branch that got deleted is lost work — the `-d`/prune discipline is what tells the two apart.
 
