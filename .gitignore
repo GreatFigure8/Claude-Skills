@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+.DS_Store?
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.fseventsd
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+Icon?
+__MACOSX/
+
+# Editors / IDEs
+.idea/
+*.swp
+*.swo
+
+# Logs / OS temp
+*.log
+Thumbs.db
