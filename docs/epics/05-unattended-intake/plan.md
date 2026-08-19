@@ -1,6 +1,6 @@
 # Epic: unattended intake (Tier 2)
 
-**Status:** in flight (item 1 of 2)
+**Status:** closed
 **Source:** GH #16
 **Live branch:** main   **Integration branch:** main   **Pre-epic tag:** n/a
 **Depends on:** epic 04 merged (its session-start surface is extended here)
@@ -202,3 +202,36 @@ repository secret; the runner authenticates with a **subscription-backed long-li
   uncommitted work was preserved by the orchestrator as `f1b619c` on the same branch. Item 2 then
   rebuilt around `claude setup-token` (subscription-backed) after the API-key path was rejected
   as importing billing nobody asked for.
+- 2026-08-19 — item 1 merged (PR #17, plus a recovered doc correction), item 2 merged (PR #18)
+  and hardened (PR #19). Verified live end to end, then verified again **under launchd**: a
+  scheduled run picked up #12 unattended, drafted a plan, opened PR #21, removed the label and
+  exited clean with empty stderr. Epic closed.
+
+## Retro
+
+**Tier 2 works, and the last unknown resolved in its favour.** launchd reaches the 0600
+credential file and the tracker without ever touching the Keychain, which was the design's
+biggest open question and the one a manual run could not answer.
+
+**Two dispatches died on launch, so item 2 was built inline.** Transcripts froze at 164 bytes
+with no commits and markers left armed — which also made an earlier orchestrator claim ("both
+are alive") wrong, since marker files prove a start fired, not that a process lives. The cost of
+building inline is stated rather than hidden: author and reviewer were the same, and the
+independent check that caught real defects in epics 02–04 did not apply.
+
+**Live execution found what no fixture did.** The guard suite passed completely — credential
+refusals, lock, dry-run inertness, redaction, no token in argv or plist — and the first real run
+still failed twice over: `sed`'s `\+` is a GNU extension that BSD sed leaves literal, so
+slugification silently did nothing and produced a branch name containing spaces; and the
+worktree-creation failure path only logged, leaving the label applied so a deterministic failure
+would retry on every poll. Both were invisible to every test that did not actually run the thing.
+
+**The credential path was the day's worst detour.** "Do not use Keychain" was read as a
+credential-architecture problem instead of a question worth asking, and it ended at an on-disk
+API key that imported billing nobody wanted. The answer — `claude setup-token`, subscription-
+backed — had been offered two turns earlier and dropped. Cost: roughly an hour, and a plan
+revised three times.
+
+**Deliberately still open.** Epic numbers are reserved at draft time, so concurrent proposals
+collide (GH #22, found by the first two live runs). Phase 1 assigns numbers at approval; the
+runner reserving one early was its own invention.
