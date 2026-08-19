@@ -6,11 +6,12 @@
 **Depends on:** epic 04 merged (its session-start surface is extended here)
 
 ## Outcome
-An issue labelled `claude-intake` produces a reviewed, filed epic plan without anyone
-present. CI runs Phase 0 grounding and Phase 1 drafting headlessly and opens a **pull
-request** carrying the plan at `Status: planning`. Nothing is approved, nothing is
+An issue labelled `claude-intake` produces a reviewed epic plan without anyone present. A
+**local scheduled runner** on Jonathan's Mac performs Phase 0 grounding and Phase 1 drafting
+headlessly and opens a **pull request** carrying the plan at `Status: planning`. Nothing is approved, nothing is
 dispatched, no code is written. Jonathan reviews the PR the way he reviews any PR; merging
-it plus setting `Status: approved` is the approval gate, unchanged and still human.
+it plus setting `Status: approved` is the approval gate, unchanged and still human. No CI, no
+repository secret, no new billing surface — the runner uses the machine's existing auth.
 
 ## Grounding
 - **Verified:** the repo has **no CI whatsoever** — no `.github/` directory at all. This is
@@ -31,6 +32,21 @@ it plus setting `Status: approved` is the approval gate, unchanged and still hum
   is neither `closed` nor `in flight` as "awaiting dispatch". A `planning` plan produced here
   would be mislabelled — it awaits **approval**, not dispatch. Item 1 below corrects the
   wording rather than changing epic 04 mid-flight.
+- **Verified:** `claude` supports `-p/--print` with `--allowed-tools`, `--append-system-prompt`
+  and `--add-dir`, so a headless run with an explicit allowlist is possible without ever
+  reaching for `--dangerously-skip-permissions`.
+- **Verified:** `~/Library/LaunchAgents/` exists and holds only third-party updaters, so adding
+  one opt-in agent is clean and precedented.
+- **Verified:** there is **no** `~/.claude/.credentials.json` and **no** `ANTHROPIC_API_KEY` in
+  the environment — so Claude Code's auth almost certainly lives in the login Keychain. That
+  works interactively; whether a launchd job can reach it (especially with the Mac locked) is
+  the single biggest unknown in this design and cannot be settled by a manual test.
+- **Verified:** the `claude-intake` label does not exist in this repo yet.
+- **Rejected after grounding (was the original design):** a GitHub Action. This repo has nothing
+  to build, test, or deploy — CI would be serving only as a trigger and a rented machine, at the
+  cost of a repository secret, a per-run skill install on the runner, and separate billing. A
+  local scheduled run gets the same outcome using auth that already exists. Revisit only if
+  someone other than Jonathan ever files issues here, or if runs must happen with the Mac off.
 - **Assumed:** `main` has no branch protection (unverified). The design opens PRs regardless,
   so protection changes nothing; it only affects whether protection *enforces* it.
 - **Assumed:** Jonathan will create the CI credential. Claude cannot create repository
@@ -71,51 +87,61 @@ it plus setting `Status: approved` is the approval gate, unchanged and still hum
   output; re-run every other harness unchanged as regression; `bash -n`.
 - **Rollback:** revert the merge commit.
 
-### 2. The GitHub Action
-- **Branch:** `feat/unattended-intake-action`
+### 2. Local scheduled intake runner
+- **Branch:** `feat/unattended-intake-local-runner`
 - **Depends on:** item 1 (the contract it enforces must exist first)
-- **Scope:** `.github/workflows/claude-intake.yml` — trigger on `issues: [labeled]` filtered to
-  `claude-intake`, plus `workflow_dispatch` with an issue-number input for testing without
-  touching a label. Steps: checkout, install `claude`, make the skill discoverable (copy
-  `Skills/dev-epic-workflow` into the runner's `~/.claude/skills/` and run
-  `assets/claude-config/install.sh --user`), then a headless `claude -p` run with an explicit
-  tool allowlist derived from `/intake`'s existing `allowed-tools`, invoking intake for that
-  issue. Guardrails: `concurrency` keyed on the issue number so a re-label cannot double-run;
-  a job timeout; `permissions:` narrowed to `contents: write`, `issues: write`,
-  `pull-requests: write`; the credential read from a repository secret. On success the job
-  removes the `claude-intake` label and comments the PR link on the issue; on failure it
-  comments that intake failed and leaves the label off so it cannot loop.
-- **Not in scope:** dispatching executors; running gates or tests; any ADO pipeline equivalent;
-  auto-approving or auto-merging anything.
+- **Scope:** `assets/claude-config/bin/unattended-intake.sh` — poll
+  `gh issue list --state open --label claude-intake`; for each issue, in a fresh git worktree,
+  run `claude -p` with an explicit `--allowed-tools` list seeded from `/intake`'s existing
+  declaration, producing a plan at `Status: planning`; commit, push the branch, open a PR
+  (`Part of #<n>`, never `Closes`), comment the PR link on the issue, and remove the
+  `claude-intake` label. On failure: comment that intake failed with the reason, **leave the
+  label off so nothing loops**, exit non-zero. Single-instance lock so overlapping runs cannot
+  double-process an issue. Append to a log file. Plus an opt-in launchd agent template under
+  `assets/claude-config/launchd/`, and instructions to load it — **not** installed by
+  `install.sh`'s default path, since scheduling is a per-machine choice. The runner creates the
+  `claude-intake` label if missing.
+- **Not in scope:** GitHub Actions or any CI; Azure DevOps; unattended *execution* (dispatching
+  work items); auto-approval or auto-merge; changing the interactive `/intake` path.
 - **Definition of done:**
-  - `workflow_dispatch` against a real issue produces a branch + PR containing a plan at
-    `Status: planning`, and nothing on `main`.
-  - The run writes no code outside `docs/epics/`, and opens no second PR.
-  - Label removed and PR link commented on success; failure comments and does not loop.
-  - Re-labelling while a run is in flight does not start a second run.
-  - No `--dangerously-skip-permissions` anywhere in the workflow.
-  - Absent the secret, the job fails fast with a clear message rather than running unauthenticated.
-- **Verification:** exercise via `workflow_dispatch` on a disposable throwaway issue; paste the
-  run log, the resulting PR diff, and `git log origin/main` showing `main` untouched. Then a
-  real label-triggered run on a second throwaway issue. Delete both afterwards.
-- **Rollback:** delete the workflow file (revert the merge); no runtime state persists.
+  - `--dry-run` reports exactly what it would do and mutates nothing — no branch, no PR, no
+    label change, no commit.
+  - Against a throwaway labelled issue: produces a branch and a PR containing a plan at
+    `Status: planning`; `main` untouched; label removed; PR link commented on the issue.
+  - Failure path: comments the reason, does **not** re-apply the label, exits non-zero, and
+    leaves no half-open PR.
+  - A second invocation while one is running exits immediately on the lock.
+  - No `--dangerously-skip-permissions` anywhere in the script.
+  - Runs correctly under **launchd's minimal environment** — `git`, `gh`, and `claude` resolved
+    by absolute path or an explicitly set PATH, not inherited from an interactive shell.
+  - **Auth works under launchd**, or the run fails loudly with a clear message rather than
+    silently producing nothing.
+- **Verification:** manual `--dry-run`, then a manual real run against a throwaway issue with
+  output pasted and `git log origin/main` showing `main` untouched. Then — and this is the part
+  that cannot be skipped — **a genuine launchd-triggered run**, with the agent's log pasted,
+  because the environment and Keychain questions only appear under the scheduler. Delete the
+  throwaway issue and branch afterwards.
+- **Rollback:** `launchctl unload` the agent and delete it; remove the script. Nothing else
+  depends on it, and the interactive path is untouched.
 
 ## Sequence
-1 → 2, serial. Item 2 automates a contract that must exist before it can be enforced, and both
-touch documentation the other references.
+1 → 2, serial. Item 2 automates a contract that must exist before it can be enforced.
 
 ## Risks
 | Risk | Likelihood | Blast radius | Mitigation |
 |---|---|---|---|
-| An unattended agent with repo write does something unintended | Low | Unwanted commits/PRs in the repo | PR-only, never `main`; narrowed `permissions:`; explicit tool allowlist; hard stop before dispatch or code |
-| Runaway or looping runs burn credits | Medium | Cost | Opt-in label only; `concurrency` per issue; job timeout; label removed on completion; failure does not re-label |
+| An unattended agent with repo write does something unintended | Low | Unwanted commits/PRs | PR-only, never `main`; explicit tool allowlist; hard stop before dispatch or code |
+| **launchd cannot reach the login Keychain, so runs fail silently** | **Medium** | Automation appears installed but never produces anything | Fail loudly with a clear message; verification requires a genuine scheduled run, not a manual one |
+| Mac asleep or logged out → no runs | Certain | Intake simply waits for the next wake | Accepted: this is a personal repo; the interactive path always works |
+| Runaway or looping runs burn credits | Medium | Cost | Opt-in label only; single-instance lock; label removed on completion; **failure comments and never re-labels** (Jonathan's decision) |
 | The approval gate erodes in practice — a `planning` plan gets treated as approved | Medium | The load-bearing gate stops bearing | `planning` documented as non-dispatchable; session-start names it "awaiting approval"; the plan arrives as a PR needing human merge |
 | Epic-number collision between a CI draft and a locally filed epic | Medium | Two `05-` folders | Number claimed at draft, renumbered at approval; stated in the PR body |
-| Secret handling | Certain to be needed | Credential exposure if mishandled | Jonathan creates the repository secret; Claude never sees or handles the token value |
-| CI runner lacks the skill/hooks | High without the install step | Intake runs without its own process | Explicit install step in the workflow, asserted by the first `workflow_dispatch` run |
+| The runner's `claude` lacks the skill because the run is headless | Medium | Intake runs without its own process | The skill is installed at `~/.claude/skills` on this machine already; asserted by the first real run |
 
 ## Deferred / out of scope
-- Azure DevOps pipeline equivalent.
+- Azure DevOps equivalent.
+- A GitHub Action, if issues ever arrive from someone other than Jonathan or runs must happen
+  with the Mac off. Rejected for now on cost/complexity grounds, not on principle.
 - A `claude-auto` label for approval-free trivial issues — explicitly parked until this has
   soaked for weeks (original roadmap decision, unchanged).
 - Unattended *execution* (dispatching work items from CI). Out of scope by design: the gate.
@@ -129,3 +155,7 @@ touch documentation the other references.
   no CI at all, that `claude` 2.1.220 supports headless runs, and that Phase 1's "file on
   approval" rule forces unattended intake to produce a *proposal PR* at `Status: planning`
   rather than a filed epic.
+- 2026-08-19 — item 2 re-planned after Jonathan challenged the premise: this repo has nothing to
+  deploy, so CI would have been a trigger and a rented machine, bought with a repository secret
+  and per-run billing. Replaced with a local scheduled runner using existing auth. Item 1 was
+  already in flight and is mechanism-agnostic, so it was left running.
