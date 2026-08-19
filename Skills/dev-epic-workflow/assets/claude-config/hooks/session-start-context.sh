@@ -86,4 +86,83 @@ else
   fi
 fi
 
+# Tracker backlog: open GitHub issues that no epic has picked up yet.
+# Strictly best-effort and silent — a missing gh, a non-GitHub remote, an auth
+# or network failure, or a slow tracker all produce NO output, leaving every
+# section above byte-identical. Never delays session start by more than ~2s.
+BACKLOG_MAX_NAMED=5
+BACKLOG_TITLE_CHARS=60
+
+backlog_section() {
+  # Hard guards first: no gh, or not a GitHub repo, means no tracker call at all
+  # (this is also what keeps gh's "no git remotes found" noise off every repo).
+  command -v gh >/dev/null 2>&1 || return 0
+  git remote -v 2>/dev/null | grep -qi 'github\.com' || return 0
+
+  BL_OUT="$(mktemp "${TMPDIR:-/tmp}/session-start-backlog.XXXXXX" 2>/dev/null)" || return 0
+
+  # gh's built-in --jq (no external jq needed) drops issues already labelled as
+  # adopted by an epic. Backgrounded so the poll loop below can cap the wait:
+  # macOS ships no timeout(1)/gtimeout, so this is the portable equivalent.
+  gh issue list --state open --limit 100 --json number,title,labels \
+    --jq '.[] | select((.labels | any(.name == "epic:planned" or .name == "epic:in-progress")) | not) | "\(.number)\t\(.title)"' \
+    > "$BL_OUT" 2>/dev/null &
+  BL_PID=$!
+
+  # The first tick doubles as a probe: fractional sleep is BSD/GNU, not POSIX,
+  # so fall back to 1s ticks (still a 2s cap) where it is unsupported.
+  if sleep 0.1 2>/dev/null; then BL_TICK="0.1"; BL_MAX_TICKS=20; else BL_TICK="1"; BL_MAX_TICKS=2; fi
+  BL_TICKS=1
+  while [ "$BL_TICKS" -lt "$BL_MAX_TICKS" ]; do
+    kill -0 "$BL_PID" 2>/dev/null || break
+    sleep "$BL_TICK" 2>/dev/null
+    BL_TICKS=$((BL_TICKS + 1))
+  done
+
+  if kill -0 "$BL_PID" 2>/dev/null; then
+    # Over the cap: kill the query and say nothing.
+    kill -TERM "$BL_PID" 2>/dev/null
+    wait "$BL_PID" 2>/dev/null
+    rm -f "$BL_OUT" 2>/dev/null
+    return 0
+  fi
+  if ! wait "$BL_PID" 2>/dev/null; then
+    rm -f "$BL_OUT" 2>/dev/null
+    return 0
+  fi
+
+  # Second correlation signal: issue numbers already claimed by a filed epic via
+  # the plan header (`Source: GH #<n>`). Anchored to the header line so a passing
+  # mention of an issue elsewhere in a plan does not silence it.
+  BL_ADOPTED="$(grep -hE '^[[:space:]]*[*_]*Source:' docs/epics/*/plan.md 2>/dev/null \
+    | grep -oE 'GH #[0-9]+' | grep -oE '[0-9]+' | tr '\n' ' ')"
+
+  BL_NAMED=""
+  BL_COUNT=0
+  while IFS=$'\t' read -r BL_NUM BL_TITLE; do
+    [ -n "$BL_NUM" ] || continue
+    case " $BL_ADOPTED " in *" $BL_NUM "*) continue ;; esac
+    BL_COUNT=$((BL_COUNT + 1))
+    [ "$BL_COUNT" -gt "$BACKLOG_MAX_NAMED" ] && continue
+    BL_SHORT="$(printf '%s' "$BL_TITLE" | cut -c "1-$BACKLOG_TITLE_CHARS")"
+    [ "${#BL_TITLE}" -gt "$BACKLOG_TITLE_CHARS" ] && BL_SHORT="${BL_SHORT}…"
+    if [ -z "$BL_NAMED" ]; then
+      BL_NAMED="#${BL_NUM} ${BL_SHORT}"
+    else
+      BL_NAMED="${BL_NAMED}; #${BL_NUM} ${BL_SHORT}"
+    fi
+  done < "$BL_OUT"
+  rm -f "$BL_OUT" 2>/dev/null
+
+  [ "$BL_COUNT" -gt 0 ] || return 0
+  BL_MORE=""
+  if [ "$BL_COUNT" -gt "$BACKLOG_MAX_NAMED" ]; then
+    BL_MORE=" (+$((BL_COUNT - BACKLOG_MAX_NAMED)) more)"
+  fi
+  echo
+  echo "- Open issues with no epic yet (${BL_COUNT}): ${BL_NAMED}${BL_MORE} — \`/intake #<n>\` to plan one."
+}
+
+backlog_section
+
 exit 0
