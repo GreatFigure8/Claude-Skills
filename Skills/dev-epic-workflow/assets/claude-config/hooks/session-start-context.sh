@@ -97,7 +97,7 @@ backlog_section() {
   # Hard guards first: no gh, or not a GitHub repo, means no tracker call at all
   # (this is also what keeps gh's "no git remotes found" noise off every repo).
   command -v gh >/dev/null 2>&1 || return 0
-  git remote -v 2>/dev/null | grep -qi 'github\.com' || return 0
+  git remote -v 2>/dev/null | grep -qi 'github\.com' 2>/dev/null || return 0
 
   BL_OUT="$(mktemp "${TMPDIR:-/tmp}/session-start-backlog.XXXXXX" 2>/dev/null)" || return 0
 
@@ -120,8 +120,11 @@ backlog_section() {
   done
 
   if kill -0 "$BL_PID" 2>/dev/null; then
-    # Over the cap: kill the query and say nothing.
+    # Over the cap: kill the query and say nothing. Children are listed before
+    # the parent dies, or they would be reparented and outlive the session.
+    BL_KIDS="$(pgrep -P "$BL_PID" 2>/dev/null | tr '\n' ' ')"
     kill -TERM "$BL_PID" 2>/dev/null
+    for BL_KID in $BL_KIDS; do kill -TERM "$BL_KID" 2>/dev/null; done
     wait "$BL_PID" 2>/dev/null
     rm -f "$BL_OUT" 2>/dev/null
     return 0
