@@ -26,3 +26,8 @@ __MACOSX/
 # Logs / OS temp
 *.log
 Thumbs.db
+
+# dev-epic-workflow runtime state (never committed)
+.claude/signals/
+docs/epics/*/status/
+docs/epics/*/CANCEL
