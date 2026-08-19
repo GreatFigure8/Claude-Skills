@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # PostToolUse hook — dev-epic-workflow executor telemetry.
 #
-# Append one compact line per SUBAGENT tool call to the epic's per-item log:
-# docs/epics/<NN>-<slug>/status/<branch-slug>.log
+# Append one compact line per SUBAGENT tool call to that agent's log:
+# docs/epics/<NN>-<slug>/status/agent-<agent-id>.log
 #
 # This is the deterministic progress stream — it does not depend on the model
 # choosing to report anything. Tail it live:
-#   tail -f docs/epics/<NN>-<slug>/status/<branch>.log
+#   tail -f docs/epics/<NN>-<slug>/status/agent-*.log
 #
 # Attribution is per call, not per session: PostToolUse input carries
 # `agent_id` ONLY inside a subagent call, so its absence identifies the
@@ -15,6 +15,19 @@
 # proves that some subagent is running, so orchestrator calls made while an
 # executor was armed used to be logged as executor activity (GH #2). The
 # markers stay in place; subagent-lifecycle.sh still owns them.
+#
+# The log path is keyed on the AGENT, not on the branch (GH #5). The executor
+# branches at step 2 of every item, so a branch-derived path split each agent's
+# stream across files and put its START and STOP brackets in different ones.
+# It is also resolved from the CANONICAL repo root — the parent of
+# `git rev-parse --git-common-dir`, i.e. the main checkout even when this runs
+# inside a linked worktree — so hooks and the executor write one status tree.
+#
+# Ownership side-effect: when a subagent's own tool call names a status.json in
+# that tree and the file records no owner yet, this hook records the caller as
+# its owner. That binding is what lets SubagentStop stamp terminal:true on the
+# right item and only on the right item, including when several worktree
+# executors run at once.
 #
 # Must never fail the session: exit 0 always.
 
@@ -55,15 +68,77 @@ else
 fi
 [ -n "$AGENT_ID" ] || exit 0
 
-EPIC_PLAN="$(ls -t docs/epics/*/plan.md 2>/dev/null | head -1)"
+# Same sanitisation subagent-lifecycle.sh applies, so the bracket lines and the
+# tool lines for one agent land in the same file.
+AGENT_ID="$(printf '%s' "$AGENT_ID" | tr -c 'A-Za-z0-9._-' '-' | cut -c1-64 2>/dev/null || true)"
+[ -n "$AGENT_ID" ] || exit 0
+
+# Canonical repo root (main checkout, even from inside a linked worktree).
+REPO_ROOT="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+if [ -n "$REPO_ROOT" ]; then
+  REPO_ROOT="$(dirname "$REPO_ROOT" 2>/dev/null || true)"
+else
+  REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+fi
+[ -n "$REPO_ROOT" ] && [ -d "$REPO_ROOT" ] || REPO_ROOT="$(pwd)"
+
+EPIC_PLAN="$(ls -t "$REPO_ROOT"/docs/epics/*/plan.md 2>/dev/null | head -1)"
 [ -n "$EPIC_PLAN" ] || exit 0
 STATUS_DIR="$(dirname "$EPIC_PLAN")/status"
 mkdir -p "$STATUS_DIR" 2>/dev/null || exit 0
+LOG="$STATUS_DIR/agent-$AGENT_ID.log"
 
-BRANCH_SLUG="$(git branch --show-current 2>/dev/null | tr '/' '-')"
-[ -n "$BRANCH_SLUG" ] || BRANCH_SLUG="detached"
-LOG="$STATUS_DIR/$BRANCH_SLUG.log"
+# ------------------------------------------------------- ownership claim ----
+# Bind a status.json to this agent when the agent's own call names it. Only
+# unowned files, only files touched during this agent's life, and only for an
+# agent that actually started (owner record or marker). Pure-shell test first:
+# no subprocess at all on the overwhelming majority of calls.
+START_REF=""
+[ -f "$STATUS_DIR/.agents/$AGENT_ID.json" ] && START_REF="$STATUS_DIR/.agents/$AGENT_ID.json"
+[ -z "$START_REF" ] && [ -f ".claude/signals/subagent-active-$AGENT_ID" ] \
+  && START_REF=".claude/signals/subagent-active-$AGENT_ID"
 
+if [ -n "$START_REF" ]; then
+  for F in "$STATUS_DIR"/*.json; do
+    [ -f "$F" ] || continue
+    BASE="${F##*/}"
+    case "$INPUT" in *"$BASE"*) ;; *) continue ;; esac
+    grep -q '"agent_id"[[:space:]]*:' "$F" 2>/dev/null && continue      # already owned
+    [ -n "$(find "$F" -newer "$START_REF" 2>/dev/null || true)" ] || continue
+    if command -v python3 > /dev/null 2>&1; then
+      python3 - "$F" "$AGENT_ID" << 'PYEOF' 2>/dev/null && continue
+import json, sys, os, tempfile
+path, agent = sys.argv[1], sys.argv[2]
+try:
+    with open(path) as f: d = json.load(f)
+except Exception: sys.exit(1)
+if not isinstance(d, dict): sys.exit(1)
+d["agent_id"] = agent
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or ".")
+with os.fdopen(fd, "w") as f:
+    json.dump(d, f, indent=2); f.write("\n")
+os.replace(tmp, path)
+PYEOF
+    fi
+    if command -v jq > /dev/null 2>&1; then
+      TMP="$F.tmp.$$"
+      if jq --arg id "$AGENT_ID" '. + {agent_id: $id}' "$F" > "$TMP" 2>/dev/null && [ -s "$TMP" ]; then
+        mv "$TMP" "$F" 2>/dev/null && continue
+      fi
+      rm -f "$TMP" 2>/dev/null
+    fi
+    # Parser-free insert, guarded: object must open with { and hold a key.
+    FIRST="$(sed -n '1p' "$F" 2>/dev/null || true)"
+    case "$FIRST" in '{'*) ;; *) continue ;; esac
+    grep -q '"' "$F" 2>/dev/null || continue
+    TMP="$F.tmp.$$"
+    { printf '{\n  "agent_id": "%s",\n' "$AGENT_ID"; sed '1s/^{//' "$F"; } > "$TMP" 2>/dev/null \
+      && mv "$TMP" "$F" 2>/dev/null
+    rm -f "$TMP" 2>/dev/null
+  done
+fi
+
+# ------------------------------------------------------------- log line ----
 LINE=""
 if command -v jq > /dev/null 2>&1; then
   LINE="$(printf '%s' "$INPUT" | jq -r '
