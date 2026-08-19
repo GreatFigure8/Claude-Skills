@@ -111,18 +111,35 @@ fi
 # Which epic is in flight, in order:
 #   (a) the explicit pointer $REPO_ROOT/.claude/signals/active-epic — epic folder
 #       name, repo-relative path, or absolute path — when it names a real epic
-#       directory. The orchestrator writes it at dispatch setup (Phase 3 step 2)
-#       and removes it at epic close (Phase 5).
-#   (b) otherwise the newest plan.md whose "**Status:**" line is NOT closed.
-#   (c) otherwise nothing: the caller degrades to silence and exits 0.
+#       directory whose plan is NOT closed. The orchestrator writes it at
+#       dispatch setup (Phase 3 step 2) and removes it at epic close (Phase 5),
+#       so a pointer that outlives the close is a missed cleanup, not an intent.
+#   (b) otherwise the newest plan.md whose "**Status:**" line reads "in flight".
+#   (c) otherwise the newest plan.md that is open but not started: planning,
+#       approved, or no parseable Status line at all.
+#   (d) otherwise nothing: the caller degrades to silence and exits 0.
 #
-# It used to be bare mtime — "whichever plan.md was touched last" — which is not
-# "the epic in flight". Editing a CLOSED epic's plan is a legitimate act (a retro
-# correction), and doing it during epic 02 redirected a live executor's telemetry
-# into closed epic 01: two SUBAGENT STOP brackets landed there while the real
-# epic's own bracket landed two minutes later, one dispatch split across two epic
-# folders (GH #9). Hence: an explicit signal first, and a fallback that can never
-# choose a closed epic.
+# (b) BEFORE (c) is the queue rule (GH #11). Epics are filed ahead of the one
+# being worked — "**Status:** approved", numbered for later — and a filed-ahead
+# plan is by construction the NEWEST plan.md, so a single "not closed" test
+# handed the running epic's telemetry to the queued one: file epic 06 while 05
+# is in flight and 05's brackets land in 06. Open and in-flight are different
+# states, and only the second one is an address.
+#
+# Before that it was bare mtime — "whichever plan.md was touched last" — which is
+# not "the epic in flight" either. Editing a CLOSED epic's plan is a legitimate
+# act (a retro correction), and doing it during epic 02 redirected a live
+# executor's telemetry into closed epic 01: two SUBAGENT STOP brackets landed
+# there while the real epic's own bracket landed two minutes later, one dispatch
+# split across two epic folders (GH #9). Hence: an explicit signal first, then
+# state before recency, and no path that can ever select a closed epic.
+#
+# The state test reads the documented Status vocabulary of
+# references/plan-template.md — planning | approved | in flight (item N of M) |
+# closed — from the line's first TWO words, case-insensitively, tolerating
+# anything after the phrase ("in flight (items 1-2 of 2, parallel)" is in
+# flight). It must not key on the first word alone: that truncates "in flight"
+# to "in", which is why the two states were indistinguishable to begin with.
 #
 # A plan with no parseable Status: line counts as OPEN — fail toward writing
 # telemetry, never toward silently losing it. The pointer is read relative to
@@ -132,11 +149,22 @@ fi
 # Tools used here are only those the parser-free fixture variant provides
 # (head/grep/sed/ls plus shell builtins): no jq, no python3, no awk, bash 3.2.
 
-plan_is_open() { # $1 = plan.md path; false ONLY when its Status line reads closed
+plan_state() { # $1 = plan.md path; echoes exactly one of: closed | inflight | open
   EPIC_STATE="$(head -10 "$1" 2>/dev/null | grep '^\*\*Status:\*\*' 2>/dev/null \
                  | head -1 | sed 's/^\*\*Status:\*\*[[:space:]]*//' 2>/dev/null || true)"
-  EPIC_STATE="${EPIC_STATE%%[[:space:]]*}"          # first word; also drops a trailing \r
-  case "$EPIC_STATE" in closed|Closed|CLOSED) return 1 ;; *) return 0 ;; esac
+  EPIC_W1="${EPIC_STATE%%[[:space:]]*}"                     # first word; drops a trailing \r
+  EPIC_REST="${EPIC_STATE#"$EPIC_W1"}"
+  EPIC_REST="${EPIC_REST#"${EPIC_REST%%[![:space:]]*}"}"    # ltrim what follows it
+  EPIC_W2="${EPIC_REST%%[[:space:]]*}"                      # second word
+  case "$EPIC_W1" in
+    [Cc][Ll][Oo][Ss][Ee][Dd]) printf 'closed'; return 0 ;;
+    [Ii][Nn])
+      case "$EPIC_W2" in                                    # "flight", "flight(item", "flight," …
+        [Ff][Ll][Ii][Gg][Hh][Tt]|[Ff][Ll][Ii][Gg][Hh][Tt][!A-Za-z]*)
+          printf 'inflight'; return 0 ;;
+      esac ;;
+  esac
+  printf 'open'
 }
 
 resolve_epic_dir() { # echo the epic folder in flight, or nothing at all
@@ -162,18 +190,27 @@ resolve_epic_dir() { # echo the epic folder in flight, or nothing at all
       */*) EPIC_CAND="$REPO_ROOT/$EPIC_PTR" ;;               # repo-relative path
       *)   EPIC_CAND="$REPO_ROOT/docs/epics/$EPIC_PTR" ;;    # bare epic folder name
     esac
-    if [ -d "$EPIC_CAND" ]; then printf '%s' "$EPIC_CAND"; return 0; fi
-    # Pointer names nothing that exists (deleted epic, typo): fall through to (b).
+    # A directory with no readable plan.md is not closed, so it is still honoured;
+    # only a plan that actually says closed disqualifies the pointer.
+    if [ -d "$EPIC_CAND" ] && [ "$(plan_state "$EPIC_CAND/plan.md")" != "closed" ]; then
+      printf '%s' "$EPIC_CAND"; return 0
+    fi
+    # Pointer names nothing that exists, or names a closed epic: fall through.
   fi
-  # (b) newest plan.md that is not closed. ls -t is newest-first, so the first
-  #     open plan wins and closed epics are never selected at all.
-  ls -t "$REPO_ROOT"/docs/epics/*/plan.md 2>/dev/null | while IFS= read -r EPIC_P; do
-    [ -f "$EPIC_P" ] || continue
-    plan_is_open "$EPIC_P" || continue
-    printf '%s' "${EPIC_P%/plan.md}"
-    break
+  # (b) then (c): newest in-flight plan, else newest other open plan. ls -t is
+  #     newest-first within each pass, and neither pass can match a closed plan,
+  #     so no fallback path can reach a closed epic.
+  for EPIC_WANT in inflight open; do
+    EPIC_HIT="$(ls -t "$REPO_ROOT"/docs/epics/*/plan.md 2>/dev/null \
+                 | while IFS= read -r EPIC_P; do
+                     [ -f "$EPIC_P" ] || continue
+                     [ "$(plan_state "$EPIC_P")" = "$EPIC_WANT" ] || continue
+                     printf '%s' "${EPIC_P%/plan.md}"
+                     break
+                   done)"
+    if [ -n "$EPIC_HIT" ]; then printf '%s' "$EPIC_HIT"; return 0; fi
   done
-  # (c) nothing resolvable: print nothing.
+  # (d) nothing resolvable: print nothing.
 }
 
 EPIC_DIR="$(resolve_epic_dir)"
