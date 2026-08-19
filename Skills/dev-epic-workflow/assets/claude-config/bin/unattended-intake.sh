@@ -38,7 +38,8 @@ GH_BIN="${INTAKE_GH:-/opt/homebrew/bin/gh}"
 CLAUDE_BIN="${INTAKE_CLAUDE:-$HOME/.local/bin/claude}"
 
 ENV_FILE="${INTAKE_ENV_FILE:-$HOME/.config/claude-intake/env}"
-REPO_DIR="${INTAKE_REPO_DIR:-$HOME/Source/claude-skills}"
+REPO_DIR="${INTAKE_REPO_DIR:-$HOME/Source/claude-skills}"   # fallback when no list
+REPO_LIST="${INTAKE_REPO_LIST:-$HOME/.config/claude-intake/repos}"
 LOG_FILE="${INTAKE_LOG:-$HOME/.config/claude-intake/intake.log}"
 LOCK_DIR="${INTAKE_LOCK:-$HOME/.config/claude-intake/.lock}"
 LABEL="${INTAKE_LABEL:-claude-intake}"
@@ -84,7 +85,6 @@ die() { log "FATAL: $*"; exit "${2:-1}"; }
 for B in "$GIT_BIN" "$GH_BIN" "$CLAUDE_BIN"; do
   [ -x "$B" ] || die "not executable: $B (launchd has a minimal PATH; set INTAKE_GIT/INTAKE_GH/INTAKE_CLAUDE)" 1
 done
-[ -d "$REPO_DIR/.git" ] || die "not a git repo: $REPO_DIR" 1
 
 mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
 
@@ -113,161 +113,199 @@ if [ "$DRY_RUN" = no ]; then
   trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT INT TERM
 fi
 
-# --------------------------------------------------------------------- repo
-cd "$REPO_DIR" || die "cannot cd to $REPO_DIR" 1
-REPO_SLUG="${REPO_OVERRIDE:-$("$GH_BIN" repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)}"
-[ -n "$REPO_SLUG" ] || die "could not determine repo (gh auth? no GitHub remote?)" 1
-[ -n "$WORKTREE_ROOT" ] || WORKTREE_ROOT="$(dirname "$REPO_DIR")"
-
-log "unattended intake starting — repo=$REPO_SLUG label=$LABEL dry-run=$DRY_RUN"
-
-# Ensure the label exists so a first run does not fail on a missing label.
-if ! "$GH_BIN" label list --limit 200 2>/dev/null | grep -q "^${LABEL}[[:space:]]"; then
-  if [ "$DRY_RUN" = yes ]; then
-    log "DRY-RUN: would create missing label '$LABEL'"
-  else
-    "$GH_BIN" label create "$LABEL" --color "5319E7" \
-      --description "Run unattended intake: draft an epic plan as a proposal PR" >/dev/null 2>&1 \
-      && log "created missing label '$LABEL'"
-  fi
+# --------------------------------------------------------------------- repos
+# Repos join the poller by being LISTED, never by existing on disk — the same
+# opt-in principle the claude-intake label uses at the issue level. A missing or
+# empty list falls back to the single-repo default, so an existing setup keeps
+# working untouched.
+REPOS=""
+if [ -f "$REPO_LIST" ] && [ -r "$REPO_LIST" ]; then
+  while IFS= read -r RLINE || [ -n "$RLINE" ]; do
+    RLINE="${RLINE%"${RLINE##*[![:space:]]}"}"
+    RLINE="${RLINE#"${RLINE%%[![:space:]]*}"}"
+    case "$RLINE" in ''|'#'*) continue ;; esac
+    case "$RLINE" in '~'*) RLINE="$HOME${RLINE#\~}" ;; esac
+    REPOS="$REPOS
+$RLINE"
+  done < "$REPO_LIST"
+fi
+if [ -z "$(printf '%s' "$REPOS" | tr -d '[:space:]')" ]; then
+  REPOS="$REPO_DIR"
+  log "no repo list at $REPO_LIST — falling back to $REPO_DIR"
 fi
 
-# ------------------------------------------------------------------- select
-if [ -n "$ONLY_ISSUE" ]; then
-  if [ "$FORCE_ISSUE" = yes ]; then
-    ISSUES="$ONLY_ISSUE"
-  else
-    ISSUES="$("$GH_BIN" issue list --state open --label "$LABEL" --limit 100 \
-                --json number -q '.[].number' 2>/dev/null | grep -x "$ONLY_ISSUE" || true)"
-    [ -n "$ISSUES" ] || { log "issue #$ONLY_ISSUE is not open with label '$LABEL' (use --force-issue to override)"; exit 0; }
-  fi
-else
-  ISSUES="$("$GH_BIN" issue list --state open --label "$LABEL" --limit 100 \
-              --json number -q '.[].number' 2>/dev/null || true)"
-fi
-
-if [ -z "$ISSUES" ]; then
-  log "nothing labelled '$LABEL' — nothing to do"
-  exit 0
-fi
-
-log "issues to process: $(printf '%s' "$ISSUES" | tr '\n' ' ')"
-
-# ------------------------------------------------------------------ process
-# Every failure exits the same way: say why on the issue, drop the label so a
-# deterministic failure cannot retry forever, and leave nothing half-built.
-fail_issue() { # $1 = issue number, $2 = reason, $3 = worktree (optional), $4 = branch (optional)
-  log "ERROR #$1: $2"
-  "$GH_BIN" issue comment "$1" --body "Unattended intake failed: $2
-
-The \`$LABEL\` label has been removed so this does not retry automatically. Re-apply it to try again." >/dev/null 2>&1 || true
-  "$GH_BIN" issue edit "$1" --remove-label "$LABEL" >/dev/null 2>&1 || true
-  [ -n "${3:-}" ] && "$GIT_BIN" worktree remove --force "$3" 2>/dev/null || true
-  [ -n "${4:-}" ] && "$GIT_BIN" branch -D "$4" 2>/dev/null || true
-  FAILED=1
-}
+log "unattended intake starting — label=$LABEL dry-run=$DRY_RUN repos=$(printf '%s' "$REPOS" | grep -c . )"
 
 FAILED=0
 
-for N in $ISSUES; do
-  TITLE="$("$GH_BIN" issue view "$N" --json title -q .title 2>/dev/null || echo '(unknown)')"
-  log "--- issue #$N: $TITLE"
+# Each repo is processed in full isolation: its own label check, its own issue
+# list, its own epic folder and worktrees. One repo failing is logged and
+# skipped — it must never stop the others. The lock is held across the WHOLE
+# run, not per repo, so two repos are never processed concurrently.
+while IFS= read -r REPO_DIR; do
+  [ -n "$REPO_DIR" ] || continue
+  if [ ! -d "$REPO_DIR/.git" ]; then
+    log "skip: not a git repo -> $REPO_DIR"
+    continue
+  fi
+  cd "$REPO_DIR" || { log "skip: cannot cd -> $REPO_DIR"; continue; }
+  REPO_SLUG="${REPO_OVERRIDE:-$("$GH_BIN" repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)}"
+  if [ -z "$REPO_SLUG" ]; then
+    log "skip: no GitHub remote (or gh unauthenticated) -> $REPO_DIR"
+    continue
+  fi
+  WT_ROOT="${WORKTREE_ROOT:-$(dirname "$REPO_DIR")}"
+  log "== repo $REPO_SLUG ($REPO_DIR)"
 
-  # Next free epic number, claimed at draft time. A collision is resolved by
-  # renumbering at approval; the PR body says so.
-  LAST="$(ls -d docs/epics/[0-9][0-9]-* 2>/dev/null | sed 's|.*/||; s|-.*||' | sort -n | tail -1)"
-  [ -n "$LAST" ] || LAST=00
-  NEXT="$(printf '%02d' $((10#$LAST + 1)))"
-  # sed -E: BSD sed has no \+ in a basic regex, and silently leaves it literal —
-  # which produced branch names containing spaces until a live run caught it.
-  SLUG="$(printf '%s' "$TITLE" | tr '[:upper:]' '[:lower:]' \
-            | sed -E -e 's/[^a-z0-9]+/-/g' -e 's/^-+//' -e 's/-+$//' | cut -c1-48)"
-  SLUG="$(printf '%s' "$SLUG" | sed -E -e 's/-+$//')"
-  [ -n "$SLUG" ] || SLUG="issue-$N"
-  BRANCH="intake/${NEXT}-${SLUG}"
-  WT="$WORKTREE_ROOT/$(basename "$REPO_DIR")-${NEXT}-${SLUG}"
+  # Ensure the label exists so a first run does not fail on a missing label.
+  if ! "$GH_BIN" label list --limit 200 2>/dev/null | grep -q "^${LABEL}[[:space:]]"; then
+    if [ "$DRY_RUN" = yes ]; then
+      log "DRY-RUN: would create missing label '$LABEL'"
+    else
+      "$GH_BIN" label create "$LABEL" --color "5319E7" \
+        --description "Run unattended intake: draft an epic plan as a proposal PR" >/dev/null 2>&1 \
+        && log "created missing label '$LABEL'"
+    fi
+  fi
 
-  if [ "$DRY_RUN" = yes ]; then
-    log "DRY-RUN: would create worktree $WT on $BRANCH"
-    log "DRY-RUN: would run headless intake for #$N producing docs/epics/${NEXT}-${SLUG}/plan.md at Status: planning"
-    log "DRY-RUN: would open a PR (Part of #$N, no Closes), comment the link, and remove label '$LABEL'"
+  # ------------------------------------------------------------------- select
+  if [ -n "$ONLY_ISSUE" ]; then
+    if [ "$FORCE_ISSUE" = yes ]; then
+      ISSUES="$ONLY_ISSUE"
+    else
+      ISSUES="$("$GH_BIN" issue list --state open --label "$LABEL" --limit 100 \
+                  --json number -q '.[].number' 2>/dev/null | grep -x "$ONLY_ISSUE" || true)"
+      [ -n "$ISSUES" ] || { log "issue #$ONLY_ISSUE is not open with label '$LABEL' here"; continue; }
+    fi
+  else
+    ISSUES="$("$GH_BIN" issue list --state open --label "$LABEL" --limit 100 \
+                --json number -q '.[].number' 2>/dev/null || true)"
+  fi
+
+  if [ -z "$ISSUES" ]; then
+    log "nothing labelled '$LABEL' — nothing to do"
     continue
   fi
 
-  "$GIT_BIN" switch -q main 2>/dev/null || true
-  "$GIT_BIN" pull -q --ff-only 2>/dev/null || true
+  log "issues to process: $(printf '%s' "$ISSUES" | tr '\n' ' ')"
 
-  if ! "$GIT_BIN" worktree add -q "$WT" -b "$BRANCH" main 2>/dev/null; then
-    fail_issue "$N" "could not create worktree $WT on $BRANCH"
-    continue
-  fi
+  # ------------------------------------------------------------------ process
+  # Every failure exits the same way: say why on the issue, drop the label so a
+  # deterministic failure cannot retry forever, and leave nothing half-built.
+  fail_issue() { # $1 = issue number, $2 = reason, $3 = worktree (optional), $4 = branch (optional)
+    log "ERROR #$1: $2"
+    "$GH_BIN" issue comment "$1" --body "Unattended intake failed: $2
 
-  # Phase 0 + Phase 1 only. The prompt restates the hard stops because the
-  # model is the thing being constrained, and a headless run has no one to ask.
-  PROMPT="Run unattended intake for GitHub issue #$N in this repository.
+  The \`$LABEL\` label has been removed so this does not retry automatically. Re-apply it to try again." >/dev/null 2>&1 || true
+    "$GH_BIN" issue edit "$1" --remove-label "$LABEL" >/dev/null 2>&1 || true
+    [ -n "${3:-}" ] && "$GIT_BIN" worktree remove --force "$3" 2>/dev/null || true
+    [ -n "${4:-}" ] && "$GIT_BIN" branch -D "$4" 2>/dev/null || true
+    FAILED=1
+  }
 
-Follow the dev-epic-workflow skill's unattended-intake contract in
-Skills/dev-epic-workflow/references/issue-intake.md. Run ONLY Phase 0 (ground
-the work by reading the actual code and config) and Phase 1 (draft the plan).
 
-Write the plan to docs/epics/${NEXT}-${SLUG}/plan.md using the structure in
-Skills/dev-epic-workflow/references/plan-template.md, with:
-  **Status:** planning
-  **Source:** GH #$N
+  for N in $ISSUES; do
+    TITLE="$("$GH_BIN" issue view "$N" --json title -q .title 2>/dev/null || echo '(unknown)')"
+    log "--- issue #$N: $TITLE"
 
-HARD STOPS — you are running unattended and nobody can approve anything:
-  - Do NOT set Status to approved. It is a proposal, not a filed epic.
-  - Do NOT dispatch any executor or subagent.
-  - Do NOT write, modify, or delete any code outside docs/epics/${NEXT}-${SLUG}/.
-  - Do NOT merge anything, and do NOT close the issue.
-  - Do NOT git push, do NOT open a PR — the runner does that.
-Commit the plan with a conventional message and stop."
+    # NO epic number is claimed here. Phase 1 assigns the number at APPROVAL,
+    # not at drafting, and a runner reserving one early both contradicted that
+    # and collided whenever two issues were labelled before either merged
+    # (GH #22). A proposal is named for its issue, which is already unique.
+    # sed -E: BSD sed has no \+ in a basic regex, and silently leaves it literal —
+    # which produced branch names containing spaces until a live run caught it.
+    SLUG="$(printf '%s' "$TITLE" | tr '[:upper:]' '[:lower:]' \
+              | sed -E -e 's/[^a-z0-9]+/-/g' -e 's/^-+//' -e 's/-+$//' | cut -c1-48)"
+    SLUG="$(printf '%s' "$SLUG" | sed -E -e 's/-+$//')"
+    [ -n "$SLUG" ] || SLUG="issue-$N"
+    BRANCH="intake/proposed-${N}-${SLUG}"
+    WT="$WT_ROOT/$(basename "$REPO_DIR")-proposed-${N}-${SLUG}"
 
-  ( cd "$WT" && "$CLAUDE_BIN" -p "$PROMPT" \
-      --allowed-tools 'Bash(git:*)' 'Bash(gh issue view:*)' 'Bash(ls:*)' 'Bash(find:*)' 'Bash(grep:*)' 'Bash(sed:*)' 'Bash(cat:*)' 'Bash(head:*)' 'Bash(date:*)' Read Write Edit Glob Grep ) \
-      > "$WT/.intake-run.log" 2>&1
-  RC=$?
+    if [ "$DRY_RUN" = yes ]; then
+      log "DRY-RUN: would create worktree $WT on $BRANCH"
+      log "DRY-RUN: would run headless intake for #$N producing docs/epics/proposed-${N}-${SLUG}/plan.md at Status: planning"
+      log "DRY-RUN: would open a PR (Part of #$N, no Closes), comment the link, and remove label '$LABEL'"
+      continue
+    fi
 
-  if [ $RC -ne 0 ]; then
-    fail_issue "$N" "headless run exited $RC (see $WT/.intake-run.log)" "$WT" "$BRANCH"
-    continue
-  fi
+    "$GIT_BIN" switch -q main 2>/dev/null || true
+    "$GIT_BIN" pull -q --ff-only 2>/dev/null || true
 
-  if ! "$GIT_BIN" -C "$WT" log --oneline main.."$BRANCH" 2>/dev/null | grep -q .; then
-    fail_issue "$N" "headless run produced no commit" "$WT" "$BRANCH"
-    continue
-  fi
+    if ! "$GIT_BIN" worktree add -q "$WT" -b "$BRANCH" main 2>/dev/null; then
+      fail_issue "$N" "could not create worktree $WT on $BRANCH"
+      continue
+    fi
 
-  if ! "$GIT_BIN" -C "$WT" push -q -u origin "$BRANCH" 2>/dev/null; then
-    fail_issue "$N" "push failed" "$WT" "$BRANCH"
-    continue
-  fi
+    # Phase 0 + Phase 1 only. The prompt restates the hard stops because the
+    # model is the thing being constrained, and a headless run has no one to ask.
+    PROMPT="Run unattended intake for GitHub issue #$N in this repository.
 
-  PR_URL="$("$GH_BIN" pr create --base main --head "$BRANCH" \
-      --title "intake: proposed epic ${NEXT}-${SLUG} (from #$N)" \
-      --body "Proposed epic plan drafted by **unattended intake** from #$N.
+  Follow the dev-epic-workflow skill's unattended-intake contract in
+  Skills/dev-epic-workflow/references/issue-intake.md. Run ONLY Phase 0 (ground
+  the work by reading the actual code and config) and Phase 1 (draft the plan).
 
-**This is a proposal, not a filed epic.** The plan is at \`**Status:** planning\`, which is never dispatchable. Approving means merging this PR **and** setting \`**Status:** approved\` — until that edit lands it is a draft that happens to be version-controlled.
+  Write the plan to docs/epics/proposed-${N}-${SLUG}/plan.md using the structure in
+  Skills/dev-epic-workflow/references/plan-template.md, with:
+    **Status:** planning
+    **Source:** GH #$N
 
-Epic number \`${NEXT}\` was claimed at draft time; if it collides with an epic filed since, renumber at approval.
+  HARD STOPS — you are running unattended and nobody can approve anything:
+    - Do NOT set Status to approved. It is a proposal, not a filed epic.
+    - Do NOT dispatch any executor or subagent.
+    - Do NOT write, modify, or delete any code outside docs/epics/proposed-${N}-${SLUG}/.
+    - Do NOT merge anything, and do NOT close the issue.
+    - Do NOT git push, do NOT open a PR — the runner does that.
+  Commit the plan with a conventional message and stop."
 
-Nothing was approved, dispatched, merged, or closed by this run. No code outside \`docs/epics/${NEXT}-${SLUG}/\` was touched.
+    ( cd "$WT" && "$CLAUDE_BIN" -p "$PROMPT" \
+        --allowed-tools 'Bash(git:*)' 'Bash(gh issue view:*)' 'Bash(ls:*)' 'Bash(find:*)' 'Bash(grep:*)' 'Bash(sed:*)' 'Bash(cat:*)' 'Bash(head:*)' 'Bash(date:*)' Read Write Edit Glob Grep ) \
+        > "$WT/.intake-run.log" 2>&1
+    RC=$?
 
-Part of #$N" 2>/dev/null || true)"
+    if [ $RC -ne 0 ]; then
+      fail_issue "$N" "headless run exited $RC (see $WT/.intake-run.log)" "$WT" "$BRANCH"
+      continue
+    fi
 
-  if [ -z "$PR_URL" ]; then
-    fail_issue "$N" "PR creation failed (branch is pushed and preserved)"
-    continue
-  fi
+    if ! "$GIT_BIN" -C "$WT" log --oneline main.."$BRANCH" 2>/dev/null | grep -q .; then
+      fail_issue "$N" "headless run produced no commit" "$WT" "$BRANCH"
+      continue
+    fi
 
-  "$GH_BIN" issue comment "$N" --body "Unattended intake drafted a proposed epic plan: $PR_URL
+    if ! "$GIT_BIN" -C "$WT" push -q -u origin "$BRANCH" 2>/dev/null; then
+      fail_issue "$N" "push failed" "$WT" "$BRANCH"
+      continue
+    fi
 
-It is at \`Status: planning\` — not approved, not dispatchable. Review the PR; approve by merging it and setting \`Status: approved\`." >/dev/null 2>&1 || true
-  "$GH_BIN" issue edit "$N" --remove-label "$LABEL" >/dev/null 2>&1 || true
+    PR_URL="$("$GH_BIN" pr create --base main --head "$BRANCH" \
+        --title "intake: proposed epic for #$N — ${SLUG}" \
+        --body "Proposed epic plan drafted by **unattended intake** from #$N.
 
-  log "#$N -> $PR_URL (label removed)"
-  "$GIT_BIN" worktree remove --force "$WT" 2>/dev/null || true
-done
+  **This is a proposal, not a filed epic.** The plan is at \`**Status:** planning\`, which is never dispatchable. Approving means merging this PR **and** setting \`**Status:** approved\` — until that edit lands it is a draft that happens to be version-controlled.
+
+  No epic number is claimed here. Phase 1 assigns the number **at approval** — rename \`docs/epics/proposed-${N}-${SLUG}/\` to \`docs/epics/<NN>-<slug>/\` when you approve, and set \`Status: approved\`.
+
+  Nothing was approved, dispatched, merged, or closed by this run. No code outside \`docs/epics/proposed-${N}-${SLUG}/\` was touched.
+
+  Part of #$N" 2>/dev/null || true)"
+
+    if [ -z "$PR_URL" ]; then
+      fail_issue "$N" "PR creation failed (branch is pushed and preserved)"
+      continue
+    fi
+
+    "$GH_BIN" issue comment "$N" --body "Unattended intake drafted a proposed epic plan: $PR_URL
+
+  It is at \`Status: planning\` — not approved, not dispatchable. Review the PR; approve by merging it and setting \`Status: approved\`." >/dev/null 2>&1 || true
+    "$GH_BIN" issue edit "$N" --remove-label "$LABEL" >/dev/null 2>&1 || true
+
+    log "#$N -> $PR_URL (label removed)"
+    "$GIT_BIN" worktree remove --force "$WT" 2>/dev/null || true
+  done
+
+done <<REPOLIST
+$(printf '%s\n' "$REPOS" | grep .)
+REPOLIST
 
 if [ "$FAILED" -ne 0 ]; then
   log "finished with failures"
