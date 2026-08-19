@@ -154,6 +154,19 @@ fi
 log "issues to process: $(printf '%s' "$ISSUES" | tr '\n' ' ')"
 
 # ------------------------------------------------------------------ process
+# Every failure exits the same way: say why on the issue, drop the label so a
+# deterministic failure cannot retry forever, and leave nothing half-built.
+fail_issue() { # $1 = issue number, $2 = reason, $3 = worktree (optional), $4 = branch (optional)
+  log "ERROR #$1: $2"
+  "$GH_BIN" issue comment "$1" --body "Unattended intake failed: $2
+
+The \`$LABEL\` label has been removed so this does not retry automatically. Re-apply it to try again." >/dev/null 2>&1 || true
+  "$GH_BIN" issue edit "$1" --remove-label "$LABEL" >/dev/null 2>&1 || true
+  [ -n "${3:-}" ] && "$GIT_BIN" worktree remove --force "$3" 2>/dev/null || true
+  [ -n "${4:-}" ] && "$GIT_BIN" branch -D "$4" 2>/dev/null || true
+  FAILED=1
+}
+
 FAILED=0
 
 for N in $ISSUES; do
@@ -165,8 +178,11 @@ for N in $ISSUES; do
   LAST="$(ls -d docs/epics/[0-9][0-9]-* 2>/dev/null | sed 's|.*/||; s|-.*||' | sort -n | tail -1)"
   [ -n "$LAST" ] || LAST=00
   NEXT="$(printf '%02d' $((10#$LAST + 1)))"
+  # sed -E: BSD sed has no \+ in a basic regex, and silently leaves it literal —
+  # which produced branch names containing spaces until a live run caught it.
   SLUG="$(printf '%s' "$TITLE" | tr '[:upper:]' '[:lower:]' \
-            | sed -e 's/[^a-z0-9]\+/-/g' -e 's/^-//' -e 's/-$//' | cut -c1-48)"
+            | sed -E -e 's/[^a-z0-9]+/-/g' -e 's/^-+//' -e 's/-+$//' | cut -c1-48)"
+  SLUG="$(printf '%s' "$SLUG" | sed -E -e 's/-+$//')"
   [ -n "$SLUG" ] || SLUG="issue-$N"
   BRANCH="intake/${NEXT}-${SLUG}"
   WT="$WORKTREE_ROOT/$(basename "$REPO_DIR")-${NEXT}-${SLUG}"
@@ -182,8 +198,7 @@ for N in $ISSUES; do
   "$GIT_BIN" pull -q --ff-only 2>/dev/null || true
 
   if ! "$GIT_BIN" worktree add -q "$WT" -b "$BRANCH" main 2>/dev/null; then
-    log "ERROR #$N: could not create worktree $WT on $BRANCH"
-    FAILED=1
+    fail_issue "$N" "could not create worktree $WT on $BRANCH"
     continue
   fi
 
@@ -214,27 +229,19 @@ Commit the plan with a conventional message and stop."
   RC=$?
 
   if [ $RC -ne 0 ]; then
-    log "ERROR #$N: headless run exited $RC — see $WT/.intake-run.log"
-    "$GH_BIN" issue comment "$N" --body "Unattended intake failed (exit $RC). The \`$LABEL\` label has been removed so this does not retry automatically; re-apply it to try again." >/dev/null 2>&1 || true
-    "$GH_BIN" issue edit "$N" --remove-label "$LABEL" >/dev/null 2>&1 || true
-    "$GIT_BIN" worktree remove --force "$WT" 2>/dev/null || true
-    "$GIT_BIN" branch -D "$BRANCH" 2>/dev/null || true
-    FAILED=1
+    fail_issue "$N" "headless run exited $RC (see $WT/.intake-run.log)" "$WT" "$BRANCH"
     continue
   fi
 
   if ! "$GIT_BIN" -C "$WT" log --oneline main.."$BRANCH" 2>/dev/null | grep -q .; then
-    log "ERROR #$N: headless run produced no commit"
-    "$GH_BIN" issue comment "$N" --body "Unattended intake produced no plan. The \`$LABEL\` label has been removed so this does not retry automatically." >/dev/null 2>&1 || true
-    "$GH_BIN" issue edit "$N" --remove-label "$LABEL" >/dev/null 2>&1 || true
-    "$GIT_BIN" worktree remove --force "$WT" 2>/dev/null || true
-    "$GIT_BIN" branch -D "$BRANCH" 2>/dev/null || true
-    FAILED=1
+    fail_issue "$N" "headless run produced no commit" "$WT" "$BRANCH"
     continue
   fi
 
-  "$GIT_BIN" -C "$WT" push -q -u origin "$BRANCH" 2>/dev/null || {
-    log "ERROR #$N: push failed"; FAILED=1; continue; }
+  if ! "$GIT_BIN" -C "$WT" push -q -u origin "$BRANCH" 2>/dev/null; then
+    fail_issue "$N" "push failed" "$WT" "$BRANCH"
+    continue
+  fi
 
   PR_URL="$("$GH_BIN" pr create --base main --head "$BRANCH" \
       --title "intake: proposed epic ${NEXT}-${SLUG} (from #$N)" \
@@ -249,8 +256,7 @@ Nothing was approved, dispatched, merged, or closed by this run. No code outside
 Part of #$N" 2>/dev/null || true)"
 
   if [ -z "$PR_URL" ]; then
-    log "ERROR #$N: PR creation failed"
-    FAILED=1
+    fail_issue "$N" "PR creation failed (branch is pushed and preserved)"
     continue
   fi
 
