@@ -148,14 +148,21 @@ ref, and each source item gets the link-back.
 ## Unattended intake — the `claude-intake` label
 
 Everything above assumes Jonathan is in the session. **Unattended intake** is the same
-Pickup path run headlessly by CI when nobody is present, and it stops one step short of
+Pickup path run headlessly when nobody is present, and it stops one step short of
 everything above: it produces a **proposal**, never a filed, approved epic.
 
+This contract is deliberately **mechanism-agnostic**. It constrains what an unattended run
+may do, not what runs it: a scheduled runner on Jonathan's machine, a CI job, or a manual
+headless invocation are bound by the same trigger, the same artifacts, and the same hard
+stops. Choosing and building the mechanism is a separate concern; violating any line below
+is not open to it.
+
 **Trigger — opt-in, and nothing else.** Applying the `claude-intake` label to a GitHub
-issue. No label, no run; there is no schedule, no "all new issues", no inference from
-title or content. Removing the label after a run is what stops it recurring. (A manual
-`workflow_dispatch` with an issue number exists for testing the pipeline itself — same
-contract, same stops.)
+issue. No label, no run; there is no "all new issues", and no inference from title or
+content. Whatever *wakes* the runner — a timer, a poll, a manual start — the label is the
+only thing that *selects* an issue, so an unlabelled issue is never processed. Removing the
+label after a run is what stops it recurring. A single named issue may be processed
+on demand to exercise the mechanism itself — same contract, same stops.
 
 **What it does.** Exactly two phases of the workflow, in order:
 
