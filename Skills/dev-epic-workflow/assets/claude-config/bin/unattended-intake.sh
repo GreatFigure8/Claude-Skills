@@ -43,7 +43,10 @@ REPO_LIST="${INTAKE_REPO_LIST:-$HOME/.config/claude-intake/repos}"
 LOG_FILE="${INTAKE_LOG:-$HOME/.config/claude-intake/intake.log}"
 LOCK_DIR="${INTAKE_LOCK:-$HOME/.config/claude-intake/.lock}"
 LABEL="${INTAKE_LABEL:-claude-intake}"
-WORKTREE_ROOT="${INTAKE_WORKTREE_ROOT:-}"   # default: sibling of REPO_DIR
+# The ONE directory this runner may create anything in. Not "wherever the repo
+# happens to live" — an unattended process on a timer should have a filesystem
+# footprint you can verify by reading a single line.
+WORKTREE_ROOT="${INTAKE_WORKTREE_ROOT:-$HOME/Source}"
 
 DRY_RUN=no
 ONLY_ISSUE=""
@@ -177,7 +180,11 @@ while IFS= read -r RENTRY; do
     log "skip: base branch '$BASE_BRANCH' does not exist on origin -> $REPO_DIR"
     continue
   fi
-  WT_ROOT="${WORKTREE_ROOT:-$(dirname "$REPO_DIR")}"
+  WT_ROOT="$WORKTREE_ROOT"
+  if [ ! -d "$WT_ROOT" ]; then
+    log "skip: worktree root does not exist: $WT_ROOT"
+    continue
+  fi
   log "== repo $REPO_SLUG ($REPO_DIR) base=$BASE_BRANCH"
 
   # Ensure the label exists so a first run does not fail on a missing label.
@@ -243,6 +250,12 @@ while IFS= read -r RENTRY; do
     [ -n "$SLUG" ] || SLUG="issue-$N"
     BRANCH="intake/proposed-${N}-${SLUG}"
     WT="$WT_ROOT/$(basename "$REPO_DIR")-proposed-${N}-${SLUG}"
+    # Belt and braces: never create outside the declared root, whatever the
+    # repo basename or slug turned out to be.
+    case "$WT" in
+      "$WT_ROOT"/*) ;;
+      *) fail_issue "$N" "refusing to create a worktree outside $WT_ROOT"; continue ;;
+    esac
 
     if [ "$DRY_RUN" = yes ]; then
       log "DRY-RUN: would create worktree $WT on $BRANCH"
