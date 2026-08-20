@@ -314,6 +314,8 @@ check "A: the comment names the branch as evidence" "yes" \
       "$(yesno grep -q 'docs/757-bind-python-skills' "$D/comments.log")"
 check "A: the label is removed so it cannot spin" "yes" \
       "$(yesno called "$D" '^gh issue edit 757 --remove-label claude-intake')"
+check "A: the comment does not advise a relabelling loop" "yes" \
+      "$(yesno grep -q 'Re-applying it produces this same skip' "$D/comments.log")"
 check "A: it is in the runner log too (never silent)" "yes" \
       "$(yesno grep -q 'SKIP #757 (selection): already addressed or in flight' "$D/stdout.log")"
 check "A: no worktree was created"      "no"  "$(yesno called "$D" '^git worktree add')"

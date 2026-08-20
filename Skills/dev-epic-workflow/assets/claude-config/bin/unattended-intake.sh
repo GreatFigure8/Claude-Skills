@@ -341,7 +341,7 @@ WIPLINE
 
   Drafting a proposal here would duplicate work that is already merged or already in flight, so nothing was drafted. Checked at: $2.
 
-  The \`$LABEL\` label has been removed so this does not retry automatically. If that pull request does not in fact address this issue, re-apply the label." >/dev/null 2>&1 || true
+  The \`$LABEL\` label has been removed so this does not retry automatically. Re-applying it produces this same skip while that pull request stands — so if the reference above is only a passing mention, draft this one attended rather than relabelling it." >/dev/null 2>&1 || true
     "$GH_BIN" issue edit "$1" --remove-label "$LABEL" >/dev/null 2>&1 || true
     [ -n "${4:-}" ] && "$GIT_BIN" worktree remove --force "$4" 2>/dev/null || true
     [ -n "${5:-}" ] && "$GIT_BIN" branch -D "$5" 2>/dev/null || true
