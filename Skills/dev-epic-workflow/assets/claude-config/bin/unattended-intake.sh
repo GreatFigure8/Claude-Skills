@@ -51,6 +51,20 @@ REPO_LIST="${INTAKE_REPO_LIST:-$HOME/.config/claude-intake/repos}"
 LOG_FILE="${INTAKE_LOG:-$HOME/.config/claude-intake/intake.log}"
 LOCK_DIR="${INTAKE_LOCK:-$HOME/.config/claude-intake/.lock}"
 LABEL="${INTAKE_LABEL:-claude-intake}"
+
+# The branch prefix every proposal this runner opens is cut on. It is also how
+# the work-in-progress check below recognises the runner's OWN pull requests:
+# attended and unattended work run as the same GitHub account, so the actor
+# says nothing useful and the branch name is the only honest signal.
+PROPOSAL_BRANCH_PREFIX="${INTAKE_PROPOSAL_PREFIX:-intake/proposed-}"
+
+# How "a pull request references this issue" is asked of GitHub. The issue
+# timeline is the same thing GitHub renders under the issue itself, and a
+# cross-reference is recorded whether the mention came from the PR body or from
+# a comment on it. `.source.issue.pull_request` is present only when the
+# referring item is a PR, which is what separates a PR reference from a plain
+# issue-to-issue mention.
+TIMELINE_PR_JQ='.[] | select(.event == "cross-referenced") | select(.source.issue.pull_request != null) | .source.issue.number'
 # The ONE directory this runner may create anything in. Not "wherever the repo
 # happens to live" — an unattended process on a timer should have a filesystem
 # footprint you can verify by reading a single line.
@@ -256,10 +270,107 @@ while IFS= read -r RENTRY; do
     FAILED=1
   }
 
+  # ------------------------------------------------ work in progress check
+  # Never draft work that is already done or already in flight.
+  #
+  # The rule is NOT "skip an issue that has an open PR" — that rule was
+  # measured against the race it was supposed to prevent and does not catch it.
+  # LODE #757, timed from gh: issue filed 19:50:58Z, attended PR #758 opened
+  # 19:58:37Z, #758 MERGED 20:00:12Z, this runner selected #757 at 20:02:46Z,
+  # wasted proposal PR #761 opened 20:06:10Z. At the moment of selection there
+  # was no open PR and the issue was still open. MERGED-not-open is the case
+  # that actually bit us.
+  #
+  # So a PR blocks when it is OPEN or MERGED and was not opened by this runner.
+  # A CLOSED-unmerged PR does not block: abandoned work is not work in flight.
+  #
+  # Sets WIP_STATUS to one of:
+  #   clear    nothing referencing this issue blocks it
+  #   blocked  BLOCKING_PR holds the evidence, naming the specific PR
+  #   unknown  the query itself failed (offline, rate limited, issue gone)
+  # `unknown` proceeds to draft, loudly: a GitHub blip must not stop a runner
+  # that worked yesterday, and an unchecked draft is a wasted PR, not a wrong
+  # one. It is logged so it is never silent.
+  BLOCKING_PR=""
+  WIP_STATUS=""
+
+  check_work_in_progress() { # $1 = issue number
+    BLOCKING_PR=""
+    WIP_STATUS="clear"
+    if ! WIP_PRS="$("$GH_BIN" api --paginate \
+          "repos/$REPO_SLUG/issues/$1/timeline?per_page=100" \
+          -H "Accept: application/vnd.github+json" \
+          -q "$TIMELINE_PR_JQ" 2>/dev/null)"; then
+      WIP_STATUS="unknown"
+      return 0
+    fi
+    for WIP_PR in $WIP_PRS; do
+      case "$WIP_PR" in ''|*[!0-9]*) continue ;; esac
+      # state is OPEN | CLOSED | MERGED — CLOSED here means closed-unmerged,
+      # because gh reports a merged PR as MERGED and never as CLOSED.
+      WIP_LINE="$("$GH_BIN" pr view "$WIP_PR" --repo "$REPO_SLUG" \
+                    --json state,headRefName,url \
+                    -q '"\(.state) \(.headRefName) \(.url)"' 2>/dev/null)" || continue
+      WIP_STATE=""; WIP_HEAD=""; WIP_URL=""
+      read -r WIP_STATE WIP_HEAD WIP_URL <<WIPLINE
+$WIP_LINE
+WIPLINE
+      # Our own proposal never blocks us. Today the label is removed after a
+      # successful draft so the runner never re-selects its own issue; this
+      # costs nothing and stops it tripping over itself if the label is ever
+      # re-applied by hand.
+      case "$WIP_HEAD" in "$PROPOSAL_BRANCH_PREFIX"*) continue ;; esac
+      case "$WIP_STATE" in
+        OPEN)   BLOCKING_PR="PR #$WIP_PR is open and references this issue ($WIP_URL, branch \`$WIP_HEAD\`)" ;;
+        MERGED) BLOCKING_PR="PR #$WIP_PR is already merged and references this issue ($WIP_URL, branch \`$WIP_HEAD\`)" ;;
+        *)      continue ;;
+      esac
+      WIP_STATUS="blocked"
+      return 0
+    done
+    return 0
+  }
+
+  # A skip is never silent (epic 09 invariant): the evidence goes on the issue
+  # naming the specific PR, the label comes off so the next poll cannot spin on
+  # it, and it is logged. A skip is also NOT a failure — the runner did the
+  # right thing — so FAILED is untouched and the run still exits 0.
+  skip_issue() { # $1 = issue, $2 = stage, $3 = evidence, $4 = worktree (opt), $5 = branch (opt)
+    log "SKIP #$1 ($2): already addressed or in flight — $3"
+    "$GH_BIN" issue comment "$1" --body "Unattended intake skipped this issue: $3
+
+  Drafting a proposal here would duplicate work that is already merged or already in flight, so nothing was drafted. Checked at: $2.
+
+  The \`$LABEL\` label has been removed so this does not retry automatically. If that pull request does not in fact address this issue, re-apply the label." >/dev/null 2>&1 || true
+    "$GH_BIN" issue edit "$1" --remove-label "$LABEL" >/dev/null 2>&1 || true
+    [ -n "${4:-}" ] && "$GIT_BIN" worktree remove --force "$4" 2>/dev/null || true
+    [ -n "${5:-}" ] && "$GIT_BIN" branch -D "$5" 2>/dev/null || true
+  }
+
 
   for N in $ISSUES; do
     TITLE="$("$GH_BIN" issue view "$N" --json title -q .title 2>/dev/null || echo '(unknown)')"
     log "--- issue #$N: $TITLE"
+
+    # First of two evaluations. This one is before anything at all is created,
+    # so a skip here costs no worktree, no branch and no headless run.
+    check_work_in_progress "$N"
+    case "$WIP_STATUS" in
+      blocked)
+        if [ "$DRY_RUN" = yes ]; then
+          log "DRY-RUN: #$N classified SKIP — $BLOCKING_PR"
+        else
+          skip_issue "$N" "selection" "$BLOCKING_PR"
+        fi
+        continue
+        ;;
+      unknown)
+        log "WARN #$N: work-in-progress check could not run (timeline query failed) — drafting unchecked"
+        ;;
+      *)
+        [ "$DRY_RUN" = yes ] && log "DRY-RUN: #$N classified DRAFT — no open or merged non-runner PR references it"
+        ;;
+    esac
 
     # NO epic number is claimed here. Phase 1 assigns the number at APPROVAL,
     # not at drafting, and a runner reserving one early both contradicted that
@@ -271,7 +382,7 @@ while IFS= read -r RENTRY; do
               | sed -E -e 's/[^a-z0-9]+/-/g' -e 's/^-+//' -e 's/-+$//' | cut -c1-48)"
     SLUG="$(printf '%s' "$SLUG" | sed -E -e 's/-+$//')"
     [ -n "$SLUG" ] || SLUG="issue-$N"
-    BRANCH="intake/proposed-${N}-${SLUG}"
+    BRANCH="${PROPOSAL_BRANCH_PREFIX}${N}-${SLUG}"
     WT="$WT_ROOT/$(basename "$REPO_DIR")-proposed-${N}-${SLUG}"
     # Belt and braces: never create outside the declared root, whatever the
     # repo basename or slug turned out to be.
@@ -336,6 +447,20 @@ while IFS= read -r RENTRY; do
       fail_issue "$N" "headless run produced no commit" "$WT" "$BRANCH"
       continue
     fi
+
+    # Second evaluation, immediately before the proposal is published. The
+    # #757 window between selection and PR creation was under four minutes and
+    # the blocking PR merged inside it, so one check at selection is not
+    # enough. It sits before the push rather than between the push and
+    # `gh pr create` on purpose: push-then-create is a single publication step,
+    # and checking ahead of it means a skip leaves no branch on origin and no
+    # PR — nothing half-built, which is the same contract fail_issue keeps.
+    check_work_in_progress "$N"
+    if [ "$WIP_STATUS" = blocked ]; then
+      skip_issue "$N" "pre-PR re-check" "$BLOCKING_PR" "$WT" "$BRANCH"
+      continue
+    fi
+    [ "$WIP_STATUS" = unknown ] && log "WARN #$N: pre-PR work-in-progress re-check could not run — publishing unchecked"
 
     if ! "$GIT_BIN" -C "$WT" push -q -u origin "$BRANCH" 2>/dev/null; then
       fail_issue "$N" "push failed" "$WT" "$BRANCH"
