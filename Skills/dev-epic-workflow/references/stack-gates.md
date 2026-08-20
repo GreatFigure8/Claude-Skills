@@ -9,6 +9,14 @@ configured there rather than assuming.
 
 ## Python — FastAPI / FastMCP services
 
+**Load these skills before planning, not after coding** (Phase 0):
+
+- **`building-python-mcp-servers`** — the authority for FastMCP servers: tool design and
+  error contracts, event-loop-safe blocking work, subprocess wrapping, single-file vs
+  packaged distribution, and global-state-free testing. Prefer it over any general
+  "MCP server" guidance, which is usually written for the Node/TypeScript SDK and does
+  not transfer to FastMCP.
+
 ```
 uv sync
 uv run ruff check . && uv run ruff format --check .
