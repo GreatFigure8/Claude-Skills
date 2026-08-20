@@ -1,7 +1,7 @@
 # Epic: runner conformance — no number reservation, multiple repos
 
-**Status:** in flight (item 1 of 1)
-**Source:** GH #22, GH #23
+**Status:** in flight (item 2 of 2)
+**Source:** GH #22, GH #23, GH #34
 **Live branch:** main   **Integration branch:** main   **Pre-epic tag:** n/a
 
 ## Outcome
@@ -66,8 +66,36 @@ working across several repos at once is supported rather than accidental.
 - **Rollback:** revert the merge commit. The runner returns to reserving numbers, which is
   today's behaviour.
 
+### 2. The runner tells the agent where its contract is
+- **Branch:** `fix/runner-contract-paths`
+- **Source:** GH #34
+- **Depends on:** item 1 (merged)
+- **Scope:** `bin/unattended-intake.sh` — the prompt-construction block. Derive `SKILL_DIR`
+  from `BASH_SOURCE` (the script sits at `<skill>/assets/claude-config/bin/`, so the skill
+  root is three levels up) and pass **absolute** paths to `references/issue-intake.md` and
+  `references/plan-template.md` instead of repo-relative `Skills/...`, which resolves only
+  inside this repo. Grant read access with `--add-dir "$SKILL_DIR"`. Drop `Bash(find:*)`
+  from `--allowed-tools`. Resolve the target repo's epics directory from its own tracked
+  files once per repo rather than hardcoding lowercase `docs/epics`.
+- **Not in scope:** the interactive `/intake` path; the launchd schedule; item 1's repo-list
+  logic; anything outside this one file.
+- **Definition of done:**
+  - Prompt carries absolute, existing reference paths; `--add-dir` present; no `find` in
+    `--allowed-tools`.
+  - Preflight fails `rc=1` when the references are not where `SKILL_DIR` says.
+  - Epics dir resolves `DOCS/EPICS` for Oracle-Simple-Convert, `docs/epics` for this repo,
+    and falls back to `docs/epics` in a repo with none. `--dry-run` reports the same path a
+    real run would write.
+  - Full guard battery unchanged: missing credential `rc=3`, `0644` `rc=3`, empty token
+    `rc=3`, missing binary `rc=1`, lock held `rc=2`, `--dry-run` inert, redaction holds.
+  - `bash -n` clean.
+- **Verification:** guard battery; dry-run against the two-repo list asserting the per-repo
+  epics path; then one live issue (#730) — pass is a proposal PR whose transcript contains
+  **no `find /`** and whose plan lands under `DOCS/EPICS/`.
+- **Rollback:** revert the merge; the runner returns to repo-relative paths.
+
 ## Sequence
-Single item — both changes are in one file, so splitting would only manufacture a conflict.
+Item 1 then item 2 — both touch the same file, and item 2 builds on the repo loop item 1 added.
 
 ## Risks
 | Risk | Likelihood | Blast radius | Mitigation |
@@ -76,6 +104,8 @@ Single item — both changes are in one file, so splitting would only manufactur
 | One bad repo aborts the whole run | Medium | Other repos silently skipped | Per-repo failures logged and skipped, asserted by a fixture with a non-repo path |
 | `proposed-` folders linger after approval | Medium | Clutter that looks like queued work | Approval renames to `NN-slug`; documented in the contract, and the queue line lists them as awaiting approval regardless |
 | Built inline again, so author and reviewer are the same | Certain | No independent check | Guard battery is mechanical; the live two-proposal run is the real test |
+| `--add-dir` widens what the headless agent may read | Low | Agent reads the skill tree | It is the skill's own contract, read-only in practice, and narrower than the `find /` it replaces |
+| A future move of the script breaks `SKILL_DIR` | Low | Runner refuses to start | Preflight asserts both references exist and exits `rc=1` with the fix in the message |
 
 ## Deferred / out of scope
 - Retrofitting the sandbox guard to the three older harnesses (GH #15 — a proposal exists).
@@ -87,3 +117,9 @@ Single item — both changes are in one file, so splitting would only manufactur
 - 2026-08-19 — filed from GH #22 and #23, approved directly. Phase 0 confirmed the runner's
   number reservation contradicts Phase 1, and that only the poller (not the workflow) was
   single-repo.
+- 2026-08-20 — item 1 merged (PR #24). GH #27, #31, #29 were filed and fixed directly
+  against this same runner without their own plans; recorded here rather than pretended away.
+- 2026-08-20 — item 2 filed from GH #34 after a live LODE drain showed the headless agent
+  running `find /` to locate its own contract, raising macOS TCC prompts on an unattended
+  run. The 7-issue drain was stopped after issue #731 (PR #732) for this reason; #730–#725
+  remain labelled and resume when the agent is reloaded.
