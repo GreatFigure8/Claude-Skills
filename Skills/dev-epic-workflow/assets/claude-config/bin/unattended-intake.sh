@@ -348,9 +348,9 @@ while IFS= read -r RENTRY; do
 
   **This is a proposal, not a filed epic.** The plan is at \`**Status:** planning\`, which is never dispatchable. Approving means merging this PR **and** setting \`**Status:** approved\` — until that edit lands it is a draft that happens to be version-controlled.
 
-  No epic number is claimed here. Phase 1 assigns the number **at approval** — rename \`docs/epics/proposed-${N}-${SLUG}/\` to \`docs/epics/<NN>-<slug>/\` when you approve, and set \`Status: approved\`.
+  No epic number is claimed here. Phase 1 assigns the number **at approval** — rename \`${EPICS_DIR}/proposed-${N}-${SLUG}/\` to \`${EPICS_DIR}/<NN>-<slug>/\` when you approve, and set \`Status: approved\`.
 
-  Nothing was approved, dispatched, merged, or closed by this run. No code outside \`docs/epics/proposed-${N}-${SLUG}/\` was touched.
+  Nothing was approved, dispatched, merged, or closed by this run. No code outside \`${EPICS_DIR}/proposed-${N}-${SLUG}/\` was touched.
 
   Part of #$N" 2>/dev/null || true)"
 

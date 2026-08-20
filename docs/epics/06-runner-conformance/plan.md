@@ -76,12 +76,16 @@ working across several repos at once is supported rather than accidental.
   `references/plan-template.md` instead of repo-relative `Skills/...`, which resolves only
   inside this repo. Grant read access with `--add-dir "$SKILL_DIR"`. Drop `Bash(find:*)`
   from `--allowed-tools`. Resolve the target repo's epics directory from its own tracked
-  files once per repo rather than hardcoding lowercase `docs/epics`.
+  files once per repo — for the prompt, the `--dry-run` message, and the generated PR body —
+  rather than hardcoding lowercase `docs/epics`.
 - **Not in scope:** the interactive `/intake` path; the launchd schedule; item 1's repo-list
   logic; anything outside this one file.
 - **Definition of done:**
   - Prompt carries absolute, existing reference paths; `--add-dir` present; no `find` in
-    `--allowed-tools`.
+    `--allowed-tools`. **The allowlist is not a sandbox** — a live run proved `find` still
+    executes inside a compound command (`ls ...; find ...`), so removing it withdraws the
+    sanctioned path but is not a hard boundary. The absolute paths are what actually stop
+    the escalation, by removing the reason to hunt.
   - Preflight fails `rc=1` when the references are not where `SKILL_DIR` says.
   - Epics dir resolves `DOCS/EPICS` for Oracle-Simple-Convert, `docs/epics` for this repo,
     and falls back to `docs/epics` in a repo with none. `--dry-run` reports the same path a
@@ -123,3 +127,8 @@ Item 1 then item 2 — both touch the same file, and item 2 builds on the repo l
   running `find /` to locate its own contract, raising macOS TCC prompts on an unattended
   run. The 7-issue drain was stopped after issue #731 (PR #732) for this reason; #730–#725
   remain labelled and resume when the agent is reloaded.
+- 2026-08-20 — item 2 verified live on #730: PR #733, plan at `DOCS/EPICS/proposed-730-.../`,
+  and **zero** full-disk `find /` calls against two in the #731 baseline. Correction recorded
+  above: dropping `Bash(find:*)` did not prevent `find` from running at all — two bounded
+  `find` calls executed inside compound commands. The fix works because the agent no longer
+  needs to search, not because searching was blocked.
