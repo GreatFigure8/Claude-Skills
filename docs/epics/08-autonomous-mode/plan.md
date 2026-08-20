@@ -100,8 +100,14 @@ behaviour is:
   matching the repo's declared sensitive paths.
 - **Autonomy is per repo and defaults to today's behaviour** when unconfigured. Silence means
   L0.
-- **The automation may never modify its own autonomy config**, nor the admission policy, nor
-  this plan. A system that can widen its own permissions has no permissions.
+- **The automation may never modify its own autonomy config**, nor the admission policy, nor the
+  promotion records that gate enablement, nor this plan. A system that can widen its own
+  permissions has no permissions — and one that can write its own promotion evidence has widened
+  them by another route.
+- **Autonomy is opt-in, not off-by-default.** Those differ: off-by-default is a value someone can
+  flip, opt-in means the feature refuses to engage until evidence exists and no global override is
+  present. A repo that says nothing gets today's behaviour; a repo that says `L3` without evidence
+  also gets today's behaviour, and is told why.
 
 ## Work items
 
@@ -142,12 +148,34 @@ behaviour is:
   required labels, forbidden labels, area allowlist, an explicit sensitive-path denylist, and a
   size ceiling. Every existing code path reads the level; every path defaults to L0. Ships
   **inert** — the switchboard, wired to nothing.
-- **Not in scope:** actually acting on any level above L0.
+
+  Two properties make the feature opt-in rather than merely off-by-default:
+
+  **A global override that forces L0 everywhere.** A single machine-wide file — presence is the
+  whole signal — that pins every repo to L0 regardless of per-repo config, checked at the top of
+  every cycle. It is deliberately *not* the same control as item 4's cycle stop: the stop file
+  halts a cycle (nothing runs at all), while this one keeps unattended drafting working and
+  revokes only the autonomy above it. One action revokes everything, with no per-repo config
+  archaeology, and it is answerable with `ls` rather than by opening a session.
+
+  **Enablement requires evidence, not just an edit.** A level above L0 is refused unless the
+  level below it has a promotion record showing K consecutive clean cycles — the record's source
+  of truth is the ledger (item 3), so until item 3 lands, **no level above L0 is reachable at
+  all**. That makes the "brakes before the accelerator" ordering structural rather than a matter
+  of discipline: someone who edits the config to `L3` on day one gets a refusal naming the
+  missing evidence, not L3. Promotion records are written by a human action, never by the
+  automation.
+- **Not in scope:** actually acting on any level above L0; the ledger itself (item 3) — item 2
+  only defines the promotion-record contract it will read.
 - **Definition of done:** config parsed and validated with clear errors; an unconfigured repo
   behaves byte-identically to today; a fixture proves an issue failing admission is skipped with
-  a logged reason; the full existing guard battery still passes.
+  a logged reason; **the global override forces L0 from any configured level, proven by fixture**;
+  **a level whose promotion evidence is absent is refused with a message naming what is missing,
+  and the run continues at L0 rather than aborting**; the full existing guard battery still passes.
 - **Verification:** dry-run across a multi-repo list with mixed levels showing correct
-  classification and zero behaviour change.
+  classification and zero behaviour change; a second dry-run with the global override present
+  showing every repo pinned to L0; a third with a level set but no promotion record, showing the
+  refusal and the fallback.
 - **Rollback:** revert; config is ignored.
 
 ### 3. The run ledger and a status surface that needs no session
