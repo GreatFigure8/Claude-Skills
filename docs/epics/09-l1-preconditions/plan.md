@@ -1,6 +1,6 @@
 # Epic: L1 preconditions — make the machine able to receive what good drafting produces
 
-**Status:** approved
+**Status:** in flight (items 1 and 3 of 5, parallel)
 **Source:** GH #39 (continues epic 08, which stopped at its item 1 on a NO-GO verdict)
 **Live branch:** per-repo (`main` here, `main` for LODE)   **Integration branch:** per-repo (`main` here, `dev` for LODE)   **Pre-epic tag:** n/a — no autonomy rung is enabled by this epic
 
