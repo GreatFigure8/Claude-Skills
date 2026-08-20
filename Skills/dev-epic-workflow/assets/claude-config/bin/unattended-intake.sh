@@ -201,6 +201,15 @@ while IFS= read -r RENTRY; do
   fi
   log "== repo $REPO_SLUG ($REPO_DIR) base=$BASE_BRANCH"
 
+  # Repos disagree on the case of the epics directory (this repo uses
+  # docs/epics, Oracle-Simple-Convert uses DOCS/EPICS). Ask the repo instead of
+  # asserting, or the agent burns turns rediscovering it (GH #34). Resolved from
+  # the checkout, not the worktree, so --dry-run reports the same path a real
+  # run would use.
+  EPICS_DIR=$("$GIT_BIN" -C "$REPO_DIR" ls-files 2>/dev/null \
+    | grep -iEm1 '^docs/epics/' | cut -d/ -f1-2)
+  [ -n "$EPICS_DIR" ] || EPICS_DIR="docs/epics"
+
   # Ensure the label exists so a first run does not fail on a missing label.
   if ! "$GH_BIN" label list --limit 200 2>/dev/null | grep -q "^${LABEL}[[:space:]]"; then
     if [ "$DRY_RUN" = yes ]; then
@@ -273,7 +282,7 @@ while IFS= read -r RENTRY; do
 
     if [ "$DRY_RUN" = yes ]; then
       log "DRY-RUN: would create worktree $WT on $BRANCH"
-      log "DRY-RUN: would run headless intake for #$N producing docs/epics/proposed-${N}-${SLUG}/plan.md at Status: planning"
+      log "DRY-RUN: would run headless intake for #$N producing ${EPICS_DIR}/proposed-${N}-${SLUG}/plan.md at Status: planning"
       log "DRY-RUN: would open a PR (Part of #$N, no Closes), comment the link, and remove label '$LABEL'"
       continue
     fi
@@ -288,13 +297,6 @@ while IFS= read -r RENTRY; do
       fail_issue "$N" "could not create worktree $WT on $BRANCH"
       continue
     fi
-
-    # Repos disagree on the case of the epics directory (this repo uses
-    # docs/epics, Oracle-Simple-Convert uses DOCS/EPICS). Ask the repo instead of
-    # asserting, or the agent burns turns rediscovering it (GH #34).
-    EPICS_DIR=$("$GIT_BIN" -C "$WT" ls-files 2>/dev/null \
-      | grep -iEm1 '^docs/epics/' | cut -d/ -f1-2)
-    [ -n "$EPICS_DIR" ] || EPICS_DIR="docs/epics"
 
     # Phase 0 + Phase 1 only. The prompt restates the hard stops because the
     # model is the thing being constrained, and a headless run has no one to ask.
