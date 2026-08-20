@@ -28,6 +28,16 @@ Every epic born from intake keeps the tracker updated at phase boundaries (plann
 
 **Unattended intake** — the headless path, opt-in via the `claude-intake` label on a GitHub issue — runs Phase 0 grounding and Phase 1 drafting headlessly and then stops, hard: it opens a **pull request** carrying `docs/epics/<NN>-<slug>/plan.md` at `**Status:** planning` plus the tracker link-back, and it never approves, never dispatches an executor, never writes code, never merges, and never closes an issue (full contract, including how the epic number is claimed and renumbered on collision: `references/issue-intake.md`). This does not move Phase 1's "on approval, file the plan" rule — it separates that rule's mechanical half from its judgement half. The unattended run only pre-writes the artifact on a branch, as a *proposal*; filing in the sense Phase 1 means it — an epic that exists, is numbered for real, and may be dispatched — still happens only when Jonathan approves, which he expresses by merging the PR **and** setting `**Status:** approved`. Until that edit lands, a `planning` plan is **not approved and never dispatchable**, even sitting on the integration branch: it is a draft that happens to be version-controlled. The SessionStart injection enforces the distinction in the only place a fresh context would otherwise blur it, listing `planning` epics under *awaiting approval* and only `approved` ones under *awaiting dispatch*.
 
+**Confirm the unattended-intake config at the start of every orchestration session.** The
+config is per-repo and lives outside the repo, so it is invisible from inside a session: whether
+this repo is listed, which base branch proposals would target, and whether the agent is loaded
+at all. The SessionStart injection states those facts; **ask Jonathan to confirm them before
+relying on them** rather than assuming — an orchestrator can otherwise work a whole session
+believing labelled issues are being drafted while nothing polls, or believing proposals land on
+`dev` when they would land on `main`. One question, once, at the top of the session. If the
+injection says nothing about unattended intake, this repo has never been configured for it and
+there is nothing to confirm.
+
 ## Phase 0 — Ground the work before proposing anything
 
 Never plan from recall. Before writing a plan, read the actual thing: the repo tree, the modules being touched, migrations, the tool contracts, the CI config, `git log`/`git branch -a` for where the branch lines currently sit. For Oracle Fusion, OIC, or Anthropic-product specifics, consult the relevant skill or live documentation rather than memory — and where a live environment or MCP tool can confirm a fact, confirm it.
