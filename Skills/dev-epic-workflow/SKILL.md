@@ -42,6 +42,8 @@ there is nothing to confirm.
 
 Never plan from recall. Before writing a plan, read the actual thing: the repo tree, the modules being touched, migrations, the tool contracts, the CI config, `git log`/`git branch -a` for where the branch lines currently sit. For Oracle Fusion, OIC, or Anthropic-product specifics, consult the relevant skill or live documentation rather than memory — and where a live environment or MCP tool can confirm a fact, confirm it.
 
+**Load the stack's own skills at Phase 0, not after the code is written.** They shape the plan — a FastMCP tool-error contract or an event-loop-safety constraint is a *design* decision, and discovering it during review means rework. `references/stack-gates.md` names the skills to load per stack — for Python work that is **`building-python-web-apps`** (FastAPI + async SQLAlchemy + Postgres), **`building-python-mcp-servers`** (FastMCP), **`building-llm-backed-features`** (features over an LLM API), and **`rendering-untrusted-content`** wherever stored or imported content reaches HTML. When a change will be stated in more than one place — code, docs, landing copy, machine-readable manifests — **`shipping-across-surfaces`** enumerates the full surface inventory so the plan's work items cover every surface instead of the first one that came to mind.
+
 State what was checked and what remains an assumption. An unverified assumption belongs in the plan's **Open questions**, not silently baked into a work item.
 
 **Phase 0 applies to session resumes, not just new epics.** When a session starts inside an in-flight epic (the SessionStart hook will have injected the current handoff — see Phase 3.5), read `plan.md` and `handoff.md`, then re-ground from disk: `git log`, `git status`, `git diff`, and a grep for whatever the handoff claims was last done. The handoff describes where the previous session *believed* it was; the repo is where the work actually *is*. Verify before building on top. The same rule applies to an executor's return summary — it describes what the executor *believed* it did.
@@ -146,6 +148,14 @@ Before marking any work item done, check the real artifact:
 - Grep for the specific symbols/paths the item promised to add, change, or delete. If the item said something was deleted, confirm it's gone.
 - Deleted-scaffolding items are the easiest to fake and the most important to check.
 - Run the gates on the merged integration branch, not just the feature branch.
+- **A number computed from samples is a claim, and it needs the sample count beside it.**
+  Load **`reporting-derived-metrics`** before reporting a rate, score, or pass/fail
+  statistic — it covers dispersion that is undefined at small n, and flags drawn from
+  samples too small to support them. This is not theoretical here: epic 06 declared a fix
+  proven on **one** live run, and the next run falsified it. Where a change alters what a
+  model *chooses* to do, a single sample is a coin landing heads once. State n, state the
+  failure condition in advance, and prefer a stated "not yet measured" to a number that
+  implies more evidence than exists.
 
 In orchestrated mode this verification is structurally cold: the orchestrator never shared the executor's context, so it *cannot* have inherited the executor's belief that something landed — it checks the return summary against the repo the same way it would check a stranger's PR. **The repo decides, not the task list**: if the tasks/agent UI claims an executor is still running but `status.json` is terminal and the PR exists on origin, the item is done; a stuck sidebar never stalls the epic (see `references/executor-control-plane.md`, Layer 3).
 
@@ -166,7 +176,7 @@ Report the verification, then update the plan: mark the item done, move any disc
 - `references/plan-template.md` — the plan document structure, plus a worked example.
 - `references/git-conventions.md` — branch naming, commit message format, sync/rebase rules, tags.
 - `references/pr-template.md` — the canonical PR body; also drops into repos as `.github/PULL_REQUEST_TEMPLATE.md`.
-- `references/stack-gates.md` — pre-PR gates per stack: Python/FastAPI/FastMCP, uv monorepo, migrations, MCP tool contracts, Next.js/Shadcn, OCI + OIC ID Domains, Supabase/pgvector.
+- `references/stack-gates.md` — pre-PR gates per stack: Python/FastAPI/FastMCP, uv monorepo, migrations, MCP tool contracts, Next.js/Shadcn, OCI + OIC ID Domains, Supabase/pgvector. Also names the **skills to load at Phase 0** for each stack.
 - `references/session-handoff.md` — the session-boundary protocol: handoff template, checkpoint/resume rituals, worktree quick reference, and installation of the automation.
 - `references/issue-intake.md` — tracker intake in both directions: GitHub/`gh` and Azure DevOps/`az boards` mechanics, the epic↔issue linking contract, status mapping at phase boundaries, batch pickup, and the report-first path.
 - `references/executor-control-plane.md` — orchestrated execution: the status contract (`status.json` milestones), telemetry feeds (commit stream, status log, `/tasks`/agent view), the deterministic cancel protocol (sentinel files + PreToolUse gate), reconciliation rules, dispatch conventions, and the failure-mode table.

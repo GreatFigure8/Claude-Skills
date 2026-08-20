@@ -9,6 +9,21 @@ configured there rather than assuming.
 
 ## Python — FastAPI / FastMCP services
 
+**Load these skills before planning, not after coding** (Phase 0):
+
+- **`building-python-web-apps`** — the reference architecture for a production FastAPI
+  service: FastAPI + async SQLAlchemy + Postgres, Stripe, Dockerised deployment. Load it
+  before designing a new service or changing its persistence layer, not while reviewing
+  the diff.
+- **`building-python-mcp-servers`** — the authority for FastMCP servers: tool design and
+  error contracts, event-loop-safe blocking work, subprocess wrapping, single-file vs
+  packaged distribution, and global-state-free testing. Prefer it over any general
+  "MCP server" guidance, which is usually written for the Node/TypeScript SDK and does
+  not transfer to FastMCP.
+- **`rendering-untrusted-content`** — whenever stored, authored, or imported content is
+  rendered into HTML. It audits autoescape bypasses (`|safe` and friends) rather than
+  trusting that the template is fine. Applies to any templating layer, not only Python.
+
 ```
 uv sync
 uv run ruff check . && uv run ruff format --check .
@@ -25,6 +40,19 @@ uv run pytest -q
 - Secrets resolve through the credential/secrets provider. No credential material,
   connection strings, pod hostnames with embedded auth, or tokens in the repo,
   in tests, or in fixtures.
+
+## LLM-backed application features
+
+**Load first:** **`building-llm-backed-features`** — building features on top of an LLM API
+in Python: prompt surfaces that drift apart, structured outputs, context budgets, model
+config wiring, live-model tests kept out of CI, and truthful presentation of model output.
+
+- Prompt text that appears in more than one place has already drifted. Treat prompt surfaces
+  the way you treat any duplicated fact — see `shipping-across-surfaces`.
+- Live-model tests stay out of CI. A test that calls a real model is not a gate; it is an
+  experiment, and it will fail for reasons unrelated to the change under review.
+- An evaluator set that has been filtered until it passes is not a passing evaluator set.
+  Record what was filtered and why, in the PR body.
 
 ## uv workspace / monorepo
 
