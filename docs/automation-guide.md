@@ -337,21 +337,81 @@ afterwards that no worktree was created and no branch changed.
 
 ## 4. How to use it
 
-### 4.1 The everyday loop (interactive)
+### 4.1 Choosing a path — the distinction that matters
 
-| You want to… | Do this |
+**The unattended runner cannot resolve anything.** By design it runs Phase 0 and Phase 1,
+opens a proposal PR, and stops. It never approves, never dispatches, never writes code. Even
+at a one-minute poll interval it would still hand you a draft and wait.
+
+So the two paths are not fast-vs-slow versions of the same thing:
+
+| | Manual (`/intake`) | Unattended (label) |
+|---|---|---|
+| Latency to start | Immediate | Up to one poll interval (30 min) |
+| How far it goes | Phase 0 → Phase 1 → **approval → dispatch → merged code** | Phase 0 → Phase 1 → **stops at a proposal PR** |
+| Approval | In the moment, with you present | A separate PR review later |
+| Best for | Anything that must land today | Bulk-drafting a backlog while you are away |
+| Round trips | One sitting | Draft now, review later, dispatch later |
+
+They compose well: let the runner fill the queue overnight, clear it with `/intake` at the
+keyboard. **When something has to be resolved today, skip the label entirely** — the
+unattended path adds both waiting and a review round trip.
+
+### 4.2 The manual loop (interactive)
+
+`/intake` is installed at `~/.claude/commands/intake.md` by the user-level install, so it works
+in **any repo on the machine** — no per-repo setup. Start a session in the target repo:
+
+```bash
+claude
+```
+
+| You type | What happens |
 |---|---|
-| Start any code change | Describe it — the skill loads and Phase 0 grounds it |
-| Turn a problem into a tracked item | Describe it, or `/intake <description>` |
-| Pick up an existing issue | `/intake #123`, or just say "pick up issue 123" |
-| See the backlog with a suggested order | `/intake` with no argument |
-| Checkpoint before `/clear` or end of day | `/handoff` |
-| Resume | Just start a session — the hook injects the handoff and git state |
+| `/intake #123` | **Pickup** — fetches the issue with comments, grounds against the repo, drafts the plan, you approve, it dispatches |
+| `/intake bug: mapper hangs on empty upload` | **Report** — files the tracker item *first*, confirms the ref in one line, then picks it up |
+| `/intake` | **Backlog** — lists open items with a recommended order by dependency and blast radius, and asks which to take |
+| `/handoff` | Checkpoint before `/clear` or end of day |
+| *(just describe it)* | Same as `/intake <description>` — natural language is the normal path |
 
-**You never have to type `/intake` before describing a problem.** Natural language is the
-normal path; the command exists so the full ritual runs deterministically, not as a gate.
+**You never have to type `/intake` before describing a problem.** The command exists so the
+full ritual runs deterministically, not as a gate in front of you.
 
-### 4.2 The unattended loop
+The command detects the tracker itself — `git remote get-url origin` resolves GitHub (`gh`) or
+Azure DevOps (`az boards`), and a `Tracker:` line in the repo's `CLAUDE.md` wins over
+detection. If authentication is missing it reports exactly what is missing and stops rather
+than half-running intake.
+
+### 4.3 Forcing an unattended run immediately
+
+To make the poller draft *right now* instead of waiting for its interval — useful when you
+want headless drafting without the 30-minute gap, but still only produces a proposal:
+
+```bash
+~/Source/claude-skills/Skills/dev-epic-workflow/assets/claude-config/bin/unattended-intake.sh
+```
+
+One issue only, label check bypassed:
+
+```bash
+~/Source/claude-skills/Skills/dev-epic-workflow/assets/claude-config/bin/unattended-intake.sh --issue 727 --force-issue
+```
+
+Two caveats:
+
+- **One lock for the whole system.** If a scheduled run is already in flight, a manual run
+  exits `rc=2` and does nothing. `/intake` is unaffected — the lock guards the poller, not
+  the repo.
+- **`launchctl load` does not trigger a run.** `RunAtLoad` is `false`, so loading the agent
+  starts the clock rather than the work; the first scheduled run is one full interval later.
+
+**Changing the interval** — edit `StartInterval` in
+`~/Library/LaunchAgents/com.jonathanstevenson.unattended-intake.plist`, then unload and reload
+the agent. `900` gives 15-minute pickup. Idle polls are nearly free (two `gh` calls when
+nothing is labelled); the cost is entirely in drafting, so the interval trades pickup latency
+against nothing much until an issue is actually labelled.
+
+### 4.4 The unattended loop
 
 1. **Label** an issue `claude-intake`.
 2. **Wait** — up to 30 minutes for the next poll.
@@ -366,7 +426,7 @@ Approval is **two actions, not one**. Merging alone leaves a draft on the integr
 > approval**, so two issues labelled simultaneously produce two proposals that structurally
 > cannot collide.
 
-### 4.3 Operating it
+### 4.5 Operating it
 
 ```bash
 tail -f ~/.config/claude-intake/intake.log
@@ -392,7 +452,7 @@ testable: `INTAKE_GIT`, `INTAKE_GH`, `INTAKE_CLAUDE`, `INTAKE_ENV_FILE`, `INTAKE
 `INTAKE_REPO_LIST`, `INTAKE_LOG`, `INTAKE_LOCK`, `INTAKE_LABEL`, `INTAKE_WORKTREE_ROOT`,
 `INTAKE_SKILL_DIR`.
 
-### 4.4 Troubleshooting
+### 4.6 Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
@@ -425,6 +485,10 @@ clickable or animated:
    beat: merge → still a draft → edit status → now dispatchable.
 6. **Do not bury the "runner never touches your checkout" guarantee.** It is the fact that
    makes people comfortable leaving it loaded.
+7. **Lead with the path chooser (§4.1), not the install.** The most common wrong turn is
+   reaching for the label when the work has to land today. A two-question decision widget —
+   *"does this need to be resolved now?"* / *"are you at the keyboard?"* — routes the reader
+   to `/intake` or the label before they read anything else.
 
 ---
 
