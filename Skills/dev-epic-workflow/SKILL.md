@@ -42,7 +42,7 @@ there is nothing to confirm.
 
 Never plan from recall. Before writing a plan, read the actual thing: the repo tree, the modules being touched, migrations, the tool contracts, the CI config, `git log`/`git branch -a` for where the branch lines currently sit. For Oracle Fusion, OIC, or Anthropic-product specifics, consult the relevant skill or live documentation rather than memory — and where a live environment or MCP tool can confirm a fact, confirm it.
 
-**Load the stack's own skills at Phase 0, not after the code is written.** They shape the plan — a FastMCP tool-error contract or an event-loop-safety constraint is a *design* decision, and discovering it during review means rework. `references/stack-gates.md` names the skill to load per stack; for Python FastAPI/FastMCP work that is **`building-python-mcp-servers`**. When a change will be stated in more than one place — code, docs, landing copy, machine-readable manifests — **`shipping-across-surfaces`** enumerates the full surface inventory so the plan's work items cover every surface instead of the first one that came to mind.
+**Load the stack's own skills at Phase 0, not after the code is written.** They shape the plan — a FastMCP tool-error contract or an event-loop-safety constraint is a *design* decision, and discovering it during review means rework. `references/stack-gates.md` names the skills to load per stack — for Python work that is **`building-python-web-apps`** (FastAPI + async SQLAlchemy + Postgres), **`building-python-mcp-servers`** (FastMCP), **`building-llm-backed-features`** (features over an LLM API), and **`rendering-untrusted-content`** wherever stored or imported content reaches HTML. When a change will be stated in more than one place — code, docs, landing copy, machine-readable manifests — **`shipping-across-surfaces`** enumerates the full surface inventory so the plan's work items cover every surface instead of the first one that came to mind.
 
 State what was checked and what remains an assumption. An unverified assumption belongs in the plan's **Open questions**, not silently baked into a work item.
 
@@ -148,6 +148,14 @@ Before marking any work item done, check the real artifact:
 - Grep for the specific symbols/paths the item promised to add, change, or delete. If the item said something was deleted, confirm it's gone.
 - Deleted-scaffolding items are the easiest to fake and the most important to check.
 - Run the gates on the merged integration branch, not just the feature branch.
+- **A number computed from samples is a claim, and it needs the sample count beside it.**
+  Load **`reporting-derived-metrics`** before reporting a rate, score, or pass/fail
+  statistic — it covers dispersion that is undefined at small n, and flags drawn from
+  samples too small to support them. This is not theoretical here: epic 06 declared a fix
+  proven on **one** live run, and the next run falsified it. Where a change alters what a
+  model *chooses* to do, a single sample is a coin landing heads once. State n, state the
+  failure condition in advance, and prefer a stated "not yet measured" to a number that
+  implies more evidence than exists.
 
 In orchestrated mode this verification is structurally cold: the orchestrator never shared the executor's context, so it *cannot* have inherited the executor's belief that something landed — it checks the return summary against the repo the same way it would check a stranger's PR. **The repo decides, not the task list**: if the tasks/agent UI claims an executor is still running but `status.json` is terminal and the PR exists on origin, the item is done; a stuck sidebar never stalls the epic (see `references/executor-control-plane.md`, Layer 3).
 
