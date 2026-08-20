@@ -1,6 +1,6 @@
 # Epic: runner conformance — no number reservation, multiple repos
 
-**Status:** in flight (item 2 of 2)
+**Status:** closed
 **Source:** GH #22, GH #23, GH #34
 **Live branch:** main   **Integration branch:** main   **Pre-epic tag:** n/a
 
@@ -132,3 +132,59 @@ Item 1 then item 2 — both touch the same file, and item 2 builds on the repo l
   above: dropping `Bash(find:*)` did not prevent `find` from running at all — two bounded
   `find` calls executed inside compound commands. The fix works because the agent no longer
   needs to search, not because searching was blocked.
+
+## Retro
+
+**Outcome.** Both work items merged and verified. The runner no longer reserves an epic number
+at draft time, serves an explicit list of repos, and tells the headless agent where its own
+contract is by absolute path. Verified live end to end: seven LODE issues drafted into seven
+proposal PRs across two drains, with **zero** full-disk `find /` calls in the final four
+transcripts against two in the pre-fix baseline.
+
+**What got split.** Item 2 did not exist when the epic was filed — it emerged from a live run.
+Item 1 made other repos reachable, and that immediately exposed a coupling nobody had noticed:
+the prompt named `Skills/dev-epic-workflow/references/…`, a path that resolves only inside this
+repo. The bug was always there; item 1 is what made it reachable. A third candidate item was
+scoped and then **deliberately dropped** — see the root-cause finding below.
+
+**What surprised us, in order of how much it should change future behaviour:**
+
+1. **The verification was wrong, not just thin.** Item 2 was declared proven on a *single* live
+   issue (#730, zero `find /`). The very next issue (#729) ran `find /` twice. The behaviour is
+   probabilistic, and one passing sample was never evidence — it was a coin landing heads once.
+   The corrected standard, applied before this epic closed: four independent runs, each checked
+   automatically against a failure condition stated in advance. Where a fix changes what a model
+   *chooses* to do, n=1 proves nothing.
+2. **The root cause was not in this repo.** `find /` was a symptom. Oracle-Simple-Convert
+   carried its own copy of this skill at `.claude/skills/dev-epic-workflow/`, committed
+   2026-08-04 so "cloud sessions and teammates inherit it" — neither of which existed. It rotted
+   to 3 of 7 references while its `CLAUDE.md` declared it **canonical for this project**. The
+   agent was not malfunctioning; it was obeying the target repo's instructions, failing to find
+   a missing reference, and searching. The planned item 3 — harden the runner's prompt to
+   override the local copy — would have set the runner in direct conflict with a repo's own
+   `CLAUDE.md`. Deleting the stale copy (LODE #736/#737) removed the conflict and made item 3
+   unnecessary. **When two authorities disagree, resolve which one is authoritative; do not
+   make one shout louder.**
+3. **`--allowed-tools` is not a sandbox.** Removing `Bash(find:*)` did not stop `find` from
+   running: it executes inside a compound command that begins with an allowed binary
+   (`ls …; find …`). The allowlist withdraws the *sanctioned* path; it is not a boundary. What
+   actually eliminated the disk walk was giving the agent absolute paths, removing its reason to
+   search. A guard that constrains intent beats one that enumerates binaries.
+4. **Duplication rots silently and asymmetrically.** "Keep the two copies identical" survived
+   zero days past the commit that wrote it. Copies drift toward *incomplete*, and an incomplete
+   copy that claims primacy is worse than no copy at all.
+
+**Process debt, recorded rather than hidden.** GH #27, #31 and #29 were filed as issues and
+fixed directly against this same runner during this epic, each merged without a plan of its own
+(PRs #28, #32, #33). That deviates from Phase 1. They are recorded in the log above rather than
+retro-fitted as work items, because inventing plans after the fact would misrepresent how they
+were built. The honest lesson: under time pressure the plan step is what gets dropped first, and
+three unplanned fixes to a file already under an open epic should have been that epic's items.
+
+**Deferred, unchanged.** GH #15 and GH #12 still have open proposals (PRs #25, #26). The
+`agent_id` extraction block still exists in three copies. Multi-epic simultaneity untouched.
+
+**Left for someone to judge.** Seven unattended-drafted plans now exist for LODE (#732, #733,
+#735, #738, #739, #740, #741). Six were merged as `Status: planning` drafts; none is approved,
+numbered, or dispatchable. The *mechanism* is verified — the drafting *judgement* has still not
+been reviewed by anyone.
