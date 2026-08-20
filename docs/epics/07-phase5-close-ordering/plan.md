@@ -1,6 +1,6 @@
 # Epic: Phase 5 close-out marks the plan closed before deleting the status tree
 
-**Status:** planning
+**Status:** approved
 **Source:** GH #41
 **Live branch:** main   **Integration branch:** main   **Pre-epic tag:** n/a
 
@@ -73,37 +73,17 @@ happened live during epic 06's close-out.
 - **Verification:** `grep -n "Mark the plan header\|Temporary scaffolding actually deleted" Skills/dev-epic-workflow/SKILL.md` and confirm the Status line's number precedes the scaffolding line's number; read Phase 5 end-to-end to confirm sense.
 - **Rollback:** revert the commit — pure documentation, no runtime dependency.
 
-### 2. Guard the ordering with a small fixture assertion (optional)
-- **Branch:** `test/phase5-close-order-fixture`
-- **Depends on:** item 1
-- **Scope:** A small, narrow script under
-  `Skills/dev-epic-workflow/assets/claude-config/hooks/tests/` (new file, or a short addition to
-  an existing harness if a natural home exists) that greps `SKILL.md`'s Phase 5 section for the
-  two bullets' line numbers and fails if "Mark the plan header `**Status:** closed`" does not
-  precede "Temporary scaffolding actually deleted". Purpose: a future edit that silently
-  re-reverses the order fails a test instead of shipping quietly and waiting for the next close-out
-  to rediscover it live.
-- **Not in scope:** testing hook runtime behavior (already covered by `active-epic-fixtures.sh`);
-  testing any other document's prose ordering; any change to how tests are invoked or wired into
-  `install.sh`.
-- **Definition of done:** running the new check against the corrected `SKILL.md` from item 1
-  passes; reverting item 1's order locally makes it fail.
-- **Verification:** temporarily swap the two bullets back to the old (buggy) order and confirm the
-  new check fails; restore item 1's order and confirm it passes.
-- **Rollback:** delete the new script — it is not load-bearing to item 1's doc fix.
-
 ## Sequence
 
-1 → 2. Item 2 is optional and cheap; it only guards against this exact defect recurring and can be
-dropped without weakening item 1's fix if the ordering check proves too brittle to write cleanly
-against free-form prose.
+Single item. A second item was proposed — a fixture asserting the bullet order — and dropped at
+approval: the draft itself argued in its risk table that prose-matching against free-form
+Markdown is brittle, and an item you have already argued against is not worth carrying.
 
 ## Risks
 
 | Risk | Likelihood | Blast radius | Mitigation |
 |---|---|---|---|
 | Reordering the bullets accidentally changes the wording or meaning of either instruction | Low | Confusing close-out guidance | Diff reviewed line-by-line; only the order and one clarifying clause change, no other rewording |
-| A doc-ordering fixture is brittle to future prose edits (rewording either bullet breaks a naive text match) | Medium | Noisy false failures on unrelated `SKILL.md` edits | Match on stable anchor phrases already used verbatim elsewhere in the docs (`Mark the plan header`, `Temporary scaffolding actually deleted`); keep item 2 optional so a brittle check doesn't block the core fix |
 | A close-out already resolved against the old (buggy) order re-hits the race once more before picking up the merged fix | Low | One more instance of the same double-cleanup annoyance | Doc-only fix takes effect the moment the next close-out reads the merged `SKILL.md`; no runtime rollout needed |
 
 ## Deferred / out of scope
@@ -117,10 +97,9 @@ against free-form prose.
 
 ## Open questions
 
-- Is the line-order fixture (item 2) worth the ongoing maintenance cost of a prose-matching test,
-  or is this specific defect narrow enough that documentation plus review discipline is
-  sufficient on its own? Left as a judgment call for approval — item 1 alone fully addresses the
-  issue as filed.
+- Resolved at approval: the line-order fixture was dropped. The defect is narrow, the fix is two
+  bullets, and a prose-matching test would fail on any future rewording. If this recurs after the
+  fix, the answer is runtime enforcement (already in Deferred), not a brittle text assertion.
 
 ## Log
 
@@ -129,3 +108,5 @@ against free-form prose.
   documented in `executor-control-plane.md`'s active-epic resolution rule; confirmed epic 06's own
   retro recorded this incident happening live; confirmed no existing fixture harness tests
   `SKILL.md`'s prose ordering. Not approved, not numbered, not dispatchable.
+- 2026-08-20 — approved and numbered **07**. Item 2 (the prose-ordering fixture) dropped at
+  approval for the reason the draft itself gave. Dispatching item 1.
