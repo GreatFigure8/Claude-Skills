@@ -65,6 +65,11 @@ PROPOSAL_BRANCH_PREFIX="${INTAKE_PROPOSAL_PREFIX:-intake/proposed-}"
 # referring item is a PR, which is what separates a PR reference from a plain
 # issue-to-issue mention.
 TIMELINE_PR_JQ='.[] | select(.event == "cross-referenced") | select(.source.issue.pull_request != null) | .source.issue.number'
+
+# How many lines of a drafted plan count as its header. The SAME window the
+# SessionStart hook uses (session-start-context.sh: EPIC_QUEUE_HEADER_LINES), so
+# the runner and the injection can never disagree about what the header said.
+PLAN_HEADER_LINES=10
 # The ONE directory this runner may create anything in. Not "wherever the repo
 # happens to live" — an unattended process on a timer should have a filesystem
 # footprint you can verify by reading a single line.
@@ -423,6 +428,28 @@ WIPLINE
   ${SKILL_DIR}/references/plan-template.md, with:
     **Status:** planning
     **Source:** GH #$N
+    **Recommendation:** one of plan | no-work | needs-decision — see below
+
+  THE RECOMMENDATION — pick exactly one, and put it in the header directly under Status:
+    plan            There is real work here. The body is a normal epic plan. This is the
+                    default, and today's behaviour.
+    no-work         There is nothing for an approved epic to dispatch: already fixed,
+                    already in flight, a duplicate, or invalid as reported. NAME the
+                    evidence that makes it so — the PR, commit, issue or code you read.
+    needs-decision  A real choice has to be made by a human before any plan is worth
+                    writing. State the choice and the options in the body, with what each
+                    one costs. Do NOT resolve it, and do NOT quietly adopt a default.
+
+  no-work and needs-decision are CORRECT, PREFERRED outputs when they fit. They are not
+  failures, and reporting one is not giving up: a plan you would not defend is worse than an
+  honest no-work, and inventing work in order to have something to draft is the worst thing
+  you can do here. They are equally not an escape hatch — a brief that is merely
+  under-specified but still has obvious real work is a plan with Open questions, NOT a
+  needs-decision.
+
+  Whichever value you choose, the artifact is the same: one plan.md at **Status:** planning,
+  committed on this branch. A no-work or needs-decision plan still states what you looked at
+  and what you found — it is evidence, and a human will read it.
 
   HARD STOPS — you are running unattended and nobody can approve anything:
     - Do NOT set Status to approved. It is a proposal, not a filed epic.
@@ -462,13 +489,63 @@ WIPLINE
     fi
     [ "$WIP_STATUS" = unknown ] && log "WARN #$N: pre-PR work-in-progress re-check could not run — publishing unchecked"
 
+    # ------------------------------------------------------- the recommendation
+    # AFTER the pre-PR re-check above, deliberately: a skipped issue is never
+    # published, `skip_issue` removes the worktree this reads from, and logging
+    # a recommendation for a proposal that is then discarded would be false
+    # telemetry. Do not reorder these two blocks.
+    #
+    # The draft declares its terminal outcome in the plan header:
+    #   **Recommendation:** plan | no-work | needs-decision
+    # (the vocabulary is defined in references/issue-intake.md). Read it back so
+    # the PR and the issue comment say which one it is. NOTHING here acts on it:
+    # routing a no-work or needs-decision proposal to a human is a documented
+    # obligation, not an automated one, and this runner still never approves,
+    # never dispatches, never merges, and never closes an issue.
+    REC_FILE="$WT/${EPICS_DIR}/proposed-${N}-${SLUG}/plan.md"
+    REC_RAW="$(head -"$PLAN_HEADER_LINES" "$REC_FILE" 2>/dev/null \
+                 | sed -n -E -e 's/^[[:space:]*_]*[Rr]ecommendation:[[:space:]*_]*//p' \
+                 | head -1 | tr -d '\r')"
+    # First word only, case-folded: `no-work (duplicate of #758)` is no-work.
+    REC="$(printf '%s' "$REC_RAW" | tr '[:upper:]' '[:lower:]' \
+             | sed -E -e 's/[^a-z-].*$//' -e 's/^-+//' -e 's/-+$//')"
+    case "$REC" in
+      plan|no-work|needs-decision) ;;
+      '') REC=plan ;;                 # absent: the proposal predates the field,
+                                      # which is additive. Reads as a plan.
+      # A value outside the vocabulary is NOT quietly read as an approvable plan.
+      # A malformed terminal outcome is exactly the case a human should look at,
+      # so it is logged verbatim and shown as needs-decision.
+      *) log "#$N: unrecognised Recommendation [$REC_RAW] — treating as needs-decision"
+         REC=needs-decision ;;
+    esac
+    log "#$N: recommendation=$REC"
+
+    # What the PR and the issue then say. `plan` leaves every one of these at its
+    # pre-existing value, so an ordinary proposal reads exactly as it did before.
+    REC_TITLE_TAG=""
+    REC_PR_NOTE=""
+    REC_ISSUE_TAIL="It is at \`Status: planning\` — not approved, not dispatchable. Review the PR; approve by merging it and setting \`Status: approved\`."
+    case "$REC" in
+      no-work)
+        REC_TITLE_TAG="[no-work] "
+        REC_PR_NOTE="
+  **Recommendation: no-work** — the draft's own conclusion is that there is nothing here to build, and the plan names the evidence for it. This is not asking to be approved: read it, then close this PR — or say why the conclusion is wrong. Nothing was closed by the run; that call is a human's."
+        REC_ISSUE_TAIL="**Recommendation: \`no-work\`** — the run concluded there is nothing here to build, and the plan names the evidence. It is at \`Status: planning\` and is not asking to be approved: read it, then close the PR, or say why it is wrong. Nothing was closed here — that call is yours." ;;
+      needs-decision)
+        REC_TITLE_TAG="[needs-decision] "
+        REC_PR_NOTE="
+  **Recommendation: needs-decision** — the draft states a choice it deliberately did not make. It is not approvable as it stands: decide the question in the plan body, then re-draft. Nothing in this run resolved it for you, by design."
+        REC_ISSUE_TAIL="**Recommendation: \`needs-decision\`** — the run found a choice a human has to make first. The plan states it with its options and leaves it unresolved. It is at \`Status: planning\` and is not approvable as it stands: decide, then re-draft." ;;
+    esac
+
     if ! "$GIT_BIN" -C "$WT" push -q -u origin "$BRANCH" 2>/dev/null; then
       fail_issue "$N" "push failed" "$WT" "$BRANCH"
       continue
     fi
 
     PR_URL="$("$GH_BIN" pr create --base "$BASE_BRANCH" --head "$BRANCH" \
-        --title "intake: proposed epic for #$N — ${SLUG}" \
+        --title "intake: ${REC_TITLE_TAG}proposed epic for #$N — ${SLUG}" \
         --body "Proposed epic plan drafted by **unattended intake** from #$N.
 
   **This is a proposal, not a filed epic.** The plan is at \`**Status:** planning\`, which is never dispatchable. Approving means merging this PR **and** setting \`**Status:** approved\` — until that edit lands it is a draft that happens to be version-controlled.
@@ -476,7 +553,7 @@ WIPLINE
   No epic number is claimed here. Phase 1 assigns the number **at approval** — rename \`${EPICS_DIR}/proposed-${N}-${SLUG}/\` to \`${EPICS_DIR}/<NN>-<slug>/\` when you approve, and set \`Status: approved\`.
 
   Nothing was approved, dispatched, merged, or closed by this run. No code outside \`${EPICS_DIR}/proposed-${N}-${SLUG}/\` was touched.
-
+${REC_PR_NOTE}
   Part of #$N" 2>/dev/null || true)"
 
     if [ -z "$PR_URL" ]; then
@@ -486,7 +563,7 @@ WIPLINE
 
     "$GH_BIN" issue comment "$N" --body "Unattended intake drafted a proposed epic plan: $PR_URL
 
-  It is at \`Status: planning\` — not approved, not dispatchable. Review the PR; approve by merging it and setting \`Status: approved\`." >/dev/null 2>&1 || true
+  ${REC_ISSUE_TAIL}" >/dev/null 2>&1 || true
     "$GH_BIN" issue edit "$N" --remove-label "$LABEL" >/dev/null 2>&1 || true
 
     log "#$N -> $PR_URL (label removed)"
