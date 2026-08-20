@@ -1,6 +1,6 @@
 # Epic: autonomous mode — from label to merged code without a human gate
 
-**Status:** planning
+**Status:** approved
 **Source:** GH #39
 **Live branch:** per-repo (`main` here, `main` for LODE)   **Integration branch:** per-repo (`main` here, `dev` for LODE)   **Pre-epic tag:** `pre-autonomous-mode` (required — this epic changes what the machine may do unsupervised)
 
@@ -37,9 +37,16 @@ Verified against the repo on 2026-08-20, not recalled:
   can therefore be queued while one runs — a precondition for chaining work autonomously.
 - **Verified:** `blocked` already exists as a first-class terminal state whose contract is
   "stop and return rather than guess."
-- **Verified:** seven unattended-drafted plans exist (#732, #733, #735, #738, #739, #740, #741)
-  and **none has been reviewed by anyone**. The drafting mechanism is proven; the drafting
-  *judgement* is entirely unmeasured.
+- **Verified:** nine unattended-drafted plans now exist. Seven came from LODE QA reports
+  (#732, #733, #735, #738, #739, #740, #741), one from a fully-solved brief (claude-skills #42),
+  and one from a deliberately under-specified brief (LODE #761). Only #42 has been read, and it
+  was the easiest of the nine. The drafting mechanism is proven; the drafting *judgement* is
+  still substantially unmeasured.
+- **Verified:** the executor half of the loop has now run once end to end — epic 07 was drafted
+  unattended, approved, dispatched, built and merged. The executor exceeded a mechanical
+  definition of done, caught a stale base and rebased unprompted, declined a gate with a stated
+  reason, and labelled its own unverified claim. One run on a two-line documentation change is
+  weak evidence for L2, but it is not zero, and it is the only executor evidence that exists.
 - **Verified:** the epic-06 retro records that `--allowed-tools` is not a sandbox — `find`
   executes inside a compound command beginning with an allowed binary. Any autonomy control
   that depends on tool allowlisting as a boundary is unsound; boundaries must be enforced by
@@ -101,14 +108,29 @@ behaviour is:
 ### 1. Measure drafting quality — the prerequisite, and possibly the stopper
 - **Branch:** `chore/autonomy-draft-baseline`
 - **Depends on:** none
-- **Scope:** Review all seven existing unattended-drafted LODE plans against a written rubric
+- **Scope:** Review the **nine** existing unattended-drafted plans against a written rubric
   (is the grounding real and checkable? does the scope match the issue? are the DoDs
   falsifiable? is the risk table honest? would a competent engineer accept this as a contract?).
   Score each, record the results in this epic's folder, and state a verdict: is unattended
   drafting good enough to approve without a human reading it?
-- **Not in scope:** any code, any config, any change to the runner.
-- **Definition of done:** a rubric, seven scored reviews, and an explicit go / no-go on L1 with
-  reasons. A "no-go" is a legitimate and possibly correct outcome that ends the epic here.
+
+  The sample, and why it is not homogeneous — this matters more than the count:
+
+  | Draft | Source issue | Character of the brief |
+  |---|---|---|
+  | LODE #732, #733, #735, #738, #739, #740, #741 | QA reports (#725–#731) | Symptom-first; no cause diagnosed |
+  | claude-skills #42 | GH #41 | **Solved brief** — cause, mechanism and fix all supplied |
+  | LODE #761 | LODE #757 | **Deliberately hard** — observations only, four open questions, a negative constraint |
+
+  Score the three groups separately. A plan that executes a solved brief well says little about
+  drafting judgement; #42 already read as high quality for exactly that reason and must not be
+  allowed to inflate the verdict. The seven QA-sourced drafts and #761 carry the real signal.
+- **Not in scope:** any code, any config, any change to the runner. Do not approve, renumber, or
+  dispatch any of the nine — reviewing them is the work; acting on them is not.
+- **Definition of done:** a rubric, nine scored reviews grouped by brief type, and an explicit
+  go / no-go on L1 with reasons. A "no-go" is a legitimate and possibly correct outcome that
+  ends the epic here. State the sample size beside the verdict — per Phase 4, a score computed
+  from nine plans is a claim about nine plans.
 - **Verification:** the scores are reproducible by a second reader against the same rubric.
 - **Rollback:** n/a — no change is made.
 
@@ -275,3 +297,8 @@ autonomy is a different problem from single-issue autonomy.
   plans have never been reviewed (making item 1 a prerequisite rather than a nicety), and
   `--allowed-tools` is not a sandbox (making tool-name-based controls unsound as boundaries).
   Not approved, not numbered, not dispatchable.
+- 2026-08-20 — approved and numbered **08**. Item 1's sample grew from seven drafts to nine and
+  gained structure: the drafts now span a solved brief, seven symptom-first QA reports, and one
+  deliberately under-specified brief, so the review can separate "executes a good brief" from
+  "exercises judgement". Recorded at approval because the distinction decides what the verdict
+  is worth.
