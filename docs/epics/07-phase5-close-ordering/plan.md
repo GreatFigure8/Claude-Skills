@@ -1,6 +1,6 @@
 # Epic: Phase 5 close-out marks the plan closed before deleting the status tree
 
-**Status:** approved
+**Status:** in flight (item 1 of 1)
 **Source:** GH #41
 **Live branch:** main   **Integration branch:** main   **Pre-epic tag:** n/a
 
