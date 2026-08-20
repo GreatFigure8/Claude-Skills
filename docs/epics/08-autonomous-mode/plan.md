@@ -1,6 +1,6 @@
 # Epic: autonomous mode — from label to merged code without a human gate
 
-**Status:** in flight (item 1 of 8)
+**Status:** closed
 **Source:** GH #39
 **Live branch:** per-repo (`main` here, `main` for LODE)   **Integration branch:** per-repo (`main` here, `dev` for LODE)   **Pre-epic tag:** `pre-autonomous-mode` (required — this epic changes what the machine may do unsupervised)
 
@@ -112,6 +112,9 @@ behaviour is:
 ## Work items
 
 ### 1. Measure drafting quality — the prerequisite, and possibly the stopper
+- **Outcome: DONE — verdict NO-GO on L1.** Delivered `draft-quality-rubric.md` and
+  `draft-quality-reviews.md`; merged as PR #51 (`08417d9`). Per this plan's own Sequence, that
+  verdict ends the epic here.
 - **Branch:** `chore/autonomy-draft-baseline`
 - **Depends on:** none
 - **Scope:** Review the **nine** existing unattended-drafted plans against a written rubric
@@ -141,6 +144,10 @@ behaviour is:
 - **Rollback:** n/a — no change is made.
 
 ### 2. The autonomy ladder as configuration, with no behaviour change
+- **Outcome: NOT DISPATCHED.** Items 2–8 were never started; item 1 gated them and returned
+  no-go. The scope below is preserved verbatim as the design record for whoever re-files the
+  ladder — including the opt-in hardening merged by PR #49 (`f2c8233`), which was written
+  against this item while item 1 was still in flight.
 - **Branch:** `feat/autonomy-levels`
 - **Depends on:** 1 (go verdict)
 - **Scope:** Per-repo autonomy level in the intake config (extend the `repos` line format, or a
@@ -318,6 +325,43 @@ autonomy is a different problem from single-issue autonomy.
 - Autonomy for repos other than this one and LODE.
 - Notifications (push, email, Slack) — the digest first; alerting is a separate concern.
 
+## Retro — closed 2026-08-20, on a no-go
+
+**What happened.** The epic ran exactly one of its eight items and stopped, which is what it was
+designed to be able to do. Item 1 scored nine unattended-drafted plans against a rubric written
+*before* any plan was read, and returned **NO-GO on L1** at effective n=7.
+
+**What surprised us — the useful finding is not "the drafts are bad".** Drafting accuracy was
+higher than the epic's top risk assumed: 53 of 57 sampled repo claims true, no invented
+requirements, no silently-resolved open questions, no sensitive paths proposed. The verdict turned
+instead on a structural mismatch: **several drafts were good precisely by deferring to a human,
+and L1 is the rung that removes that human.** #732 and #733 both detected that they collided on
+the same `except` blocks and both escalated the choice; #761's entire correct output was "do not
+approve this plan, there is nothing to dispatch." L1 as specified in item 5 has no branch for
+either outcome. Being right was made inert by the consumer, not by the drafter.
+
+**What the sample could not tell us.** Group C — the deliberately under-specified brief that was
+the only real test of judgement — was emptied by an attended session winning a race against the
+runner (LODE #757, decided in a 2m34s window). The measurement L1 most needed was never taken, so
+even a favourable reading of the other groups could not have produced a go.
+
+**What got split off.** The four remediations named by the verdict, plus its demand for a real
+hard-brief measurement, became **epic 09 — L1 preconditions**. Items 2–8 here are not resurrected
+in place: if epic 09's re-verdict is a go, the ladder is re-filed as a fresh epic that inherits
+this plan's design plus PR #49's opt-in hardening.
+
+**Process notes.**
+- The pre-epic tag `pre-autonomous-mode` was declared required and **never created**. It cost
+  nothing because no code was written, but the header asserted a control that did not exist —
+  the same class of defect item 1 found in `Live branch` headers, in our own plan.
+- The plan header sat at `in flight (item 1 of 8)` for a full session after item 1 merged. Stale
+  status is not cosmetic: the telemetry hooks read that exact line.
+- Rule-3 telemetry defect surfaced concretely during the epic — 22 agent logs accumulated in a
+  *proposal* folder before approval. Filed as GH #48; proposal drafted as PR #50.
+
+**Tracker.** GH #39 stays **open**. The outcome it asks for was not delivered and was not
+abandoned; epic 09 continues against it.
+
 ## Log
 - 2026-08-20 — filed from GH #39 as a **proposal**, at Jonathan's explicit request to plan and
   file without implementing. Phase 0 grounded against the existing control plane, the runner's
@@ -330,3 +374,7 @@ autonomy is a different problem from single-issue autonomy.
   deliberately under-specified brief, so the review can separate "executes a good brief" from
   "exercises judgement". Recorded at approval because the distinction decides what the verdict
   is worth.
+- 2026-08-20 — **closed on a no-go.** Item 1 delivered its verdict (NO-GO on L1, effective n=7);
+  items 2–8 never dispatched, per this plan's Sequence rule that item 1 gates everything. PR #49's
+  opt-in hardening was merged into item 2's scope first (`f2c8233`) so the design survives in the
+  place a future ladder author will look. Remediation continues as epic 09.
