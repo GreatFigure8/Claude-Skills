@@ -1,6 +1,6 @@
 # Epic: Phase 5 close-out marks the plan closed before deleting the status tree
 
-**Status:** in flight (item 1 of 1)
+**Status:** closed
 **Source:** GH #41
 **Live branch:** main   **Integration branch:** main   **Pre-epic tag:** n/a
 
@@ -110,3 +110,47 @@ Markdown is brittle, and an item you have already argued against is not worth ca
   `SKILL.md`'s prose ordering. Not approved, not numbered, not dispatchable.
 - 2026-08-20 — approved and numbered **07**. Item 2 (the prose-ordering fixture) dropped at
   approval for the reason the draft itself gave. Dispatching item 1.
+
+## Retro
+
+**Outcome.** Phase 5 now marks the plan `closed` before deleting the epic's scaffolding, and
+states that `closed` must be **merged and pulled into the canonical checkout** first — the hooks
+resolve the epic from the canonical `plan.md`, so a `closed` living only on a close-out branch
+does not count. Merged as PR #45, closing GH #41. Verified on `main`: the Status bullet is line
+167, the scaffolding bullet 168 — reversed from the order that caused the defect.
+
+**What this epic actually proved.** It is the first plan **drafted unattended, approved, dispatched
+to an executor, and merged** — the whole loop, end to end, with a human acting only as approver and
+verifier. Every prior epic was built inline.
+
+**What got split.** Item 2 — a fixture asserting the two bullets' line order — was dropped at
+approval, not deferred. The draft proposed it and then argued in its own risk table that
+prose-matching against free-form Markdown is brittle. An item you have already argued against is
+not worth carrying; if the defect recurs, the escalation is the runtime enforcement sitting in
+Deferred, not a text assertion that breaks on the next rewording.
+
+**What surprised us:**
+
+1. **The executor exceeded a mechanical definition of done.** The DoD was a line-number
+   comparison, which a naive two-line swap would satisfy. Instead it rewrote both bullets so they
+   read as a pair, and ended the scaffolding bullet with the failure mode itself — pointer gone,
+   header still `in flight`, next subagent falls through to the "newest plan marked in flight"
+   fallback and recreates the tree you just deleted. The incident from the morning is now written
+   into the instruction that prevents it. A falsifiable DoD is a floor, not a ceiling.
+2. **It caught a stale base without being told.** Its worktree was cut from `b2c4994`; the
+   orchestrator then pushed `920818e` (the dispatch status flip). It rebased before starting
+   rather than opening a PR against a stale base.
+3. **It declined a gate and said so in the PR body** instead of leaving an unchecked box —
+   `active-epic-fixtures.sh` exercises hook resolution this diff does not touch, and GH #15
+   (fixture harnesses can escape their sandbox) is open. Naming a skipped gate and its reason is
+   the behaviour Phase 3 asks for and rarely gets.
+4. **It labelled its own unverified claim.** Rendered Markdown appearance on GitHub was checked
+   mechanically (delimiter balance, list structure), not by viewing the page, and it said so.
+
+**The recursion worth recording.** The work item edited the Phase 5 text that governs closing
+epics — including this one. This close-out is the first to run under the new ordering: `closed`
+was landed in the canonical checkout before any scaffolding came down. If the fix is wrong, this
+retro is where it would have shown up.
+
+**Deferred, unchanged.** Runtime enforcement (a hook refusing to delete `status/` while the header
+reads `in flight`) remains the escalation if the documentation fix proves insufficient.
