@@ -37,6 +37,14 @@ GIT_BIN="${INTAKE_GIT:-/usr/bin/git}"
 GH_BIN="${INTAKE_GH:-/opt/homebrew/bin/gh}"
 CLAUDE_BIN="${INTAKE_CLAUDE:-$HOME/.local/bin/claude}"
 
+# The agent must be told exactly where its own contract is. This script lives at
+# <skill>/assets/claude-config/bin/, so the skill root is three levels up — true
+# for both the in-repo copy launchd runs and an install.sh --user copy. Without
+# an absolute path the agent hunts for the reference and escalates to `find /`,
+# which walks TCC-protected directories and prompts a run nobody is watching
+# (GH #34).
+SKILL_DIR="${INTAKE_SKILL_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
+
 ENV_FILE="${INTAKE_ENV_FILE:-$HOME/.config/claude-intake/env}"
 REPO_DIR="${INTAKE_REPO_DIR:-$HOME/Source/claude-skills}"   # fallback when no list
 REPO_LIST="${INTAKE_REPO_LIST:-$HOME/.config/claude-intake/repos}"
@@ -87,6 +95,12 @@ die() { log "FATAL: $*"; exit "${2:-1}"; }
 # --------------------------------------------------------------- preflight
 for B in "$GIT_BIN" "$GH_BIN" "$CLAUDE_BIN"; do
   [ -x "$B" ] || die "not executable: $B (launchd has a minimal PATH; set INTAKE_GIT/INTAKE_GH/INTAKE_CLAUDE)" 1
+done
+
+# The prompt hands the agent these two paths as fact. If they are wrong the agent
+# has no contract to read and starts searching the disk, so fail here instead.
+for R in issue-intake plan-template; do
+  [ -f "$SKILL_DIR/references/$R.md" ] || die "skill reference missing: $SKILL_DIR/references/$R.md (set INTAKE_SKILL_DIR to the dev-epic-workflow skill root)" 1
 done
 
 mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
@@ -187,6 +201,15 @@ while IFS= read -r RENTRY; do
   fi
   log "== repo $REPO_SLUG ($REPO_DIR) base=$BASE_BRANCH"
 
+  # Repos disagree on the case of the epics directory (this repo uses
+  # docs/epics, Oracle-Simple-Convert uses DOCS/EPICS). Ask the repo instead of
+  # asserting, or the agent burns turns rediscovering it (GH #34). Resolved from
+  # the checkout, not the worktree, so --dry-run reports the same path a real
+  # run would use.
+  EPICS_DIR=$("$GIT_BIN" -C "$REPO_DIR" ls-files 2>/dev/null \
+    | grep -iEm1 '^docs/epics/' | cut -d/ -f1-2)
+  [ -n "$EPICS_DIR" ] || EPICS_DIR="docs/epics"
+
   # Ensure the label exists so a first run does not fail on a missing label.
   if ! "$GH_BIN" label list --limit 200 2>/dev/null | grep -q "^${LABEL}[[:space:]]"; then
     if [ "$DRY_RUN" = yes ]; then
@@ -259,7 +282,7 @@ while IFS= read -r RENTRY; do
 
     if [ "$DRY_RUN" = yes ]; then
       log "DRY-RUN: would create worktree $WT on $BRANCH"
-      log "DRY-RUN: would run headless intake for #$N producing docs/epics/proposed-${N}-${SLUG}/plan.md at Status: planning"
+      log "DRY-RUN: would run headless intake for #$N producing ${EPICS_DIR}/proposed-${N}-${SLUG}/plan.md at Status: planning"
       log "DRY-RUN: would open a PR (Part of #$N, no Closes), comment the link, and remove label '$LABEL'"
       continue
     fi
@@ -280,24 +303,27 @@ while IFS= read -r RENTRY; do
     PROMPT="Run unattended intake for GitHub issue #$N in this repository.
 
   Follow the dev-epic-workflow skill's unattended-intake contract in
-  Skills/dev-epic-workflow/references/issue-intake.md. Run ONLY Phase 0 (ground
+  ${SKILL_DIR}/references/issue-intake.md. Run ONLY Phase 0 (ground
   the work by reading the actual code and config) and Phase 1 (draft the plan).
+  Both reference files are readable at those absolute paths — read them there.
+  Do NOT search the filesystem for them.
 
-  Write the plan to docs/epics/proposed-${N}-${SLUG}/plan.md using the structure in
-  Skills/dev-epic-workflow/references/plan-template.md, with:
+  Write the plan to ${EPICS_DIR}/proposed-${N}-${SLUG}/plan.md using the structure in
+  ${SKILL_DIR}/references/plan-template.md, with:
     **Status:** planning
     **Source:** GH #$N
 
   HARD STOPS — you are running unattended and nobody can approve anything:
     - Do NOT set Status to approved. It is a proposal, not a filed epic.
     - Do NOT dispatch any executor or subagent.
-    - Do NOT write, modify, or delete any code outside docs/epics/proposed-${N}-${SLUG}/.
+    - Do NOT write, modify, or delete any code outside ${EPICS_DIR}/proposed-${N}-${SLUG}/.
     - Do NOT merge anything, and do NOT close the issue.
     - Do NOT git push, do NOT open a PR — the runner does that.
   Commit the plan with a conventional message and stop."
 
     ( cd "$WT" && "$CLAUDE_BIN" -p "$PROMPT" \
-        --allowed-tools 'Bash(git:*)' 'Bash(gh issue view:*)' 'Bash(ls:*)' 'Bash(find:*)' 'Bash(grep:*)' 'Bash(sed:*)' 'Bash(cat:*)' 'Bash(head:*)' 'Bash(date:*)' Read Write Edit Glob Grep ) \
+        --add-dir "$SKILL_DIR" \
+        --allowed-tools 'Bash(git:*)' 'Bash(gh issue view:*)' 'Bash(ls:*)' 'Bash(grep:*)' 'Bash(sed:*)' 'Bash(cat:*)' 'Bash(head:*)' 'Bash(date:*)' Read Write Edit Glob Grep ) \
         > "$WT/.intake-run.log" 2>&1
     RC=$?
 
@@ -322,9 +348,9 @@ while IFS= read -r RENTRY; do
 
   **This is a proposal, not a filed epic.** The plan is at \`**Status:** planning\`, which is never dispatchable. Approving means merging this PR **and** setting \`**Status:** approved\` — until that edit lands it is a draft that happens to be version-controlled.
 
-  No epic number is claimed here. Phase 1 assigns the number **at approval** — rename \`docs/epics/proposed-${N}-${SLUG}/\` to \`docs/epics/<NN>-<slug>/\` when you approve, and set \`Status: approved\`.
+  No epic number is claimed here. Phase 1 assigns the number **at approval** — rename \`${EPICS_DIR}/proposed-${N}-${SLUG}/\` to \`${EPICS_DIR}/<NN>-<slug>/\` when you approve, and set \`Status: approved\`.
 
-  Nothing was approved, dispatched, merged, or closed by this run. No code outside \`docs/epics/proposed-${N}-${SLUG}/\` was touched.
+  Nothing was approved, dispatched, merged, or closed by this run. No code outside \`${EPICS_DIR}/proposed-${N}-${SLUG}/\` was touched.
 
   Part of #$N" 2>/dev/null || true)"
 
