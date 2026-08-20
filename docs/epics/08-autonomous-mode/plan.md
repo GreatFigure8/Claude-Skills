@@ -1,6 +1,6 @@
 # Epic: autonomous mode — from label to merged code without a human gate
 
-**Status:** approved
+**Status:** in flight (item 1 of 8)
 **Source:** GH #39
 **Live branch:** per-repo (`main` here, `main` for LODE)   **Integration branch:** per-repo (`main` here, `dev` for LODE)   **Pre-epic tag:** `pre-autonomous-mode` (required — this epic changes what the machine may do unsupervised)
 
