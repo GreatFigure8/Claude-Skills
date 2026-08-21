@@ -115,9 +115,42 @@ Verified on 2026-08-21. Each line names how.
   actual branches and PRs.
 - **Rollback:** revert; the log file remains and is harmless.
 
+### 2b. A dispatched worktree can actually run the gates
+- **Branch:** `feat/autonomy-worktree-provisioning`
+- **Depends on:** 1
+- **Why this exists — measured on the first LODE dispatch, 2026-08-21, not anticipated.** A fresh
+  `git worktree add` on LODE produces a checkout that **cannot run the test suite**: `.env` is
+  gitignored (`.gitignore:100`, verified) and `api/config.py` reads it from the repo root, and
+  `node_modules` is per-worktree and absent. The attended executor hit
+  `7 failed, 1554 passed, 9 errors — RuntimeError: DB_PASSWORD is not set` on its first gate run
+  and recovered by copying `.env` and installing. **An unattended executor would not have that
+  nerve.** The failure looks exactly like a broken change, so the likely outcomes are a false
+  `blocked`, a false red PR, or — worst — a run that reports "gates skipped" and opens the PR
+  anyway. This is the single biggest blocker to unattended dispatch on this repo.
+- **Scope:** worktree provisioning as an explicit, per-repo, declared step: copy the gitignored
+  environment files the repo names, run the repo's declared install command, and **verify the gate
+  can run before the executor is invoked** — a smoke check, not a hope. A repo that declares
+  nothing gets today's behaviour: a bare worktree.
+- **Second finding, same dispatch: the gate set is per item type, not per repo.** LODE's
+  `scripts/test-both.sh` is `ruff` + `pytest` twice and covers **zero TypeScript** (verified by
+  reading it). It runs none of the tests covering a `.tsx` item; every test that could catch a
+  regression there is in `pnpm --filter web test`. **My own dispatch brief said "the gate is
+  `test-both.sh`" and was wrong**, and the executor ran the right gates from repo precedent rather
+  than from instruction. An unattended runner has no such judgement, so the gate set must be
+  declared per item type and passed in the brief.
+- **Not in scope:** the executor's own gate discipline; changing any repo's gate scripts.
+- **Definition of done:** a freshly-created LODE worktree runs `bash scripts/test-both.sh` **and**
+  `pnpm --filter web test` green with no manual step; the pre-flight smoke check fails loudly and
+  refuses to dispatch when provisioning did not work; a repo declaring no provisioning is
+  byte-identical to today.
+- **Verification:** create a worktree from clean, run the declared gates, and diff the result
+  against the attended run's numbers (oracle 2385 / postgres 2384 / web 1166).
+- **Rollback:** revert; worktrees are bare again and unattended dispatch is refused rather than
+  silently broken.
+
 ### 3. L2 — dispatch to a pull request, and stop
 - **Branch:** `feat/autonomy-l2-dispatch`
-- **Depends on:** 1, 2
+- **Depends on:** 1, 2, 2b
 - **Scope:** At L2, for each configured repo in turn, find the **next undispatched work item of an
   epic at `Status: approved` or `in flight`**, admit it against item 1's policy, cut its worktree
   from the integration branch, invoke `claude -p --agent work-item-executor` with the item's
@@ -147,7 +180,7 @@ Verified on 2026-08-21. Each line names how.
 
 ## Sequence
 
-**1 → 2 → 3.** Strictly serial, and the order is the point: **brakes before accelerator.** The
+**1 → 2 → 2b → 3.** Strictly serial, and the order is the point: **brakes before accelerator.** The
 control surface and the ledger both ship inert and are worth nothing on their own — which is
 exactly why they must land before the thing that acts, rather than after it in a follow-up nobody
 prioritises once the feature works.
@@ -206,3 +239,21 @@ is last.
   and there is no machine-readable record of which work items are done — so item 3 decides
   dispatchability from the `Branch:` line plus branch/PR existence, reusing epic 09 items 7 and 8,
   instead of parsing `DONE (PR #842)` out of prose.
+- 2026-08-21 — **the first executor run on LODE landed at `pr-opened` (PR #857) and produced four
+  findings that became requirements, not footnotes.** Verified cold: 2 files, +291/−54, base `dev`,
+  `Part of #832` once, no closing keyword; `LoadPanel.test.tsx` re-run by the orchestrator gives
+  46/46. **(1)** A fresh worktree cannot run the gates — `.env` is gitignored and `node_modules` is
+  per-worktree — which became **item 2b**. **(2)** `test-both.sh` covers zero TypeScript, so the
+  gate set is per item type and the dispatch brief that said otherwise was mine and was wrong;
+  also item 2b. **(3)** `dev` moved under the executor mid-item: epic 180 item 4 (PR #854) merged
+  and rewrote both files, forcing a 3-conflict rebase. **Epics 179 and 180 both own
+  `LoadPanel.tsx`, and 179 items 2 and 3 will collide with 180 again** — epic 09 item 4's collision
+  detection covers *proposals*, not two in-flight epics, so this is uncovered. **(4)** The plan's
+  `:60` line anchor was stale before the item started, pushed to ~`:119` by epic 180. Line-number
+  anchors in plans rot within days on an active file.
+- 2026-08-21 — **the assumption item 3 rests on is now supported rather than assumed.** An executor
+  proven on bash-and-fixtures did behave on pnpm/TypeScript against a real database: it recovered
+  from a provisioning failure instead of reporting a false blocked, ran the correct gates despite
+  being told the wrong ones, survived a mid-item rebase into the same file, and reported all four
+  problems unprompted. **n=1 on this stack.** That is enough to keep building and not enough to
+  enable the rung, which is exactly what item 3's definition of done already says.
