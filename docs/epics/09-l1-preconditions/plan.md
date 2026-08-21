@@ -488,3 +488,13 @@ header from config, refuses duplicated work, and detects collisions is better at
   Item 5's live drafts supply that proof; drafting a throwaway proposal now would burn a
   hard-brief sample to test a string. The associated risk row is marked **NOT RETIRED** rather
   than quietly dropped.
+- 2026-08-21 — **items 4 and 7 dispatched in parallel**, one worktree each
+  (`../claude-skills-collision-detection` on `feat/intake-collision-detection`,
+  `../claude-skills-wip-inflight-epics` on `fix/intake-wip-inflight-epics`), both branched from
+  `a4f597e`. Territory was split explicitly at dispatch and each executor was given the grep that
+  proves it stayed inside its own: **4 owns admission after drafting and before `gh pr create`;
+  7 owns `check_work_in_progress`, the WIP constants, `declares_closing` and `skip_issue`.**
+  Item 7's definition of done is a diff against the re-measurement table above rather than an
+  open question, because the classification was taken before the item was written. Item 4 was
+  told explicitly that the `plan`→`needs-decision` downgrade question is **not its to resolve** —
+  if the implementation forces the answer it reports `blocked` rather than choosing.
