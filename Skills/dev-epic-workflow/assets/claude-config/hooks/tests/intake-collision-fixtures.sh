@@ -155,7 +155,23 @@ case "${1:-}" in
   issue)
     case "${2:-}" in
       list)    [ -f "$CASE/issues" ] && cat "$CASE/issues" ;;
-      view)    printf 'fixture issue %s\n' "${3:-0}" ;;
+      view)    # Epic 09 item 8 reads the issue's LABELS from this call, so the
+               # field set is pinned. Unpinned, a stub answering the old
+               # title-only shape would corrupt the title this suite derives
+               # every proposal slug from — and the paths would move under the
+               # assertions without anything saying why.
+               case "$FLAT" in
+                 *"--json title,labels "*) ;;
+                 *) printf 'gh STUB UNANSWERED (issue view field set changed): %s\n' "$FLAT" >> "$CASE/calls.log"
+                    echo 'stub does not model this issue view field set' >&2; exit 1 ;;
+               esac
+               # No labels, deliberately and for every case: an issue carrying
+               # `epic:planned` is skipped at selection and never reaches the
+               # collision check at all, so a labelled fixture here would test
+               # item 8 rather than item 4. The fence is what item 8's parser
+               # reads (ISSUE_VIEW_JQ); `,,` is a real empty labels array.
+               printf ',,\n'
+               printf 'fixture issue %s\n' "${3:-0}" ;;
       comment) printf '%s\n' "$FLAT" >> "$CASE/comments.log"
                # the body is the last argument; keep it whole so assertions can
                # read what a human would actually receive

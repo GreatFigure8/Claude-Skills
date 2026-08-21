@@ -194,7 +194,24 @@ case "${1:-} ${2:-}" in
   "label list")   printf 'claude-intake\tRun unattended intake\n' ;;
   "label create") printf 'label create %s\n' "$*" >> "$OUT/gh-unexpected.log" ;;
   "issue list")   per_repo issues '' ;;
-  "issue view")   per_repo issue-title 'Fix the widget' ;;
+  "issue view")
+    # Epic 09 item 8 reads the issue's labels from the same call that was
+    # already fetching the title. Pinned exactly, like the pr view field set
+    # below: an unpinned stub answering the old title-only shape leaves the
+    # runner with an unparseable label line, it falls back to item 7's three
+    # inferred signals, and every case here goes on being green while the label
+    # path is never exercised at all. This suite already learned that lesson
+    # once, from its own catch-all `api)` arm.
+    case "$* " in
+      *"--json title,labels "*) ;;
+      *) printf '%s\n' "$*" >> "$OUT/gh-unhandled.log"
+         echo 'gh stub: issue view field set not modelled' >&2; exit 1 ;;
+    esac
+    printf 'issue view %s\n' "$RK" >> "$OUT/issue-view-queries.log"
+    # No labels in any case here: this suite is about header facts, and a
+    # labelled issue is skipped before a header is ever drafted.
+    printf ',,\n'
+    per_repo issue-title 'Fix the widget' ;;
   "issue comment") arg_after --body "$@" >> "$OUT/issue-comments.log" ;;
   "issue edit")   : ;;
   "api "*|"api")
@@ -437,6 +454,15 @@ wip_branch_query_ran() { # -> "2" when the branch listing was asked both times
   wc -c < "$RUN_DIR/out/branch-calls" 2>/dev/null | tr -d ' '
 }
 
+# And the same guard again for epic 09 item 8's label read. It rides on the
+# `issue view` call the runner was already making for the log line, and it is
+# re-read before the PR is opened, so a drafted issue asks TWICE. If that count
+# ever drops, the labels stopped being fetched and the highest-authority signal
+# went quiet with nothing else here noticing.
+wip_label_query_ran() { # -> "2" when the labels were read at both evaluations
+  grep -c '^issue view ' "$RUN_DIR/out/issue-view-queries.log" 2>/dev/null | tr -d ' '
+}
+
 # ============================================================================
 echo "=== A. claude-skills shape: no override, GitHub default main ==========="
 echo "    (live and integration are the same branch here — and they are still"
@@ -465,6 +491,7 @@ check "the PUSHED plan header reads integration=main" "main" \
 check "the PR is opened against the integration branch" "main" "$(out pr-base.txt)" "A"
 check "the WIP check ran twice and came back clear" "2 clear" "$(wip_ran_clear)" "A"
 check "…and its branch listing ran both times too" "2" "$(wip_branch_query_ran)" "A"
+check "…and the labels were read at both evaluations" "2" "$(wip_label_query_ran)" "A"
 check "no gh verb went unanswered" "no" "$(yesno test -s "$RUN_DIR/out/gh-unhandled.log")" "A"
 
 # ============================================================================

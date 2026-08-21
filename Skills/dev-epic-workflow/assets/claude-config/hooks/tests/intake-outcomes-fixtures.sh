@@ -167,7 +167,19 @@ case "${1:-} ${2:-}" in
       *) printf 'gh stub: pr list field set not modelled [%s]\n' "$*" >&2; exit 1 ;;
     esac
     printf '%s' "" ;;
-  "issue view")   cat "$OUT/issue-title.txt" 2>/dev/null ;;
+  "issue view")
+    # Epic 09 item 8's label read rides on this call. Field set pinned exactly,
+    # for the same reason `pr view` and `pr list` are pinned above: answering
+    # the old title-only shape would put the runner back on item 7's inferred
+    # signals with nothing in this file noticing.
+    case "$* " in
+      *"--json title,labels "*) ;;
+      *) printf 'gh stub: issue view field set not modelled [%s]\n' "$*" >&2; exit 1 ;;
+    esac
+    # No labels: a labelled issue never reaches the drafter, so it could not
+    # produce the recommendation this suite is about.
+    printf ',,\n'
+    cat "$OUT/issue-title.txt" 2>/dev/null ;;
   "issue comment")
     arg_after --body "$@" > "$OUT/issue-comment.txt" ;;
   "issue edit")   : ;;
