@@ -1,6 +1,6 @@
 # Epic: L2 — approved work reaches a pull request without a human
 
-**Status:** in flight (items 2 and 2b of 4, parallel; item 1 done)
+**Status:** in flight (item 3 of 4 — the last; items 1, 2 and 2b done)
 **Source:** GH #39 — the third epic on this issue. Epic 08 designed the ladder and stopped at its
 measurement on a NO-GO; epic 09 fixed the four defects that verdict named; this one builds the
 one rung the evidence actually supports.
