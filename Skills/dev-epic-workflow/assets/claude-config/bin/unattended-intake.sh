@@ -103,6 +103,35 @@ PR_VIEW_JQ='"\(.state) \(.headRefName) \(.url) ,\((((.closingIssuesReferences //
 # cannot match `#120`.
 CLOSING_KEYWORD_RE='(^|[^[:alnum:]_])(clos(e|es|ed)|fix(es|ed)?|resolv(e|es|ed))[[:space:]]*:?[[:space:]]*#'
 
+# THE WIDENING (epic 09 item 7). Item 6's narrowing above is the right rule for
+# ALREADY DONE and is left exactly as it is. It is the wrong rule for ALREADY IN
+# FLIGHT: a multi-item epic's pull requests say `Part of #<n>` BY DESIGN and
+# deliberately declare no closure until the final item, so an issue whose epic is
+# halfway delivered reads as clear and the runner drafts a second proposal over
+# live work. Measured across both repos on 2026-08-21 (n=11 open issues): LODE
+# #811 had an open PR, a merged PR and a branch named for it, and the runner
+# would have drafted over all three. So two further signals sit BESIDE the
+# closing-linkage one — never replacing it, because the remedy differs. Already
+# done means close the issue. Already in flight means wait.
+#
+# (b) A PR whose description declares it is part of the issue's work. The string
+#     is not a guess: references/issue-intake.md makes `Part of #<n>` THE linkage
+#     a work-item PR carries, with `Closes #<n>` reserved for an epic's final
+#     item — which is exactly why the closing signal cannot see an epic midway.
+#     Same guards as CLOSING_KEYWORD_RE: a leading non-word guard so `apart of`
+#     does not match, and the caller appends the number and a non-digit guard.
+PART_OF_RE='(^|[^[:alnum:]_])part[[:space:]]+of[[:space:]]*:?[[:space:]]*#'
+
+# (c) A branch on `origin` named for the issue — `<anything>/<issue>-<anything>`,
+#     the shape references/git-conventions.md produces and the shape every
+#     measured in-flight branch had (`feat/811-reconcile-claim-against-ledger`,
+#     `fix/581-empty-database-list`, `docs/110-wi3-outcome`). It is asked of
+#     GitHub rather than of `git ls-remote` because REPO_SLUG and REPO_DIR are
+#     not always the same repository (`--repo` overrides the slug for every
+#     entry), and because a local checkout's remote refs are only as fresh as
+#     its last fetch. One call, one field.
+BRANCH_LIST_JQ='.[].name'
+
 # How many lines of a drafted plan count as its header. The SAME window the
 # SessionStart hook uses (session-start-context.sh: EPIC_QUEUE_HEADER_LINES), so
 # the runner and the injection can never disagree about what the header said.
@@ -365,16 +394,34 @@ while IFS= read -r RENTRY; do
   # the label, a false positive does not defer an issue, it retires it from
   # unattended intake until a human relabels. See CLOSING_KEYWORD_RE.
   #
+  # THREE signals, evaluated in that order of authority (epic 09 item 7 adds the
+  # second and third; see PART_OF_RE and BRANCH_LIST_JQ):
+  #
+  #   already-done       a non-runner open-or-merged PR declares it CLOSES it
+  #   in-flight-pr       a non-runner open-or-merged PR declares it is PART OF it
+  #   in-flight-branch   a non-runner branch on origin is NAMED for it
+  #
+  # Already-done outranks the other two on purpose, and not for tidiness: the
+  # skip comment tells a human what to do about it, and the two answers are
+  # opposites. Already done means close this issue. In flight means leave it
+  # open and wait. LODE #766 is the live case that needs the ordering — it has
+  # both a merged PR that closes it and earlier PRs that are only part of it.
+  #
   # Sets WIP_STATUS to one of:
-  #   clear    nothing that closes this issue blocks it
-  #   blocked  BLOCKING_PR holds the evidence, naming the specific PR
-  #   unknown  the query itself failed (offline, rate limited, issue gone)
+  #   clear    nothing that closes this issue, or is under way on it, blocks it
+  #   blocked  BLOCKING_PR holds the evidence, naming the specific PR or branch,
+  #            and WIP_SIGNAL says which of the three fired
+  #   unknown  a query itself failed (offline, rate limited, issue gone)
   # `unknown` proceeds to draft, loudly: a GitHub blip must not stop a runner
   # that worked yesterday, and an unchecked draft is a wasted PR, not a wrong
   # one. It is logged so it is never silent.
   BLOCKING_PR=""
   WIP_STATUS=""
+  WIP_SIGNAL=""
   WIP_LINKAGE=""
+  WIP_FLIGHT_PR=""
+  WIP_BRANCH=""
+  WIP_UNKNOWN_REASON=""
 
   # Does this pull request DECLARE that it resolves the issue, or does it only
   # mention it? This is the whole of epic 09 item 6 (see CLOSING_KEYWORD_RE).
@@ -394,15 +441,76 @@ while IFS= read -r RENTRY; do
     return 1
   }
 
+  # Does this pull request declare it is PART OF the issue's work — i.e. the
+  # issue is an epic being delivered right now (epic 09 item 7, signal b)?
+  #   $1 = issue number, $2 = the PR description
+  # There is no GitHub-side equivalent to fall back on here: GitHub has no
+  # concept of a non-closing link, which is precisely why `Part of #<n>` is a
+  # convention this workflow writes into every work-item PR body and why the
+  # description is the only place it can be read from.
+  declares_part_of() { # $1 = issue number, $2 = the PR description
+    printf '%s\n' "$2" | grep -Eiq "${PART_OF_RE}$1([^0-9]|\$)"
+  }
+
+  # Record — do not yet act on — a PR that declares itself part of this issue's
+  # work. Deferred rather than returned because ALREADY DONE outranks ALREADY IN
+  # FLIGHT and may be declared by a PR further down the same timeline; acting on
+  # the first match would tell a human to wait for work that has already landed.
+  # Only the first is kept: the evidence names one PR, and a second adds nothing
+  # a reader of the first cannot see. Reads the loop's current PR from the same
+  # variables the closing path uses, so the two can never disagree about which
+  # PR they are looking at.
+  #   $1 = issue number
+  note_in_flight_pr() {
+    [ -z "$WIP_FLIGHT_PR" ] || return 0
+    declares_part_of "$1" "$WIP_BODY" || return 0
+    # The state axis is item 3's and is unchanged: only OPEN or MERGED counts,
+    # because a closed-unmerged PR is abandoned work, not work in flight. The
+    # phrasing is deliberately repeated rather than shared with the closing path
+    # below — fixture cases K and R pin that path's exact lines to prove the
+    # merged arm and the linkage gate are load-bearing, and refactoring it would
+    # quietly turn both mutants into tests of nothing.
+    case "$WIP_STATE" in
+      OPEN)   WIP_FLIGHT_PR="PR #$WIP_PR is open and its description declares it is part of this issue's work ($WIP_URL, branch \`$WIP_HEAD\`)" ;;
+      MERGED) WIP_FLIGHT_PR="PR #$WIP_PR is already merged and its description declares it is part of this issue's work ($WIP_URL, branch \`$WIP_HEAD\`)" ;;
+    esac
+  }
+
+  # Is a branch named for this issue already cut on origin (item 7, signal c)?
+  # Sets WIP_BRANCH to the first match.
+  #   returns 0 = found  ·  1 = none  ·  2 = the query itself failed
+  # The glob is `*/<issue>-*`: the number must sit immediately after a `/` and
+  # be followed immediately by a `-`, so `feat/811-x` matches while `feat/1811-x`,
+  # `feat/8111-x` and `docs/diagram-mcp-811` do not. Same exclusion as the PR
+  # path, from the same constant: a branch this runner cut for its own proposal
+  # is not somebody else's work in flight.
+  branch_named_for_issue() { # $1 = issue number
+    WIP_BRANCH=""
+    WIP_BRANCHES="$("$GH_BIN" api --paginate \
+          "repos/$REPO_SLUG/branches?per_page=100" \
+          -H "Accept: application/vnd.github+json" \
+          -q "$BRANCH_LIST_JQ" 2>/dev/null)" || return 2
+    for WIP_BR in $WIP_BRANCHES; do
+      case "$WIP_BR" in "$PROPOSAL_BRANCH_PREFIX"*) continue ;; esac
+      case "$WIP_BR" in */"$1"-*) WIP_BRANCH="$WIP_BR"; return 0 ;; esac
+    done
+    return 1
+  }
+
   check_work_in_progress() { # $1 = issue number
     BLOCKING_PR=""
     WIP_STATUS="clear"
+    WIP_SIGNAL=""
     WIP_LINKAGE=""
+    WIP_FLIGHT_PR=""
+    WIP_BRANCH=""
+    WIP_UNKNOWN_REASON=""
     if ! WIP_PRS="$("$GH_BIN" api --paginate \
           "repos/$REPO_SLUG/issues/$1/timeline?per_page=100" \
           -H "Accept: application/vnd.github+json" \
           -q "$TIMELINE_PR_JQ" 2>/dev/null)"; then
       WIP_STATUS="unknown"
+      WIP_UNKNOWN_REASON="timeline query failed"
       return 0
     fi
     for WIP_PR in $WIP_PRS; do
@@ -429,7 +537,12 @@ WIPLINE
       # is no longer enough: the PR has to say it CLOSES the issue. Removing
       # just the next line reverts the check to item 3's any-cross-reference
       # rule — which is exactly the mutant fixture case R runs.
-      declares_closing "$1" "$WIP_CLOSES" "$WIP_BODY" || continue
+      #
+      # Item 7 adds only the tail: a PR that does not close the issue may still
+      # declare it is PART OF it, which is the signal a mid-flight epic gives.
+      # It is banked and the loop continues, because a later PR may close it and
+      # already-done outranks in-flight.
+      declares_closing "$1" "$WIP_CLOSES" "$WIP_BODY" || { note_in_flight_pr "$1"; continue; }
       case "$WIP_LINKAGE" in
         linked) WIP_EVIDENCE="GitHub records it as closing this issue" ;;
         *)      WIP_EVIDENCE="its description declares it closes this issue" ;;
@@ -439,26 +552,77 @@ WIPLINE
         MERGED) BLOCKING_PR="PR #$WIP_PR is already merged and $WIP_EVIDENCE ($WIP_URL, branch \`$WIP_HEAD\`)" ;;
         *)      continue ;;
       esac
+      WIP_SIGNAL="already-done"
       WIP_STATUS="blocked"
       return 0
     done
+
+    # Reaching here means nothing declares this issue DONE — the closing path
+    # above returns the moment anything does. So the in-flight signals are read
+    # second, and only ever reported when already-done did not fire.
+    if [ -n "$WIP_FLIGHT_PR" ]; then
+      BLOCKING_PR="$WIP_FLIGHT_PR"
+      WIP_SIGNAL="in-flight-pr"; WIP_STATUS="blocked"
+      return 0
+    fi
+
+    # The branch signal is asked last because it costs a second API call and is
+    # the weakest evidence of the three — a branch is somebody starting, not
+    # somebody declaring anything. It is still the only signal that fires before
+    # a PR exists at all, which is the earliest the runner can see work begin.
+    branch_named_for_issue "$1"
+    WIP_BRANCH_RC=$?
+    if [ "$WIP_BRANCH_RC" = 2 ]; then
+      # A check that could only half run reports `unknown`, never `clear`: the
+      # PR signals passing is not evidence of anything when the third query
+      # never answered. `unknown` still drafts, and still says so out loud.
+      WIP_STATUS="unknown"
+      WIP_UNKNOWN_REASON="branch listing query failed"
+      return 0
+    fi
+    [ "$WIP_BRANCH_RC" = 0 ] || return 0
+    BLOCKING_PR="branch \`$WIP_BRANCH\` on origin is named for this issue (\`*/$1-*\`), so work on it is already cut"
+    WIP_SIGNAL="in-flight-branch"; WIP_STATUS="blocked"
     return 0
   }
 
   # A skip is never silent (epic 09 invariant): the evidence goes on the issue
-  # naming the specific PR, the label comes off so the next poll cannot spin on
-  # it, and it is logged. A skip is also NOT a failure — the runner did the
-  # right thing — so FAILED is untouched and the run still exits 0.
-  skip_issue() { # $1 = issue, $2 = stage, $3 = evidence, $4 = worktree (opt), $5 = branch (opt)
-    log "SKIP #$1 ($2): already addressed or in flight — $3"
-    "$GH_BIN" issue comment "$1" --body "Unattended intake skipped this issue: $3
+  # naming the specific PR or branch, the label comes off so the next poll
+  # cannot spin on it, and it is logged. A skip is also NOT a failure — the
+  # runner did the right thing — so FAILED is untouched and the run still
+  # exits 0.
+  #
+  # WHICH signal fired is stated, not implied (epic 09 item 7), because the two
+  # answers a reader needs are opposites and the evidence sentence alone does
+  # not distinguish them: already done means CLOSE this issue, in flight means
+  # LEAVE IT OPEN and wait. A comment that only says "skipped" invites the wrong
+  # one, and the wrong one on an in-flight epic loses the issue.
+  skip_issue() { # $1 = issue, $2 = stage, $3 = signal, $4 = evidence, $5 = worktree (opt), $6 = branch (opt)
+    case "$3" in
+      already-done)
+        SKIP_VERDICT="already **done**"
+        SKIP_SUBJECT="pull request"
+        SKIP_REMEDY="If that pull request does resolve this issue, **close this issue** — it is finished. If it does not, its closing link or wording is wrong; correct that and re-apply the label." ;;
+      in-flight-pr)
+        SKIP_VERDICT="already **in flight**"
+        SKIP_SUBJECT="pull request"
+        SKIP_REMEDY="That pull request declares it is part of this issue's work rather than the end of it, which is what a multi-item epic's work-item PRs say. **Do not close this issue** — wait for the epic to finish, then re-apply the label only if something is genuinely left to draft." ;;
+      *)
+        SKIP_VERDICT="already **in flight**"
+        SKIP_SUBJECT="branch"
+        SKIP_REMEDY="A branch named for this issue is already cut, so somebody has started. **Do not close this issue** — wait for that work to land. If that branch is abandoned, delete it on \`origin\` and re-apply the label." ;;
+    esac
+    log "SKIP #$1 ($2): already addressed or in flight — $4 [signal: $3]"
+    "$GH_BIN" issue comment "$1" --body "Unattended intake skipped this issue: $4
 
-  Drafting a proposal here would duplicate work that is already merged or already in flight, so nothing was drafted. Checked at: $2.
+  Signal: the work is $SKIP_VERDICT. Drafting a proposal here would duplicate work that is already merged or already in flight, so nothing was drafted. Checked at: $2.
 
-  The \`$LABEL\` label has been removed so this does not retry automatically. Re-applying it produces this same skip while that pull request stands — so if that pull request does not in fact resolve this issue, correct its closing link or draft this one attended rather than relabelling it." >/dev/null 2>&1 || true
+  $SKIP_REMEDY
+
+  The \`$LABEL\` label has been removed so this does not retry automatically. Re-applying it produces this same skip while that $SKIP_SUBJECT stands." >/dev/null 2>&1 || true
     "$GH_BIN" issue edit "$1" --remove-label "$LABEL" >/dev/null 2>&1 || true
-    [ -n "${4:-}" ] && "$GIT_BIN" worktree remove --force "$4" 2>/dev/null || true
-    [ -n "${5:-}" ] && "$GIT_BIN" branch -D "$5" 2>/dev/null || true
+    [ -n "${5:-}" ] && "$GIT_BIN" worktree remove --force "$5" 2>/dev/null || true
+    [ -n "${6:-}" ] && "$GIT_BIN" branch -D "$6" 2>/dev/null || true
   }
 
 
@@ -472,17 +636,17 @@ WIPLINE
     case "$WIP_STATUS" in
       blocked)
         if [ "$DRY_RUN" = yes ]; then
-          log "DRY-RUN: #$N classified SKIP — $BLOCKING_PR"
+          log "DRY-RUN: #$N classified SKIP — $BLOCKING_PR [signal: $WIP_SIGNAL]"
         else
-          skip_issue "$N" "selection" "$BLOCKING_PR"
+          skip_issue "$N" "selection" "$WIP_SIGNAL" "$BLOCKING_PR"
         fi
         continue
         ;;
       unknown)
-        log "WARN #$N: work-in-progress check could not run (timeline query failed) — drafting unchecked"
+        log "WARN #$N: work-in-progress check could not run ($WIP_UNKNOWN_REASON) — drafting unchecked"
         ;;
       *)
-        [ "$DRY_RUN" = yes ] && log "DRY-RUN: #$N classified DRAFT — no open or merged non-runner PR declares that it closes it"
+        [ "$DRY_RUN" = yes ] && log "DRY-RUN: #$N classified DRAFT — no open or merged non-runner PR closes it or declares itself part of it, and no branch on origin is named for it"
         ;;
     esac
 
@@ -614,10 +778,10 @@ WIPLINE
     # PR — nothing half-built, which is the same contract fail_issue keeps.
     check_work_in_progress "$N"
     if [ "$WIP_STATUS" = blocked ]; then
-      skip_issue "$N" "pre-PR re-check" "$BLOCKING_PR" "$WT" "$BRANCH"
+      skip_issue "$N" "pre-PR re-check" "$WIP_SIGNAL" "$BLOCKING_PR" "$WT" "$BRANCH"
       continue
     fi
-    [ "$WIP_STATUS" = unknown ] && log "WARN #$N: pre-PR work-in-progress re-check could not run — publishing unchecked"
+    [ "$WIP_STATUS" = unknown ] && log "WARN #$N: pre-PR work-in-progress re-check could not run ($WIP_UNKNOWN_REASON) — publishing unchecked"
 
     # ------------------------------------------------------- the recommendation
     # AFTER the pre-PR re-check above, deliberately: a skipped issue is never

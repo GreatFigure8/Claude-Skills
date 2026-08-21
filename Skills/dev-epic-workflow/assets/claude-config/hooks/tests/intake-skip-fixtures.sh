@@ -171,9 +171,42 @@ case "${1:-}" in
       edit)    : ;;
     esac ;;
   api)
-    # repos/<owner>/<name>/issues/<n>/timeline?per_page=100
-    P=""
-    for A in "$@"; do case "$A" in */issues/*/timeline*) P="$A" ;; esac; done
+    # Two api paths are modelled, and NOTHING else:
+    #   repos/<owner>/<name>/issues/<n>/timeline?per_page=100   (item 3)
+    #   repos/<owner>/<name>/branches?per_page=100              (item 7)
+    P=""; BR=""
+    for A in "$@"; do
+      case "$A" in
+        */issues/*/timeline*) P="$A" ;;
+        */branches*)          BR="$A" ;;
+      esac
+    done
+    if [ -n "$BR" ]; then
+      # Pin the exact query, the way `pr view` pins its field set below: if the
+      # runner ever asks for something else, answering a bare name list would
+      # hand it "no branches" — i.e. DRAFT — for every case in this file.
+      case "$FLAT" in
+        *"--paginate "*) ;;
+        *) printf 'gh STUB UNANSWERED (branch query is not paginated): %s\n' "$FLAT" >> "$CASE/calls.log"
+           echo 'stub does not model this branch query' >&2; exit 1 ;;
+      esac
+      case "$FLAT" in
+        *"-q .[].name "*) ;;
+        *) printf 'gh STUB UNANSWERED (branch query field changed): %s\n' "$FLAT" >> "$CASE/calls.log"
+           echo 'stub does not model this branch query' >&2; exit 1 ;;
+      esac
+      [ -f "$CASE/branch-fail" ] && { echo '{"message":"Bad credentials"}'; exit 1; }
+      BF="$CASE/branches"
+      [ "$PHASE" = late ] && [ -f "$CASE/late-branches" ] && BF="$CASE/late-branches"
+      # An ABSENT branch list is a harness bug, not "this repo has no branches".
+      # mkcase creates the file empty, so absence means a case was built by hand
+      # and forgot it — and answering an empty list would DRAFT, silently.
+      [ -f "$BF" ] || {
+        printf 'gh STUB UNANSWERED (branch list not modelled): %s\n' "$FLAT" >> "$CASE/calls.log"
+        echo 'stub cannot answer this api call' >&2; exit 1; }
+      cat "$BF"
+      exit 0
+    fi
     # A stub that cannot answer a query does not fail, it silently degrades —
     # and here the degraded answer is item 3's `unknown` path, which DRAFTS.
     # Refuse audibly instead. See "STUB UNANSWERED" at the end of the suite.
@@ -283,6 +316,9 @@ mkcase() { # $1 = case name -> case dir on stdout
   mkdir -p "$D/repo/.git" "$D/worktrees" "$D/home" "$D/timeline" "$D/pr" \
            "$D/late-timeline" "$D/late-pr"
   : > "$D/calls.log"; : > "$D/comments.log"
+  # Every case models its branch list, even when the list is empty — see
+  # "branch list not modelled" in the gh stub for why absence is a failure.
+  : > "$D/branches"
   printf '%s\n' "$D/repo" > "$D/repos"
   printf 'CLAUDE_CODE_OAUTH_TOKEN=fixture-token-not-real\n' > "$D/env"
   chmod 600 "$D/env"
@@ -324,6 +360,21 @@ late_pr() { # same, for the post-draft phase
   sandboxed "$1"
   printf '%s %s https://example.invalid/pull/%s ,%s,\n%s\n' \
     "$3" "$4" "$2" "${5:-}" "${6:-}" > "$1/late-pr/$2"
+}
+
+# The branch heads on origin, as `gh api .../branches -q .[].name` returns them.
+# Written explicitly at every call site that needs one, for the same reason the
+# two linkage inputs above are: there is no "has a branch by default".
+branches() { # $1 = case dir, rest = branch names
+  D="$1"; shift; sandboxed "$D"
+  : > "$D/branches"
+  for B in "$@"; do printf '%s\n' "$B" >> "$D/branches"; done
+}
+
+late_branches() { # same, as origin looks AFTER the drafter has run
+  D="$1"; shift; sandboxed "$D"
+  : > "$D/late-branches"
+  for B in "$@"; do printf '%s\n' "$B" >> "$D/late-branches"; done
 }
 
 SCRIPT_UNDER_TEST="$SCRIPT"      # case K swaps in the open-PR-only mutant
@@ -384,6 +435,17 @@ check "A: the comment does not advise a relabelling loop" "yes" \
       "$(yesno grep -q 'Re-applying it produces this same skip' "$D/comments.log")"
 check "A: it is in the runner log too (never silent)" "yes" \
       "$(yesno grep -q 'SKIP #757 (selection): already addressed or in flight' "$D/stdout.log")"
+# Item 7: WHICH signal fired, and therefore which remedy. #757 was genuinely
+# finished by #758, so the answer a reader needs is "close it" — the opposite of
+# what an in-flight skip must say. Cases S and T assert the other half.
+check "A: the log names the signal"     "yes" \
+      "$(yesno grep -q 'SKIP #757 (selection).*\[signal: already-done\]' "$D/stdout.log")"
+check "A: the comment says the work is already done" "yes" \
+      "$(yesno grep -q 'Signal: the work is already \*\*done\*\*' "$D/comments.log")"
+check "A: and tells the reader to CLOSE the issue" "yes" \
+      "$(yesno grep -q 'close this issue' "$D/comments.log")"
+check "A: it does not tell the reader to wait"     "no" \
+      "$(yesno grep -q 'Do not close this issue' "$D/comments.log")"
 check "A: no worktree was created"      "no"  "$(yesno called "$D" '^git worktree add')"
 check "A: the drafter never ran"        "no"  "$(yesno called "$D" '^claude ')"
 check "A: no PR was opened"             "no"  "$(yesno called "$D" '^gh pr create')"
@@ -467,8 +529,13 @@ RC="$(run_intake "$D" --dry-run)"
 check "F: exit code"                    "0" "$RC"
 check "F: the blocked issue is classified SKIP with its reason" "yes" \
       "$(yesno grep -q 'DRY-RUN: #810 classified SKIP — PR #812 is already merged' "$D/stdout.log")"
+check "F: and the classification names WHICH signal fired" "yes" \
+      "$(yesno grep -q 'DRY-RUN: #810 classified SKIP .*\[signal: already-done\]' "$D/stdout.log")"
+# The DRAFT reason states the rule in force. When item 7 widened the rule this
+# line had to change with it: a message still claiming only closing linkage was
+# checked would be a lie about what the runner just did.
 check "F: the clear issue is classified DRAFT with its reason"  "yes" \
-      "$(yesno grep -q 'DRY-RUN: #811 classified DRAFT — no open or merged non-runner PR declares that it closes it' "$D/stdout.log")"
+      "$(yesno grep -q 'DRY-RUN: #811 classified DRAFT — no open or merged non-runner PR closes it or declares itself part of it, and no branch on origin is named for it' "$D/stdout.log")"
 check "F: no issue comment"             "no"  "$(yesno called "$D" '^gh issue comment')"
 check "F: no label edit"                "no"  "$(yesno called "$D" '^gh issue edit')"
 check "F: no PR"                        "no"  "$(yesno called "$D" '^gh pr create')"
@@ -773,6 +840,304 @@ pr   "$D" 781 CLOSED "fix/abandoned-attempt" "780" "Closes #780."
 RC="$(run_intake "$D")"
 check "R: and still drafts on a CLOSED PR, so it is not just broken" \
       "drafted" "$(verdict_of "$D")"
+SCRIPT_UNDER_TEST="$SCRIPT"
+
+# ============================================================================
+# Cases S-Z are epic 09 item 7: the WIDENING. Item 6's narrowing above is the
+# right rule for ALREADY DONE and every one of its cases still has to hold. It
+# is blind to ALREADY IN FLIGHT, because a multi-item epic's work-item PRs say
+# `Part of #N` by design and declare no closure until the final item. Measured
+# across both repos on 2026-08-21 (n=11 open issues): LODE #811 was open with an
+# open PR, a merged PR and a branch named for it, and the runner would have
+# drafted a duplicate proposal over all three.
+# ============================================================================
+
+echo
+echo "=== S. LODE #811: 'Part of #811' on an OPEN and a MERGED PR ============"
+echo "    Neither PR closes anything — an epic's items do not, until the last"
+echo "    one. No branch is modelled here, so the Part-of signal is the ONLY"
+echo "    thing that can produce a skip."
+D="$(mkcase S)"
+set_issues "$D" 811
+refs "$D" 811 813 814
+pr   "$D" 813 MERGED "feat/811-finish-tool-settles-the-turn"      "" "Part of #811."
+pr   "$D" 814 OPEN   "feat/811-reconcile-claim-against-ledger"    "" "Part of #811"
+branches "$D" main dev docs/unrelated-work
+RC="$(run_intake "$D")"
+check "S: verdict"                      "skipped-selection" "$(verdict_of "$D")"
+check "S: exit code (a skip is not a failure)" "0" "$RC"
+check "S: the first declaring PR is named" "yes" \
+      "$(yesno grep -q "PR #813 is already merged and its description declares it is part of this issue's work" "$D/comments.log")"
+check "S: the log names the in-flight-pr signal" "yes" \
+      "$(yesno grep -q 'SKIP #811 (selection).*\[signal: in-flight-pr\]' "$D/stdout.log")"
+check "S: the comment says the work is in flight" "yes" \
+      "$(yesno grep -q 'Signal: the work is already \*\*in flight\*\*' "$D/comments.log")"
+# The whole reason the signal is named. The already-done remedy would lose the
+# epic: closing #811 with four items still to deliver throws the tracker item away.
+check "S: it tells the reader NOT to close the issue" "yes" \
+      "$(yesno grep -q 'Do not close this issue' "$D/comments.log")"
+check "S: it explains multi-item epics rather than just refusing" "yes" \
+      "$(yesno grep -q 'part of this issue.s work rather than the end of it' "$D/comments.log")"
+check "S: label removed"                "yes" \
+      "$(yesno called "$D" '^gh issue edit 811 --remove-label claude-intake')"
+check "S: nothing was drafted"          "no"  "$(yesno called "$D" '^claude ')"
+check "S: no PR was opened"             "no"  "$(yesno called "$D" '^gh pr create')"
+# Path assertions: without these a stub answering nothing looks identical.
+check "S: the branch list was NOT needed (a PR already answered)" "no" \
+      "$(yesno called "$D" 'branches?per_page=100')"
+check "S: the check did not fall back to unknown" "no" \
+      "$(yesno grep -q 'WARN #811: work-in-progress check could not run' "$D/stdout.log")"
+
+echo
+echo "=== S2. claude-skills #39: five merged 'Part of #39' PRs, epic 09 ======"
+echo "    This epic's own issue. Every item's PR says 'Part of #39' and none"
+echo "    says Closes, so under item 6's rule alone #39 reads as draftable"
+echo "    while five of its items are merged and two are in flight."
+D="$(mkcase S2)"
+set_issues "$D" 39
+refs "$D" 39 47 51 52 53 55 56
+pr   "$D" 47 MERGED "docs/approve-epic-08" "" \
+     "Epic 08 is closed on its NO-GO verdict. Its remediations are re-filed as #39."
+pr   "$D" 51 MERGED "docs/approve-epic-09"                "" "Part of #39."
+pr   "$D" 52 MERGED "fix/intake-skip-addressed-issues"    "" "Part of #39."
+pr   "$D" 53 MERGED "feat/intake-nonapproval-outcomes"    "" "Part of #39."
+pr   "$D" 55 MERGED "fix/intake-header-from-config"       "" "Part of #39."
+pr   "$D" 56 MERGED "fix/intake-reference-narrowing"      "" "Part of #39."
+branches "$D" main
+RC="$(run_intake "$D")"
+check "S2: verdict"                     "skipped-selection" "$(verdict_of "$D")"
+# #47 comes first in the timeline and only MENTIONS #39 — under item 6's rule it
+# is a passing mention and must stay one. The skip has to come from #51.
+check "S2: the passing mention in #47 is not what blocked it" "no" \
+      "$(yesno grep -q 'PR #47' "$D/comments.log")"
+check "S2: the first Part-of PR is what blocked it" "yes" \
+      "$(yesno grep -q 'PR #51 is already merged' "$D/comments.log")"
+check "S2: reported as in flight, not as done" "yes" \
+      "$(yesno grep -q 'SKIP #39 (selection).*\[signal: in-flight-pr\]' "$D/stdout.log")"
+
+echo
+echo "=== T. the BRANCH signal alone: no PR exists yet ======================="
+echo "    The earliest moment work is visible. Nothing references the issue at"
+echo "    all, so every PR signal is silent and the branch is the only evidence."
+D="$(mkcase T)"
+set_issues "$D" 811
+refs "$D" 811                                   # no PR references it at all
+branches "$D" main dev \
+         feat/8111-a-longer-number \
+         feat/1811-a-longer-prefix \
+         docs/diagram-mcp-811 \
+         feat/811-reconcile-claim-against-ledger
+RC="$(run_intake "$D")"
+check "T: verdict"                      "skipped-selection" "$(verdict_of "$D")"
+check "T: exit code"                    "0" "$RC"
+check "T: the branch is named as the evidence" "yes" \
+      "$(yesno grep -q 'branch .feat/811-reconcile-claim-against-ledger. on origin is named for this issue' "$D/comments.log")"
+check "T: the log names the in-flight-branch signal" "yes" \
+      "$(yesno grep -q 'SKIP #811 (selection).*\[signal: in-flight-branch\]' "$D/stdout.log")"
+check "T: the remedy is to wait, not to close" "yes" \
+      "$(yesno grep -q 'Do not close this issue' "$D/comments.log")"
+check "T: the remedy covers an abandoned branch" "yes" \
+      "$(yesno grep -q 'If that branch is abandoned, delete it on .origin.' "$D/comments.log")"
+check "T: the branch list WAS actually queried" "yes" \
+      "$(yesno called "$D" 'repos/fixture/repo/branches?per_page=100')"
+check "T: nothing was drafted"          "no"  "$(yesno called "$D" '^claude ')"
+
+echo
+echo "=== T2. branch near-misses do NOT block ================================"
+echo "    Same list as T minus the real one: a longer number either side of the"
+echo "    issue, and the number at the END of a name with no trailing dash."
+D="$(mkcase T2)"
+set_issues "$D" 811
+refs "$D" 811
+branches "$D" main dev \
+         feat/8111-a-longer-number \
+         feat/1811-a-longer-prefix \
+         docs/diagram-mcp-811 \
+         release/811 \
+         intake/proposed-811-something-the-runner-cut-itself
+RC="$(run_intake "$D")"
+check "T2: verdict — none of these is work in flight" "drafted" "$(verdict_of "$D")"
+check "T2: no skip comment"             "no" \
+      "$(yesno grep -q 'skipped this issue' "$D/comments.log")"
+# The runner's own proposal branch is excluded by the SAME constant the PR path
+# uses, so a re-applied label cannot make the runner block on its own branch.
+check "T2: the runner's own branch did not block it" "no" \
+      "$(yesno grep -q 'intake/proposed-811' "$D/comments.log")"
+
+echo
+echo "=== U. already-done OUTRANKS in-flight, whatever the timeline order ===="
+echo "    LODE #766: earlier PRs are only part of it, a later one closes it."
+echo "    The remedies are opposites, so reporting the first match would tell a"
+echo "    human to wait for work that has already landed."
+D="$(mkcase U)"
+set_issues "$D" 766
+refs "$D" 766 800 806 808                       # in timeline order
+pr   "$D" 800 MERGED "feat/766-first-slice"  "" "Part of #766."
+pr   "$D" 806 OPEN   "feat/766-second-slice" "" "Part of #766."
+pr   "$D" 808 MERGED "feat/766-last-slice"   "" "Closes #766."
+branches "$D" main dev
+RC="$(run_intake "$D")"
+check "U: verdict"                      "skipped-selection" "$(verdict_of "$D")"
+check "U: the CLOSING PR is what is reported" "yes" \
+      "$(yesno grep -q 'PR #808 is already merged and its description declares it closes this issue' "$D/comments.log")"
+check "U: the earlier Part-of PRs are not"    "no" \
+      "$(yesno grep -q 'PR #800' "$D/comments.log")"
+check "U: reported as already-done"     "yes" \
+      "$(yesno grep -q 'SKIP #766 (selection).*\[signal: already-done\]' "$D/stdout.log")"
+check "U: the reader is told to close the issue" "yes" \
+      "$(yesno grep -q 'close this issue' "$D/comments.log")"
+check "U: exactly one signal is reported, not two" "1" \
+      "$(grep -c 'Signal: the work is' "$D/comments.log" | tr -d ' ')"
+
+echo
+echo "=== V. item 6's flips are NOT undone ==================================="
+echo "    PR #55 mentions #54 in prose and carries 'Part of #39' — one PR, two"
+echo "    issues, opposite verdicts. #54 is a passing mention and must stay"
+echo "    draftable; #39 is the epic that PR is an item of and must skip."
+PR55_BODY='## Work item
+
+Epic: L1 preconditions — `docs/epics/09-l1-preconditions/plan.md`
+Item: 2 — header metadata read from repo config
+
+## Deliberately not in scope
+
+- `session-start-fixtures.sh` fails 2/125 on this machine (#54). Pre-existing,
+  environment-dependent, and not caused by this change — left open.
+
+Part of #39.'
+D="$(mkcase V)"
+set_issues "$D" 54 39
+refs "$D" 54 55
+refs "$D" 39 55
+pr   "$D" 55 MERGED "fix/intake-header-from-config" "" "$PR55_BODY"
+branches "$D" main
+RC="$(run_intake "$D")"
+check "V: #54 was NOT skipped (a mention is still not a claim)" "no" \
+      "$(yesno grep -q 'SKIP #54' "$D/stdout.log")"
+check "V: #54 was drafted"              "yes" "$(yesno called "$D" 'origin intake/proposed-54')"
+check "V: #39 WAS skipped, by the same PR body" "yes" \
+      "$(yesno grep -q 'SKIP #39' "$D/stdout.log")"
+check "V: exactly one PR was opened"    "1" \
+      "$(grep -c '^gh pr create' "$D/calls.log" | tr -d ' ')"
+check "V: the branch list WAS queried for the drafted issue" "yes" \
+      "$(yesno called "$D" 'repos/fixture/repo/branches?per_page=100')"
+check "V: no unknown fallback"          "no" \
+      "$(yesno grep -q 'could not run' "$D/stdout.log")"
+
+echo
+echo "=== W. the Part-of regex itself, replayed by real grep ================="
+echo "    (mirrors case Q for the other keyword; pins the pattern and both"
+echo "     number guards to the constant in the script)"
+check "W: the regex is defined once in the script" "1" \
+      "$(grep -c "^PART_OF_RE='" "$SCRIPT" | tr -d ' ')"
+check "W: the branch-list query is defined once too" "1" \
+      "$(grep -c "^BRANCH_LIST_JQ='" "$SCRIPT" | tr -d ' ')"
+check "W: the check appends the issue number and a non-digit guard" "yes" \
+      "$(yesno grep -qF 'grep -Eiq "${PART_OF_RE}$1([^0-9]|\$)"' "$SCRIPT")"
+PORE="$(sed -n "s/^PART_OF_RE='\(.*\)'$/\1/p" "$SCRIPT")"
+po() { # $1 = body, $2 = issue -> match|no
+  if printf '%s\n' "$1" | grep -Eiq "${PORE}$2${RE_TAIL}"; then printf 'match'; else printf 'no'; fi
+}
+check "W: Part of #39."        "match" "$(po 'Part of #39.' 39)"
+check "W: Part of #39"         "match" "$(po 'Part of #39' 39)"
+check "W: part of #39"         "match" "$(po 'part of #39' 39)"
+check "W: PART OF #39"         "match" "$(po 'PART OF #39' 39)"
+check "W: Part of: #39"        "match" "$(po 'Part of: #39' 39)"
+check "W: Part  of  #39"       "match" "$(po 'Part  of  #39' 39)"
+check "W: on a later line of a long body" "match" \
+      "$(po '## Summary
+
+Some prose that mentions nothing at all.
+
+Part of #39' 39)"
+check "W: Part of #390 (longer number)"  "no" "$(po 'Part of #390' 39)"
+check "W: Part of #3 (shorter number)"   "no" "$(po 'Part of #3' 39)"
+check "W: apart of #39 (keyword inside a word)" "no" "$(po 'apart of #39' 39)"
+check "W: Parts of #39"        "no"    "$(po 'Parts of #39' 39)"
+check "W: See #39"             "no"    "$(po 'See #39' 39)"
+check "W: an empty body"       "no"    "$(po '' 39)"
+# The two signals must not read each other's evidence, or naming which one fired
+# would be arbitrary. Q already asserts the closing regex ignores 'Part of'.
+check "W: Closes #39 is NOT a Part-of declaration" "no" "$(po 'Closes #39' 39)"
+check "W: Part of #39 is NOT a closing declaration" "no" "$(kw 'Part of #39' 39)"
+# Deliberate and documented: the signal fails SAFE. A body arguing an issue is
+# NOT part of the work still blocks, and the skip comment says wait — cheap and
+# reversible, where the alternative is drafting over live work.
+check "W: 'not part of #39' matches too (fails safe)" "match" \
+      "$(po 'This is deliberately not part of #39.' 39)"
+
+echo
+echo "=== X. the branch glob cannot drift from the runner's own prefix ======="
+echo "    (mirrors case J: one constant builds the proposal branch and the same"
+echo "     constant excludes it from every signal)"
+check "X: the branch check excludes the runner's own prefix" "yes" \
+      "$(yesno grep -qF 'case "$WIP_BR" in "$PROPOSAL_BRANCH_PREFIX"*) continue ;; esac' "$SCRIPT")"
+check "X: it matches on */<issue>- and nothing looser" "yes" \
+      "$(yesno grep -qF 'case "$WIP_BR" in */"$1"-*) WIP_BRANCH="$WIP_BR"; return 0 ;; esac' "$SCRIPT")"
+check "X: no literal intake/proposed- in the branch helper" "0" \
+      "$(sed -n '/branch_named_for_issue() {/,/^  }$/p' "$SCRIPT" | grep -c 'intake/proposed-' | tr -d ' ')"
+
+echo
+echo "=== Y. mutant: without the branch gate, case T drafts =================="
+echo "    (the branch signal is the only evidence in case T, so deleting the"
+echo "     one line that turns a named branch into a block must un-skip it —"
+echo "     which is what proves T is testing the branch and nothing incidental)"
+MUTANT3="$SANDBOX/unattended-intake.no-branch-signal.sh"; sandboxed "$MUTANT3"
+sed -e '/^    WIP_SIGNAL="in-flight-branch"; WIP_STATUS="blocked"$/d' "$SCRIPT" > "$MUTANT3"
+chmod +x "$MUTANT3"
+cmp -s "$SCRIPT" "$MUTANT3" && {
+  echo "ERROR: the no-branch-signal mutant is identical to the script — the" >&2
+  echo "       branch gate moved, so case Y proves nothing. Fix the sed." >&2
+  exit 1
+}
+/bin/bash -n "$MUTANT3" || { echo "ERROR: mutant does not parse" >&2; exit 1; }
+SCRIPT_UNDER_TEST="$MUTANT3"
+D="$(mkcase Y)"
+set_issues "$D" 811
+refs "$D" 811
+branches "$D" main dev feat/811-reconcile-claim-against-ledger
+RC="$(run_intake "$D")"
+check "Y: the no-branch-signal mutant drafts over the branch" "drafted" "$(verdict_of "$D")"
+D="$(mkcase Y2)"
+set_issues "$D" 811
+refs "$D" 811 813
+pr   "$D" 813 MERGED "feat/811-finish-tool-settles-the-turn" "" "Part of #811."
+branches "$D" main dev feat/811-reconcile-claim-against-ledger
+RC="$(run_intake "$D")"
+check "Y: and still skips on a Part-of PR, so it is not just broken" \
+      "skipped-selection" "$(verdict_of "$D")"
+SCRIPT_UNDER_TEST="$SCRIPT"
+
+echo
+echo "=== Z. mutant: without the Part-of gate, case S drafts ================="
+echo "    (the two in-flight signals are independent — neither case passes"
+echo "     because the other signal quietly caught it)"
+MUTANT4="$SANDBOX/unattended-intake.no-part-of-signal.sh"; sandboxed "$MUTANT4"
+sed -e '/^      WIP_SIGNAL="in-flight-pr"; WIP_STATUS="blocked"$/d' "$SCRIPT" > "$MUTANT4"
+chmod +x "$MUTANT4"
+cmp -s "$SCRIPT" "$MUTANT4" && {
+  echo "ERROR: the no-part-of mutant is identical to the script — the in-flight" >&2
+  echo "       PR gate moved, so case Z proves nothing. Fix the sed." >&2
+  exit 1
+}
+/bin/bash -n "$MUTANT4" || { echo "ERROR: mutant does not parse" >&2; exit 1; }
+SCRIPT_UNDER_TEST="$MUTANT4"
+D="$(mkcase Z)"
+set_issues "$D" 811
+refs "$D" 811 813 814
+pr   "$D" 813 MERGED "feat/811-finish-tool-settles-the-turn"   "" "Part of #811."
+pr   "$D" 814 OPEN   "feat/811-reconcile-claim-against-ledger" "" "Part of #811"
+branches "$D" main dev docs/unrelated-work
+RC="$(run_intake "$D")"
+check "Z: the no-part-of mutant drafts over the epic" "drafted" "$(verdict_of "$D")"
+D="$(mkcase Z2)"
+set_issues "$D" 757
+refs "$D" 757 758
+pr   "$D" 758 MERGED "docs/757-bind-python-skills" "" "Closes #757."
+branches "$D" main
+RC="$(run_intake "$D")"
+check "Z: and still skips on closing linkage, so it is not just broken" \
+      "skipped-selection" "$(verdict_of "$D")"
 SCRIPT_UNDER_TEST="$SCRIPT"
 
 echo
