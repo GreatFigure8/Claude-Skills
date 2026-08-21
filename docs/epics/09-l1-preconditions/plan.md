@@ -1,6 +1,6 @@
 # Epic: L1 preconditions — make the machine able to receive what good drafting produces
 
-**Status:** in flight (items 1 and 3 of 5, parallel)
+**Status:** in flight (item 1 of 6)
 **Source:** GH #39 (continues epic 08, which stopped at its item 1 on a NO-GO verdict)
 **Live branch:** per-repo (`main` here, `main` for LODE)   **Integration branch:** per-repo (`main` here, `dev` for LODE)   **Pre-epic tag:** n/a — no autonomy rung is enabled by this epic
 
@@ -55,8 +55,11 @@ Verified against the repo and both trackers on 2026-08-20, not recalled:
   sensitive-path denylist, no size ceiling. Those belong to epic 08 item 2 and are **not** in
   scope here.
 - **Assumed — the drafter will honour a new outcome vocabulary as reliably as it honours the
-  current hard stops.** Unproven; item 1's fixture is what converts it from assumption to fact,
-  and item 5 re-measures it at n≥5.
+  current hard stops.** Unproven, and **it stays unproven through item 1** — corrected 2026-08-20
+  after item 1 landed. Item 1's fixtures exercise the mechanism end-to-end against a *stub*
+  drafter, which proves the plumbing carries a recommendation faithfully; whether a live model
+  returns `no-work` rather than inventing a plan is a model property no hermetic fixture can
+  establish. **Item 5's D6/V3 axis is the only thing in this epic that measures it**, at n≥5.
 - **Assumed — five genuinely under-specified briefs can be sourced without manufacturing
   artificial ones.** If real briefs are not available, item 5 says so and the verdict stays no-go
   rather than resting on synthetic evidence.
@@ -123,6 +126,10 @@ Verified against the repo and both trackers on 2026-08-20, not recalled:
 - **Rollback:** revert; the drafter returns to filling the fields itself.
 
 ### 3. Never draft work that is already done or already in flight
+- **Outcome: DONE.** PR #52, merged `96ac7c0`. Verified cold: mechanism correct on the real
+  #757 race (live `--dry-run` against LODE, 2/2 true positives), all five mandated cases are
+  passing fixtures, `--dry-run` mutated nothing across 8 runs. **One defect found in verification
+  and split out as item 6** — see there.
 - **Branch:** `fix/intake-skip-addressed-issues`
 - **Depends on:** none
 - **Scope:** Add the work-in-progress check the runner has never had. **The rule the evidence
@@ -169,6 +176,54 @@ Verified against the repo and both trackers on 2026-08-20, not recalled:
   in the script's control flow.
 - **Rollback:** revert; detection reverts to drafter goodwill, which is where it is today.
 
+### 6. Narrow "references" to closing linkage, not any cross-reference
+- **Branch:** `fix/intake-reference-narrowing`
+- **Depends on:** 3 (done) — this narrows the check item 3 added
+- **Scope:** Item 3 asks GitHub's issue timeline for any `cross-referenced` event whose source is
+  a PR. That is far broader than "this issue is being worked": **a passing mention of the issue
+  number in an unrelated PR body blocks it.** Narrow the signal to GitHub's *closing* linkage
+  (`closingIssuesReferences` / a connected-event, i.e. the PR actually declares it resolves the
+  issue) with a documented fallback for the merged case. Keep item 3's other two axes exactly as
+  they are: state must be open-or-merged, and runner-authored PRs are excluded by the
+  `intake/proposed-` branch prefix.
+- **Not in scope:** admission policy generally; any change to what a skip *does* once decided.
+- **Definition of done:** the four false positives measured below no longer skip; the #757 true
+  positive (PR #758, which declared it fixed the issue) still skips; a PR that merely names an
+  issue number in prose does not skip it; a fixture encodes the self-reference case specifically.
+- **Verification:** re-run the live `--dry-run` classification over every open issue in both
+  repos and compare against the table below — the four `SKIP`s must become `DRAFT` and LODE's two
+  true positives must stay `SKIP`.
+- **Rollback:** revert; the check returns to the broader rule, which fails safe.
+- **Why this is a separate item and not a fix to item 3:** it is a rule change, not a defect in the
+  implementation of the agreed rule. Item 3's executor found the breadth, measured it, and
+  explicitly declined to change the rule unilaterally — which is the behaviour this workflow wants.
+
+**The measurement, taken cold on 2026-08-20 after PR #52 merged.** On `claude-skills`, four of
+four open issues classify `SKIP`, all falsely:
+
+| Issue | Classified | Blocking PR | True positive? |
+|---|---|---|---|
+| #12 | SKIP | #38 `docs/close-epic-06` (merged) | No — passing mention in a close-out |
+| #15 | SKIP | #38 `docs/close-epic-06` (merged) | No — passing mention in a close-out |
+| #39 | SKIP | #47 `docs/approve-epic-08` (merged) | No — passing mention in an approval |
+| #48 | SKIP | **#52 itself** (open) | No — **self-refuting**, see below |
+| LODE #786 | SKIP | open PR | **Yes** |
+| LODE #757 | SKIP | #758 (merged) | **Yes** — the race this epic exists for |
+
+The #48 row is the sharpest evidence available: PR #52's own body contains the sentence
+*"#48 classified DRAFT — no open or merged non-runner PR references it"*, and that sentence is
+itself a cross-reference. **The PR documenting that #48 is draftable is what makes it
+undraftable.** No narrower demonstration of the defect is needed.
+
+**Severity, stated plainly:** a false positive is not a soft deferral. `skip_issue` removes the
+`claude-intake` label, so a spurious skip *retires the issue from unattended intake* until a human
+re-labels it. It fails safe against duplicated work and it is never silent — the skip comment
+warns about passing mentions in as many words — but on a repo whose close-out PRs routinely name
+every issue they touched, that is most issues. **Nothing is at risk today: no open issue currently
+carries the label.** This item must land before the label is used on this repo again — and in
+particular **before item 5**, which labels issues in order to draft them and would otherwise
+measure a drafter that never ran.
+
 ### 5. Re-measure on hard briefs, and re-verdict
 - **Branch:** `chore/l1-remeasure`
 - **Depends on:** 1, 2, 3, 4 — measuring the old drafter says nothing about the fixed one
@@ -193,22 +248,28 @@ Verified against the repo and both trackers on 2026-08-20, not recalled:
 
 ## Sequence
 
-**(1 ∥ 3) → 2 → 4 → 5**
+**(1 ∥ 3) → 2 → 4 → 6 → 5**, where **6 may run in parallel with 2 or 4**, and **6 must precede 5**.
 
 Items 1, 2 and 3 are logically independent, but **1 and 2 are not safely concurrent**: both edit
 the same `PROMPT` string at `unattended-intake.sh:303`ff — item 1 adds the outcome vocabulary,
 item 2 injects the supplied header facts — and two executors editing one heredoc in parallel is
-a merge conflict by construction. Item 3 touches the selection loop (:225-236) and a new
-pre-`gh pr create` re-check, which are disjoint from both. So **1 and 3 run in parallel, 2 follows
-1** on the same region of the file. Fixtures land in separate files under
-`hooks/tests/`, so they do not collide.
+a merge conflict by construction. Item 3 touched the selection loop and a new pre-push re-check,
+disjoint from both, so **1 and 3 ran in parallel and did land cleanly against each other's
+declared regions** — the only conflict was two adjacent insertions git could not order, which is
+the cheap kind.
 
-**4 depends on 1** for the `needs-decision` vocabulary. **5 depends on all four**, because it
-measures the fixed drafter, not the current one.
+**4 depends on 1** for the `needs-decision` vocabulary. **6 depends on 3** and touches only the
+work-in-progress helper item 3 added, so it is free to run alongside 2 or 4.
+
+**5 depends on everything, and on 6 especially.** Item 5 works by labelling issues so the runner
+drafts them; while item 6's defect stands, an issue that has ever been named in a merged PR is
+skipped and *delabelled* instead of drafted. Running item 5 first would measure a drafter that
+never ran and call the empty result evidence — the precise failure that emptied epic 08's Group C
+and cost it its verdict.
 
 The ordering principle is the same one epic 08 used and then obeyed: **the measurement gates the
-conclusion, and a no-go is allowed to end the epic.** Items 1–4 are worth landing on their own
-merits even if item 5 returns no-go again — a drafter that can say "no work here", reads its
+conclusion, and a no-go is allowed to end the epic.** Items 1–4 and 6 are worth landing on their
+own merits even if item 5 returns no-go again — a drafter that can say "no work here", reads its
 header from config, refuses duplicated work, and detects collisions is better at L0 too.
 
 ## Risks
@@ -249,6 +310,20 @@ header from config, refuses duplicated work, and detects collisions is better at
   PR #49 (global L0 override; enablement gated on ledger evidence). It is not resurrected in place.
 - **Admission policy** — labels, area allowlist, sensitive-path denylist, size ceiling. Epic 08
   item 2's scope, unchanged.
+- **`session-start-fixtures.sh` fails 2 of 125 on any machine that has unattended intake
+  configured.** Confirmed pre-existing and environment-dependent, not caused by items 1 or 3:
+  with `INTAKE_REPO_LIST=/nonexistent` the suite is **125/125 on `main`**. Two independent
+  diagnoses agree — the harness scrubs `PATH`, and `session-start-context.sh:383` calls bare
+  `grep` for its `launchctl` check, which is unresolvable under that scrubbed path, leaving a
+  stray blank line the byte-identical comparison then fails on. The fix is one line pinning
+  `INTAKE_REPO_LIST` in the harness (or resolving `grep` in the hook). **Worth filing as its own
+  issue** — a gate that fails for environmental reasons trains people to ignore it.
+- **No human override exists to say "draft it anyway".** Item 3 added a check with no bypass;
+  a `--force-issue`-style flag or a `claude-intake-force` label would give one. Admission-policy
+  shaped, so it belongs near epic 08 item 2 rather than here.
+- **`--repo` is an override, not a filter.** It forces the repo slug for *every* entry in the
+  repos list rather than restricting the run to one repo, which makes `--repo X --issue N` produce
+  confusing cross-repo output. Pre-existing; harmless in `--dry-run`; worth a docstring fix.
 - **GH #15** — fixture harnesses can escape their sandbox. Real, open, and touched by this epic's
   fixtures, but a separate defect with its own proposal already drafted (PR #25).
 - **GH #12** — branch-name cancel selectors inert under worktree dispatch (PR #26).
@@ -269,3 +344,13 @@ header from config, refuses duplicated work, and detects collisions is better at
   became "(1 ∥ 3) → 2". Item 2's scope also tightened once line 190 was read — the live branch is
   already fetched, just not on repos that override their base, which is exactly the repo where
   both header defects appeared.
+- 2026-08-20 — **items 1 and 3 dispatched in parallel**; item 3 landed first (PR #52, `96ac7c0`).
+  Verified cold rather than from the return summary: PR scope, region boundaries, and the claim
+  that `session-start-fixtures.sh`'s 2 failures were pre-existing — all three held. **Item 6 was
+  created out of that verification**: item 3's reference rule is far broader than intended, and
+  PR #52's own body demonstrates it by flipping #48 from DRAFT to SKIP. Item 6 must precede item 5.
+- 2026-08-20 — **Grounding corrected, not the item.** The plan claimed item 1's fixture would
+  convert "the drafter honours the vocabulary" from assumption to fact. It cannot: hermetic
+  fixtures stub the drafter, and whether a live model returns `no-work` instead of inventing a
+  plan is a model property. Item 1's executor flagged the overclaim in its own return summary
+  rather than letting it stand. Measuring it is item 5's job and item 5's alone.
