@@ -334,6 +334,7 @@ intake_status_open()  { :; }
 intake_status_cycle() { :; }
 intake_status_issue() { :; }
 intake_status_close() { :; }
+intake_status_signal() { :; }
 intake_status_active() { return 1; }
 # Owned by the library when it loads; initialised here because `set -u` is on
 # and the runner reads them (the queue counters) whether it loaded or not.
@@ -354,13 +355,26 @@ if [ "$DRY_RUN" = no ]; then
     log "another run holds the lock ($LOCK_DIR) — exiting"
     exit 2
   fi
-  # The lock's cleanup, and the cycle's. A cycle that dies on a signal or an
-  # early exit must leave a record that SAYS SO rather than one that looks
-  # finished; intake_status_close is idempotent, so the normal path — which
-  # closes the cycle itself — makes this a no-op. SIGKILL runs no trap at all,
-  # which is why the reader also treats a non-terminal record whose process is
-  # gone as interrupted.
-  trap 'intake_status_close interrupted "the cycle was interrupted before it finished — signal or early exit"; rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT INT TERM
+  # THE LOCK'S CLEANUP IS UNCHANGED — `rmdir` on EXIT, INT and TERM, exactly as
+  # before this item. What is new is only what gets REPORTED, and the three
+  # cases are not the same thing, so they no longer share one handler:
+  #
+  #   EXIT      — the only handler that runs exactly once at the real end. A
+  #               cycle still non-terminal here did not finish: an abnormal exit,
+  #               or an untrapped fatal signal such as SIGHUP, which kills the
+  #               shell and still runs this. intake_status_close is idempotent,
+  #               so a run that closed itself makes this a no-op.
+  #   INT/TERM  — the handler RETURNS and the runner carries on, which is what it
+  #               did before this item too. So this records that a signal arrived
+  #               and changes no state: closing here would write `interrupted`
+  #               that the next transition overwrites, leaving a false record in
+  #               between and a second CYCLE END bracket in the log.
+  #   SIGKILL   — runs nothing at all. The record stays non-terminal and the
+  #               reader infers it: a non-terminal state whose pid is gone did
+  #               not finish. That is why the record carries pid and lock.
+  trap 'intake_status_close interrupted "the cycle did not finish — abnormal exit or fatal signal; its records stop where it stopped"; rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+  trap 'intake_status_signal INT;  rmdir "$LOCK_DIR" 2>/dev/null || true' INT
+  trap 'intake_status_signal TERM; rmdir "$LOCK_DIR" 2>/dev/null || true' TERM
 fi
 
 # --------------------------------------------------------------------- repos

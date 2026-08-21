@@ -464,6 +464,26 @@ intake_status_unknown() { # $1 = why
   return 0
 }
 
+# A SIGNAL AROUND THE CYCLE, RECORDED WITHOUT CLAIMING IT ENDED ONE. The runner
+# traps INT and TERM and — exactly as it did before this item — annotates and
+# CARRIES ON rather than dying, because the handler returns. So the honest
+# record of a SIGTERM is "this happened", not "the cycle stopped": closing the
+# cycle here would write a terminal state that the next transition immediately
+# overwrote, which is two lies for the price of one (a moment of false
+# `interrupted`, then a second CYCLE END bracket in the log).
+#
+# WHAT ACTUALLY KILLS A CYCLE IS HANDLED ELSEWHERE, and by construction:
+#   - an untrapped fatal signal (SIGHUP) or any abnormal exit runs the EXIT trap,
+#     which closes a still-non-terminal cycle as `interrupted`
+#   - SIGKILL runs nothing at all, so the record stays non-terminal and the
+#     READER infers it — a non-terminal state whose pid is gone did not finish
+intake_status_signal() { # $1 = signal name
+  intake_status_active || return 0
+  intake_status_log "SIGNAL ${1:-?} received — the runner handles it as it always has; this is a note, not a state change"
+  intake_status_ledger signal "${1:-?}" "signal received while the cycle was ${INTAKE_STATUS_STATE:-unstarted}" ""
+  return 0
+}
+
 # Close the cycle. Called from the runner's own exit path AND from its trap, so
 # it must be idempotent: a record already in a terminal state is left exactly as
 # it is rather than overwritten with a second, later, less true one.
