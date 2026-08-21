@@ -989,6 +989,23 @@ _dispatch_elapsed() {
 }
 
 # --------------------------------------------------------------- the cycle
+# THE EXECUTOR'S OUTPUT GOES IN THE WORKTREE'S ADMIN DIRECTORY, NEVER IN ITS
+# WORKING TREE, and this was measured rather than reasoned about: written to
+# `$WT/.dispatch-run.log` it is an untracked file in a checkout where an
+# unattended executor is about to run `git add -A` — so the runner's own log
+# lands in the executor's commit, in the diff the denylist checks, and in the
+# pull request a human reviews. The fixture caught it as "2 file(s)" where the
+# item touched one. Same reasoning, same fix, as item 2b's provisioning log.
+_dispatch_run_log_path() { # $1 = worktree -> stdout
+  local G
+  G="$("$DISPATCH_GIT" -C "${1:-}" rev-parse --absolute-git-dir 2>/dev/null)" || G=""
+  if [ -n "$G" ] && [ -d "$G" ]; then
+    printf '%s/dispatch-executor.log' "$G"
+  else
+    printf '%s/.dispatch-executor-%s.log' "${TMPDIR:-/tmp}" "$$"
+  fi
+}
+
 _dispatch_cleanup_worktree() { # $1 = repo checkout
   [ -n "$DISPATCH_WORKTREE" ] || return 0
   # The worktree may hold environment files copied in by provisioning. Removing
@@ -1161,7 +1178,8 @@ PROVISION_REPORT_EOF
   dispatch_emit "L2: $DISPATCH_BRANCH pushed to origin at $BASEREF — the item is now marked dispatched whatever happens next"
 
   DISPATCH_ITEMS_DONE=$((DISPATCH_ITEMS_DONE + 1))
-  DISPATCH_RUN_LOG="$WT/.dispatch-run.log"
+  DISPATCH_RUN_LOG="$(_dispatch_run_log_path "$WT")"
+  : > "$DISPATCH_RUN_LOG" 2>/dev/null || true
   dispatch_record dispatching "executor running in $WT; full output at $DISPATCH_RUN_LOG"
   dispatch_emit "L2: invoking claude -p --agent work-item-executor for $DISPATCH_EPIC item $DISPATCH_ITEM (timeout ${DISPATCH_EXECUTOR_TIMEOUT}s)"
 
@@ -1218,7 +1236,7 @@ PROVISION_REPORT_EOF
     return 2
   fi
   if [ "$RC" -ne 0 ]; then
-    DISPATCH_REFUSAL="the executor exited $RC (full output at $DISPATCH_RUN_LOG, which lives in the worktree and is removed with it). The branch \`$DISPATCH_BRANCH\` is on origin and is left for a human"
+    DISPATCH_REFUSAL="the executor exited $RC (full output at $DISPATCH_RUN_LOG, which lives in the worktree's admin directory and is removed with it). The branch \`$DISPATCH_BRANCH\` is on origin and is left for a human"
     dispatch_emit "L2 FAILED: $DISPATCH_EPIC item $DISPATCH_ITEM — $DISPATCH_REFUSAL"
     dispatch_record failed "$DISPATCH_REFUSAL"
     _dispatch_cleanup_worktree "$REPO"

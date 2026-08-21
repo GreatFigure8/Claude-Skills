@@ -841,6 +841,178 @@ check "G4: ...and no worktree behind"                        "0" \
       "$(ls -A "$G4/worktrees" 2>/dev/null | grep -c . | tr -d ' ')"
 
 echo
+echo "=== H. A COMPLETED L2 CYCLE STOPS AT AN OPEN PULL REQUEST ==============="
+# THE INVARIANT THIS ITEM EXISTS TO PRESERVE, stated as a fixture rather than as
+# a promise: the cycle runs all the way through, and at the end the pull request
+# is OPEN, the issue is OPEN, and nothing is merged. Everything else in this
+# suite is a refusal; this is the one case that succeeds, which is exactly why it
+# is the one that has to be pinned.
+H="$(mkcase H)"; mk_dispatchable "$H"
+RC="$(run_intake "$H")"
+check "H: the cycle exits 0"                                 "0" "$RC"
+check "H: the item was selected from the Branch: line"       "yes" \
+      "$(yesno grep -q 'next undispatched item is 11-fixture item 1 (Do the thing) on branch feat/the-thing' "$H/intake.log")"
+check "H: the branch was pushed BEFORE the executor ran"     "yes" \
+      "$(yesno grep -q 'the item is now marked dispatched whatever happens next' "$H/intake.log")"
+check "H: the executor was invoked by name"                   "yes" \
+      "$(contains "$(cat "$H/claude-argv")" "--agent work-item-executor")"
+# ONE file, because the item touched one. The runner's own executor log lives in
+# the worktree's admin directory precisely so it cannot end up in this number.
+check "H: the diff was admitted, with its real numbers"      "yes" \
+      "$(yesno grep -q 'L2: diff admitted — 1 file(s), 3 line(s), no denylisted path' "$H/intake.log")"
+check "H: a pull request was opened"                         "1" \
+      "$(grep -c '^gh pr create' "$H/calls.log" | tr -d ' ')"
+check "H: ...against the INTEGRATION branch"                 "yes" \
+      "$(yesno grep -q '^gh pr create --repo fixture/repo --base main --head feat/the-thing' "$H/calls.log")"
+check "H: ...and the log carries its URL"                    "yes" \
+      "$(yesno grep -q 'https://example.invalid/repo/pull/777' "$H/intake.log")"
+check "H: the branch really is on origin, with the work on it" "1" \
+      "$("$REAL_GIT" --git-dir="$H/repo-origin.git" for-each-ref --format='%(refname:short)' refs/heads | grep -c '^feat/the-thing$' | tr -d ' ')"
+check "H: ...and it is AHEAD of the integration branch"      "yes" \
+      "$(yesno test "$("$REAL_GIT" --git-dir="$H/repo-origin.git" rev-parse feat/the-thing)" != "$("$REAL_GIT" --git-dir="$H/repo-origin.git" rev-parse main)")"
+
+# ---- THE HARD STOPS, asserted against the CALL STREAM of a SUCCESSFUL run.
+check "H: NOTHING WAS MERGED — no pr merge in the whole cycle" "0" \
+      "$(grep -c '^gh pr merge' "$H/calls.log" | tr -d ' ')"
+check "H: NO ISSUE WAS CLOSED"                               "0" \
+      "$(grep -c '^gh issue close' "$H/calls.log" | tr -d ' ')"
+check "H: NO ISSUE WAS EDITED — not even a label"            "0" \
+      "$(grep -c '^gh issue edit' "$H/calls.log" | tr -d ' ')"
+check "H: NO ISSUE WAS COMMENTED ON"                         "0" \
+      "$(grep -c '^gh issue comment' "$H/calls.log" | tr -d ' ')"
+check "H: NO PULL REQUEST WAS EDITED, REVIEWED OR APPROVED"  "0" \
+      "$(grep -cE '^gh pr (edit|review|ready|close)' "$H/calls.log" | tr -d ' ')"
+check "H: THE INTEGRATION BRANCH WAS NEVER PUSHED TO"        "0" \
+      "$(grep -cE '^git .* push .*(HEAD:|:)?main( |$)' "$H/calls.log" | tr -d ' ')"
+check "H: ...and origin/main is exactly where it started"    "yes" \
+      "$(yesno test "$("$REAL_GIT" --git-dir="$H/repo-origin.git" rev-parse main)" = "$("$REAL_GIT" -C "$H/repo" rev-parse main)")"
+check "H: THE PLAN WAS NOT EDITED"                           "" \
+      "$("$REAL_GIT" -C "$H/repo" status --porcelain -- docs/epics/11-fixture/plan.md)"
+check "H: ...and still reads Status: approved, not approved-by-a-machine" "approved" \
+      "$(libsh "$H" 'dispatch_plan_state "$FIXTURE_CASE_DIR/repo/docs/epics/11-fixture/plan.md"')"
+check "H: the executor's worktree was removed, credentials and all" "0" \
+      "$(ls -A "$H/worktrees" 2>/dev/null | grep -c . | tr -d ' ')"
+
+# ---- what a human reads: the pull request body.
+BODY="$(cat "$H/repo-pr-body.md" 2>/dev/null)"
+check "H: the PR says a machine opened it and nobody read the diff" "yes" \
+      "$(contains "$BODY" "Opened by an unattended L2 dispatch cycle. No human has read this diff.")"
+check "H: it carries 'Part of #90' EXACTLY once"             "1" \
+      "$(printf '%s\n' "$BODY" | grep -c 'Part of #90' | tr -d ' ')"
+check "H: and NO closing keyword — a merge here closes nothing" "0" \
+      "$(printf '%s\n' "$BODY" | grep -ciE '(clos(e|es|ed)|fix(es|ed)?|resolv(e|es|ed))[[:space:]]*:?[[:space:]]*#90' | tr -d ' ')"
+check "H: it names the epic and the item"                    "yes" \
+      "$(contains "$BODY" "Item: 1 — Do the thing")"
+check "H: it pastes the real diff numbers, not a description" "yes" \
+      "$(contains "$BODY" "**1 file(s)**, **3 line(s)** added+deleted")"
+check "H: it reports the executor's own milestone verbatim"  "yes" \
+      "$(contains "$BODY" '**`gates-passed`**')"
+check "H: it states plainly that the runner did NOT re-run the gates" "yes" \
+      "$(contains "$BODY" "Not verified by the runner, stated plainly")"
+check "H: the title marks it unattended, so a PR list shows it" "yes" \
+      "$(contains "$(cat "$H/repo-pr-title" 2>/dev/null)" "[unattended]")"
+
+# ---- the control plane: the runner reports where the orchestrator looks.
+HREC="$H/repo/docs/epics/.intake/status/dispatch-feat-the-thing.json"
+check "H: a dispatch record was written into the reserved intake tree" "yes" \
+      "$(yesno test -f "$HREC")"
+check "H: ...and it ends at pr-opened"                       "yes" \
+      "$(yesno grep -q '"state": "pr-opened"' "$HREC")"
+check "H: ...carrying the PR url"                            "yes" \
+      "$(yesno grep -q 'https://example.invalid/repo/pull/777' "$HREC")"
+check "H: ...named dispatch-*, so it cannot be read as the executor's own record" "0" \
+      "$(ls "$H/repo/docs/epics/.intake/status/" 2>/dev/null | grep -c '^feat-the-thing.json$' | tr -d ' ')"
+check "H: every transition is in the ledger"                 "yes" \
+      "$(yesno grep -q '"kind":"dispatch"' "$H/repo/docs/epics/.intake/status/ledger.jsonl")"
+check "H: ...exactly once for pr-opened"                     "1" \
+      "$(grep -c '"kind":"dispatch","state":"pr-opened"' "$H/repo/docs/epics/.intake/status/ledger.jsonl" | tr -d ' ')"
+check "H: the executor's OWN status file is in the EPIC's tree, not this one" "yes" \
+      "$(yesno test -f "$H/repo/docs/epics/11-fixture/status/feat-the-thing.json")"
+
+# ---- the second cycle does not do it again.
+printf 'OPEN feat/the-thing\n' > "$H/repo-prs"
+RC="$(run_intake "$H")"
+check "H: A SECOND CYCLE DOES NOT RE-DISPATCH THE SAME ITEM"  "1" \
+      "$(grep -c '^claude ' "$H/calls.log" | tr -d ' ')"
+check "H: ...it reports there is nothing left to dispatch"    "yes" \
+      "$(yesno grep -q 'no approved or in-flight epic has an undispatched work item' "$H/intake.log")"
+check "H: ...and opened no second pull request"               "1" \
+      "$(grep -c '^gh pr create' "$H/calls.log" | tr -d ' ')"
+
+echo
+echo "=== I. after the executor returns, the diff is checked and can REFUSE ==="
+I1="$(mkcase I1)"; mk_dispatchable "$I1"
+printf 'FILES=".github/workflows/ci.yml"\n' > "$I1/executor.conf"
+RC="$(run_intake "$I1")"
+check "I1: A DENYLISTED PATH IN THE REAL DIFF REFUSES THE PR"  "0" \
+      "$(grep -c '^gh pr create' "$I1/calls.log" | tr -d ' ')"
+check "I1: ...naming the path AND the pattern that caught it"  "yes" \
+      "$(yesno grep -q '.github/workflows/ci.yml (matched .github/\*)' "$I1/intake.log")"
+check "I1: ...and the branch is LEFT for a human, not deleted" "1" \
+      "$("$REAL_GIT" --git-dir="$I1/repo-origin.git" for-each-ref --format='%(refname:short)' refs/heads | grep -c '^feat/the-thing$' | tr -d ' ')"
+check "I1: ...with the executor's work actually on it"        "yes" \
+      "$(yesno test "$("$REAL_GIT" --git-dir="$I1/repo-origin.git" rev-parse feat/the-thing)" != "$("$REAL_GIT" --git-dir="$I1/repo-origin.git" rev-parse main)")"
+check "I1: ...and the record says refused"                    "yes" \
+      "$(yesno grep -q '"state": "refused"' "$I1/repo/docs/epics/.intake/status/dispatch-feat-the-thing.json")"
+check "I1: THE DENYLIST WAS CHECKED AGAINST THE DIFF, so the plan's prose is irrelevant" "yes" \
+      "$(yesno grep -q 'sensitive-path denylist' "$I1/intake.log")"
+I1B="$(mkcase I1B)"; mk_dispatchable "$I1B"
+printf 'FILES="install.sh"\n' > "$I1B/executor.conf"
+RC="$(run_intake "$I1B")"
+check "I1B: the floor covers install.sh too, and no config shrinks it" "yes" \
+      "$(yesno grep -q 'install.sh (matched install.sh)' "$I1B/intake.log")"
+I2="$(mkcase I2)"; mk_dispatchable "$I2"
+sed -i.bak 's/^max-diff-lines = 800/max-diff-lines = 2/' "$I2/autonomy" && rm -f "$I2/autonomy.bak"
+RC="$(run_intake "$I2")"
+check "I2: a diff over the size ceiling refuses the PR"      "0" \
+      "$(grep -c '^gh pr create' "$I2/calls.log" | tr -d ' ')"
+check "I2: ...naming the number and the ceiling"             "yes" \
+      "$(yesno grep -q 'diff changes 3 lines; the ceiling is 2' "$I2/intake.log")"
+I3="$(mkcase I3)"; mk_dispatchable "$I3"
+printf 'STATE=blocked\n' > "$I3/executor.conf"
+RC="$(run_intake "$I3")"
+check "I3: an executor that returns blocked opens NO pull request" "0" \
+      "$(grep -c '^gh pr create' "$I3/calls.log" | tr -d ' ')"
+check "I3: ...and says the epic is left alone"               "yes" \
+      "$(yesno grep -q 'the epic is left alone' "$I3/intake.log")"
+check "I3: ...and that it is NOT retried"                    "yes" \
+      "$(yesno grep -q 'this is NOT retried' "$I3/intake.log")"
+check "I3: ...recorded as blocked, not as failed"            "yes" \
+      "$(yesno grep -q '"state": "blocked"' "$I3/repo/docs/epics/.intake/status/dispatch-feat-the-thing.json")"
+RC="$(run_intake "$I3")"
+check "I3: THE NEXT CYCLE DOES NOT RETRY IT — the branch on origin says so" "1" \
+      "$(grep -c '^claude ' "$I3/calls.log" | tr -d ' ')"
+I4="$(mkcase I4)"; mk_dispatchable "$I4"
+printf 'MODE=nostatus\n' > "$I4/executor.conf"
+RC="$(run_intake "$I4")"
+check "I4: an executor that wrote NO milestone gets no pull request" "0" \
+      "$(grep -c '^gh pr create' "$I4/calls.log" | tr -d ' ')"
+check "I4: ...and the refusal names the failure it is preventing" "yes" \
+      "$(yesno grep -q "gates reported skipped, PR opened anyway" "$I4/intake.log")"
+I5="$(mkcase I5)"; mk_dispatchable "$I5"
+printf 'STATE=implementing\n' > "$I5/executor.conf"
+RC="$(run_intake "$I5")"
+check "I5: an executor that stopped short of gates-passed gets no PR" "0" \
+      "$(grep -c '^gh pr create' "$I5/calls.log" | tr -d ' ')"
+check "I5: ...naming the milestone it actually reached"      "yes" \
+      "$(yesno grep -q "last milestone was \`implementing\`" "$I5/intake.log")"
+I6="$(mkcase I6)"; mk_dispatchable "$I6"
+printf 'RC=7\n' > "$I6/executor.conf"
+RC="$(run_intake "$I6")"
+check "I6: an executor that exits nonzero gets no pull request" "0" \
+      "$(grep -c '^gh pr create' "$I6/calls.log" | tr -d ' ')"
+check "I6: ...and the cycle reports the failure honestly"    "4" "$RC"
+check "I6: ...naming the exit code"                          "yes" \
+      "$(yesno grep -q 'the executor exited 7' "$I6/intake.log")"
+I7="$(mkcase I7)"; mk_dispatchable "$I7"
+printf 'MODE=silent\n' > "$I7/executor.conf"
+RC="$(run_intake "$I7")"
+check "I7: an executor that changed nothing gets no pull request" "0" \
+      "$(grep -c '^gh pr create' "$I7/calls.log" | tr -d ' ')"
+check "I7: ...and the refusal says there is nothing to propose" "yes" \
+      "$(yesno grep -q 'wrote no status record at all' "$I7/intake.log")"
+
+echo
 echo "cases: $CASES   failures: $FAILURES"
 [ "$FAILURES" -eq 0 ] || exit 1
 exit 0
