@@ -309,6 +309,44 @@ esac
 [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || die "CLAUDE_CODE_OAUTH_TOKEN is empty in $ENV_FILE — run 'claude setup-token'" 3
 export CLAUDE_CODE_OAUTH_TOKEN
 
+# ------------------------------------- one control plane (epic 11 item 2)
+# THE RUNNER NOW REPORTS WHERE THE ORCHESTRATOR ALREADY LOOKS. Until this item
+# it reported into a flat file outside every repo — zero status.json writes,
+# zero agent logs, zero SessionStart references — so watching a cycle meant
+# knowing that file existed and `tail -f`-ing it by hand. bin/intake-status.sh
+# says where the records go and why they can never be mistaken for an epic.
+#
+# THIS CHANGES WHAT THE RUNNER REPORTS AND NOTHING IT DOES. Not one decision
+# below reads a telemetry variable; no reporting call can fail a cycle, take a
+# different branch, or add a single GitHub request.
+#
+# NO-OPS FIRST, THEN THE LIBRARY. Every entry point the runner calls is defined
+# here as a no-op and then REDEFINED by the library, so a missing, unreadable or
+# unparseable library leaves this file behaving exactly as it did before item 2
+# — with no `if` at any call site to get wrong later. The same defensive shape
+# as the autonomy library above, one step further: absence is not a flag anyone
+# has to remember to check.
+#
+# --dry-run NEVER SOURCES IT. "Report what would happen; mutate nothing,
+# anywhere" is the documented contract of that flag, and a status tree created
+# under a repo is a mutation. One condition, one reason, in one place.
+intake_status_open()  { :; }
+intake_status_cycle() { :; }
+intake_status_issue() { :; }
+intake_status_close() { :; }
+intake_status_active() { return 1; }
+# Owned by the library when it loads; initialised here because `set -u` is on
+# and the runner reads them (the queue counters) whether it loaded or not.
+INTAKE_STATUS_TOTAL=0
+INTAKE_STATUS_DONE=0
+INTAKE_STATUS_ISSUE=""
+INTAKE_STATUS_DIR=""
+INTAKE_STATUS_LIB="${INTAKE_STATUS_LIB:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/intake-status.sh}"
+if [ "$DRY_RUN" = no ] && [ -r "$INTAKE_STATUS_LIB" ]; then
+  # shellcheck disable=SC1090
+  . "$INTAKE_STATUS_LIB" 2>/dev/null || true
+fi
+
 # ------------------------------------------------------------------- locking
 # mkdir is atomic on every filesystem we care about; no flock dependency.
 if [ "$DRY_RUN" = no ]; then
@@ -316,7 +354,13 @@ if [ "$DRY_RUN" = no ]; then
     log "another run holds the lock ($LOCK_DIR) — exiting"
     exit 2
   fi
-  trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT INT TERM
+  # The lock's cleanup, and the cycle's. A cycle that dies on a signal or an
+  # early exit must leave a record that SAYS SO rather than one that looks
+  # finished; intake_status_close is idempotent, so the normal path — which
+  # closes the cycle itself — makes this a no-op. SIGKILL runs no trap at all,
+  # which is why the reader also treats a non-terminal record whose process is
+  # gone as interrupted.
+  trap 'intake_status_close interrupted "the cycle was interrupted before it finished — signal or early exit"; rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT INT TERM
 fi
 
 # --------------------------------------------------------------------- repos
@@ -841,6 +885,21 @@ AUTONOMY_LOG_EOF
     | grep -iEm1 '^docs/epics/' | cut -d/ -f1-2)
   [ -n "$EPICS_DIR" ] || EPICS_DIR="docs/epics"
 
+  # ------------------------------------- one control plane (epic 11 item 2)
+  # HERE, and not earlier: the reserved status tree lives under the repo's OWN
+  # epics directory, so it cannot be opened until that has been read from the
+  # repo rather than assumed. The previous repo's record is closed first — a
+  # cycle spans several repos, and a record left non-terminal when the process
+  # ends would read as interrupted to the next session that opened.
+  #
+  # A repo with NO autonomy configuration reports exactly the same way: L0
+  # drafting is what runs unattended today, and it is the thing that most needs
+  # watching. Reporting is not gated on a level, a config file, or a label.
+  intake_status_close finished "moved on to the next repo"
+  intake_status_open "$REPO_DIR" "$REPO_SLUG" "$EPICS_DIR" "$LOCK_DIR"
+  REPO_FAILED_ON_ENTRY="$FAILED"
+  intake_status_cycle scanning "enumerating issues labelled '$LABEL' in $REPO_SLUG"
+
   # Ensure the label exists so a first run does not fail on a missing label.
   if ! "$GH_BIN" label list --limit 200 2>/dev/null | grep -q "^${LABEL}[[:space:]]"; then
     if [ "$DRY_RUN" = yes ]; then
@@ -859,7 +918,9 @@ AUTONOMY_LOG_EOF
     else
       ISSUES="$("$GH_BIN" issue list --state open --label "$LABEL" --limit 100 \
                   --json number -q '.[].number' 2>/dev/null | grep -x "$ONLY_ISSUE" || true)"
-      [ -n "$ISSUES" ] || { log "issue #$ONLY_ISSUE is not open with label '$LABEL' here"; continue; }
+      [ -n "$ISSUES" ] || { log "issue #$ONLY_ISSUE is not open with label '$LABEL' here"
+                            intake_status_close finished "issue #$ONLY_ISSUE is not open with label '$LABEL' here"
+                            continue; }
     fi
   else
     ISSUES="$("$GH_BIN" issue list --state open --label "$LABEL" --limit 100 \
@@ -868,10 +929,23 @@ AUTONOMY_LOG_EOF
 
   if [ -z "$ISSUES" ]; then
     log "nothing labelled '$LABEL' — nothing to do"
+    intake_status_close finished "nothing labelled '$LABEL' — nothing to do"
     continue
   fi
 
   log "issues to process: $(printf '%s' "$ISSUES" | tr '\n' ' ')"
+  INTAKE_STATUS_TOTAL="$(printf '%s' "$ISSUES" | grep -c . | tr -d ' ')"
+  INTAKE_STATUS_DONE=0
+
+  # Advance the cycle past a finished issue, in ONE place, so the counts a
+  # session reads are never an issue behind and every outcome — published,
+  # skipped or failed — leaves the same shape of record. The per-issue record
+  # already carries the outcome; this is the cycle catching up to it.
+  cycle_next() { # $1 = issue number, $2 = one-line outcome
+    INTAKE_STATUS_DONE=$((INTAKE_STATUS_DONE + 1))
+    INTAKE_STATUS_ISSUE=""
+    intake_status_cycle scanning "#$1 $2 — $INTAKE_STATUS_DONE of $INTAKE_STATUS_TOTAL done"
+  }
 
   # ------------------------------------------------------------------ process
   # Every failure exits the same way: say why on the issue, drop the label so a
@@ -885,6 +959,11 @@ AUTONOMY_LOG_EOF
     [ -n "${3:-}" ] && "$GIT_BIN" worktree remove --force "$3" 2>/dev/null || true
     [ -n "${4:-}" ] && "$GIT_BIN" branch -D "$4" 2>/dev/null || true
     FAILED=1
+    # Epic 11 item 2: the record is written HERE rather than at each of the
+    # eight call sites, so "every transition appears exactly once in the ledger"
+    # is a property of the call graph and not of anyone remembering.
+    intake_status_issue "$1" "${4:-${BRANCH:-}}" failed "$2"
+    cycle_next "$1" "failed"
   }
 
   # ------------------------------------------------ work in progress check
@@ -1193,6 +1272,8 @@ WIPLINE
     "$GH_BIN" issue edit "$1" --remove-label "$LABEL" >/dev/null 2>&1 || true
     [ -n "${5:-}" ] && "$GIT_BIN" worktree remove --force "$5" 2>/dev/null || true
     [ -n "${6:-}" ] && "$GIT_BIN" branch -D "$6" 2>/dev/null || true
+    intake_status_issue "$1" "${6:-${BRANCH:-}}" skipped "$4 [signal: $3]"
+    cycle_next "$1" "skipped ($3)"
   }
 
 
@@ -1210,6 +1291,12 @@ WIPLINE
     # it as "no labels read" rather than pattern-matching a partial answer.
     case "$ISSUE_LABELS" in ,*,) ;; *) ISSUE_LABELS=",," ;; esac
     log "--- issue #$N: $TITLE"
+    # Cleared per issue so the telemetry in skip_issue/fail_issue can fall back
+    # to it: a skip at SELECTION has no branch yet, and inheriting the previous
+    # issue's would write this issue's outcome into that issue's record.
+    BRANCH=""
+    INTAKE_STATUS_ISSUE="$N"
+    intake_status_cycle scanning "checking #$N — $TITLE ($((INTAKE_STATUS_DONE + 1)) of $INTAKE_STATUS_TOTAL)"
 
     # First of two evaluations. This one is before anything at all is created,
     # so a skip here costs no worktree, no branch and no headless run.
@@ -1267,6 +1354,9 @@ WIPLINE
       fail_issue "$N" "could not create worktree $WT on $BRANCH"
       continue
     fi
+
+    intake_status_issue "$N" "$BRANCH" drafting "headless drafter running in $WT"
+    intake_status_cycle drafting "drafting #$N — $TITLE ($((INTAKE_STATUS_DONE + 1)) of $INTAKE_STATUS_TOTAL)"
 
     # Phase 0 + Phase 1 only. The prompt restates the hard stops because the
     # model is the thing being constrained, and a headless run has no one to ask.
@@ -1507,6 +1597,9 @@ $COLLISION_DETAIL
         REC_ISSUE_TAIL="**Recommendation: \`needs-decision\`** — the run found a choice a human has to make first. The plan states it with its options and leaves it unresolved. It is at \`Status: planning\` and is not approvable as it stands: decide, then re-draft." ;;
     esac
 
+    intake_status_issue "$N" "$BRANCH" publishing "pushing $BRANCH and opening the PR" "$REC"
+    intake_status_cycle publishing "#$N — publishing the proposal (recommendation $REC)"
+
     if ! "$GIT_BIN" -C "$WT" push -q -u origin "$BRANCH" 2>/dev/null; then
       fail_issue "$N" "push failed" "$WT" "$BRANCH"
       continue
@@ -1556,8 +1649,20 @@ ${REC_PR_NOTE}${COLLISION_PR_NOTE}
     "$GH_BIN" issue edit "$N" --remove-label "$LABEL" >/dev/null 2>&1 || true
 
     log "#$N -> $PR_URL (label removed)"
+    intake_status_issue "$N" "$BRANCH" pr-opened "$PR_URL" "$REC"
+    cycle_next "$N" "proposal opened at $PR_URL"
     "$GIT_BIN" worktree remove --force "$WT" 2>/dev/null || true
   done
+
+  # This repo's cycle is closed with the truth about it, before the next repo
+  # rebinds the reporter. `failed` is decided by comparing the run-wide flag
+  # against its value on entry, so one repo's failure is never reported as
+  # another's.
+  if [ "$FAILED" != "$REPO_FAILED_ON_ENTRY" ]; then
+    intake_status_close failed "$INTAKE_STATUS_DONE of $INTAKE_STATUS_TOTAL issues processed; at least one failed (see the log)"
+  else
+    intake_status_close finished "$INTAKE_STATUS_DONE of $INTAKE_STATUS_TOTAL issues processed"
+  fi
 
 done <<REPOLIST
 $(printf '%s\n' "$REPOS" | grep .)
