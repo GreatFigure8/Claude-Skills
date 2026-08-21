@@ -395,40 +395,65 @@ reported: #795 is **open** with **four merged PRs** on branches named `*/795-*`,
   to item 3. Item 6 implemented the approved rule correctly; widening what counts as "in flight"
   is a rule change, and the executor that found it was right not to make it unilaterally.
 
-### 8. A filed epic is work in flight
-- **Branch:** `fix/intake-wip-filed-epics`
-- **Depends on:** 7 (done) — this adds a fourth signal beside item 7's two and item 6's one
-- **Why this exists, found by measurement rather than reasoning.** On 2026-08-21, immediately
-  after epic 10 was filed for **GH #57**, that issue was classified live: it returns **DRAFT**.
-  #57 has a filed, approved epic at `docs/epics/10-declared-paths/plan.md` carrying
-  `**Source:** GH #57` — but the plan was committed straight to `main`, so no PR declares
-  "Part of #57" and no branch is named for it. **All three existing in-flight signals are
-  PR-shaped or branch-shaped, and a plan filed by direct commit is neither.** Every epic in this
-  repo was filed exactly that way, epic 09 included.
-- **Scope:** add a fourth block signal: a `plan.md` under the repo's epics directory whose
-  `**Source:**` names this issue and whose `**Status:**` is not `closed`. It is the most
-  authoritative of the four and the only local one — no API call, no rate limit, no timeline.
-  The skip comment names which of the now-four signals fired, per item 7's rule.
-- **The self-reference trap, for the fourth time in this epic — do not walk into it.** The
-  runner's own proposals live at `<EPICS_DIR>/proposed-<N>-<slug>/plan.md` carrying
-  `**Source:** GH #N` at `**Status:** planning`. Read naively, **every proposal the runner writes
-  would block the issue it was written for**, which is exactly the shape of the #48/PR #52 defect
-  item 6 existed to remove. Runner-authored proposal folders must be excluded by the same
-  `proposed-` convention the branch prefix already uses.
-- **Not in scope:** admission policy generally; what a skip does once decided; reading plans from
-  anywhere but the integration branch's tree.
-- **Definition of done:** GH #57 classifies **SKIP** naming epic 10; an issue whose only epic is
-  `closed` still classifies DRAFT; **an issue whose only match is the runner's own
-  `proposed-<N>` folder still classifies DRAFT** (the self-reference case, as a fixture); item 6's
-  and item 7's live verdicts are unchanged — re-run the n=13 classification and only #57 moves;
-  a mutant proves the exclusion is load-bearing.
-- **Verification:** live `--dry-run` over every open issue in both repos, diffed against the
-  post-item-7 measurement; the mutant; the full battery.
-- **Rollback:** revert; the check returns to item 7's three signals.
+### 8. Read the label the contract already mandates
+- **Branch:** `fix/intake-wip-read-the-label`
+- **Depends on:** 7 (done)
+- **THE FINDING, and it reframes items 3, 6 and 7.** `references/issue-intake.md:71-72` already
+  requires the label this check has spent four work items inferring:
+
+  | Epic moment | GitHub |
+  |---|---|
+  | Plan filed (Phase 1 approval) | label `epic:planned` |
+  | First dispatch (Phase 3) | label `epic:in-progress` (replace `epic:planned`) |
+
+  **The runner reads no label except its own `claude-intake` selection label.** Proven live on
+  2026-08-21: #39 was given `epic:in-progress` and still classified SKIP *via PR #51* — the label
+  played no part.
+- **It would have prevented the founding race outright.** Read from #757's own timeline, not
+  inferred: `epic:planned` at **19:54:21Z**, `epic:in-progress` at **19:54:26Z**, and the runner
+  selected #757 at **20:02:46Z** — **8m25s later**, and four minutes before PR #758 was even
+  opened. **This plan's Grounding recorded the race timings correctly and never asked whether a
+  simpler signal already existed.** A one-line label check would have made items 3, 6 and 7
+  unnecessary for this case.
+- **Every case items 3, 6 and 7 were built to catch also carries the label** — #757
+  (`epic:planned` + `epic:in-progress`), #786, #815 (the "Part of" case), #821 (the branch-only
+  case that was item 7's live proof). On LODE the declaration is complete: **8 of 8 open issues
+  carry `epic:planned` and 8 of 8 have filed plans.**
+- **Scope:** (a) read `epic:planned` / `epic:in-progress` from the issue's own labels — already in
+  the payload the runner fetches, so **zero extra API calls** — and block on them as the **first
+  and highest-authority signal**, short-circuiting before the timeline query entirely; (b) close
+  the discipline gap that makes the label unreliable: the contract mandates it and **nothing
+  applies or checks it**, which is why GH #39 went through six merged items unlabelled until a
+  human noticed on 2026-08-21. Labelling at Phase 1 filing and Phase 3 dispatch becomes part of
+  the orchestrator's ritual, not a documented hope.
+- **The other three signals stay, demoted to fallback, and the reason is measured.** A label is a
+  *declaration* and depends on discipline; a merged closing PR is *evidence* and does not.
+  `claude-skills` is the proof that discipline fails — 0 of 1 in-flight epics labelled, against
+  LODE's 8 of 8. Closing-linkage also still covers attended work that never becomes an epic and
+  so never earns a label. **Precedence, not replacement.**
+- **Not in scope:** admission policy generally; what a skip does once decided; Azure DevOps state
+  mapping (the same idea, a different tracker, and no ADO repo is configured).
+- **Definition of done:** a fixture replaying #757's *actual* timeline — label at 19:54:26Z,
+  selection at 20:02:46Z — SKIPs on the label and **makes no timeline query at all**, proven by
+  the harness's own query counter; the live n=13 classification returns the same verdicts with
+  skip *reasons* changing to the label wherever one exists; an issue labelled but with no PR or
+  branch SKIPs; **an issue with no label but a merged closing PR still SKIPs** (this repo's case,
+  so the fallback is proven not to have been deleted); a mutant proves the label check is
+  load-bearing; and the orchestrator ritual applies both labels, with GH #39 and #57 already
+  correct as the worked examples.
+- **Verification:** the fixtures plus the mutant; a live `--dry-run` over every open issue in both
+  repos diffed against the post-item-7 measurement — verdicts identical, reasons cheaper.
+- **Rollback:** revert; the check returns to item 7's three inferred signals, which is where it is
+  today and which works, just expensively.
+- **Why this is item 8 and not a rewrite of 3, 6 and 7:** those three are tested, correct, and
+  carry 1204 cases behind them. They are not wrong — they are compensating for an unread
+  declaration. This item reads the declaration and puts them behind it.
 
 ### 5. Re-measure on hard briefs, and re-verdict
 - **Branch:** `chore/l1-remeasure`
 - **Depends on:** 1, 2, 3, 4 — measuring the old drafter says nothing about the fixed one
+- **BLOCKED on brief sourcing — see the survey below. As of 2026-08-21 LODE has *zero* available
+  briefs: all 8 open issues carry filed epics.**
 - **Scope:** Source **at least five genuinely under-specified briefs** — observations without a
   diagnosis, unstated constraints, real open questions — and ensure they are **not overtaken by
   attended work** while the runner drafts them (item 3's check now makes overtaking visible
@@ -682,3 +707,18 @@ header from config, refuses duplicated work, and detects collisions is better at
   signal already exists and is local: a `plan.md` under `docs/epics/` carrying `Source: GH #<n>`
   whose Status is not `closed`. Not item 7's to add — it implemented the approved rule — and
   recorded here rather than lost.
+- 2026-08-21 — **item 8 re-scoped, and the finding behind it is the sharpest of the epic.** The
+  work-in-progress check has cost four work items (3, 6, 7, and item 8 as first written) inferring
+  from PR bodies, branch names, timelines and plan files a fact that
+  `references/issue-intake.md:71-72` **already requires be written on the issue as a label**. The
+  runner reads no label but its own selection label. Read from #757's timeline rather than
+  reasoned about: `epic:in-progress` was applied at **19:54:26Z** and the runner selected the issue
+  at **20:02:46Z**, **8m25s later** — so a one-line label check would have prevented the founding
+  race four minutes before the competing PR was even opened. **This plan's own Grounding verified
+  the race timings and never asked whether a cheaper signal already existed**, and the orchestrator
+  re-derived those same timings this session without checking either.
+- 2026-08-21 — **the corollary is a discipline defect in this repo, not just a code gap.** GH #39
+  carried **no labels at all** through six merged items of the epic it is the Source of, until it
+  was fixed by hand on 2026-08-21. LODE is 8 of 8 correct; `claude-skills` was 0 of 1. That is why
+  item 8 keeps items 6 and 7's signals as a fallback rather than deleting them: a label is a
+  declaration that depends on discipline, a merged closing PR is evidence that does not.
