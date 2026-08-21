@@ -148,6 +148,30 @@ Verified on 2026-08-21. Each line names how.
 - **Rollback:** revert; telemetry returns to the flat log, which is where it is today.
 
 ### 2b. A dispatched worktree can actually run the gates
+- **Outcome: DONE, with one DoD clause explicitly outstanding.** PR #64, merged `e3d5e42`.
+  Battery **1714 cases, 0 failures** (1541 + 173); runner diff exactly **+40 / −0** and **zero**
+  provisioning *actions* — it declares without acting, which is item 3's job. All three negative
+  controls hard-error rather than passing quietly.
+- **OUTSTANDING: the live LODE verification was not run, and item 2b is not fully done against its
+  own DoD until it is.** The clause requires a freshly-created LODE worktree to run
+  `bash scripts/test-both.sh` **and** `pnpm --filter web test` green with no manual step, diffed
+  against oracle 2385 / postgres 2384 / web 1166. LODE was being worked by a parallel session and
+  the dispatch forbade creating worktrees or running gates there. The mechanism is proven against a
+  **synthetic** repo of the same shape — *"matches the shape" is a weaker claim than "ran there"*,
+  in the executor's own words. **This is a prerequisite for item 3**, whose evidence base on that
+  stack is n=1. It needs a window when LODE is not being worked.
+- **Inertness proven twice, because the second proof is the one that bites.** Library level: no
+  config / other-repo config / empty section all yield a bare worktree. Runner level: shipped vs. a
+  reconstruction built by deleting exactly the 40 added lines — refusing to run if the count is not
+  40 — compared byte for byte, **then the same pair against a malformed config**, where shipped must
+  name the bad key and the reconstruction must be blind to it. The first pair alone would pass on a
+  runner that does nothing.
+- **A defect it found and fixed:** `--check` printed `REFUSED — no dispatch may proceed` for a repo
+  claimed by two sections and **exited 0**. The exit code is the half a script reads.
+- **A near-miss worth remembering.** Its first credential-leak probe appeared to show the guard
+  failing. **The fixture was wrong** — it had `git add -A`'d the `.env`, so a copy over a tracked
+  file left the tree clean. Retested correctly, the refusal fires. It nearly reported a library
+  defect that did not exist, and said so unprompted.
 - **Branch:** `feat/autonomy-worktree-provisioning`
 - **Depends on:** 1
 - **Why this exists — measured on the first LODE dispatch, 2026-08-21, not anticipated.** A fresh
@@ -299,3 +323,19 @@ is last.
   way to watch was a hand-armed `tail -f`. **The premise of the whole programme is that the user
   watches while doing other things — which requires the watching to be default, not assembled by
   hand each time.**
+- 2026-08-21 — **both item 2 and item 2b executors died silently mid-flight, and it cost 105
+  minutes.** Their `status.json` froze at `first-push`, no files were written for over an hour, and
+  the orchestrator inferred from unrelated `SUBAGENT STOP` records that they were still alive. They
+  were not; `ListAgents` showed no in-process subagents at all. **Nothing in the control plane
+  distinguishes "working quietly" from "dead".** Both were re-dispatched with a hard requirement to
+  report a milestone within ten minutes, and both resumed from their surviving pushed commits —
+  which is the one thing that worked, and is why Phase 3 step 3 says push on the first commit.
+  **This belongs to item 2's territory**: a status record that goes stale is indistinguishable from
+  one that is merely quiet, and the fix is a heartbeat or a staleness threshold, not more diligence.
+- 2026-08-21 — **item 2b verified cold and merged** (`e3d5e42`). Its resumed executor was told to
+  decide keep/finish/replace on the dead one's work and to justify the choice. It kept both the
+  847-line library and the 40-line uncommitted hunk, and defended the size by measurement rather
+  than assertion: 594 code lines against item 1's `autonomy.sh` at 587 — *the same size as its
+  sibling in the same house style*. It also gave the better reason for the uncommitted hunk than the
+  hunk's own comment did: without touching the runner, item 2b touches no code path that executes
+  today, so the DoD's "byte-identical to today" clause would have been **vacuous**.
