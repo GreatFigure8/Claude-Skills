@@ -59,6 +59,10 @@
 #   K  an open PR that is not a proposal branch is not enumerated
 #   L  a proposal on OUR OWN head branch does not collide with itself
 #   M  --dry-run never reaches the check and mutates nothing, anywhere
+#   T  a repo with NO other open proposal never downgrades anything, however
+#      little the fresh draft declares — there is nothing to rule out
+#   U  the drafter produced no plan file at all -> unknown, published loudly,
+#      and emphatically NOT a downgrade of a plan that is not there
 #   N  declared_paths() replayed over the REAL Scope prose of #25, #26, #50
 #   O  same_declared_path() boundary table
 #   P  the precision/recall measurement, replayed: the shipped rule finds
@@ -290,6 +294,10 @@ PLANPATH="$(printf '%s' "$PROMPT" \
 if [ -z "$PLANPATH" ]; then
   printf 'claude STUB UNANSWERED (no plan path in the prompt)\n' >> "$CASE/calls.log"
   exit 1
+fi
+if [ -f "$CASE/no-draft" ]; then
+  printf 'claude stub wrote no plan at all (case U)\n' >> "$CASE/calls.log"
+  exit 0
 fi
 mkdir -p "$(dirname "$PLANPATH")"
 if [ -f "$CASE/draft.md" ]; then cp "$CASE/draft.md" "$PLANPATH"; else : > "$PLANPATH"; fi
@@ -654,6 +662,12 @@ check "A: the collision section precedes the plan's first section" "yes" \
       "$(if [ "$(grep -n '^## ' "$(planfile "$D" 90)" | head -1 | cut -d: -f2- )" = '## Collision detected in admission — not approvable as it stands' ]; then echo yes; else echo no; fi)"
 check "A: the downgrade was committed on the proposal branch" "yes" \
       "$(yesno called "$D" '^git SANDBOXED-commit')"
+check "A: ONLY the proposal's own plan.md was staged" "1" \
+      "$(grep -c ' add docs/epics/proposed-90-fixture-issue-90/plan.md ' "$D/calls.log" | tr -d ' ')"
+check "A: and nothing else was ever staged"       "1" \
+      "$(grep -c '^git -C .* add ' "$D/calls.log" | tr -d ' ')"
+check "A: Status is still planning — the runner never approves" "yes" \
+      "$(yesno grep -qx '\*\*Status:\*\* planning' "$(planfile "$D" 90)")"
 check "A: the PR body names the counterpart PR"   "yes" "$(yesno inpr "$D" 'PR #77')"
 check "A: the PR body names the shared path"      "yes" "$(yesno inpr "$D" 'src/alpha.ts')"
 check "A: the PR body says admission did it, not the drafter" "yes" \
@@ -850,6 +864,41 @@ check "M: nothing was committed"                  "no"  "$(yesno called "$D" '^g
 check "M: no comment anywhere"                    ""    "$(cat "$D/comments.log")"
 check "M: no PR"                                  "no"  "$(yesno called "$D" '^gh pr create')"
 check "M: no log file was written"                "no"  "$(yesno test -f "$D/intake.log")"
+
+echo
+echo "=== T. no other open proposal: nothing to rule out, so nothing is ruled ="
+echo "    (the defect this case exists for: deciding 'declares nothing' BEFORE"
+echo "     'declares nothing against whom' downgraded every draft in a repo"
+echo "     with an empty proposal queue — measured, not imagined)"
+D="$(mkcase T)"
+set_issues "$D" 102
+cp "$PLANS/undeclared.md" "$D/draft.md"
+RC="$(run_intake "$D")"
+check "T: exit code"                              "0" "$RC"
+check "T: a plan with no declared file is still published as a plan" \
+      "plan" "$(title_rec "$D")"
+check "T: and the file is untouched"              "plan" "$(file_rec "$D" 102)"
+check "T: the proposal queue WAS enumerated (it is empty, not unasked)" "yes" \
+      "$(yesno called "$D" '^gh pr list')"
+check "T: reported as no collision, not as unknown" "yes" \
+      "$(yesno grep -q '#102: no collision' "$D/stdout.log")"
+
+echo
+echo "=== U. the drafter produced no plan file at all ========================="
+echo "    (a failed READ is not an empty declaration: a plan that is not there"
+echo "     cannot be downgraded, and pretending otherwise failed the run)"
+D="$(mkcase U)"
+set_issues "$D" 103
+: > "$D/no-draft"
+open_proposal "$D" 77 "intake/proposed-77-alpha" "$PLANS/alpha.md"
+RC="$(run_intake "$D")"
+check "U: exit code — this is not a failure"      "0" "$RC"
+check "U: it published"                           "plan" "$(title_rec "$D")"
+check "U: and said why the check could not run"   "yes" \
+      "$(yesno grep -q 'WARN #103: no readable plan at' "$D/stdout.log")"
+check "U: nothing was committed"                  "no"  "$(yesno called "$D" '^git SANDBOXED-commit')"
+check "U: the counterpart issue was not told anything" "no" \
+      "$(yesno called "$D" '^gh issue comment 77 ')"
 
 # ============================================================================
 # The extractor, exercised directly. Cases A-M prove the runner wires it up;

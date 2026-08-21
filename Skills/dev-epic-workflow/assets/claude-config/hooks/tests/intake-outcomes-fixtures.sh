@@ -152,6 +152,21 @@ case "${1:-} ${2:-}" in
       *) printf 'gh stub: pr view field set not modelled [%s]\n' "$*" >&2; exit 1 ;;
     esac
     cat "$OUT/wip-pr.txt" 2>/dev/null || true ;;
+  "pr list")
+    # The collision check's open-proposal enumeration (epic 09 item 4). Answered
+    # DELIBERATELY, and deliberately EMPTY: no case here has a second open
+    # proposal, so admission finds nothing to rule out and this suite stays
+    # about the recommendation vocabulary. Before it was answered, the runner's
+    # query hit the `*)` arm below, the check reported `unknown`, and every
+    # `plan` case here was quietly measuring a degraded path while green — the
+    # exact shape of the defect this suite's own comments warn about.
+    #
+    # The field set is pinned exactly, trailing space included.
+    case "$* " in
+      *"--json number,headRefName "*) ;;
+      *) printf 'gh stub: pr list field set not modelled [%s]\n' "$*" >&2; exit 1 ;;
+    esac
+    printf '%s' "" ;;
   "issue view")   cat "$OUT/issue-title.txt" 2>/dev/null ;;
   "issue comment")
     arg_after --body "$@" > "$OUT/issue-comment.txt" ;;
@@ -448,7 +463,7 @@ check "the branch touches ONLY the proposal folder" "${PROPOSAL}/plan.md" \
 check "the run really did call gh (pr create, exactly once)" "1" \
       "$(grep -c '^pr create' "$RUN_DIR/out/gh-calls.log" | tr -d ' ')" "no-work"
 check "no merge, no close, no review: gh calls are the known set" "" \
-      "$(grep -vE '^(repo view|label list|issue list|issue view|issue comment|issue edit|pr create|pr view|api --paginate)' \
+      "$(grep -vE '^(repo view|label list|issue list|issue view|issue comment|issue edit|pr create|pr view|pr list|api --paginate)' \
            "$RUN_DIR/out/gh-calls.log" | head -5)" "no-work"
 check "main on origin is untouched by the run" \
       "$(git_sb "$RUN_DIR/checkout" rev-parse main)" \

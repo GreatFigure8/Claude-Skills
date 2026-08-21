@@ -217,6 +217,23 @@ case "${1:-} ${2:-}" in
          exit 1 ;;
     esac ;;
   "pr view")      cat "$OUT/wip-pr.txt" 2>/dev/null || true ;;
+  "pr list")
+    # The collision check's open-proposal enumeration (epic 09 item 4). Answered
+    # DELIBERATELY, and deliberately EMPTY: none of the cases here has a second
+    # open proposal, so the collision check finds nothing to rule out and this
+    # suite stays about header facts. Answering it explicitly is the difference
+    # between "no other proposal exists" and "nobody asked" — the second is the
+    # silent degradation the `*)` arm below exists to prevent.
+    #
+    # The field set is pinned exactly, trailing space included, so a widened
+    # query does not go on being answered in the old shape.
+    case "$* " in
+      *"--json number,headRefName "*) ;;
+      *) printf '%s\n' "$*" >> "$OUT/gh-unhandled.log"
+         printf 'gh stub: pr list field set not modelled [%s]\n' "$*" >&2
+         exit 1 ;;
+    esac
+    printf '%s' "" ;;
   "pr create")
     arg_after --title "$@" > "$OUT/pr-title.txt"
     arg_after --body  "$@" > "$OUT/pr-body.txt"
@@ -696,7 +713,7 @@ check "no unexpected mutating gh call (label create)" "" \
       "$(cat "$SANDBOX"/run-*/out/gh-unexpected.log 2>/dev/null | head -3)" "I"
 check "the runner's gh calls are the known, non-merging set" "" \
       "$(cat "$SANDBOX"/run-*/out/gh-calls.log 2>/dev/null \
-         | grep -vE '^(repo view|label list|issue list|issue view|issue comment|issue edit|pr create|pr view|api --paginate)' \
+         | grep -vE '^(repo view|label list|issue list|issue view|issue comment|issue edit|pr create|pr view|pr list|api --paginate)' \
          | sort -u | head -5)" "I"
 
 # ============================================================================

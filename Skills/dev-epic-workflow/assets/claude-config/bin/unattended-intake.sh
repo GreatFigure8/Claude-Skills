@@ -403,17 +403,83 @@ same_declared_path() { # $1, $2 = normalised paths
   return 1
 }
 
+# Write the downgrade into the PROPOSAL ITSELF. The runner's in-memory REC is
+# not enough and this is not a detail: `session-start-context.sh` buckets a
+# proposal by reading `**Recommendation:**` out of the first
+# EPIC_QUEUE_HEADER_LINES lines of the plan.md on disk, so unless the FILE says
+# needs-decision the proposal keeps rendering under *awaiting approval* — where
+# it can be approved without the collision ever being registered, which is the
+# exact failure the downgrade exists to prevent.
+#
+# The header field may be absent (it reads as `plan`, and such a proposal can
+# still collide), so there are two cases: substitute the first Recommendation
+# line inside the header window, or insert one directly under Status.
+#
+# This writes inside <EPICS_DIR>/proposed-<n>-<slug>/ and nowhere else — the one
+# directory this runner may create anything in, and the same one the hard stop
+# is written in terms of.
+#   $1 = plan file
+# Returns non-zero if the rewrite did not land, and the caller treats that as a
+# failure rather than publishing a PR whose title and header disagree.
+downgrade_plan_recommendation() { # $1 = plan file
+  DPR_TMP="$1.intake-downgrade.$$"
+  if head -"$PLAN_HEADER_LINES" "$1" 2>/dev/null | grep -qiE '^[[:space:]*_]*recommendation:'; then
+    awk -v lim="$PLAN_HEADER_LINES" '
+      function bare(s) { gsub(/^[ \t*_]+/, "", s); return tolower(s) }
+      !done && NR <= lim && bare($0) ~ /^recommendation:/ {
+        print "**Recommendation:** needs-decision"; done = 1; next
+      }
+      { print }
+    ' "$1" > "$DPR_TMP" 2>/dev/null || { rm -f "$DPR_TMP"; return 1; }
+  else
+    awk -v lim="$PLAN_HEADER_LINES" '
+      function bare(s) { gsub(/^[ \t*_]+/, "", s); return tolower(s) }
+      { print }
+      !done && NR <= lim && bare($0) ~ /^status:/ {
+        print "**Recommendation:** needs-decision"; done = 1
+      }
+      END { if (!done) exit 3 }
+    ' "$1" > "$DPR_TMP" 2>/dev/null || { rm -f "$DPR_TMP"; return 1; }
+  fi
+  [ -s "$DPR_TMP" ] || { rm -f "$DPR_TMP"; return 1; }
+  mv "$DPR_TMP" "$1" 2>/dev/null || { rm -f "$DPR_TMP"; return 1; }
+  head -"$PLAN_HEADER_LINES" "$1" 2>/dev/null \
+    | grep -qiE '^[[:space:]*_]*recommendation:[[:space:]*_]*needs-decision' || return 1
+  return 0
+}
+
+# The collision goes in the plan BODY too, not only in the PR — the plan is the
+# artifact that survives, and six months from now the PR conversation is not
+# what anyone reads. It is inserted directly under the header block, before the
+# first `## ` section, because a decision buried under two hundred lines of
+# Grounding is a decision nobody makes. If the plan has no section heading at
+# all it is appended, which is never wrong, only less prominent.
+#   $1 = plan file, $2 = the markdown block to insert
+insert_plan_collision_section() {
+  IPC_TMP="$1.intake-collision.$$"
+  awk -v blockfile="$2" '
+    BEGIN { while ((getline l < blockfile) > 0) block = block l "\n" }
+    !done && /^## / { printf "%s", block; done = 1 }
+    { print }
+    END { if (!done) printf "%s", block }
+  ' "$1" > "$IPC_TMP" 2>/dev/null || { rm -f "$IPC_TMP"; return 1; }
+  [ -s "$IPC_TMP" ] || { rm -f "$IPC_TMP"; return 1; }
+  mv "$IPC_TMP" "$1" 2>/dev/null || { rm -f "$IPC_TMP"; return 1; }
+  return 0
+}
+
 check_collisions() { # $1 = issue number, $2 = the fresh draft's plan.md, $3 = its branch
   COLLISION_STATUS=clear
   COLLISION_SUMMARY=""
   COLLISION_DETAIL=""
   COLLISION_PARTNERS=""
 
-  MINE="$(declared_paths < "$2" 2>/dev/null)"
-  if [ -z "$MINE" ]; then
-    COLLISION_STATUS=undeclared
-    COLLISION_SUMMARY="this proposal declares no files or modules in any Scope block, so an overlap cannot be ruled out"
-    COLLISION_DETAIL="  - No \`**Scope:**\` block in this plan names a file or a module, so there is nothing to compare against the other open proposals. An empty declaration is not evidence of no overlap."
+  # Our own plan must be readable before anything can be said about it. If the
+  # drafter produced no file, that is a failed READ, not an empty declaration —
+  # `unknown`, published loudly, never a downgrade of a plan that is not there.
+  if [ ! -r "$2" ]; then
+    COLLISION_STATUS=unknown
+    log "WARN #$1: no readable plan at $2 — the collision check could not run"
     return 0
   fi
 
@@ -423,7 +489,12 @@ check_collisions() { # $1 = issue number, $2 = the fresh draft's plan.md, $3 = i
     return 0
   fi
 
-  COLLIDED_WITH=0
+  # WHO could this collide with, decided BEFORE what it declares. Order matters
+  # and getting it wrong is not academic: deciding `undeclared` first made a
+  # proposal with no Scope block collide with an empty world, which downgraded
+  # every draft in a repo that has no open proposals at all. There is nothing to
+  # rule out when there is nothing to rule it out against.
+  CANDIDATES=""
   while IFS=' ' read -r CPR CHEAD; do
     case "${CPR:-}" in ''|*[!0-9]*) continue ;; esac
     [ -n "${CHEAD:-}" ] || continue
@@ -432,6 +503,32 @@ check_collisions() { # $1 = issue number, $2 = the fresh draft's plan.md, $3 = i
     # and parked in the epic's Deferred list rather than guessed at.
     case "$CHEAD" in "$PROPOSAL_BRANCH_PREFIX"*) ;; *) continue ;; esac
     [ "$CHEAD" = "$3" ] && continue
+    CANDIDATES="$CANDIDATES
+$CPR $CHEAD"
+  done <<ALLOPEN
+$OPEN_PROPOSALS
+ALLOPEN
+  CANDIDATES="${CANDIDATES#
+}"
+  if [ -z "$CANDIDATES" ]; then
+    return 0                       # COLLISION_STATUS is already `clear`
+  fi
+
+  CANDIDATE_COUNT="$(printf '%s\n' "$CANDIDATES" | grep -c . )"
+  MINE="$(declared_paths < "$2" 2>/dev/null)"
+  if [ -z "$MINE" ]; then
+    # Colliding-unknown, and only now that a counterpart actually exists. An
+    # empty declaration is not evidence of no overlap — see the epic's Risks
+    # table, which chose this over passing silently.
+    COLLISION_STATUS=undeclared
+    COLLISION_SUMMARY="this proposal declares no files or modules in any Scope block, so an overlap with the $CANDIDATE_COUNT other open proposal(s) cannot be ruled out"
+    COLLISION_DETAIL="  - No \`**Scope:**\` block in this plan names a file or a module, so there was nothing to compare against the $CANDIDATE_COUNT other open proposal(s) in this repository. An empty declaration is not evidence of no overlap."
+    return 0
+  fi
+
+  COLLIDED_WITH=0
+  while IFS=' ' read -r CPR CHEAD; do
+    [ -n "${CPR:-}" ] || continue
     CREST="${CHEAD#"$PROPOSAL_BRANCH_PREFIX"}"
     CISSUE="${CREST%%-*}"
     case "$CISSUE" in ''|*[!0-9]*) CISSUE="?" ;; esac
@@ -476,7 +573,7 @@ $CPR $CISSUE $HITS"
     COLLISION_DETAIL="$COLLISION_DETAIL
   - **PR #$CPR** (the open proposal for #$CISSUE, branch \`$CHEAD\`) declares:$CLIST"
   done <<PROPOSALS
-$OPEN_PROPOSALS
+$CANDIDATES
 PROPOSALS
 
   if [ "$COLLIDED_WITH" -gt 0 ]; then
@@ -1098,6 +1195,37 @@ WIPLINE
         collided|undeclared)
           REC=needs-decision
           log "#$N: collision -> recommendation downgraded from plan to needs-decision ($COLLISION_SUMMARY)"
+          COLLISION_SECTION="$WT/.intake-collision-section.md"
+          {
+            printf '## Collision detected in admission — not approvable as it stands\n\n'
+            printf '**The `**Recommendation:**` above was downgraded from `plan` to `needs-decision`\n'
+            printf 'by the unattended intake runner, not by the drafter.** %s.\n' "$COLLISION_SUMMARY"
+            printf 'The draft below proposed a plan; admission compared what it declares it will\n'
+            printf 'touch against every other open proposal in this repository and found an overlap:\n\n'
+            printf '%s\n\n' "$COLLISION_DETAIL"
+            printf 'Deciding which proposal owns the shared files — or that they are really one\n'
+            printf 'epic, or that they must be sequenced — is the human decision this outcome\n'
+            printf 'exists to route. It is deliberately not made here: nothing was reordered,\n'
+            printf 'superseded or closed, and the counterpart proposal was annotated by a comment\n'
+            printf 'on its issue rather than rewritten.\n\n'
+            printf 'Declared files are read from `**Scope:**` blocks only and matched on path\n'
+            printf 'suffixes at component boundaries. The rule favours recall over precision, so a\n'
+            printf 'path named above may be one the counterpart only reads — read both `**Scope:**`\n'
+            printf 'blocks before concluding there is no conflict.\n\n'
+          } > "$COLLISION_SECTION" 2>/dev/null
+          if ! downgrade_plan_recommendation "$REC_FILE" \
+             || ! insert_plan_collision_section "$REC_FILE" "$COLLISION_SECTION"; then
+            rm -f "$COLLISION_SECTION" 2>/dev/null || true
+            fail_issue "$N" "collision detected but the proposal's own plan.md could not be downgraded to needs-decision — refusing to publish a PR whose title and header disagree" "$WT" "$BRANCH"
+            continue
+          fi
+          rm -f "$COLLISION_SECTION" 2>/dev/null || true
+          if ! "$GIT_BIN" -C "$WT" add "${EPICS_DIR}/proposed-${N}-${SLUG}/plan.md" >/dev/null 2>&1 \
+             || ! "$GIT_BIN" -C "$WT" commit -q -m "docs(intake): downgrade to needs-decision — collision detected in admission" >/dev/null 2>&1; then
+            fail_issue "$N" "collision detected and the plan was downgraded, but the downgrade could not be committed" "$WT" "$BRANCH"
+            continue
+          fi
+          log "#$N: plan.md downgraded to needs-decision and committed on $BRANCH"
           COLLISION_PR_NOTE="
   **Collision detected in admission — $COLLISION_SUMMARY.** This is why the recommendation above reads \`needs-decision\` and not \`plan\`: the draft itself proposed a plan, and admission downgraded it. Overlapping declarations:
 
