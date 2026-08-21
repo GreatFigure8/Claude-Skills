@@ -198,11 +198,24 @@ case "${1:-} ${2:-}" in
   "issue comment") arg_after --body "$@" >> "$OUT/issue-comments.log" ;;
   "issue edit")   : ;;
   "api "*|"api")
-    # The work-in-progress check's timeline query (epic 09 item 3). Empty by
-    # default => the check reports `clear` and drafting proceeds, which is the
-    # path every case here means to be on. Counted, so a case can prove it.
-    printf 'x' >> "$OUT/api-calls"
-    cat "$OUT/timeline-prs.txt" 2>/dev/null || true ;;
+    # The work-in-progress check's queries. Each api PATH is answered from its
+    # own file and counted separately: a catch-all that answered every api call
+    # with the timeline's answer file would have handed epic 09 item 7's branch
+    # listing a list of PR numbers and called it a branch list — answering the
+    # wrong question is the same defect as answering none (item 1's post-mortem),
+    # it just looks greener. Both default to empty, which is the `clear` path
+    # every case in this file means to be on.
+    case "$*" in
+      */issues/*/timeline*)
+        printf 'x' >> "$OUT/api-calls"                 # item 3's timeline query
+        cat "$OUT/timeline-prs.txt" 2>/dev/null || true ;;
+      */branches*)
+        printf 'x' >> "$OUT/branch-calls"              # item 7's branch listing
+        cat "$OUT/origin-branches.txt" 2>/dev/null || true ;;
+      *) printf '%s\n' "$*" >> "$OUT/gh-unhandled.log"
+         printf 'gh stub: unhandled api path [%s]\n' "$*" >&2
+         exit 1 ;;
+    esac ;;
   "pr view")      cat "$OUT/wip-pr.txt" 2>/dev/null || true ;;
   "pr create")
     arg_after --title "$@" > "$OUT/pr-title.txt"
@@ -399,6 +412,14 @@ wip_ran_clear() { # -> "2 clear" when the check ran twice and never degraded
     "$(grep -q 'could not run' "$RUN_DIR/run.out" && echo degraded || echo clear)"
 }
 
+# Same guard for the second query the check makes (epic 09 item 7): a clear
+# verdict means "no PR closes it, no PR is part of it, and no branch is named
+# for it", and the third clause is only true if the branch listing was actually
+# asked for. One call per evaluation, so twice per drafted issue.
+wip_branch_query_ran() { # -> "2" when the branch listing was asked both times
+  wc -c < "$RUN_DIR/out/branch-calls" 2>/dev/null | tr -d ' '
+}
+
 # ============================================================================
 echo "=== A. claude-skills shape: no override, GitHub default main ==========="
 echo "    (live and integration are the same branch here — and they are still"
@@ -426,6 +447,7 @@ check "the PUSHED plan header reads integration=main" "main" \
       "$(pushed_field "$RUN_DIR/repo.git" "$BRANCH" "$PROPOSAL" 'Integration branch')" "A"
 check "the PR is opened against the integration branch" "main" "$(out pr-base.txt)" "A"
 check "the WIP check ran twice and came back clear" "2 clear" "$(wip_ran_clear)" "A"
+check "…and its branch listing ran both times too" "2" "$(wip_branch_query_ran)" "A"
 check "no gh verb went unanswered" "no" "$(yesno test -s "$RUN_DIR/out/gh-unhandled.log")" "A"
 
 # ============================================================================
@@ -453,6 +475,7 @@ check "the PR is opened against dev, not main" "dev" "$(out pr-base.txt)" "B"
 check "the proposal branch was cut from dev, not from main" "yes" \
       "$(yesno git_sb "$RUN_DIR/repo.git" merge-base --is-ancestor dev "$BRANCH")" "B"
 check "the WIP check ran twice and came back clear" "2 clear" "$(wip_ran_clear)" "B"
+check "…and its branch listing ran both times too" "2" "$(wip_branch_query_ran)" "B"
 check "no gh verb went unanswered" "no" "$(yesno test -s "$RUN_DIR/out/gh-unhandled.log")" "B"
 
 # ============================================================================
