@@ -140,7 +140,18 @@ case "${1:-} ${2:-}" in
     else
       cat "$OUT/timeline-prs.txt" 2>/dev/null || true
     fi ;;
-  "pr view")      cat "$OUT/wip-pr.txt" 2>/dev/null || true ;;
+  "pr view")
+    # The work-in-progress check's PR query (epic 09 items 3 and 6). The field
+    # set is pinned EXACTLY — trailing space included, so a widened query does
+    # not match this as a prefix. A stub that cannot answer a query does not
+    # fail, it silently degrades: when item 3 landed, THIS suite's stub had no
+    # answer for the timeline query and every case in it quietly exercised the
+    # degraded `unknown` path while reporting green. Refuse instead.
+    case "$* " in
+      *"--json state,headRefName,url,closingIssuesReferences,body "*) ;;
+      *) printf 'gh stub: pr view field set not modelled [%s]\n' "$*" >&2; exit 1 ;;
+    esac
+    cat "$OUT/wip-pr.txt" 2>/dev/null || true ;;
   "issue view")   cat "$OUT/issue-title.txt" 2>/dev/null ;;
   "issue comment")
     arg_after --body "$@" > "$OUT/issue-comment.txt" ;;
@@ -536,7 +547,13 @@ run_intake_late() {
   # Seeded BEFORE the run: the first timeline query (selection) still comes back
   # empty, so the issue is drafted; the second (pre-PR) names the merged PR.
   printf '758\n' > "$RUN_DIR/out/timeline-late.txt"
-  printf 'MERGED fix/attended-758 https://github.com/fixture/repo/pull/758\n' > "$RUN_DIR/out/wip-pr.txt"
+  # The runner's own two-part PR shape: the field line (state, head branch, url,
+  # comma-fenced closingIssuesReferences) and then the description. #758's real
+  # closing-refs list is EMPTY — it is based on `dev`, not on LODE's default
+  # branch — so the keyword in the body is the only signal there is, which is
+  # exactly the fallback epic 09 item 6 documents.
+  printf 'MERGED fix/attended-758 https://github.com/fixture/repo/pull/758 ,,\nCloses #757.\n' \
+    > "$RUN_DIR/out/wip-pr.txt"
   RUN_PRESEEDED=yes
   run_intake "$1" "$2"
 }
