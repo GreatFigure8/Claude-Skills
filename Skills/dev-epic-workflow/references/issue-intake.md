@@ -74,6 +74,25 @@ being told.
 | Epic closed (Phase 5) | comment with retro summary; `Closes #<n>` on final PR closes the issue | source item → `Resolved`/`Closed`, comment with retro summary |
 | Item blocked | comment quoting the `blocked` detail from `status.json` | comment on Task; Task → `New` with the question in the comment |
 
+**The two `epic:` labels are read, not just written.** Until 2026-08-21 this table was a
+documented hope: nothing applied the labels and nothing checked them, and the unattended
+runner — the one consumer with an obvious use for them — read no label but its own
+`claude-intake` trigger. It now reads them as the **highest-authority** signal in its
+work-in-progress check, ahead of everything it infers from pull requests and branch
+names, and short-circuits on them: a labelled issue is skipped without a single GitHub
+query being made about it. So the label is now load-bearing in both directions:
+
+- **Applying it protects the epic.** An issue carrying `epic:planned` or
+  `epic:in-progress` cannot be drafted over, including the case no inferred signal can
+  see — a plan filed by direct commit to the integration branch, which leaves no PR
+  saying `Part of #<n>` and no branch named for the issue.
+- **Omitting it does not break anything, and that is the trap.** The inferred signals
+  still catch most cases, so a missing label costs API calls and silence rather than a
+  visible failure. `claude-skills` GH #39 went through six merged work items of its own
+  epic with no label at all while LODE was 8 of 8 correct. The SessionStart injection
+  now names any in-flight epic whose source issue is unlabelled, because a gap that only
+  shows up as a collision months later is not a gap anybody fixes.
+
 Keep tracker comments terse and factual — one or two lines plus a link. The narrative
 lives in the plan and the PRs.
 
@@ -306,7 +325,9 @@ that turns any of them off:
   integration branch.
 - It **never closes an issue**, and never applies `epic:planned` / `epic:in-progress`. Those
   are Phase 1-approval and Phase 3-dispatch touches; the label the run *does* manage is
-  removing its own `claude-intake` trigger.
+  removing its own `claude-intake` trigger. It **reads** the two `epic:` labels — that is
+  the work-in-progress check's first signal — and reading is the whole of its involvement:
+  the runner can never label an issue into being skipped, so it can never block itself.
 
 Approval remains exactly where it was: Jonathan reads the PR the way he reads any PR. The
 epic becomes real when he merges it **and** sets `**Status:** approved`; until that edit
