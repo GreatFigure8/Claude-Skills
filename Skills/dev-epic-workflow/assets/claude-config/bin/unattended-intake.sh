@@ -132,6 +132,44 @@ PART_OF_RE='(^|[^[:alnum:]_])part[[:space:]]+of[[:space:]]*:?[[:space:]]*#'
 #     its last fetch. One call, one field.
 BRANCH_LIST_JQ='.[].name'
 
+# ---------------------------------------------- THE DECLARATION (epic 09 item 8)
+# Signals (a), (b) and (c) above all INFER what a human already wrote down.
+# references/issue-intake.md's linking contract has required, since long before
+# any of them existed, that the tracker item be labelled when an epic is filed
+# for it:
+#
+#   Plan filed (Phase 1 approval)  ->  label `epic:planned`
+#   First dispatch (Phase 3)       ->  label `epic:in-progress` (replaces it)
+#
+# and this runner read no label but its own `claude-intake` trigger. Read from
+# LODE #757's own timeline rather than reasoned about: `epic:planned` was applied
+# at 19:54:21Z, `epic:in-progress` at 19:54:26Z, and this runner selected the
+# issue at 20:02:46Z — 8m25s later, and four minutes before the competing PR
+# #758 was opened at all. One label read would have prevented the founding race
+# before any of the three inferred signals had anything to see.
+#
+# So the label is asked FIRST and short-circuits: no timeline query, no per-PR
+# reads, no branch listing. A declaration outranks an inference.
+#
+# The other three signals are DEMOTED, never deleted, and the reason is measured
+# rather than tidy. A label is a declaration and depends on human discipline; a
+# merged closing PR is evidence and does not. This repo is the proof discipline
+# fails — GH #39 went through six merged work items of the epic it is the Source
+# of carrying no label at all, while LODE was 8 of 8 correct. Closing linkage
+# also covers attended work that never becomes an epic and so never earns a
+# label. Precedence, not replacement.
+#
+# Space-separated because it is iterated, and matched against a comma-FENCED
+# label list so `epic:planned` can never match `epic:planned-later`.
+EPIC_STATE_LABELS="${INTAKE_EPIC_LABELS:-epic:planned epic:in-progress}"
+
+# What is read back about the selected issue, in ONE call — the same call that
+# already fetched the title for the log line, so the label signal costs no extra
+# API request at selection. Same two-part shape as PR_VIEW_JQ and for the same
+# reason: the fenced single-line field comes FIRST so a title containing a
+# newline cannot corrupt it, and the title is whatever follows.
+ISSUE_VIEW_JQ='",\((((.labels // []) | map(.name)) | join(","))),"  ,(.title // "")'
+
 # How many lines of a drafted plan count as its header. The SAME window the
 # SessionStart hook uses (session-start-context.sh: EPIC_QUEUE_HEADER_LINES), so
 # the runner and the injection can never disagree about what the header said.
@@ -748,12 +786,20 @@ while IFS= read -r RENTRY; do
   # the label, a false positive does not defer an issue, it retires it from
   # unattended intake until a human relabels. See CLOSING_KEYWORD_RE.
   #
-  # THREE signals, evaluated in that order of authority (epic 09 item 7 adds the
-  # second and third; see PART_OF_RE and BRANCH_LIST_JQ):
+  # FOUR signals, evaluated in that order of authority (epic 09 item 7 adds the
+  # third and fourth, item 8 the first; see EPIC_STATE_LABELS, PART_OF_RE and
+  # BRANCH_LIST_JQ):
   #
+  #   epic-filed         the ISSUE ITSELF is labelled `epic:planned` /
+  #                      `epic:in-progress` — the declaration the linking
+  #                      contract already mandates, read instead of inferred
   #   already-done       a non-runner open-or-merged PR declares it CLOSES it
   #   in-flight-pr       a non-runner open-or-merged PR declares it is PART OF it
   #   in-flight-branch   a non-runner branch on origin is NAMED for it
+  #
+  # The first outranks the rest because it is the only one that is stated rather
+  # than deduced, and it short-circuits: when it fires, NO GitHub query is made
+  # by this check at all. The rest outrank each other for the reason below.
   #
   # Already-done outranks the other two on purpose, and not for tidiness: the
   # skip comment tells a human what to do about it, and the two answers are
@@ -763,8 +809,8 @@ while IFS= read -r RENTRY; do
   #
   # Sets WIP_STATUS to one of:
   #   clear    nothing that closes this issue, or is under way on it, blocks it
-  #   blocked  BLOCKING_PR holds the evidence, naming the specific PR or branch,
-  #            and WIP_SIGNAL says which of the three fired
+  #   blocked  BLOCKING_PR holds the evidence, naming the specific label, PR or
+  #            branch, and WIP_SIGNAL says which of the four fired
   #   unknown  a query itself failed (offline, rate limited, issue gone)
   # `unknown` proceeds to draft, loudly: a GitHub blip must not stop a runner
   # that worked yesterday, and an unchecked draft is a wasted PR, not a wrong
@@ -773,9 +819,25 @@ while IFS= read -r RENTRY; do
   WIP_STATUS=""
   WIP_SIGNAL=""
   WIP_LINKAGE=""
+  WIP_EPIC_LABEL=""
   WIP_FLIGHT_PR=""
   WIP_BRANCH=""
   WIP_UNKNOWN_REASON=""
+
+  # Does this issue DECLARE that an epic has already been filed for it — i.e.
+  # does it carry the label the linking contract mandates (epic 09 item 8)?
+  #   $1 = comma-FENCED label list of the issue (`,bug,epic:planned,`, or `,,`)
+  # Sets WIP_EPIC_LABEL to the label that matched and returns 0; returns 1 and
+  # leaves it empty otherwise. The fence is what makes `epic:planned` unable to
+  # match a label merely starting with it, exactly as the closing-refs fence
+  # stops `41` matching `410`.
+  declares_epic_filed() {
+    WIP_EPIC_LABEL=""
+    for WIP_EL in $EPIC_STATE_LABELS; do
+      case "$1" in *",$WIP_EL,"*) WIP_EPIC_LABEL="$WIP_EL"; return 0 ;; esac
+    done
+    return 1
+  }
 
   # Does this pull request DECLARE that it resolves the issue, or does it only
   # mention it? This is the whole of epic 09 item 6 (see CLOSING_KEYWORD_RE).
@@ -851,14 +913,34 @@ while IFS= read -r RENTRY; do
     return 1
   }
 
-  check_work_in_progress() { # $1 = issue number
+  check_work_in_progress() { # $1 = issue number, $2 = its comma-fenced labels
     BLOCKING_PR=""
     WIP_STATUS="clear"
     WIP_SIGNAL=""
     WIP_LINKAGE=""
+    WIP_EPIC_LABEL=""
     WIP_FLIGHT_PR=""
     WIP_BRANCH=""
     WIP_UNKNOWN_REASON=""
+
+    # SIGNAL ZERO, and it short-circuits everything below it: the issue itself
+    # says an epic has been filed for it. This is the only signal that reads a
+    # DECLARATION rather than inferring one, so it is asked first and it returns
+    # before the timeline query, the per-PR reads and the branch listing are made
+    # at all — see EPIC_STATE_LABELS for why it earns that position, and why the
+    # three inferred signals stay behind it rather than being deleted.
+    #
+    # An unreadable or unfetched label list arrives here as `,,` and simply does
+    # not fire, which drops through to item 7's three signals — today's exact
+    # behaviour. That degradation is deliberate and is the safe direction: it
+    # costs the queries this signal would have saved, and it is NOT `unknown`,
+    # because `unknown` drafts unchecked.
+    if declares_epic_filed "${2:-,,}"; then
+      BLOCKING_PR="the issue carries the \`$WIP_EPIC_LABEL\` label, which this workflow applies to an issue once an epic has been filed for it (references/issue-intake.md, the linking contract)"
+      WIP_SIGNAL="epic-filed"; WIP_STATUS="blocked"
+      return 0
+    fi
+
     if ! WIP_PRS="$("$GH_BIN" api --paginate \
           "repos/$REPO_SLUG/issues/$1/timeline?per_page=100" \
           -H "Accept: application/vnd.github+json" \
@@ -946,13 +1028,24 @@ WIPLINE
   # runner did the right thing — so FAILED is untouched and the run still
   # exits 0.
   #
-  # WHICH signal fired is stated, not implied (epic 09 item 7), because the two
+  # WHICH signal fired is stated, not implied (epic 09 item 7), because the
   # answers a reader needs are opposites and the evidence sentence alone does
   # not distinguish them: already done means CLOSE this issue, in flight means
   # LEAVE IT OPEN and wait. A comment that only says "skipped" invites the wrong
   # one, and the wrong one on an in-flight epic loses the issue.
+  #
+  # Item 8 adds a third answer with a third remedy: already PLANNED means a
+  # human filed an epic for this issue, so the epic — not this runner and not a
+  # reader of this comment — owns it from here. Its remedy is the only one that
+  # says how to make the runner draft it after all, because it is the only
+  # signal a human can be wrong about by hand: remove a label that should not
+  # have been there.
   skip_issue() { # $1 = issue, $2 = stage, $3 = signal, $4 = evidence, $5 = worktree (opt), $6 = branch (opt)
     case "$3" in
+      epic-filed)
+        SKIP_VERDICT="already **planned**"
+        SKIP_SUBJECT="label"
+        SKIP_REMEDY="That label is applied when an epic has been filed for this issue (\`epic:planned\`) or dispatched (\`epic:in-progress\`), so a plan for it already exists and a drafted proposal would compete with it. **Do not close this issue** — the epic that owns it closes it when it lands. If the label is wrong — no epic exists, or one was abandoned — remove it, then re-apply \`$LABEL\`." ;;
       already-done)
         SKIP_VERDICT="already **done**"
         SKIP_SUBJECT="pull request"
@@ -981,12 +1074,23 @@ WIPLINE
 
 
   for N in $ISSUES; do
-    TITLE="$("$GH_BIN" issue view "$N" --json title -q .title 2>/dev/null || echo '(unknown)')"
+    # ONE call, two answers, and this is why the label signal costs no extra
+    # API request at selection: the title was already being fetched here for the
+    # log line, so the labels ride along in the same request. Line 1 is the
+    # comma-fenced label list, the rest is the title (see ISSUE_VIEW_JQ).
+    ISSUE_VIEW="$("$GH_BIN" issue view "$N" --json title,labels -q "$ISSUE_VIEW_JQ" 2>/dev/null || true)"
+    ISSUE_LABELS="$(printf '%s\n' "$ISSUE_VIEW" | head -1)"
+    TITLE="$(printf '%s\n' "$ISSUE_VIEW" | tail -n +2 | head -1)"
+    [ -n "$TITLE" ] || TITLE='(unknown)'
+    # A list that is not fenced at both ends did not come from ISSUE_VIEW_JQ —
+    # the query failed, or gh answered a shape this runner does not know. Treat
+    # it as "no labels read" rather than pattern-matching a partial answer.
+    case "$ISSUE_LABELS" in ,*,) ;; *) ISSUE_LABELS=",," ;; esac
     log "--- issue #$N: $TITLE"
 
     # First of two evaluations. This one is before anything at all is created,
     # so a skip here costs no worktree, no branch and no headless run.
-    check_work_in_progress "$N"
+    check_work_in_progress "$N" "$ISSUE_LABELS"
     case "$WIP_STATUS" in
       blocked)
         if [ "$DRY_RUN" = yes ]; then
@@ -1000,7 +1104,7 @@ WIPLINE
         log "WARN #$N: work-in-progress check could not run ($WIP_UNKNOWN_REASON) — drafting unchecked"
         ;;
       *)
-        [ "$DRY_RUN" = yes ] && log "DRY-RUN: #$N classified DRAFT — no open or merged non-runner PR closes it or declares itself part of it, and no branch on origin is named for it"
+        [ "$DRY_RUN" = yes ] && log "DRY-RUN: #$N classified DRAFT — no epic-filed label, no open or merged non-runner PR closes it or declares itself part of it, and no branch on origin is named for it"
         ;;
     esac
 
@@ -1130,7 +1234,20 @@ WIPLINE
     # `gh pr create` on purpose: push-then-create is a single publication step,
     # and checking ahead of it means a skip leaves no branch on origin and no
     # PR — nothing half-built, which is the same contract fail_issue keeps.
-    check_work_in_progress "$N"
+    # The labels are RE-READ here rather than reused from selection, and this is
+    # the one place item 8 spends an API call it did not have to. The whole
+    # reason this second evaluation exists is that the window between the two is
+    # wide enough for the world to change inside it, and the change this signal
+    # watches for — a human filing an epic and labelling the issue — is exactly
+    # the thing that leaves no PR and no branch for the other three to see.
+    # Evaluating the highest-authority signal on selection-time data would put a
+    # hole in the middle of the check. It is also cheaper than it looks: when
+    # the label is there this returns before the timeline query, the per-PR
+    # reads and the branch listing, so it REPLACES more calls than it adds.
+    RECHECK_VIEW="$("$GH_BIN" issue view "$N" --json title,labels -q "$ISSUE_VIEW_JQ" 2>/dev/null || true)"
+    RECHECK_LABELS="$(printf '%s\n' "$RECHECK_VIEW" | head -1)"
+    case "$RECHECK_LABELS" in ,*,) ;; *) RECHECK_LABELS=",," ;; esac
+    check_work_in_progress "$N" "$RECHECK_LABELS"
     if [ "$WIP_STATUS" = blocked ]; then
       skip_issue "$N" "pre-PR re-check" "$WIP_SIGNAL" "$BLOCKING_PR" "$WT" "$BRANCH"
       continue

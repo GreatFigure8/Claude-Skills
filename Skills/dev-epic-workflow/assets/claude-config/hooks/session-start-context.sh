@@ -321,6 +321,69 @@ epic_queue_section
 BACKLOG_MAX_NAMED=5
 BACKLOG_TITLE_CHARS=60
 
+# The other half of the same correlation, and the half nothing was watching.
+# references/issue-intake.md's linking contract has always required the source
+# issue to be labelled `epic:planned` when a plan is filed and `epic:in-progress`
+# at first dispatch — and until 2026-08-21 nothing applied those labels and
+# nothing read them. `claude-skills` GH #39 went through six merged work items of
+# its own epic carrying no label at all, while the other configured repo was 8 of
+# 8 correct. Unattended intake now reads the label as its highest-authority
+# work-in-progress signal, so an unlabelled epic is no longer just untidy: it is
+# an epic that can be drafted over.
+#
+# This warning costs NO extra tracker call, which is the only reason it is here.
+# Both inputs are already in hand at this point: the query above deliberately
+# excludes issues carrying either label, so an issue that survived it AND is
+# named by a plan's `Source:` line is exactly a filed epic whose tracker item
+# does not say so. Offline, unauthenticated or slow, the query returns nothing
+# and this returns nothing with it — the section's existing failure mode,
+# unchanged, and no new way for session start to be slow or to fail.
+#
+# Which label is due comes from the plan's own Status, in the same 10-line
+# header window every other reader of a plan uses:
+#   in flight …  -> `epic:in-progress`   (dispatch has started)
+#   planning     -> nothing is due       — `epic:planned` is an APPROVAL touch,
+#                                          and an unattended proposal sits at
+#                                          `planning` without ever being approved
+#   closed       -> nothing is due       — the epic is finished
+#   anything else (approved, or an unparseable header) -> `epic:planned`, the
+#                                          minimum true statement: a plan exists.
+label_gap_line() { # $1 = space-separated open+unlabelled issue numbers
+  case " ${1:-} " in *[0-9]*) ;; *) return 0 ;; esac
+  LG_NAMED=""
+  LG_COUNT=0
+  for LG_PLAN in docs/epics/*/plan.md; do
+    [ -f "$LG_PLAN" ] || continue
+    LG_HEAD="$(head -"$EPIC_QUEUE_HEADER_LINES" "$LG_PLAN" 2>/dev/null)"
+    LG_NUM="$(printf '%s\n' "$LG_HEAD" | grep -E '^[[:space:]]*[*_]*Source:' 2>/dev/null \
+      | grep -oE 'GH #[0-9]+' 2>/dev/null | grep -oE '[0-9]+' 2>/dev/null | head -1)"
+    [ -n "$LG_NUM" ] || continue
+    case " $1 " in *" $LG_NUM "*) ;; *) continue ;; esac
+    LG_STATUS="$(printf '%s\n' "$LG_HEAD" \
+      | sed -n -E 's/^[[:space:]*_]*[Ss]tatus:[[:space:]*_]*//p' 2>/dev/null \
+      | head -1 | tr '[:upper:]' '[:lower:]')"
+    case "$LG_STATUS" in
+      closed*|planning*) continue ;;
+      *"in flight"*)     LG_DUE="epic:in-progress" ;;
+      *)                 LG_DUE="epic:planned" ;;
+    esac
+    LG_COUNT=$((LG_COUNT + 1))
+    [ "$LG_COUNT" -gt "$BACKLOG_MAX_NAMED" ] && continue
+    if [ -z "$LG_NAMED" ]; then
+      LG_NAMED="#${LG_NUM} needs \`${LG_DUE}\`"
+    else
+      LG_NAMED="${LG_NAMED}; #${LG_NUM} needs \`${LG_DUE}\`"
+    fi
+  done
+  [ "$LG_COUNT" -gt 0 ] || return 0
+  LG_MORE=""
+  if [ "$LG_COUNT" -gt "$BACKLOG_MAX_NAMED" ]; then
+    LG_MORE=" (+$((LG_COUNT - BACKLOG_MAX_NAMED)) more)"
+  fi
+  echo
+  echo "- Epic filed, tracker not told (${LG_COUNT}): ${LG_NAMED}${LG_MORE} — \`gh issue edit <n> --add-label <label>\`; unattended intake reads it first (references/issue-intake.md)."
+}
+
 backlog_section() {
   # Hard guards first: no gh, or not a GitHub repo, means no tracker call at all
   # (this is also what keeps gh's "no git remotes found" noise off every repo).
@@ -370,9 +433,14 @@ backlog_section() {
 
   BL_NAMED=""
   BL_COUNT=0
+  BL_GAP=""            # adopted, open, and NOT labelled — see label_gap_line
   while IFS=$'\t' read -r BL_NUM BL_TITLE; do
     [ -n "$BL_NUM" ] || continue
-    case " $BL_ADOPTED " in *" $BL_NUM "*) continue ;; esac
+    # An adopted issue drops out of the backlog line — and this is the ONE place
+    # a missing tracker label could ever have shown up, because the query above
+    # already filtered labelled issues out. Dropping it silently is what let the
+    # gap live: keep it, and warn about it instead.
+    case " $BL_ADOPTED " in *" $BL_NUM "*) BL_GAP="$BL_GAP $BL_NUM"; continue ;; esac
     BL_COUNT=$((BL_COUNT + 1))
     [ "$BL_COUNT" -gt "$BACKLOG_MAX_NAMED" ] && continue
     BL_SHORT="$(printf '%s' "$BL_TITLE" | cut -c "1-$BACKLOG_TITLE_CHARS")"
@@ -384,6 +452,8 @@ backlog_section() {
     fi
   done < "$BL_OUT"
   rm -f "$BL_OUT" 2>/dev/null
+
+  label_gap_line "$BL_GAP"
 
   [ "$BL_COUNT" -gt 0 ] || return 0
   BL_MORE=""

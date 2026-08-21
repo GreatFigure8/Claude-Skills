@@ -552,6 +552,265 @@ run_hook "$R" full > "$SANDBOX/L4.split"
 check "L both queues empty: mutant and hook agree byte for byte" "" \
       "$(diff "$SANDBOX/L4.presplit" "$SANDBOX/L4.split" | head -20)" "mutant"
 
+# ============================================================================
+echo
+echo "=== M. THE LABEL GAP: an epic is filed and the tracker does not say so =="
+echo "    (references/issue-intake.md has always required epic:planned at Phase"
+echo "     1 filing and epic:in-progress at first dispatch. Nothing applied"
+echo "     those labels and nothing read them, and GH #39 went through six"
+echo "     merged work items of its own epic carrying none while the other"
+echo "     configured repo was 8 of 8 correct. Unattended intake now reads the"
+echo "     label as its highest-authority work-in-progress signal, so the gap"
+echo "     is no longer untidiness — it is an epic that can be drafted over.)"
+echo "    Every case below is emitted from data the hook ALREADY had: the"
+echo "     tracker query excludes labelled issues, so anything that survives it"
+echo "     and is named by a plan's Source: line is exactly the gap. No extra"
+echo "     tracker call is made, and case M8 proves the count."
+
+# The tracker stub. It answers ONE query — the one backlog_section makes — and
+# refuses everything else audibly, because a stub that quietly answers the wrong
+# question is the defect this repo has now met four times (epic 09 items 1, 4, 7
+# and 8). It also runs the hook's OWN --jq filter through real jq rather than
+# pre-filtering, so the label exclusion that the whole warning rests on is
+# exercised rather than assumed.
+BIN_GH="$SANDBOX/bin-gh"; sandboxed "$BIN_GH"; mkdir -p "$BIN_GH"
+# `bash` and `env` are on this list and are NOT on the bare/min/nosort lists,
+# because this is the only variant with a stub to execute and `#!/usr/bin/env
+# bash` cannot resolve without them. Their absence elsewhere is the point of
+# those variants and is left exactly as it was.
+for t in bash cat grep sed head tr cut wc git ls mkdir rm mv dirname basename date printf env sort find touch sleep pgrep kill mktemp jq; do
+  p="$(command -v "$t" 2>/dev/null)" || continue
+  case "$p" in /*) ;; *) continue ;; esac
+  ln -sf "$p" "$BIN_GH/$t"
+done
+HAVE_JQ=no; [ -e "$BIN_GH/jq" ] && HAVE_JQ=yes
+cat > "$BIN_GH/gh" <<'GH_STUB'
+#!/usr/bin/env bash
+set -u
+FLAT="$(printf '%s ' "$@")"
+printf 'gh %s\n' "$FLAT" >> "${FIXTURE_GH_LOG:-/dev/null}"
+case "$FLAT" in
+  "issue list "*)
+    # Pinned exactly, trailing space included: the labels are the input the
+    # whole label-gap line is derived from, so a query that stopped asking for
+    # them must fail here rather than return a plausible-looking list.
+    case "$FLAT" in
+      *"--json number,title,labels "*) ;;
+      *) printf 'gh STUB UNANSWERED (issue list field set changed): %s\n' "$FLAT" >> "${FIXTURE_GH_LOG:-/dev/null}"
+         echo 'stub does not model this issue list' >&2; exit 1 ;;
+    esac
+    # Take the hook's own --jq expression and run it, so this fixture cannot
+    # drift from the filter the hook actually ships.
+    JQF=""; NEXT=""
+    for A in "$@"; do
+      [ "$NEXT" = yes ] && { JQF="$A"; NEXT=""; continue; }
+      [ "$A" = "--jq" ] && NEXT=yes
+    done
+    [ -n "$JQF" ] || { printf 'gh STUB UNANSWERED (no --jq): %s\n' "$FLAT" >> "${FIXTURE_GH_LOG:-/dev/null}"
+                       echo 'stub expects a --jq filter' >&2; exit 1; }
+    command -v jq >/dev/null 2>&1 || { printf 'gh STUB UNANSWERED (no jq): %s\n' "$FLAT" >> "${FIXTURE_GH_LOG:-/dev/null}"
+                                       echo 'stub needs jq to replay the filter' >&2; exit 1; }
+    jq -r "$JQF" "${FIXTURE_ISSUES:?}" 2>/dev/null ;;
+  *) printf 'gh STUB UNANSWERED (verb not modelled): %s\n' "$FLAT" >> "${FIXTURE_GH_LOG:-/dev/null}"
+     echo 'stub does not model this gh verb' >&2; exit 1 ;;
+esac
+exit 0
+GH_STUB
+chmod +x "$BIN_GH/gh"
+
+# A repo the backlog section will actually talk to: the hook's guard is a
+# github.com remote, and adding one is local — it contacts nothing.
+mkrepo_gh() { # $1 = repo dir
+  mkrepo "$1"
+  git_q -C "$1" remote add origin https://github.com/fixture/repo.git
+}
+
+issues_json() { # $1 = file, then `<number>|<title>|<comma-separated labels>` rows
+  sandboxed "$1"
+  IJ_F="$1"; shift
+  { printf '['
+    SEP=""
+    for ROW in "$@"; do
+      NUM="${ROW%%|*}"; REST="${ROW#*|}"; TIT="${REST%%|*}"; LBL="${REST#*|}"
+      printf '%s{"number":%s,"title":"%s","labels":[' "$SEP" "$NUM" "$TIT"
+      LSEP=""
+      OLDIFS="$IFS"; IFS=','
+      for L in $LBL; do printf '%s{"name":"%s"}' "$LSEP" "$L"; LSEP=","; done
+      IFS="$OLDIFS"
+      printf ']}'
+      SEP=","
+    done
+    printf ']\n'
+  } > "$IJ_F"
+}
+
+plan_src() { # $1 = epic dir, $2 = Status, $3 = Source issue number
+  sandboxed "$1"
+  mkdir -p "$1"
+  printf '# Epic: fixture\n\n**Status:** %s\n**Source:** GH #%s\n\n## Outcome\nfixture\n' \
+    "$2" "$3" > "$1/plan.md"
+}
+
+: > "$SANDBOX/gh-calls.log"
+gap_line() { # $1 project dir  $2 issues json -> the label-gap line, or <none>
+  L="$(printf '{"source":"startup","session_id":"s","cwd":"%s","hook_event_name":"SessionStart"}' "$1" \
+       | CLAUDE_PROJECT_DIR="$1" PATH="$BIN_GH" FIXTURE_ISSUES="$2" \
+         FIXTURE_GH_LOG="$SANDBOX/gh-calls.log" \
+         /bin/bash "$HOOK_UNDER_TEST" 2>> "$SANDBOX/stderr.log" \
+       | grep 'Epic filed, tracker not told' || true)"
+  [ -n "$L" ] && printf '%s' "$L" || printf '<none>'
+}
+backlog_line() { # $1 project dir  $2 issues json -> the backlog line, or <none>
+  L="$(printf '{"source":"startup","session_id":"s","cwd":"%s","hook_event_name":"SessionStart"}' "$1" \
+       | CLAUDE_PROJECT_DIR="$1" PATH="$BIN_GH" FIXTURE_ISSUES="$2" \
+         FIXTURE_GH_LOG="$SANDBOX/gh-calls.log" \
+         /bin/bash "$HOOK_UNDER_TEST" 2>> "$SANDBOX/stderr.log" \
+       | grep 'Open issues with no epic yet' || true)"
+  [ -n "$L" ] && printf '%s' "$L" || printf '<none>'
+}
+
+if [ "$HAVE_JQ" = no ]; then
+  echo "    (jq not installed — the tracker-stub cases are skipped, not failed)"
+else
+: > "$SANDBOX/stderr.log"
+
+# --- M1: in flight, unlabelled -> epic:in-progress is what is due ------------
+R="$SANDBOX/M1"; mkrepo_gh "$R"
+plan_src "$R/docs/epics/09-l1-preconditions" "in flight (item 8 of 8)" 39
+commit_all "$R"
+issues_json "$SANDBOX/M1.json" "39|Autonomous mode: label to merged code|" \
+                               "15|Fixture harnesses escape their sandbox|bug"
+check "M1: an in-flight epic's unlabelled issue is named" \
+      "- Epic filed, tracker not told (1): #39 needs \`epic:in-progress\` — \`gh issue edit <n> --add-label <label>\`; unattended intake reads it first (references/issue-intake.md)." \
+      "$(gap_line "$R" "$SANDBOX/M1.json")" "full"
+check "M1: the unadopted issue is still offered as backlog" \
+      "- Open issues with no epic yet (1): #15 Fixture harnesses escape their sandbox — \`/intake #<n>\` to plan one." \
+      "$(backlog_line "$R" "$SANDBOX/M1.json")" "full"
+
+# --- M2: approved but not yet dispatched -> epic:planned is what is due ------
+R="$SANDBOX/M2"; mkrepo_gh "$R"
+plan_src "$R/docs/epics/10-declared-paths" "approved" 57
+commit_all "$R"
+issues_json "$SANDBOX/M2.json" "57|Work items declare touched paths in prose|enhancement"
+check "M2: an approved-but-undispatched epic asks for epic:planned" \
+      "- Epic filed, tracker not told (1): #57 needs \`epic:planned\` — \`gh issue edit <n> --add-label <label>\`; unattended intake reads it first (references/issue-intake.md)." \
+      "$(gap_line "$R" "$SANDBOX/M2.json")" "full"
+
+# --- M3: the label is there -> nothing to say -------------------------------
+# The two live worked examples on 2026-08-21: #39 carried epic:in-progress and
+# #57 carried epic:planned, and the real repo emitted no line at all.
+R="$SANDBOX/M3"; mkrepo_gh "$R"
+plan_src "$R/docs/epics/09-l1-preconditions" "in flight (item 8 of 8)" 39
+plan_src "$R/docs/epics/10-declared-paths"   "approved"                57
+commit_all "$R"
+issues_json "$SANDBOX/M3.json" "39|Autonomous mode|epic:in-progress" \
+                               "57|Declared paths|enhancement,epic:planned"
+check "M3: correctly labelled epics produce NO warning" "<none>" \
+      "$(gap_line "$R" "$SANDBOX/M3.json")" "full"
+check "M3: and they are not offered as backlog either" "<none>" \
+      "$(backlog_line "$R" "$SANDBOX/M3.json")" "full"
+
+# --- M4: a `planning` plan owes nothing -------------------------------------
+# This is the case that makes the rule correct rather than merely noisy. An
+# unattended proposal is a plan.md at `Status: planning` with a Source: line,
+# sitting in a PR nobody has approved. `epic:planned` is a Phase 1 APPROVAL
+# touch, so demanding it here would tell Jonathan to declare an epic filed that
+# he has not agreed to.
+R="$SANDBOX/M4"; mkrepo_gh "$R"
+plan_src "$R/docs/epics/proposed-48-telemetry" "planning" 48
+commit_all "$R"
+issues_json "$SANDBOX/M4.json" "48|Telemetry resolution treats a planning proposal as an address|"
+check "M4: an unapproved proposal owes no label" "<none>" \
+      "$(gap_line "$R" "$SANDBOX/M4.json")" "full"
+check "M4: but it still silences the backlog line, as before" "<none>" \
+      "$(backlog_line "$R" "$SANDBOX/M4.json")" "full"
+
+# --- M5: a closed epic owes nothing -----------------------------------------
+R="$SANDBOX/M5"; mkrepo_gh "$R"
+plan_src "$R/docs/epics/08-autonomous-mode" "closed" 12
+commit_all "$R"
+issues_json "$SANDBOX/M5.json" "12|Branch-name cancel selectors are inert|"
+check "M5: a closed epic owes no label" "<none>" \
+      "$(gap_line "$R" "$SANDBOX/M5.json")" "full"
+
+# --- M6: an unparseable header still owes the minimum true statement --------
+R="$SANDBOX/M6"; mkrepo_gh "$R"
+mkdir -p "$R/docs/epics/07-mystery"
+printf '# Epic: fixture\n\nno status line here at all\n**Source:** GH #99\n' \
+  > "$R/docs/epics/07-mystery/plan.md"
+commit_all "$R"
+issues_json "$SANDBOX/M6.json" "99|Something with an unreadable header|"
+check "M6: an unparseable Status asks for epic:planned — a plan does exist" \
+      "- Epic filed, tracker not told (1): #99 needs \`epic:planned\` — \`gh issue edit <n> --add-label <label>\`; unattended intake reads it first (references/issue-intake.md)." \
+      "$(gap_line "$R" "$SANDBOX/M6.json")" "full"
+
+# --- M7: several at once, capped and counted like every other line ----------
+R="$SANDBOX/M7"; mkrepo_gh "$R"
+plan_src "$R/docs/epics/01-a" "in flight (item 1 of 2)" 101
+plan_src "$R/docs/epics/02-b" "approved"                102
+plan_src "$R/docs/epics/03-c" "approved"                103
+plan_src "$R/docs/epics/04-d" "approved"                104
+plan_src "$R/docs/epics/05-e" "approved"                105
+plan_src "$R/docs/epics/06-f" "approved"                106
+commit_all "$R"
+issues_json "$SANDBOX/M7.json" "101|a|" "102|b|" "103|c|" "104|d|" "105|e|" "106|f|"
+check "M7: six gaps, five named and the rest counted" \
+      "- Epic filed, tracker not told (6): #101 needs \`epic:in-progress\`; #102 needs \`epic:planned\`; #103 needs \`epic:planned\`; #104 needs \`epic:planned\`; #105 needs \`epic:planned\` (+1 more) — \`gh issue edit <n> --add-label <label>\`; unattended intake reads it first (references/issue-intake.md)." \
+      "$(gap_line "$R" "$SANDBOX/M7.json")" "full"
+
+# --- M8: the cost. ONE tracker call, the one that was already being made ----
+: > "$SANDBOX/gh-calls.log"
+R="$SANDBOX/M8"; mkrepo_gh "$R"
+plan_src "$R/docs/epics/09-l1-preconditions" "in flight (item 8 of 8)" 39
+commit_all "$R"
+issues_json "$SANDBOX/M8.json" "39|Autonomous mode|" "15|Sandbox escape|bug"
+GAP="$(gap_line "$R" "$SANDBOX/M8.json")"
+check "M8: the warning was emitted" "yes" \
+      "$([ "$GAP" = "<none>" ] && echo no || echo yes)" "full"
+check "M8: exactly ONE gh invocation for the whole injection" "1" \
+      "$(grep -c '^gh ' "$SANDBOX/gh-calls.log" | tr -d ' ')" "full"
+check "M8: and it is the issue list the section already made" "1" \
+      "$(grep -c '^gh issue list --state open --limit 100 --json number,title,labels' "$SANDBOX/gh-calls.log" | tr -d ' ')" "full"
+check "M8: no gh query went unanswered" "0" \
+      "$(grep -c 'STUB UNANSWERED' "$SANDBOX/gh-calls.log" | tr -d ' ')" "full"
+
+# --- M9: no github remote -> no tracker call, and no warning ----------------
+: > "$SANDBOX/gh-calls.log"
+R="$SANDBOX/M9"; mkrepo "$R"                    # deliberately NO remote
+plan_src "$R/docs/epics/09-l1-preconditions" "in flight (item 8 of 8)" 39
+commit_all "$R"
+issues_json "$SANDBOX/M9.json" "39|Autonomous mode|"
+check "M9: no github remote, no warning" "<none>" \
+      "$(gap_line "$R" "$SANDBOX/M9.json")" "full"
+check "M9: and no tracker call was attempted at all" "0" \
+      "$(grep -c '^gh ' "$SANDBOX/gh-calls.log" | tr -d ' ')" "full"
+
+# --- M10: mutant — stop recording the adopted issues and the warning dies ---
+# M1's ONLY evidence is that an adopted issue survived the label filter. Delete
+# the one line that keeps it and the warning must vanish while the backlog line
+# stays exactly as it was — which is what proves M1 tests the gap and not the
+# backlog machinery it borrows.
+GAP_MUTANT="$SANDBOX/session-start-context.no-gap.sh"; sandboxed "$GAP_MUTANT"
+sed -e 's/BL_GAP="$BL_GAP $BL_NUM"; continue/continue/' "$HOOK" > "$GAP_MUTANT"
+chmod +x "$GAP_MUTANT"
+cmp -s "$HOOK" "$GAP_MUTANT" && {
+  echo "ERROR: the no-gap mutant is identical to the hook — the capture moved," >&2
+  echo "       so case M10 proves nothing. Fix the sed." >&2
+  exit 1
+}
+/bin/bash -n "$GAP_MUTANT" || { echo "ERROR: no-gap mutant does not parse" >&2; exit 1; }
+HOOK_UNDER_TEST="$GAP_MUTANT"
+check "M10: without the capture the warning disappears" "<none>" \
+      "$(gap_line "$SANDBOX/M1" "$SANDBOX/M1.json")" "mutant"
+check "M10: and the backlog line is byte-identical, so nothing else moved" \
+      "- Open issues with no epic yet (1): #15 Fixture harnesses escape their sandbox — \`/intake #<n>\` to plan one." \
+      "$(backlog_line "$SANDBOX/M1" "$SANDBOX/M1.json")" "mutant"
+HOOK_UNDER_TEST="$HOOK"
+
+check "M: nothing on stderr through all of it" "" "$(cat "$SANDBOX/stderr.log")" "full"
+fi
+
+
 echo
 echo "=== hook stderr (empty unless the hook errored on its own) ============="
 [ -s "$SANDBOX/stderr.log" ] && head -20 "$SANDBOX/stderr.log"

@@ -165,7 +165,25 @@ case "${1:-}" in
   issue)
     case "${2:-}" in
       list)    [ -f "$CASE/issues" ] && cat "$CASE/issues" ;;
-      view)    printf 'fixture issue %s\n' "${3:-0}" ;;
+      view)    # Epic 09 item 8 reads the issue's LABELS from this call — the
+               # same one that was already fetching the title — so the field set
+               # is pinned exactly the way `pr view` pins its own below. Left
+               # unpinned, a stub answering the old title-only shape would hand
+               # the runner an unparseable label line; it would fall back to the
+               # three inferred signals; and every label case in this file would
+               # pass while measuring item 7. Third time this suite has had to
+               # learn it (item 1's timeline, item 7's branch listing, this).
+               case "$FLAT" in
+                 *"--json title,labels "*) ;;
+                 *) printf 'gh STUB UNANSWERED (issue view field set changed): %s\n' "$FLAT" >> "$CASE/calls.log"
+                    echo 'stub does not model this issue view field set' >&2; exit 1 ;;
+               esac
+               LF="$(pick labels "${3:-}")"
+               # Byte-identical to what ISSUE_VIEW_JQ emits: the comma-FENCED
+               # label list first, the title after. `,,` is "no labels", and is
+               # what an issue with an empty labels array really returns.
+               if [ -n "$LF" ]; then cat "$LF"; else printf ',,\n'; fi
+               printf 'fixture issue %s\n' "${3:-0}" ;;
       comment) printf '%s\n' "$FLAT" >> "$CASE/comments.log"
                printf 'https://example.invalid/issues/%s#comment\n' "${3:-0}" ;;
       edit)    : ;;
@@ -314,7 +332,7 @@ mkcase() { # $1 = case name -> case dir on stdout
   D="$SANDBOX/$1"; sandboxed "$D"
   rm -rf "$D"
   mkdir -p "$D/repo/.git" "$D/worktrees" "$D/home" "$D/timeline" "$D/pr" \
-           "$D/late-timeline" "$D/late-pr"
+           "$D/late-timeline" "$D/late-pr" "$D/labels" "$D/late-labels"
   : > "$D/calls.log"; : > "$D/comments.log"
   # Every case models its branch list, even when the list is empty — see
   # "branch list not modelled" in the gh stub for why absence is a failure.
@@ -375,6 +393,40 @@ late_branches() { # same, as origin looks AFTER the drafter has run
   D="$1"; shift; sandboxed "$D"
   : > "$D/late-branches"
   for B in "$@"; do printf '%s\n' "$B" >> "$D/late-branches"; done
+}
+
+# The issue's own labels, as `gh issue view --json title,labels` returns them
+# through ISSUE_VIEW_JQ: comma-FENCED, so `,epic:planned,` and never a bare
+# name. Written explicitly at every call site that needs one, for the same
+# reason the closing refs and the branch list are: there is no "labelled by
+# default", because the whole of item 8 is that the label is a declaration
+# somebody made.
+labels() { # $1 = case dir, $2 = issue, rest = label names
+  D="$1"; I="$2"; shift 2; sandboxed "$D"
+  LJ=""
+  for L in "$@"; do if [ -z "$LJ" ]; then LJ="$L"; else LJ="$LJ,$L"; fi; done
+  printf ',%s,\n' "$LJ" > "$D/labels/$I"
+}
+
+late_labels() { # same, as the issue looks AFTER the drafter has run
+  D="$1"; I="$2"; shift 2; sandboxed "$D"
+  LJ=""
+  for L in "$@"; do if [ -z "$LJ" ]; then LJ="$L"; else LJ="$LJ,$L"; fi; done
+  printf ',%s,\n' "$LJ" > "$D/late-labels/$I"
+}
+
+# The query counter item 8's definition of done is written against. Every gh
+# invocation is already recorded in calls.log by the stub, so this counts what
+# the runner ACTUALLY asked GitHub — not what it might have. "Short-circuits
+# before the timeline query" is only a claim until this returns 0.
+queries_of() { # $1 = case dir, $2 = timeline|branches|pr-view|issue-view
+  case "$2" in
+    timeline)   grep -c '^gh api .*timeline'  "$1/calls.log" ;;
+    branches)   grep -c '^gh api .*branches'  "$1/calls.log" ;;
+    pr-view)    grep -c '^gh pr view '        "$1/calls.log" ;;
+    issue-view) grep -c '^gh issue view '     "$1/calls.log" ;;
+    *)          printf 'BAD-KIND' ;;
+  esac 2>/dev/null | tr -d ' \n'
 }
 
 SCRIPT_UNDER_TEST="$SCRIPT"      # case K swaps in the open-PR-only mutant
@@ -535,7 +587,7 @@ check "F: and the classification names WHICH signal fired" "yes" \
 # line had to change with it: a message still claiming only closing linkage was
 # checked would be a lie about what the runner just did.
 check "F: the clear issue is classified DRAFT with its reason"  "yes" \
-      "$(yesno grep -q 'DRY-RUN: #811 classified DRAFT — no open or merged non-runner PR closes it or declares itself part of it, and no branch on origin is named for it' "$D/stdout.log")"
+      "$(yesno grep -q 'DRY-RUN: #811 classified DRAFT — no epic-filed label, no open or merged non-runner PR closes it or declares itself part of it, and no branch on origin is named for it' "$D/stdout.log")"
 check "F: no issue comment"             "no"  "$(yesno called "$D" '^gh issue comment')"
 check "F: no label edit"                "no"  "$(yesno called "$D" '^gh issue edit')"
 check "F: no PR"                        "no"  "$(yesno called "$D" '^gh pr create')"
@@ -1137,6 +1189,301 @@ pr   "$D" 758 MERGED "docs/757-bind-python-skills" "" "Closes #757."
 branches "$D" main
 RC="$(run_intake "$D")"
 check "Z: and still skips on closing linkage, so it is not just broken" \
+      "skipped-selection" "$(verdict_of "$D")"
+SCRIPT_UNDER_TEST="$SCRIPT"
+
+echo
+echo "=== AA. THE #757 TIMELINE AGAIN, WITH THE LABEL IT ACTUALLY CARRIED ===="
+echo "    (read from the issue's own timeline, not reasoned about:"
+echo "       19:54:21Z  epic:planned applied"
+echo "       19:54:26Z  epic:in-progress applied"
+echo "       19:58:37Z  competing PR #758 opened"
+echo "       20:00:12Z  #758 merged"
+echo "       20:02:46Z  this runner selected #757"
+echo "     The label was 8m25s old at selection and four minutes older than the"
+echo "     PR. Every one of cases A-Z reaches the right answer here by inferring"
+echo "     it from #758; this one reads it off the issue and never asks.)"
+D="$(mkcase AA)"
+set_issues "$D" 757
+labels "$D" 757 claude-intake epic:in-progress
+# The whole of item 3/6/7's evidence is present and modelled. If any of it is
+# consulted, the query counters below are not zero.
+refs "$D" 757 758 761
+pr   "$D" 758 MERGED "docs/757-bind-python-skills" "" "Closes #757."
+pr   "$D" 761 CLOSED "intake/proposed-757-claude-md-should-bind" "" "Closes #757."
+branches "$D" main dev docs/757-bind-python-skills
+RC="$(run_intake "$D")"
+check "AA: verdict"                     "skipped-selection" "$(verdict_of "$D")"
+check "AA: exit code (a skip is not a failure)" "0" "$RC"
+check "AA: the signal is the label, not the PR" "yes" \
+      "$(yesno grep -q 'SKIP #757 (selection).*\[signal: epic-filed\]' "$D/stdout.log")"
+check "AA: the comment names the label that fired" "yes" \
+      "$(yesno grep -q 'carries the `epic:in-progress` label' "$D/comments.log")"
+check "AA: and cites the contract that mandates it" "yes" \
+      "$(yesno grep -q 'references/issue-intake.md' "$D/comments.log")"
+check "AA: the reader is told the work is already planned" "yes" \
+      "$(yesno grep -q 'Signal: the work is already \*\*planned\*\*' "$D/comments.log")"
+check "AA: and told NOT to close the issue" "yes" \
+      "$(yesno grep -q 'Do not close this issue' "$D/comments.log")"
+check "AA: the label is removed so it cannot spin" "yes" \
+      "$(yesno called "$D" '^gh issue edit 757 --remove-label claude-intake')"
+# THE COST ASSERTIONS, and the reason this item exists at all. Item 7's check
+# spends one timeline call, one `pr view` per referencing PR, and one paginated
+# branch listing before it can say what the label says outright.
+check "AA: NO timeline query was made"  "0" "$(queries_of "$D" timeline)"
+check "AA: NO pull request was read"    "0" "$(queries_of "$D" pr-view)"
+check "AA: NO branch listing was made"  "0" "$(queries_of "$D" branches)"
+check "AA: exactly ONE issue view — the one already fetching the title" "1" \
+      "$(queries_of "$D" issue-view)"
+check "AA: and it asked for the labels in that same call" "yes" \
+      "$(yesno called "$D" '^gh issue view 757 --json title,labels ')"
+check "AA: no worktree was created"     "no"  "$(yesno called "$D" '^git worktree add')"
+check "AA: the drafter never ran"       "no"  "$(yesno called "$D" '^claude ')"
+check "AA: no PR was opened"            "no"  "$(yesno called "$D" '^gh pr create')"
+
+echo
+echo "=== AB. a labelled issue with NO PR and NO branch still skips =========="
+echo "    (the case none of the three inferred signals can see: a plan filed by"
+echo "     direct commit to the integration branch, which is how epic 10 was"
+echo "     filed for GH #57 — no PR says 'Part of' it and no branch is named"
+echo "     for it, and item 7 drafts straight over it)"
+D="$(mkcase AB)"
+set_issues "$D" 57
+labels "$D" 57 claude-intake epic:planned
+refs "$D" 57                        # nothing references it at all
+branches "$D" main dev              # and no branch is named for it
+RC="$(run_intake "$D")"
+check "AB: verdict"                     "skipped-selection" "$(verdict_of "$D")"
+check "AB: the signal is the label"     "yes" \
+      "$(yesno grep -q 'SKIP #57 (selection).*\[signal: epic-filed\]' "$D/stdout.log")"
+check "AB: epic:planned fires as well as epic:in-progress" "yes" \
+      "$(yesno grep -q 'carries the `epic:planned` label' "$D/comments.log")"
+check "AB: the remedy says how to make it draftable again" "yes" \
+      "$(yesno grep -q 'remove it, then re-apply `claude-intake`' "$D/comments.log")"
+check "AB: no timeline query"           "0" "$(queries_of "$D" timeline)"
+check "AB: no branch listing"           "0" "$(queries_of "$D" branches)"
+
+echo
+echo "=== AC. NO label, but a merged closing PR — STILL SKIPS ================"
+echo "    (the fallback is demoted, not deleted. This repo is the reason: GH"
+echo "     #39 went through six merged work items of its own epic carrying no"
+echo "     label at all, while LODE was 8 of 8 correct. A label is a"
+echo "     declaration and depends on discipline; a merged closing PR is"
+echo "     evidence and does not)"
+D="$(mkcase AC)"
+set_issues "$D" 757
+labels "$D" 757 claude-intake       # the trigger label only — no epic label
+refs "$D" 757 758
+pr   "$D" 758 MERGED "docs/757-bind-python-skills" "" "Closes #757."
+branches "$D" main
+RC="$(run_intake "$D")"
+check "AC: verdict"                     "skipped-selection" "$(verdict_of "$D")"
+check "AC: the signal falls back to the merged PR" "yes" \
+      "$(yesno grep -q 'SKIP #757 (selection).*\[signal: already-done\]' "$D/stdout.log")"
+check "AC: the comment names the PR, not a label" "yes" \
+      "$(yesno grep -q 'PR #758 is already merged' "$D/comments.log")"
+check "AC: it does NOT claim an epic was filed" "no" \
+      "$(yesno grep -q 'epic:planned. label' "$D/comments.log")"
+# Without these, "the fallback still works" is indistinguishable from "the label
+# check silently blocked everything".
+check "AC: the timeline WAS queried this time" "1" "$(queries_of "$D" timeline)"
+check "AC: the PR WAS read"                    "1" "$(queries_of "$D" pr-view)"
+
+echo
+echo "=== AD. the label OUTRANKS the inferred signals, and short-circuits ====="
+echo "    (LODE #815 was item 7's 'Part of' case and LODE #821 its branch-only"
+echo "     case; both carry epic:planned too. When a labelled issue also has"
+echo "     inferrable evidence, the runner must report the DECLARATION — the"
+echo "     evidence sentence a human reads should be the authoritative one)"
+D="$(mkcase AD)"
+set_issues "$D" 815
+labels "$D" 815 claude-intake epic:planned
+refs "$D" 815 828
+pr   "$D" 828 MERGED "feat/815-a-live-thinking-indicator" "" "Part of #815."
+branches "$D" main dev feat/815-a-live-thinking-indicator
+RC="$(run_intake "$D")"
+check "AD: verdict"                     "skipped-selection" "$(verdict_of "$D")"
+check "AD: the label wins over the Part-of PR and the branch" "yes" \
+      "$(yesno grep -q 'SKIP #815 (selection).*\[signal: epic-filed\]' "$D/stdout.log")"
+check "AD: the in-flight-pr signal did not fire" "no" \
+      "$(yesno grep -q 'signal: in-flight-pr' "$D/stdout.log")"
+check "AD: the in-flight-branch signal did not fire" "no" \
+      "$(yesno grep -q 'signal: in-flight-branch' "$D/stdout.log")"
+check "AD: nothing was inferred — no timeline query" "0" "$(queries_of "$D" timeline)"
+check "AD: nothing was inferred — no branch listing" "0" "$(queries_of "$D" branches)"
+
+echo
+echo "=== AE. only THESE labels fire, and only whole ========================="
+echo "    (the label list is comma-FENCED for the same reason the closing-refs"
+echo "     list is: a prefix must not match. `epic:planned-later` is a label"
+echo "     somebody could plausibly invent, and it declares nothing)"
+D="$(mkcase AE)"
+set_issues "$D" 100 101 102 103
+labels "$D" 100 claude-intake bug epic:planned-later
+labels "$D" 101 claude-intake epics:planned
+labels "$D" 102 claude-intake bug enhancement "needs triage"
+labels "$D" 103 claude-intake bug epic:in-progress priority:high
+refs "$D" 100; refs "$D" 101; refs "$D" 102; refs "$D" 103
+branches "$D" main
+RC="$(run_intake "$D")"
+check "AE: exit code"                   "0" "$RC"
+check "AE: epic:planned-later does not fire" "no" "$(yesno grep -q 'SKIP #100' "$D/stdout.log")"
+check "AE: epics:planned does not fire"      "no" "$(yesno grep -q 'SKIP #101' "$D/stdout.log")"
+check "AE: ordinary labels do not fire"      "no" "$(yesno grep -q 'SKIP #102' "$D/stdout.log")"
+check "AE: the real label fires among others" "yes" \
+      "$(yesno grep -q 'SKIP #103 (selection).*\[signal: epic-filed\]' "$D/stdout.log")"
+check "AE: the three near misses were all drafted" "3" \
+      "$(grep -c '^gh pr create' "$D/calls.log" | tr -d ' ')"
+# Two apiece, not one: an issue that is DRAFTED pays the whole inferred check
+# twice, once at selection and once at the pre-PR re-check (case E). That is the
+# cost cases AA-AD do not pay at all, stated as a number rather than as a claim.
+check "AE: and the near misses paid the full inferred check, twice each" "6" \
+      "$(queries_of "$D" timeline)"
+
+echo
+echo "=== AF. a label applied DURING the draft is caught by the re-check ======"
+echo "    (the pre-PR re-check exists because the world changes inside the"
+echo "     window — that is case E. A human filing an epic mid-window is the"
+echo "     change that leaves NO PR and NO branch behind, so it is invisible to"
+echo "     all three inferred signals: only a re-read of the labels sees it)"
+D="$(mkcase AF)"
+set_issues "$D" 820
+labels      "$D" 820 claude-intake                      # clear at selection
+late_labels "$D" 820 claude-intake epic:planned         # approved while drafting
+refs "$D" 820
+late_refs "$D" 820
+branches "$D" main
+late_branches "$D" main
+RC="$(run_intake "$D")"
+check "AF: verdict"                     "skipped-pre-PR" "$(verdict_of "$D")"
+check "AF: selection let it through (the drafter ran)" "yes" "$(yesno called "$D" '^claude ')"
+check "AF: the re-check fired on the label" "yes" \
+      "$(yesno grep -q 'SKIP #820 (pre-PR re-check).*\[signal: epic-filed\]' "$D/stdout.log")"
+check "AF: the stage is reported as the re-check" "yes" \
+      "$(yesno grep -q 'Checked at: pre-PR re-check' "$D/comments.log")"
+check "AF: nothing was published — no push"  "no" "$(yesno called "$D" ' push ')"
+check "AF: nothing was published — no PR"    "no" "$(yesno called "$D" '^gh pr create')"
+check "AF: the worktree was cleaned up"      "yes" "$(yesno called "$D" '^git worktree remove --force')"
+check "AF: the branch was deleted"           "yes" "$(yesno called "$D" '^git branch -D intake/proposed-820')"
+# The re-check re-READS the labels rather than reusing the selection-time value.
+# Two issue views is the whole cost of that decision, and it is the only extra
+# API call item 8 spends anywhere.
+check "AF: the labels were re-read, not reused" "2" "$(queries_of "$D" issue-view)"
+
+echo
+echo "=== AG. --dry-run states the label reason and mutates nothing ==========="
+D="$(mkcase AG)"
+set_issues "$D" 39 48
+labels "$D" 39 claude-intake epic:in-progress
+labels "$D" 48 claude-intake
+refs "$D" 39; refs "$D" 48
+branches "$D" main
+RC="$(run_intake "$D" --dry-run)"
+check "AG: exit code"                   "0" "$RC"
+check "AG: the labelled issue is classified SKIP with the label as the reason" "yes" \
+      "$(yesno grep -q 'DRY-RUN: #39 classified SKIP — the issue carries the `epic:in-progress` label' "$D/stdout.log")"
+check "AG: and names WHICH signal fired" "yes" \
+      "$(yesno grep -q 'DRY-RUN: #39 classified SKIP .*\[signal: epic-filed\]' "$D/stdout.log")"
+check "AG: the unlabelled issue is classified DRAFT" "yes" \
+      "$(yesno grep -q 'DRY-RUN: #48 classified DRAFT — no epic-filed label' "$D/stdout.log")"
+check "AG: no issue comment"            "no"  "$(yesno called "$D" '^gh issue comment')"
+check "AG: no label edit"               "no"  "$(yesno called "$D" '^gh issue edit')"
+check "AG: no PR"                       "no"  "$(yesno called "$D" '^gh pr create')"
+check "AG: no worktree"                 "no"  "$(yesno called "$D" '^git worktree add')"
+check "AG: no drafter run"              "no"  "$(yesno called "$D" '^claude ')"
+check "AG: not even a log file"         "no"  "$(yesno test -f "$D/intake.log")"
+
+echo
+echo "=== AH. the label list and its query are single constants =============="
+echo "    (mirrors cases I, J, Q, W and X: the thing the runner ASKS and the"
+echo "     thing it MATCHES are each defined exactly once, so a change to one"
+echo "     cannot leave the other reading a shape that no longer arrives)"
+check "AH: the label list is defined once"  "1" \
+      "$(grep -c '^EPIC_STATE_LABELS=' "$SCRIPT" | tr -d ' ')"
+check "AH: the issue query is defined once" "1" \
+      "$(grep -c "^ISSUE_VIEW_JQ='" "$SCRIPT" | tr -d ' ')"
+check "AH: both call sites use that one query" "2" \
+      "$(grep -c 'issue view "\$N" --json title,labels -q "\$ISSUE_VIEW_JQ"' "$SCRIPT" | tr -d ' ')"
+check "AH: no literal epic: label inside the matcher" "0" \
+      "$(sed -n '/declares_epic_filed() {/,/^  }$/p' "$SCRIPT" | grep -c 'epic:' | tr -d ' ')"
+check "AH: the match is fenced on both sides" "yes" \
+      "$(yesno grep -qF 'case "$1" in *",$WIP_EL,"*)' "$SCRIPT")"
+LABEL_GATE_LN="$(grep -n 'declares_epic_filed "\${2:-,,}"' "$SCRIPT" | head -1 | cut -d: -f1)"
+TIMELINE_LN="$(grep -n 'issues/\$1/timeline?per_page' "$SCRIPT" | head -1 | cut -d: -f1)"
+check "AH: the label check precedes the timeline query in the source" "yes" \
+      "$(yesno test "${LABEL_GATE_LN:-0}" -gt 0 -a "${LABEL_GATE_LN:-0}" -lt "${TIMELINE_LN:-0}")"
+# The query itself, replayed by real jq over the shape gh actually returns —
+# case I's pattern. The parser splits on the FENCE, so a filter that stopped
+# emitting one would silently disable the whole signal.
+ISSUE_PAYLOAD="$SANDBOX/issue-757.json"; sandboxed "$ISSUE_PAYLOAD"
+cat > "$ISSUE_PAYLOAD" <<'ISSUE_EOF'
+{"title":"CLAUDE.md should bind the six Python skills to this repo's stack",
+ "labels":[{"name":"claude-intake"},{"name":"epic:in-progress"},{"name":"bug"}]}
+ISSUE_EOF
+IFILTER="$(sed -n "s/^ISSUE_VIEW_JQ='\(.*\)'$/\1/p" "$SCRIPT")"
+if command -v jq >/dev/null 2>&1; then
+  check "AH: jq emits the fenced label list on line 1" ",claude-intake,epic:in-progress,bug," \
+        "$(jq -r "$IFILTER" "$ISSUE_PAYLOAD" 2>/dev/null | head -1)"
+  check "AH: and the title on line 2" "CLAUDE.md should bind the six Python skills to this repo's stack" \
+        "$(jq -r "$IFILTER" "$ISSUE_PAYLOAD" 2>/dev/null | sed -n 2p)"
+  check "AH: an issue with no labels emits an EMPTY fence, not a blank line" ",," \
+        "$(printf '{"title":"t","labels":[]}' | jq -r "$IFILTER" 2>/dev/null | head -1)"
+  check "AH: the fixture helper writes exactly what jq does" \
+        "$(printf '{"title":"t","labels":[{"name":"claude-intake"},{"name":"epic:planned"}]}' \
+             | jq -r "$IFILTER" 2>/dev/null | head -1)" \
+        "$(D2="$(mkcase AH-jq)"; labels "$D2" 1 claude-intake epic:planned; cat "$D2/labels/1")"
+else
+  echo "    (jq not installed — query replay skipped, not failed)"
+fi
+
+echo
+echo "=== AI. mutant: without the label gate, case AB drafts =================="
+echo "    (AB's ONLY evidence is the label — no PR, no branch — so deleting the"
+echo "     one line that turns a label into a block must un-skip it. That is"
+echo "     what proves AB tests the label and not something incidental, and it"
+echo "     is the same control cases K, R, Y and Z run)"
+MUTANT5="$SANDBOX/unattended-intake.no-label-signal.sh"; sandboxed "$MUTANT5"
+# The WHOLE gate, not one line of it: deleting only the assignment would leave
+# `return 0` behind and the mutant would still block, on nothing. The range is
+# the `if` through its own `fi`, both pinned to their exact indentation.
+sed -e '/^    if declares_epic_filed /,/^    fi$/d' "$SCRIPT" > "$MUTANT5"
+chmod +x "$MUTANT5"
+cmp -s "$SCRIPT" "$MUTANT5" && {
+  echo "ERROR: the no-label mutant is identical to the script — the label gate" >&2
+  echo "       moved, so case AI proves nothing. Fix the sed." >&2
+  exit 1
+}
+grep -q 'declares_epic_filed "' "$MUTANT5" && {
+  echo "ERROR: the no-label mutant still calls declares_epic_filed — the sed" >&2
+  echo "       range missed the gate, so case AI proves nothing." >&2
+  exit 1
+}
+MUT5_CUT="$(( $(wc -l < "$SCRIPT") - $(wc -l < "$MUTANT5") ))"
+[ "$MUT5_CUT" -ge 4 ] && [ "$MUT5_CUT" -le 8 ] || {
+  echo "ERROR: the no-label mutant removed $MUT5_CUT lines, not the gate's 5-6." >&2
+  echo "       The sed range is eating something else. Fix it." >&2
+  exit 1
+}
+/bin/bash -n "$MUTANT5" || { echo "ERROR: mutant does not parse" >&2; exit 1; }
+SCRIPT_UNDER_TEST="$MUTANT5"
+D="$(mkcase AI)"
+set_issues "$D" 57
+labels "$D" 57 claude-intake epic:planned
+refs "$D" 57
+branches "$D" main dev
+RC="$(run_intake "$D")"
+check "AI: the no-label mutant drafts over the filed epic" "drafted" "$(verdict_of "$D")"
+# Two, because a drafted issue is checked twice (case E) — and every one of
+# those queries is one the label would have made unnecessary.
+check "AI: and pays for the inferred check it now needs"   "2" "$(queries_of "$D" timeline)"
+D="$(mkcase AI2)"
+set_issues "$D" 757
+labels "$D" 757 claude-intake epic:planned
+refs "$D" 757 758
+pr   "$D" 758 MERGED "docs/757-bind-python-skills" "" "Closes #757."
+branches "$D" main
+RC="$(run_intake "$D")"
+check "AI: and still skips on closing linkage, so it is not just broken" \
       "skipped-selection" "$(verdict_of "$D")"
 SCRIPT_UNDER_TEST="$SCRIPT"
 
