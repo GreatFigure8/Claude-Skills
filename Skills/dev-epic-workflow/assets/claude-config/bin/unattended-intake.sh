@@ -58,13 +58,50 @@ LABEL="${INTAKE_LABEL:-claude-intake}"
 # says nothing useful and the branch name is the only honest signal.
 PROPOSAL_BRANCH_PREFIX="${INTAKE_PROPOSAL_PREFIX:-intake/proposed-}"
 
-# How "a pull request references this issue" is asked of GitHub. The issue
+# How "a pull request mentions this issue" is asked of GitHub. The issue
 # timeline is the same thing GitHub renders under the issue itself, and a
 # cross-reference is recorded whether the mention came from the PR body or from
 # a comment on it. `.source.issue.pull_request` is present only when the
 # referring item is a PR, which is what separates a PR reference from a plain
 # issue-to-issue mention.
+#
+# This is the CANDIDATE list, not the answer. A cross-reference is only a
+# mention, and a mention is not a claim that the issue is being worked — see
+# CLOSING_KEYWORD_RE below for the narrowing that turns a candidate into a
+# blocker.
 TIMELINE_PR_JQ='.[] | select(.event == "cross-referenced") | select(.source.issue.pull_request != null) | .source.issue.number'
+
+# What is read back about each candidate PR, in ONE call. jq emits the field
+# line FIRST and the body AFTER it, so newlines in the body cannot corrupt the
+# fields and an empty body is simply no further lines. The closing-issue list
+# is fenced in commas (`,41,`, or `,` alone when empty) so membership is one
+# glob match and `41` can never match `410`.
+PR_VIEW_JQ='"\(.state) \(.headRefName) \(.url) ,\((((.closingIssuesReferences // []) | map(.number|tostring)) | join(",")))," ,(.body // "")'
+
+# The narrowing (epic 09 item 6). Item 3 blocked an issue on ANY cross-reference
+# from a PR, which is far broader than "this issue is being worked": measured
+# cold on this repo, four of four open issues were blocked by a passing mention,
+# and one of them (#48) was blocked by the very PR whose body recorded that #48
+# was clear. The PR documenting that an issue is draftable made it undraftable.
+#
+# So a PR blocks only when it DECLARES that it resolves the issue. Two signals,
+# in order of authority:
+#
+#   1. `closingIssuesReferences` — GitHub's own closing link, authoritative
+#      when it is there.
+#   2. this regex over the PR description — the documented fallback, and it is
+#      not an edge case. Measured 2026-08-20: GitHub records a closing link
+#      only for a PR whose base is the repository's DEFAULT branch. LODE
+#      integrates on `dev`, so all 25 of its most recent PRs report
+#      `closingIssuesReferences: []` — including #758, whose body ends
+#      "Closes #757" and which is the exact race this whole check exists for.
+#      Without the fallback the one true positive we have stops being detected.
+#
+# The keyword list is GitHub's own (close/closes/closed, fix/fixes/fixed,
+# resolve/resolves/resolved). The leading guard stops `prefixes #12` matching;
+# the caller appends the issue number and a trailing non-digit guard so `#12`
+# cannot match `#120`.
+CLOSING_KEYWORD_RE='(^|[^[:alnum:]_])(clos(e|es|ed)|fix(es|ed)?|resolv(e|es|ed))[[:space:]]*:?[[:space:]]*#'
 
 # How many lines of a drafted plan count as its header. The SAME window the
 # SessionStart hook uses (session-start-context.sh: EPIC_QUEUE_HEADER_LINES), so
@@ -286,11 +323,19 @@ while IFS= read -r RENTRY; do
   # was no open PR and the issue was still open. MERGED-not-open is the case
   # that actually bit us.
   #
-  # So a PR blocks when it is OPEN or MERGED and was not opened by this runner.
+  # So a PR blocks when it is OPEN or MERGED, was not opened by this runner,
+  # and DECLARES THAT IT CLOSES the issue.
   # A CLOSED-unmerged PR does not block: abandoned work is not work in flight.
   #
+  # That third axis is epic 09 item 6, and it is not a nicety. Item 3 blocked on
+  # any cross-reference, and measured cold on this repo that blocked four of
+  # four open issues on passing mentions — including #48, blocked by the body of
+  # PR #52, which was the PR that recorded #48 as clear. Because a skip REMOVES
+  # the label, a false positive does not defer an issue, it retires it from
+  # unattended intake until a human relabels. See CLOSING_KEYWORD_RE.
+  #
   # Sets WIP_STATUS to one of:
-  #   clear    nothing referencing this issue blocks it
+  #   clear    nothing that closes this issue blocks it
   #   blocked  BLOCKING_PR holds the evidence, naming the specific PR
   #   unknown  the query itself failed (offline, rate limited, issue gone)
   # `unknown` proceeds to draft, loudly: a GitHub blip must not stop a runner
@@ -298,10 +343,30 @@ while IFS= read -r RENTRY; do
   # one. It is logged so it is never silent.
   BLOCKING_PR=""
   WIP_STATUS=""
+  WIP_LINKAGE=""
+
+  # Does this pull request DECLARE that it resolves the issue, or does it only
+  # mention it? This is the whole of epic 09 item 6 (see CLOSING_KEYWORD_RE).
+  #   $1 = issue number
+  #   $2 = comma-fenced closingIssuesReferences of the PR (`,41,` or `,`)
+  #   $3 = the PR description
+  # Returns 0 and sets WIP_LINKAGE to the evidence kind (`linked` for GitHub's
+  # own closing link, `declared` for the keyword in the description); returns 1
+  # and leaves WIP_LINKAGE empty for a passing mention, which does NOT block.
+  declares_closing() {
+    WIP_LINKAGE=""
+    case "$2" in *",$1,"*) WIP_LINKAGE="linked"; return 0 ;; esac
+    if printf '%s\n' "$3" | grep -Eiq "${CLOSING_KEYWORD_RE}$1([^0-9]|\$)"; then
+      WIP_LINKAGE="declared"
+      return 0
+    fi
+    return 1
+  }
 
   check_work_in_progress() { # $1 = issue number
     BLOCKING_PR=""
     WIP_STATUS="clear"
+    WIP_LINKAGE=""
     if ! WIP_PRS="$("$GH_BIN" api --paginate \
           "repos/$REPO_SLUG/issues/$1/timeline?per_page=100" \
           -H "Accept: application/vnd.github+json" \
@@ -313,11 +378,13 @@ while IFS= read -r RENTRY; do
       case "$WIP_PR" in ''|*[!0-9]*) continue ;; esac
       # state is OPEN | CLOSED | MERGED — CLOSED here means closed-unmerged,
       # because gh reports a merged PR as MERGED and never as CLOSED.
-      WIP_LINE="$("$GH_BIN" pr view "$WIP_PR" --repo "$REPO_SLUG" \
-                    --json state,headRefName,url \
-                    -q '"\(.state) \(.headRefName) \(.url)"' 2>/dev/null)" || continue
-      WIP_STATE=""; WIP_HEAD=""; WIP_URL=""
-      read -r WIP_STATE WIP_HEAD WIP_URL <<WIPLINE
+      WIP_VIEW="$("$GH_BIN" pr view "$WIP_PR" --repo "$REPO_SLUG" \
+                    --json state,headRefName,url,closingIssuesReferences,body \
+                    -q "$PR_VIEW_JQ" 2>/dev/null)" || continue
+      WIP_LINE="$(printf '%s\n' "$WIP_VIEW" | head -1)"
+      WIP_BODY="$(printf '%s\n' "$WIP_VIEW" | tail -n +2)"
+      WIP_STATE=""; WIP_HEAD=""; WIP_URL=""; WIP_CLOSES=""
+      read -r WIP_STATE WIP_HEAD WIP_URL WIP_CLOSES <<WIPLINE
 $WIP_LINE
 WIPLINE
       # Our own proposal never blocks us. Today the label is removed after a
@@ -325,9 +392,20 @@ WIPLINE
       # costs nothing and stops it tripping over itself if the label is ever
       # re-applied by hand.
       case "$WIP_HEAD" in "$PROPOSAL_BRANCH_PREFIX"*) continue ;; esac
+      # THE NARROWING (item 6), and the only axis item 6 touches. The state
+      # gate below and the runner-authored gate above are item 3's, unchanged.
+      # What changed is that being MENTIONED by an open-or-merged non-runner PR
+      # is no longer enough: the PR has to say it CLOSES the issue. Removing
+      # just the next line reverts the check to item 3's any-cross-reference
+      # rule — which is exactly the mutant fixture case R runs.
+      declares_closing "$1" "$WIP_CLOSES" "$WIP_BODY" || continue
+      case "$WIP_LINKAGE" in
+        linked) WIP_EVIDENCE="GitHub records it as closing this issue" ;;
+        *)      WIP_EVIDENCE="its description declares it closes this issue" ;;
+      esac
       case "$WIP_STATE" in
-        OPEN)   BLOCKING_PR="PR #$WIP_PR is open and references this issue ($WIP_URL, branch \`$WIP_HEAD\`)" ;;
-        MERGED) BLOCKING_PR="PR #$WIP_PR is already merged and references this issue ($WIP_URL, branch \`$WIP_HEAD\`)" ;;
+        OPEN)   BLOCKING_PR="PR #$WIP_PR is open and $WIP_EVIDENCE ($WIP_URL, branch \`$WIP_HEAD\`)" ;;
+        MERGED) BLOCKING_PR="PR #$WIP_PR is already merged and $WIP_EVIDENCE ($WIP_URL, branch \`$WIP_HEAD\`)" ;;
         *)      continue ;;
       esac
       WIP_STATUS="blocked"
@@ -346,7 +424,7 @@ WIPLINE
 
   Drafting a proposal here would duplicate work that is already merged or already in flight, so nothing was drafted. Checked at: $2.
 
-  The \`$LABEL\` label has been removed so this does not retry automatically. Re-applying it produces this same skip while that pull request stands — so if the reference above is only a passing mention, draft this one attended rather than relabelling it." >/dev/null 2>&1 || true
+  The \`$LABEL\` label has been removed so this does not retry automatically. Re-applying it produces this same skip while that pull request stands — so if that pull request does not in fact resolve this issue, correct its closing link or draft this one attended rather than relabelling it." >/dev/null 2>&1 || true
     "$GH_BIN" issue edit "$1" --remove-label "$LABEL" >/dev/null 2>&1 || true
     [ -n "${4:-}" ] && "$GIT_BIN" worktree remove --force "$4" 2>/dev/null || true
     [ -n "${5:-}" ] && "$GIT_BIN" branch -D "$5" 2>/dev/null || true
@@ -373,7 +451,7 @@ WIPLINE
         log "WARN #$N: work-in-progress check could not run (timeline query failed) — drafting unchecked"
         ;;
       *)
-        [ "$DRY_RUN" = yes ] && log "DRY-RUN: #$N classified DRAFT — no open or merged non-runner PR references it"
+        [ "$DRY_RUN" = yes ] && log "DRY-RUN: #$N classified DRAFT — no open or merged non-runner PR declares that it closes it"
         ;;
     esac
 

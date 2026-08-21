@@ -17,16 +17,33 @@
 # issue that has an open PR referencing it" would have caught nothing. The rule
 # is therefore:
 #
-#   skip when a PR referencing the issue is OPEN or MERGED and was NOT opened
-#   by this runner (runner-authored = the intake/proposed- branch prefix the
-#   script itself constructs; the GitHub actor is the same account for attended
-#   and unattended work, so the actor proves nothing).
+#   skip when a PR that DECLARES IT CLOSES the issue is OPEN or MERGED and was
+#   NOT opened by this runner (runner-authored = the intake/proposed- branch
+#   prefix the script itself constructs; the GitHub actor is the same account
+#   for attended and unattended work, so the actor proves nothing).
 #
 #   a CLOSED-unmerged PR does NOT block — abandoned work is not work in flight.
 #
 # and it is evaluated TWICE: at selection, and again immediately before the
 # proposal is published, because the window in which #758 merged was under four
 # minutes wide.
+#
+# THE NARROWING (epic 09 item 6) is the "declares it closes" clause, and it was
+# added after item 3 shipped and was measured. Item 3 blocked on any timeline
+# `cross-referenced` event whose source was a PR, which classified four of four
+# open issues on this repo as SKIP on passing mentions — including #48, blocked
+# by the body of PR #52, the PR that had just recorded #48 as clear. A skip
+# REMOVES the label, so a false positive retires an issue from unattended intake
+# until a human relabels it. Cases L-R are that narrowing; A-K are item 3's and
+# every one of them still has to hold.
+#
+# Closing linkage is read from two places, in order of authority:
+#   1. `closingIssuesReferences` — GitHub's own link (case N)
+#   2. a closing keyword in the PR description — the fallback (cases A, Q).
+# The fallback is load-bearing: GitHub records a closing link only for PRs based
+# on the repository's DEFAULT branch, and LODE integrates on `dev`, so #758 —
+# whose body ends "Closes #757", the race this check exists for — has an EMPTY
+# closingIssuesReferences list. Verified against live gh on 2026-08-20.
 #
 # Cases:
 #   A  the #757 timeline replayed: merged non-runner PR -> SKIPPED, #758 named
@@ -42,6 +59,17 @@
 #      construction
 #   K  mutant: delete the MERGED arm and case A drafts again — proof that case
 #      A tests merged-blocking and not something incidental
+#   L  THE SELF-REFERENCE CASE: #48 mentioned in the body of PR #52, the PR
+#      that recorded #48 as clear -> DRAFTED (and DRAFTED under --dry-run)
+#   M  a merged close-out PR naming several issues in prose -> all DRAFTED
+#   N  `closingIssuesReferences` with no keyword anywhere -> SKIPPED; and a
+#      list containing 410 does not block issue 41
+#   O  a closing keyword aimed at a DIFFERENT issue       -> DRAFTED
+#   P  lexical near-misses end to end: #480/#4890/`prefixes` -> DRAFTED;
+#      `Fixed: #48` -> SKIPPED
+#   Q  the closing-keyword regex itself, replayed by real grep over a table
+#   R  mutant: delete the linkage gate and case L skips again — proof that L
+#      tests the narrowing and not something incidental
 #
 # SANDBOX DISCIPLINE (GH #15 is open: a fixture harness in this repo has
 # already escaped its sandbox and committed a real working tree). This harness:
@@ -50,6 +78,11 @@
 #     all STUBS on disk, and the stubs refuse to touch a path outside the
 #     sandbox and refuse `git add` / `git commit` outright
 #   - never reaches the network: the gh stub answers from files
+#   - FAILS LOUDLY rather than degrading when the runner asks a question the
+#     stub does not model. Item 1's stub did not answer the timeline query item
+#     3 had just added, so its whole suite silently exercised item 3's degraded
+#     `unknown` path while reporting green. A stub that cannot answer a query
+#     does not fail — it silently degrades. See STUB UNANSWERED below.
 #   - takes a before/after fingerprint of the repo it lives in and fails loudly
 #     if a single byte of it moved
 # Fixing GH #15 is not in this item's scope; not tripping it is.
@@ -141,6 +174,12 @@ case "${1:-}" in
     # repos/<owner>/<name>/issues/<n>/timeline?per_page=100
     P=""
     for A in "$@"; do case "$A" in */issues/*/timeline*) P="$A" ;; esac; done
+    # A stub that cannot answer a query does not fail, it silently degrades —
+    # and here the degraded answer is item 3's `unknown` path, which DRAFTS.
+    # Refuse audibly instead. See "STUB UNANSWERED" at the end of the suite.
+    [ -n "$P" ] || {
+      printf 'gh STUB UNANSWERED (api path not modelled): %s\n' "$FLAT" >> "$CASE/calls.log"
+      echo 'stub cannot answer this api call' >&2; exit 1; }
     N="${P#*/issues/}"; N="${N%%/*}"
     [ -f "$CASE/timeline-fail" ] && { echo '{"message":"Not Found"}'; exit 1; }
     F="$(pick timeline "$N")"
@@ -148,7 +187,21 @@ case "${1:-}" in
     exit 0 ;;
   pr)
     case "${2:-}" in
-      view)   F="$(pick pr "${3:-}")"
+      view)   # The answer files below model EXACTLY the field set the runner
+              # asks for. If that field set ever changes, answering the old
+              # shape would hand the runner an empty closing-refs column and an
+              # empty body — i.e. "nothing declares closure", i.e. DRAFT — for
+              # every case in this file, silently. So refuse.
+              # The trailing space is load-bearing: FLAT separates every arg
+              # with one, so it pins the EXACT field set. Without it, adding a
+              # field to the query would still match this prefix and the stub
+              # would go on answering the old shape — which is the whole bug.
+              case "$FLAT" in
+                *"--json state,headRefName,url,closingIssuesReferences,body "*) ;;
+                *) printf 'gh STUB UNANSWERED (pr view field set changed): %s\n' "$FLAT" >> "$CASE/calls.log"
+                   echo 'stub does not model this pr view field set' >&2; exit 1 ;;
+              esac
+              F="$(pick pr "${3:-}")"
               [ -n "$F" ] || { echo 'no such PR' >&2; exit 1; }
               cat "$F" ;;
       create) printf 'https://example.invalid/pull/999\n' ;;
@@ -254,14 +307,23 @@ late_refs() { # same, but as the world looks AFTER the drafter has run
   for P in "$@"; do printf '%s\n' "$P" >> "$D/late-timeline/$I"; done
 }
 
-pr() { # $1 = case dir, $2 = number, $3 = state, $4 = head branch
+# A PR answer file is the runner's own two-part shape: the field line first
+# (state, head branch, url, comma-FENCED closingIssuesReferences), then the
+# description. Both linkage inputs are explicit at every call site on purpose —
+# there is no "declares closure by default", because the whole item is that
+# being mentioned is not the same as being closed.
+#   $5 = closing issue refs, comma separated, "" for none (GitHub's own link)
+#   $6 = the PR description
+pr() { # $1 = case dir, $2 = number, $3 = state, $4 = head branch, $5 = closes, $6 = body
   sandboxed "$1"
-  printf '%s %s https://example.invalid/pull/%s\n' "$3" "$4" "$2" > "$1/pr/$2"
+  printf '%s %s https://example.invalid/pull/%s ,%s,\n%s\n' \
+    "$3" "$4" "$2" "${5:-}" "${6:-}" > "$1/pr/$2"
 }
 
 late_pr() { # same, for the post-draft phase
   sandboxed "$1"
-  printf '%s %s https://example.invalid/pull/%s\n' "$3" "$4" "$2" > "$1/late-pr/$2"
+  printf '%s %s https://example.invalid/pull/%s ,%s,\n%s\n' \
+    "$3" "$4" "$2" "${5:-}" "${6:-}" > "$1/late-pr/$2"
 }
 
 SCRIPT_UNDER_TEST="$SCRIPT"      # case K swaps in the open-PR-only mutant
@@ -303,8 +365,12 @@ echo "     PR #761 is the runner's own earlier proposal)"
 D="$(mkcase A)"
 set_issues "$D" 757
 refs "$D" 757 758 761
-pr   "$D" 758 MERGED "docs/757-bind-python-skills"
-pr   "$D" 761 CLOSED "intake/proposed-757-claude-md-should-bind"
+# #758's real closingIssuesReferences is EMPTY — it is based on `dev`, not on
+# LODE's default branch — so the keyword in its description is the only signal
+# there is. #761 is given a declaring body too, so the ONLY thing keeping the
+# runner's own proposal from blocking it is the branch prefix.
+pr   "$D" 758 MERGED "docs/757-bind-python-skills" "" "Closes #757."
+pr   "$D" 761 CLOSED "intake/proposed-757-claude-md-should-bind" "" "Closes #757."
 RC="$(run_intake "$D")"
 check "A: verdict"                      "skipped-selection" "$(verdict_of "$D")"
 check "A: exit code (a skip is not a failure)" "0" "$RC"
@@ -328,12 +394,12 @@ echo "=== B. an OPEN non-runner PR blocks too ================================"
 D="$(mkcase B)"
 set_issues "$D" 770
 refs "$D" 770 771
-pr   "$D" 771 OPEN "feat/attended-fix"
+pr   "$D" 771 OPEN "feat/attended-fix" "" "Fixes #770 — attended work already underway."
 RC="$(run_intake "$D")"
 check "B: verdict"                      "skipped-selection" "$(verdict_of "$D")"
 check "B: exit code"                    "0" "$RC"
-check "B: the open PR is named"         "yes" \
-      "$(yesno grep -q 'PR #771 is open and references this issue' "$D/comments.log")"
+check "B: the open PR is named, with the linkage as evidence" "yes" \
+      "$(yesno grep -q 'PR #771 is open and its description declares it closes this issue' "$D/comments.log")"
 check "B: label removed"                "yes" \
       "$(yesno called "$D" '^gh issue edit 770 --remove-label claude-intake')"
 
@@ -343,7 +409,8 @@ echo "    (abandoned work is not work in flight)"
 D="$(mkcase C)"
 set_issues "$D" 780
 refs "$D" 780 781
-pr   "$D" 781 CLOSED "fix/abandoned-attempt"
+# It DOES declare closure. State is the only thing excluding it.
+pr   "$D" 781 CLOSED "fix/abandoned-attempt" "780" "Closes #780."
 RC="$(run_intake "$D")"
 check "C: verdict"                      "drafted" "$(verdict_of "$D")"
 check "C: exit code"                    "0" "$RC"
@@ -357,8 +424,10 @@ echo "    (same GitHub account, so authorship is the intake/proposed- prefix)"
 D="$(mkcase D)"
 set_issues "$D" 790
 refs "$D" 790 791 792
-pr   "$D" 791 OPEN   "intake/proposed-790-something"
-pr   "$D" 792 MERGED "intake/proposed-790-something-older"
+# Both declare closure, by BOTH signals. The branch prefix is the only thing
+# excluding them, which is what this case is for.
+pr   "$D" 791 OPEN   "intake/proposed-790-something" "790" "Closes #790."
+pr   "$D" 792 MERGED "intake/proposed-790-something-older" "790" "Closes #790."
 RC="$(run_intake "$D")"
 check "D: verdict"                      "drafted" "$(verdict_of "$D")"
 check "D: exit code"                    "0" "$RC"
@@ -371,7 +440,7 @@ D="$(mkcase E)"
 set_issues "$D" 800
 refs "$D" 800                       # clear at selection: nothing references it
 late_refs "$D" 800 801              # by the time the draft is done, #801 exists
-late_pr   "$D" 801 MERGED "fix/attended-landed-during-the-draft"
+late_pr   "$D" 801 MERGED "fix/attended-landed-during-the-draft" "" "Fixes #800"
 RC="$(run_intake "$D")"
 check "E: verdict"                      "skipped-pre-PR" "$(verdict_of "$D")"
 check "E: exit code"                    "0" "$RC"
@@ -392,14 +461,14 @@ echo "=== F. --dry-run classifies BOTH ways and mutates nothing =============="
 D="$(mkcase F)"
 set_issues "$D" 810 811
 refs "$D" 810 812
-pr   "$D" 812 MERGED "docs/already-landed"
+pr   "$D" 812 MERGED "docs/already-landed" "" "Closes #810."
 refs "$D" 811
 RC="$(run_intake "$D" --dry-run)"
 check "F: exit code"                    "0" "$RC"
 check "F: the blocked issue is classified SKIP with its reason" "yes" \
       "$(yesno grep -q 'DRY-RUN: #810 classified SKIP — PR #812 is already merged' "$D/stdout.log")"
 check "F: the clear issue is classified DRAFT with its reason"  "yes" \
-      "$(yesno grep -q 'DRY-RUN: #811 classified DRAFT — no open or merged non-runner PR' "$D/stdout.log")"
+      "$(yesno grep -q 'DRY-RUN: #811 classified DRAFT — no open or merged non-runner PR declares that it closes it' "$D/stdout.log")"
 check "F: no issue comment"             "no"  "$(yesno called "$D" '^gh issue comment')"
 check "F: no label edit"                "no"  "$(yesno called "$D" '^gh issue edit')"
 check "F: no PR"                        "no"  "$(yesno called "$D" '^gh pr create')"
@@ -428,7 +497,7 @@ echo "=== H. one skip does not stop the run =================================="
 D="$(mkcase H)"
 set_issues "$D" 830 831
 refs "$D" 830 832
-pr   "$D" 832 MERGED "docs/already-landed"
+pr   "$D" 832 MERGED "docs/already-landed" "" "Closes #830."
 refs "$D" 831
 RC="$(run_intake "$D")"
 check "H: exit code"                    "0" "$RC"
@@ -496,15 +565,19 @@ SCRIPT_UNDER_TEST="$MUTANT"
 D="$(mkcase K)"
 set_issues "$D" 757
 refs "$D" 757 758 761
-pr   "$D" 758 MERGED "docs/757-bind-python-skills"
-pr   "$D" 761 CLOSED "intake/proposed-757-claude-md-should-bind"
+# #758's real closingIssuesReferences is EMPTY — it is based on `dev`, not on
+# LODE's default branch — so the keyword in its description is the only signal
+# there is. #761 is given a declaring body too, so the ONLY thing keeping the
+# runner's own proposal from blocking it is the branch prefix.
+pr   "$D" 758 MERGED "docs/757-bind-python-skills" "" "Closes #757."
+pr   "$D" 761 CLOSED "intake/proposed-757-claude-md-should-bind" "" "Closes #757."
 RC="$(run_intake "$D")"
 check "K: the open-only mutant drafts the wasted proposal" "drafted" "$(verdict_of "$D")"
 SCRIPT_UNDER_TEST="$SCRIPT"
 D="$(mkcase K2)"
 set_issues "$D" 770
 refs "$D" 770 771
-pr   "$D" 771 OPEN "feat/attended-fix"
+pr   "$D" 771 OPEN "feat/attended-fix" "" "Fixes #770"
 SCRIPT_UNDER_TEST="$MUTANT"
 RC="$(run_intake "$D")"
 check "K: and still skips an OPEN one, so the mutant is not just broken" \
@@ -512,9 +585,205 @@ check "K: and still skips an OPEN one, so the mutant is not just broken" \
 SCRIPT_UNDER_TEST="$SCRIPT"
 
 echo
+echo "=== L. THE SELF-REFERENCE CASE: PR #52 vs issue #48 ===================="
+echo "    PR #52's body contains the sentence '#48 classified DRAFT — no open"
+echo "    or merged non-runner PR references it'. Under item 3's rule that"
+echo "    sentence is itself a cross-reference, so the PR that recorded #48 as"
+echo "    clear is what made it un-draftable. Reproduced from the live bodies."
+SELF_REF_BODY='## Verification
+
+- A live `--dry-run` over every open issue in both configured repos:
+  #12 classified SKIP, #15 classified SKIP, #39 classified SKIP,
+  #48 classified DRAFT — no open or merged non-runner PR references it.
+
+Part of #39.'
+D="$(mkcase L)"
+set_issues "$D" 48
+refs "$D" 48 50 52
+pr   "$D" 50 OPEN   "intake/proposed-48-telemetry-resolution-treats-a-planning" "" "Part of #48."
+pr   "$D" 52 MERGED "fix/intake-skip-addressed-issues" "" "$SELF_REF_BODY"
+RC="$(run_intake "$D")"
+check "L: verdict — a mention is not a claim"  "drafted" "$(verdict_of "$D")"
+check "L: exit code"                           "0" "$RC"
+check "L: no skip comment was posted"          "no" \
+      "$(yesno grep -q 'skipped this issue' "$D/comments.log")"
+check "L: the drafter ran"                     "yes" "$(yesno called "$D" '^claude ')"
+# The path assertions. Without these, a stub that answered nothing would look
+# identical to a correct narrowing: both DRAFT.
+check "L: the timeline WAS queried (not the degraded path)" "yes" \
+      "$(yesno called "$D" 'repos/fixture/repo/issues/48/timeline')"
+check "L: the check did not fall back to unknown"          "no" \
+      "$(yesno grep -q 'WARN #48: work-in-progress check could not run' "$D/stdout.log")"
+check "L: PR #52 WAS inspected, with the closing-linkage fields" "yes" \
+      "$(yesno called "$D" '^gh pr view 52 --repo fixture/repo --json state,headRefName,url,closingIssuesReferences,body')"
+check "L: PR #50 was inspected too"            "yes" \
+      "$(yesno called "$D" '^gh pr view 50 --repo fixture/repo --json state,headRefName,url,closingIssuesReferences,body')"
+
+D="$(mkcase L2)"
+set_issues "$D" 48
+refs "$D" 48 50 52
+pr   "$D" 50 OPEN   "intake/proposed-48-telemetry-resolution-treats-a-planning" "" "Part of #48."
+pr   "$D" 52 MERGED "fix/intake-skip-addressed-issues" "" "$SELF_REF_BODY"
+RC="$(run_intake "$D" --dry-run)"
+check "L: --dry-run classifies #48 DRAFT"      "yes" \
+      "$(yesno grep -q 'DRY-RUN: #48 classified DRAFT' "$D/stdout.log")"
+check "L: --dry-run mutated nothing"           "no" \
+      "$(yesno called "$D" '^gh issue edit')"
+
+echo
+echo "=== M. a close-out PR naming several issues in prose blocks none ======="
+echo "    (the measured #12 / #15 pair, both blocked by merged PR #38)"
+D="$(mkcase M)"
+set_issues "$D" 12 15
+refs "$D" 12 38
+refs "$D" 15 38
+pr   "$D" 38 MERGED "docs/close-epic-06" "" \
+     "Epic 06 closes here. Two discoveries were filed rather than addressed: #12 (branch-name cancel selectors) and #15 (fixture harnesses escape their sandbox). Neither is touched by this PR."
+RC="$(run_intake "$D")"
+check "M: exit code"                    "0" "$RC"
+check "M: #12 was not skipped"          "no"  "$(yesno grep -q 'SKIP #12' "$D/stdout.log")"
+check "M: #15 was not skipped"          "no"  "$(yesno grep -q 'SKIP #15' "$D/stdout.log")"
+check "M: both were drafted"            "2" \
+      "$(grep -c '^gh pr create' "$D/calls.log" | tr -d ' ')"
+
+echo
+echo "=== N. GitHub's own closing link blocks, with no keyword anywhere ======"
+echo "    (a PR linked through the sidebar; closingIssuesReferences is the"
+echo "     authoritative signal and it is checked first)"
+D="$(mkcase N)"
+set_issues "$D" 41
+refs "$D" 41 45
+pr   "$D" 45 MERGED "docs/phase5-close-order-status-first" "41" \
+     "Linked to the issue through the GitHub sidebar. This description never uses a closing keyword at all."
+RC="$(run_intake "$D")"
+check "N: verdict"                      "skipped-selection" "$(verdict_of "$D")"
+check "N: the evidence says GitHub recorded the link" "yes" \
+      "$(yesno grep -q 'PR #45 is already merged and GitHub records it as closing this issue' "$D/comments.log")"
+
+D="$(mkcase N2)"
+set_issues "$D" 41
+refs "$D" 41 46
+pr   "$D" 46 MERGED "docs/other-epic" "410,4100" \
+     "Closes #410 and #4100. Issue #41 is unrelated."
+RC="$(run_intake "$D")"
+check "N: a closing list of 410,4100 does not block issue 41" "drafted" "$(verdict_of "$D")"
+
+echo
+echo "=== O. a closing keyword aimed at a DIFFERENT issue does not block ====="
+D="$(mkcase O)"
+set_issues "$D" 757
+refs "$D" 757 999
+pr   "$D" 999 MERGED "fix/something-else" "" \
+     "Closes #740. Related prior art in #757, which this does not resolve. See also: Closes #740, #757 is NOT closed by that form either — GitHub needs a keyword per issue."
+RC="$(run_intake "$D")"
+check "O: verdict"                      "drafted" "$(verdict_of "$D")"
+check "O: no skip comment"              "no" \
+      "$(yesno grep -q 'skipped this issue' "$D/comments.log")"
+
+echo
+echo "=== P. lexical near-misses, end to end ================================="
+D="$(mkcase P)"
+set_issues "$D" 48
+refs "$D" 48 60
+pr   "$D" 60 MERGED "docs/near-miss" "" \
+     "Prefixes #480 and #4890 were renamed. See also #48 for context."
+RC="$(run_intake "$D")"
+check "P: #480 / #4890 / 'Prefixes' do not block #48" "drafted" "$(verdict_of "$D")"
+
+D="$(mkcase P2)"
+set_issues "$D" 48
+refs "$D" 48 61
+pr   "$D" 61 MERGED "fix/the-real-thing" "" "Fixed: #48"
+RC="$(run_intake "$D")"
+check "P: but 'Fixed: #48' does block it"             "skipped-selection" "$(verdict_of "$D")"
+
+echo
+echo "=== Q. the closing-keyword regex itself, replayed by real grep ========="
+echo "    (nothing above exercises the pattern in isolation; this pins the"
+echo "     keyword list and both number guards to the constant in the script)"
+check "Q: the regex is defined once in the script" "1" \
+      "$(grep -c "^CLOSING_KEYWORD_RE='" "$SCRIPT" | tr -d ' ')"
+check "Q: the PR field query is defined once too"  "1" \
+      "$(grep -c "^PR_VIEW_JQ='" "$SCRIPT" | tr -d ' ')"
+check "Q: the check appends the issue number and a non-digit guard" "yes" \
+      "$(yesno grep -qF 'grep -Eiq "${CLOSING_KEYWORD_RE}$1([^0-9]|\$)"' "$SCRIPT")"
+CKRE="$(sed -n "s/^CLOSING_KEYWORD_RE='\(.*\)'$/\1/p" "$SCRIPT")"
+RE_TAIL='([^0-9]|$)'      # the same tail the line asserted just above appends
+kw() { # $1 = body, $2 = issue -> match|no
+  if printf '%s\n' "$1" | grep -Eiq "${CKRE}$2${RE_TAIL}"; then printf 'match'; else printf 'no'; fi
+}
+check "Q: Closes #757."        "match" "$(kw 'Closes #757.' 757)"
+check "Q: closes #757"         "match" "$(kw 'closes #757' 757)"
+check "Q: Closed #757"         "match" "$(kw 'Closed #757' 757)"
+check "Q: Fix #757"            "match" "$(kw 'Fix #757' 757)"
+check "Q: Fixes #757"          "match" "$(kw 'Fixes #757' 757)"
+check "Q: Fixed: #757"         "match" "$(kw 'Fixed: #757' 757)"
+check "Q: Resolve #757"        "match" "$(kw 'Resolve #757' 757)"
+check "Q: RESOLVES #757"       "match" "$(kw 'RESOLVES #757' 757)"
+check "Q: resolved #757"       "match" "$(kw 'resolved #757' 757)"
+check "Q: keyword on a later line of a long body" "match" \
+      "$(kw '## Summary
+
+Some prose that mentions nothing at all.
+
+Closes #757' 757)"
+check "Q: See #757"            "no"    "$(kw 'See #757' 757)"
+check "Q: Part of #757"        "no"    "$(kw 'Part of #757' 757)"
+check "Q: the self-reference sentence" "no" \
+      "$(kw '#757 classified DRAFT — no open or merged non-runner PR references it' 757)"
+check "Q: Closes #7570 (longer number)" "no"   "$(kw 'Closes #7570' 7570 >/dev/null; kw 'Closes #7570' 757)"
+check "Q: Closes #75 (shorter number)"  "no"   "$(kw 'Closes #75' 757)"
+check "Q: prefixes #757 (keyword inside a word)" "no" "$(kw 'prefixes #757' 757)"
+check "Q: unresolved #757 (keyword inside a word)" "no" "$(kw 'unresolved #757' 757)"
+check "Q: Closes #740, #757 (one keyword, two issues)" "no" "$(kw 'Closes #740, #757' 757)"
+check "Q: Closes #740 alone"   "no"    "$(kw 'Closes #740' 757)"
+check "Q: an empty body"       "no"    "$(kw '' 757)"
+# Found by this suite writing its own close-out prose and being skipped by it.
+# The fallback deliberately inherits GitHub's keyword semantics rather than
+# trying to out-read them: GitHub would auto-close #12 on this sentence too, so
+# a runner that disagreed with GitHub would be the surprising one.
+check "Q: 'filed rather than fixed: #12' matches, as it does on GitHub" "match" \
+      "$(kw 'Two discoveries were filed rather than fixed: #12 and #15.' 12)"
+
+echo
+echo "=== R. mutant: without the linkage gate, the self-reference case skips =="
+echo "    (delete one line and the check reverts to item 3's any-cross-"
+echo "     reference rule — which is exactly how #48 became un-draftable)"
+MUTANT2="$SANDBOX/unattended-intake.any-reference.sh"; sandboxed "$MUTANT2"
+sed -e '/^      declares_closing /d' "$SCRIPT" > "$MUTANT2"
+chmod +x "$MUTANT2"
+cmp -s "$SCRIPT" "$MUTANT2" && {
+  echo "ERROR: the any-reference mutant is identical to the script — the" >&2
+  echo "       linkage gate moved, so case R proves nothing. Fix the sed." >&2
+  exit 1
+}
+/bin/bash -n "$MUTANT2" || { echo "ERROR: mutant does not parse" >&2; exit 1; }
+SCRIPT_UNDER_TEST="$MUTANT2"
+D="$(mkcase R)"
+set_issues "$D" 48
+refs "$D" 48 50 52
+pr   "$D" 50 OPEN   "intake/proposed-48-telemetry-resolution-treats-a-planning" "" "Part of #48."
+pr   "$D" 52 MERGED "fix/intake-skip-addressed-issues" "" "$SELF_REF_BODY"
+RC="$(run_intake "$D")"
+check "R: the any-reference mutant skips #48 on PR #52" "skipped-selection" "$(verdict_of "$D")"
+D="$(mkcase R2)"
+set_issues "$D" 780
+refs "$D" 780 781
+pr   "$D" 781 CLOSED "fix/abandoned-attempt" "780" "Closes #780."
+RC="$(run_intake "$D")"
+check "R: and still drafts on a CLOSED PR, so it is not just broken" \
+      "drafted" "$(verdict_of "$D")"
+SCRIPT_UNDER_TEST="$SCRIPT"
+
+echo
 echo "=== sandbox discipline (GH #15) ========================================"
 ESCAPES="$(grep -l 'STUB REFUSED' "$SANDBOX"/*/calls.log 2>/dev/null | head -3)"
 check "no stub ever had to refuse a git add/commit" "" "$ESCAPES"
+# The item-1 lesson, enforced rather than remembered: if the runner asked gh
+# something these fixtures do not model, every case above was measuring a
+# degraded path and the greens meant nothing.
+UNANSWERED="$(grep -l 'STUB UNANSWERED' "$SANDBOX"/*/calls.log 2>/dev/null | head -3)"
+check "no gh query went unanswered (silent degradation)" "" "$UNANSWERED"
 check "the host repo did not move (HEAD + working tree)" "$HOST_BEFORE" "$(host_fingerprint)"
 
 echo
