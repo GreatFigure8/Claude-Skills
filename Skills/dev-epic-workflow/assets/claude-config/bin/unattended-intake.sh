@@ -479,7 +479,11 @@ check_collisions() { # $1 = issue number, $2 = the fresh draft's plan.md, $3 = i
   # `unknown`, published loudly, never a downgrade of a plan that is not there.
   if [ ! -r "$2" ]; then
     COLLISION_STATUS=unknown
-    log "WARN #$1: no readable plan at $2 — the collision check could not run"
+    # Worded so it cannot be confused with the work-in-progress check's own
+    # fallback: two subsystems both logging "could not run" into one stream is
+    # ambiguous to a reader, and item 7's suite greps for that exact phrase to
+    # prove ITS check did not degrade.
+    log "WARN #$1: no readable plan at $2 — collision detection did not run, nothing was compared"
     return 0
   fi
 
@@ -1239,7 +1243,7 @@ $COLLISION_DETAIL
   **Admission also found a collision** — $COLLISION_SUMMARY — which is why the recommendation is \`needs-decision\` rather than the \`plan\` the draft asked for. The PR names the overlapping paths and the counterpart proposal."
           ;;
         unknown)
-          log "WARN #$N: collision check could not run (open-proposal query failed) — publishing unchecked" ;;
+          log "WARN #$N: collision detection did not run (the open-proposal query failed) — publishing unchecked" ;;
         *)
           log "#$N: no collision — no other open proposal declares a file this one declares" ;;
       esac

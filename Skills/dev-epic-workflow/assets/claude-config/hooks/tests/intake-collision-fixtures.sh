@@ -829,7 +829,7 @@ check "I: exit code"                              "0" "$RC"
 check "I: it published"                           "plan" "$(title_rec "$D")"
 check "I: the plan file is untouched"             "plan" "$(file_rec "$D" 97)"
 check "I: it is never silent"                     "yes" \
-      "$(yesno grep -q 'WARN #97: collision check could not run' "$D/stdout.log")"
+      "$(yesno grep -q 'WARN #97: collision detection did not run' "$D/stdout.log")"
 
 echo
 echo "=== J. a counterpart plan that cannot be read is named, not swallowed ==="
@@ -912,6 +912,10 @@ check "U: exit code — this is not a failure"      "0" "$RC"
 check "U: it published"                           "plan" "$(title_rec "$D")"
 check "U: and said why the check could not run"   "yes" \
       "$(yesno grep -q 'WARN #103: no readable plan at' "$D/stdout.log")"
+# Item 7's case V greps for the phrase "could not run" to prove ITS check stayed
+# on the normal path. Neither of collision detection's two fallbacks may say it.
+check "U: and does not borrow the work-in-progress check's wording" "no" \
+      "$(yesno grep -q 'could not run' "$D/stdout.log")"
 check "U: nothing was committed"                  "no"  "$(yesno called "$D" '^git SANDBOXED-commit')"
 check "U: the counterpart issue was not told anything" "no" \
       "$(yesno called "$D" '^gh issue comment 77 ')"
