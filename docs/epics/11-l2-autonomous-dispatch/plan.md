@@ -1,6 +1,6 @@
 # Epic: L2 — approved work reaches a pull request without a human
 
-**Status:** approved
+**Status:** in flight (item 1 of 4)
 **Source:** GH #39 — the third epic on this issue. Epic 08 designed the ladder and stopped at its
 measurement on a NO-GO; epic 09 fixed the four defects that verdict named; this one builds the
 one rung the evidence actually supports.
@@ -180,7 +180,7 @@ Verified on 2026-08-21. Each line names how.
 
 ## Sequence
 
-**1 → 2 → 2b → 3.** Strictly serial, and the order is the point: **brakes before accelerator.** The
+**1 → (2 ∥ 2b) → 3.** Serial where it matters, and the order is the point: **brakes before accelerator.** The
 control surface and the ledger both ship inert and are worth nothing on their own — which is
 exactly why they must land before the thing that acts, rather than after it in a follow-up nobody
 prioritises once the feature works.
