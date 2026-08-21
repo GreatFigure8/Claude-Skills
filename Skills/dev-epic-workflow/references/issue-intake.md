@@ -181,12 +181,60 @@ on demand to exercise the mechanism itself — same contract, same stops.
 |---|---|
 | Branch | `docs/intake-<NN>-<slug>` — the `docs` type of `references/git-conventions.md`, cut from the integration branch |
 | Commit | `docs/epics/<NN>-<slug>/plan.md` at `**Status:** planning` — and nothing else |
-| PR | Against the integration branch, body per `references/pr-template.md`, carrying `Part of #<n>` — never `Closes #<n>`, because an unattended run cannot know it is anyone's final item |
+| PR | Against the integration branch, body per `references/pr-template.md`, carrying `Part of #<n>` — never `Closes #<n>`, because an unattended run cannot know it is anyone's final item. Its title and body state the proposal's `Recommendation:` (below) |
 | Tracker comment | The standard link-back on the source issue: the epic path and the PR URL, one or two lines |
 
 The PR body also states, in its own words, the two things a reviewer needs to know that
 aren't visible in the diff: that the plan is **unapproved**, and how the epic number was
 chosen (below).
+
+**Outcomes — what a proposal may recommend.** Not every issue deserves an epic, and a
+drafter that must produce an approvable plan will produce one whether or not the work exists.
+So the plan header of an unattended proposal carries one more field, directly under
+`**Status:**`, with a **closed vocabulary of exactly three values**:
+
+| `**Recommendation:**` | Means | What the plan body must carry |
+|---|---|---|
+| `plan` | There is real work here. Today's behaviour, and the default | A normal epic plan |
+| `no-work` | Nothing for an approved epic to dispatch — already fixed, already in flight, a duplicate, or invalid as reported | The evidence that makes it so, **named**: the PR, commit, issue or code |
+| `needs-decision` | A real choice a human must make before any plan is worth writing | The choice, the options, and each option's trade-off — left **unresolved**, with no default quietly picked |
+
+`no-work` and `needs-decision` are **correct, preferred outputs** when they fit. They are not
+failures, and not a fallback for a hard brief: a plan the drafter would not defend is worse
+than an honest `no-work`, and inventing work in order to have something to draft is the worst
+outcome available to it. They are equally not an escape hatch — an under-specified brief that
+still has obvious real work is a `plan` with **Open questions**, not a `needs-decision`.
+
+**Every outcome has the same shape.** All three produce a branch, a `plan.md` at
+`**Status:** planning`, a PR, and a tracker comment. A `no-work` proposal opens a PR too: the
+artifact *is* the evidence, and a PR is trivial to close, whereas a bare issue comment would
+be lighter but would break the one-shape-for-every-outcome property and leave nothing
+version-controlled to read six months later. The PR title carries the recommendation as a
+leading tag — `intake: [no-work] proposed epic for #<n> — <slug>` — and so does the issue
+comment. A `plan` proposal's title, body and comment are unchanged.
+
+**Reading the field.** Absent means `plan`: proposals drafted before the field existed stay
+valid, and the field is purely additive. Present but outside the vocabulary is **not** read as
+`plan` — a malformed terminal outcome is precisely the case a human should look at, so it is
+logged verbatim and treated as `needs-decision`. Matching is case-insensitive and ignores
+anything after the value, so `no-work (duplicate of #758)` is `no-work`.
+
+**Routing is a human's job — and this is the contract that says so.** Nothing acts on a
+recommendation today: the runner does not approve a `plan`, does not close a `no-work`, and
+does not escalate a `needs-decision`. It states the outcome in the PR, in the issue comment,
+and in its log, and stops. Any consumer built later — an autonomous rung above L0 especially —
+inherits these obligations verbatim:
+
+- A `no-work` or `needs-decision` proposal is **never** dispatched, and never approved
+  automatically. It is routed to a human, and that human's decision is the next event.
+- A `needs-decision` proposal's stated choice is **never** resolved by the machine, not even
+  by taking the option the plan happens to list first.
+- A `no-work` proposal is **never** auto-closed. "Nothing to do here" is a claim a human
+  checks; the run's evidence is an argument, not a verdict.
+
+Nothing enforces those three lines today. They are written down here so that whatever
+consumes the outcome is built against them, and so that a consumer which violates one is
+violating a stated contract rather than improvising a missing one.
 
 **The hard stops.** These are stops, not defaults — there is no flag, label, or issue body
 that turns any of them off:
@@ -204,7 +252,9 @@ Approval remains exactly where it was: Jonathan reads the PR the way he reads an
 epic becomes real when he merges it **and** sets `**Status:** approved`; until that edit
 lands, the plan is a draft that happens to be version-controlled. A `planning` plan is
 **never dispatchable** — the SessionStart injection lists it under *awaiting approval*,
-deliberately not *awaiting dispatch*, so the distinction survives a fresh context.
+deliberately not *awaiting dispatch*, so the distinction survives a fresh context. A proposal
+recommending `no-work` or `needs-decision` gets its own line there instead — *recommending no
+work* / *awaiting a decision* — because what it needs from a reader is not approval.
 
 **Numbering — there isn't any.** An unattended run claims **no epic number at all**. Phase 1
 assigns the number *at approval*, and a runner reserving one early both contradicted that rule

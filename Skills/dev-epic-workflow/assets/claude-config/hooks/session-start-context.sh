@@ -106,6 +106,24 @@ fi
 # called them "awaiting dispatch" would be inviting exactly the mistake the gate
 # exists to prevent. A `planning` plan is never dispatchable.
 #
+# ...and two more that are `planning` but are NOT asking to be approved. An
+# unattended proposal declares a terminal outcome in its header
+# (references/issue-intake.md): `**Recommendation:** plan | no-work |
+# needs-decision`. The last two get their own lines, because what they need from
+# Jonathan is not approval:
+#
+#   no-work         -> "recommending no work" — read the evidence, then close it.
+#   needs-decision  -> "awaiting a decision"  — make the call the plan refused to.
+#
+# Listing those under "awaiting approval" would invite the one thing they are
+# designed to prevent: approving a proposal whose own conclusion is that there is
+# nothing to build, or one that is holding an unmade decision. The override
+# applies to the approval bucket ONLY — once a human has set `approved`, that
+# human has overtaken the recommendation and it is spent.
+#
+# Absent or unrecognised means `plan`, so every pre-existing plan and every
+# hand-written epic renders exactly as it did before.
+#
 # The `in flight` PHRASE is matched, not the first-word truncation the Status
 # parser produces, so `in flight (items 1-2 of 2, parallel)` still counts.
 #
@@ -130,8 +148,9 @@ fi
 EPIC_QUEUE_MAX_NAMED=5
 EPIC_QUEUE_HEADER_LINES=10
 
-# Emit one queue line, or nothing if that bucket is empty. $1 = dispatch|approval.
-# Reads the EQ_* arrays built by epic_queue_section; EQ_BLANK_DONE makes the two
+# Emit one queue line, or nothing if that bucket is empty.
+#   $1 = dispatch | approval | decision | no-work
+# Reads the EQ_* arrays built by epic_queue_section; EQ_BLANK_DONE makes the
 # lines share a single leading blank so they render as one markdown list.
 epic_queue_line() {
   EQL_BUCKET="$1"
@@ -153,29 +172,43 @@ epic_queue_line() {
   done
   [ "$EQL_COUNT" -gt 0 ] || return 0
 
-  # The approval line carries its warning in BOTH forms; the dispatch line keeps
-  # the exact singular/plural wording it had before the split.
-  if [ "$EQL_BUCKET" = "approval" ]; then
-    EQL_NOUN="awaiting approval"
-    EQL_TAIL=" — approve before dispatch; \`planning\` is never dispatchable."
-    EQL_SOLO_TAIL="$EQL_TAIL"
-  else
-    EQL_NOUN="awaiting dispatch"
-    EQL_TAIL=" — dispatch the lowest number first."
-    EQL_SOLO_TAIL="."
-  fi
+  # Every bucket but `dispatch` carries its warning in BOTH forms; the dispatch
+  # line keeps the exact singular/plural wording it had before the split. The
+  # two recommendation lines say `proposal`, not `epic` — an unapproved proposal
+  # recommending no work is not an epic and calling it one is the mistake.
+  EQL_ONE="epic"; EQL_MANY="epics"
+  case "$EQL_BUCKET" in
+    approval)
+      EQL_NOUN="awaiting approval"
+      EQL_TAIL=" — approve before dispatch; \`planning\` is never dispatchable."
+      EQL_SOLO_TAIL="$EQL_TAIL" ;;
+    decision)
+      EQL_ONE="proposal"; EQL_MANY="proposals"
+      EQL_NOUN="awaiting a decision"
+      EQL_TAIL=" — each states a choice it deliberately did not make; decide it, then re-draft. Not approvable as they stand."
+      EQL_SOLO_TAIL=" — it states a choice it deliberately did not make; decide it, then re-draft. Not approvable as it stands." ;;
+    no-work)
+      EQL_ONE="proposal"; EQL_MANY="proposals"
+      EQL_NOUN="recommending no work"
+      EQL_TAIL=" — read the evidence, then close them or say why they are wrong. Never dispatch one."
+      EQL_SOLO_TAIL=" — read the evidence, then close it or say why it is wrong. Never dispatch one." ;;
+    *)
+      EQL_NOUN="awaiting dispatch"
+      EQL_TAIL=" — dispatch the lowest number first."
+      EQL_SOLO_TAIL="." ;;
+  esac
 
   [ "$EQ_BLANK_DONE" -eq 0 ] && { echo; EQ_BLANK_DONE=1; }
 
   if [ "$EQL_COUNT" -eq 1 ]; then
-    echo "- 1 epic ${EQL_NOUN}: ${EQL_NAMED}${EQL_SOLO_TAIL}"
+    echo "- 1 ${EQL_ONE} ${EQL_NOUN}: ${EQL_NAMED}${EQL_SOLO_TAIL}"
     return 0
   fi
   EQL_MORE=""
   if [ "$EQL_COUNT" -gt "$EPIC_QUEUE_MAX_NAMED" ]; then
     EQL_MORE=" (+$((EQL_COUNT - EPIC_QUEUE_MAX_NAMED)) more)"
   fi
-  echo "- ${EQL_COUNT} epics ${EQL_NOUN}: ${EQL_NAMED}${EQL_MORE}${EQL_TAIL}"
+  echo "- ${EQL_COUNT} ${EQL_MANY} ${EQL_NOUN}: ${EQL_NAMED}${EQL_MORE}${EQL_TAIL}"
 }
 
 epic_queue_section() {
@@ -183,7 +216,7 @@ epic_queue_section() {
 
   EQ_KEYS=()      # folder numbers, kept sorted as rows are inserted
   EQ_NAMES=()     # folder names, in the same positions
-  EQ_QUEUES=()    # dispatch | approval, in the same positions
+  EQ_QUEUES=()    # dispatch|approval|decision|no-work, same positions
   EQ_TOTAL=0
   EQ_BLANK_DONE=0
   for EQ_PLAN in docs/epics/*/plan.md; do
@@ -191,10 +224,13 @@ epic_queue_section() {
     EQ_NAME="${EQ_PLAN%/plan.md}"
     EQ_NAME="${EQ_NAME##*/}"
 
-    # Status from the plan header. Only the first EPIC_QUEUE_HEADER_LINES lines
-    # are considered — the same window the control-plane resolver uses — so
-    # prose further down a plan can never be mistaken for the header.
+    # Status and Recommendation from the plan header. Only the first
+    # EPIC_QUEUE_HEADER_LINES lines are considered — the same window the
+    # control-plane resolver and the intake runner use — so prose further down a
+    # plan can never be mistaken for the header. The first occurrence of each
+    # field wins; the scan stops as soon as both have been seen.
     EQ_STATE=""
+    EQ_REC=""
     EQ_N=0
     while IFS= read -r EQ_LINE || [ -n "$EQ_LINE" ]; do
       EQ_N=$((EQ_N + 1))
@@ -206,21 +242,29 @@ epic_queue_section() {
           *) break ;;
         esac
       done
-      case "$EQ_L" in [Ss][Tt][Aa][Tt][Uu][Ss]:*) ;; *) continue ;; esac
-      EQ_STATE="${EQ_L#*:}"
+      case "$EQ_L" in
+        [Ss][Tt][Aa][Tt][Uu][Ss]:*)                  [ -z "$EQ_STATE" ] || continue ;;
+        [Rr][Ee][Cc][Oo][Mm][Mm][Ee][Nn][Dd][Aa][Tt][Ii][Oo][Nn]:*) [ -z "$EQ_REC" ] || continue ;;
+        *) continue ;;
+      esac
+      EQ_VAL="${EQ_L#*:}"
       while :; do                       # and again after the colon: `**Status:** x`
-        case "$EQ_STATE" in             # leaves `** x` behind otherwise
-          [[:space:]]*|'*'*|'_'*) EQ_STATE="${EQ_STATE#?}" ;;
+        case "$EQ_VAL" in               # leaves `** x` behind otherwise
+          [[:space:]]*|'*'*|'_'*) EQ_VAL="${EQ_VAL#?}" ;;
           *) break ;;
         esac
       done
       while :; do                       # trailing space, \r, and emphasis
-        case "$EQ_STATE" in
-          *[[:space:]]|*'*'|*'_') EQ_STATE="${EQ_STATE%?}" ;;
+        case "$EQ_VAL" in
+          *[[:space:]]|*'*'|*'_') EQ_VAL="${EQ_VAL%?}" ;;
           *) break ;;
         esac
       done
-      break
+      case "$EQ_L" in
+        [Ss][Tt][Aa][Tt][Uu][Ss]:*) EQ_STATE="$EQ_VAL" ;;
+        *)                          EQ_REC="$EQ_VAL" ;;
+      esac
+      [ -n "$EQ_STATE" ] && [ -n "$EQ_REC" ] && break
     done < "$EQ_PLAN" 2>/dev/null
 
     case "$EQ_STATE" in
@@ -229,6 +273,16 @@ epic_queue_section() {
       [Aa][Pp][Pp][Rr][Oo][Vv][Ee][Dd]*) EQ_QUEUE="dispatch" ;;
       *) EQ_QUEUE="approval" ;;         # `planning`, and anything unparseable
     esac
+
+    # A non-`plan` recommendation moves it out of the approval queue: it is not
+    # asking to be approved. Approval-bucket only, and text-only — no plan is
+    # hidden by this, it is relabelled. Anything unrecognised stays where it was.
+    if [ "$EQ_QUEUE" = "approval" ]; then
+      case "$EQ_REC" in
+        [Nn][Oo]-[Ww][Oo][Rr][Kk]*) EQ_QUEUE="no-work" ;;
+        [Nn][Ee][Ee][Dd][Ss]-[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn]*) EQ_QUEUE="decision" ;;
+      esac
+    fi
 
     EQ_NUM="${EQ_NAME%%-*}"                              # the NN of NN-slug
     case "$EQ_NUM" in ''|*[!0-9]*) EQ_NUM=9999 ;; esac   # unnumbered folder: last
@@ -254,6 +308,8 @@ epic_queue_section() {
 
   epic_queue_line dispatch
   epic_queue_line approval
+  epic_queue_line decision
+  epic_queue_line no-work
 }
 
 epic_queue_section
