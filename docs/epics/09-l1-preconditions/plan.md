@@ -439,6 +439,31 @@ reported: #795 is **open** with **four merged PRs** on branches named `*/795-*`,
 - **Not in scope:** amending the rubric to fit what is found; enabling L1 whatever the verdict —
   L1 lives in epic 08 item 5 and requires its own epic to build. This item produces evidence and
   a verdict, not a switch.
+- **THE BRIEF SURVEY — taken cold 2026-08-21, and it decides this item's fate.** Both backlogs
+  were enumerated, every candidate read, and each of the three sources this plan named at approval
+  was checked:
+  - **"LODE's older un-triaged backlog" does not exist.** Every open LODE issue was created
+    **2026-08-21**. There is no older backlog to draw from.
+  - **6 of LODE's 8 open issues already have filed epics** (`epic:planned` + `in-progress`, with
+    plans at `origin/dev:DOCS/EPICS/17{1..6}-*/plan.md` for #803, #815, #818, #819, #824, #825).
+    They are unavailable as briefs, and once item 8 lands they will correctly skip. That leaves
+    **#827 and #829** — two issues, against a requirement of five.
+  - **The available issues are well-specified by construction, in both repos.** All four
+    `claude-skills` candidates (#15, #48, #54, #57) carry `## Observed` plus `## Cause` or
+    `## Why`; three of four state the cause outright. **Zero of the ten candidates contain a
+    single open-question marker.**
+  - **The structural reason, which is the real finding: both intake pipelines manufacture
+    specification on the way in.** LODE's QA capture bolt-on takes a one-line raw note and
+    auto-elaborates it into Steps / Expected / Actual — and sometimes **invents requirements**.
+    #824's raw note is *"On the data quality suggestions screen there is no way to 'resolve
+    all'"*; the generated **Expected** specifies a right-side modal drawer at 50% screen width
+    with open/close animations and click-outside-to-close, plus gating the conversions button on
+    data-quality completion. **The genuinely under-specified brief exists — it is the raw note —
+    but it is wrapped in a specification before it ever becomes an issue.**
+- **Consequence, stated plainly:** the hard-brief sample cannot be assembled from real intake.
+  The permitted outcomes are to close on **"not measured"**, or to construct briefs from the
+  preserved raw notes — which is a judgement call about whether stripping a machine's elaboration
+  counts as manufacturing, and is Jonathan's to make, not this plan's.
 - **Definition of done:** ≥5 hard-brief drafts scored, grouped separately from any easy briefs
   drafted in the same window; the sample size stated beside the verdict per Phase 4; an explicit
   go / no-go with reasons; **a second no-go is a legitimate and possibly correct outcome** and
@@ -497,10 +522,11 @@ header from config, refuses duplicated work, and detects collisions is better at
 
 ## Open questions
 
-- **Where do five hard briefs come from?** Real QA intake is symptom-first but usually
-  well-specified. Candidates: LODE's older un-triaged backlog, `needs-triage` issues with low
-  confidence scores, and issues deliberately filed thin. This needs an answer before item 5 is
-  dispatched, not before the epic is approved.
+- ~~**Where do five hard briefs come from?**~~ **SURVEYED 2026-08-21, and the answer is: they do
+  not exist in these backlogs.** All three candidate sources named at approval were checked and
+  all three are empty or unusable — see *"The brief survey"* under item 5. **Item 5 cannot deliver
+  ≥5 hard briefs without manufacturing them, which this plan forbids.** The decision now is which
+  permitted outcome to take, not where to look next.
 - ~~**Should `needs-decision` also be reachable *after* a plan is drafted?**~~ **RESOLVED
   2026-08-21: yes — admission downgrades.** A genuine file collision *is* the human decision the
   outcome exists to route, and downgrading is what puts it in the SessionStart *awaiting a
