@@ -236,6 +236,51 @@ log() {
 
 die() { log "FATAL: $*"; exit "${2:-1}"; }
 
+# ------------------------------------------- the cycle stop file (epic 11 item 1)
+# THE KILL SWITCH THAT ANSWERS TO `ls`. Presence is the whole signal — the
+# contents are never read — so `touch` is the whole interface and `rm` is the
+# whole undo. No session, no config to open, no knowing which repo is
+# configured.
+#
+# It is honoured HERE: before the binary preflight, before the credential file
+# is read, before the lock is taken, and before any GitHub call. A kill switch
+# that first requires a working `gh`, an unexpired token and a free lock is a
+# kill switch that stops working at exactly the moment you reach for it.
+#
+# IT IS NOT THE GLOBAL AUTONOMY OVERRIDE, and the two must never be merged.
+# AUTONOMY-OFF pins every repo to L0 and LEAVES UNATTENDED DRAFTING RUNNING;
+# this file stops the cycle entirely, L0 drafting included. One revokes trust in
+# the dispatcher, the other stops the machine. See bin/autonomy.sh for the full
+# argument.
+#
+# Exit 0, not an error code: a stop is an order that was obeyed, not a failure,
+# and a nonzero exit on a 600-second launchd timer is noise that teaches a human
+# to ignore the log. The log line is best-effort in exactly the way every other
+# log line here is — it always reaches stdout, which launchd captures.
+STOP_FILE="${INTAKE_STOP_FILE:-$HOME/.config/claude-intake/STOP}"
+if [ -e "$STOP_FILE" ]; then
+  log "STOP: cycle stop file present at $STOP_FILE — no cycle will start (not even L0 drafting). Remove it to resume: rm '$STOP_FILE'"
+  exit 0
+fi
+
+# ------------------------------------- autonomy control surface (epic 11 item 1)
+# Sourced defensively and NEVER fatally. If the library is missing, unreadable
+# or fails to parse, AUTONOMY_AVAILABLE stays `no` and every path below behaves
+# exactly as it did before epic 11 existed. That is not politeness: this file
+# runs unattended on a 600-second timer against live repositories, so a new
+# dependency that CAN stop a cycle is a worse outcome than a control surface
+# that is briefly unreadable.
+#
+# Nothing below reads AUTONOMY_LEVEL to make a decision. The library ships with
+# AUTONOMY_ENFORCED=no, which is the machine-readable form of "item 1 is the
+# switchboard, wired to nothing"; item 3 is what wires it.
+AUTONOMY_LIB="${INTAKE_AUTONOMY_LIB:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/autonomy.sh}"
+AUTONOMY_AVAILABLE=no
+if [ -r "$AUTONOMY_LIB" ]; then
+  # shellcheck disable=SC1090
+  if . "$AUTONOMY_LIB" 2>/dev/null; then AUTONOMY_AVAILABLE=yes; fi
+fi
+
 # --------------------------------------------------------------- preflight
 for B in "$GIT_BIN" "$GH_BIN" "$CLAUDE_BIN"; do
   [ -x "$B" ] || die "not executable: $B (launchd has a minimal PATH; set INTAKE_GIT/INTAKE_GH/INTAKE_CLAUDE)" 1
@@ -296,6 +341,27 @@ if [ -z "$(printf '%s' "$REPOS" | tr -d '[:space:]')" ]; then
 fi
 
 log "unattended intake starting — label=$LABEL dry-run=$DRY_RUN repos=$(printf '%s' "$REPOS" | grep -c . )"
+
+# The autonomy config is validated ONCE per run, not once per repo, and it is
+# SILENT when the file does not exist — which is the state of every machine that
+# has not opted in, and the reason an unconfigured run's log is byte-identical to
+# what it was before this item. A malformed file refuses the WHOLE file: a config
+# whose author's intent is unknown resolves to no permissions at all.
+if [ "$AUTONOMY_AVAILABLE" = yes ]; then
+  autonomy_load >/dev/null 2>&1 || true
+  if [ "$AUTONOMY_CONFIG_PRESENT" = yes ] && [ "$AUTONOMY_CONFIG_OK" != yes ]; then
+    while IFS= read -r ALINE; do
+      [ -n "$ALINE" ] || continue
+      log "autonomy config REFUSED: $ALINE"
+    done <<AUTONOMY_ERR_EOF
+$AUTONOMY_CONFIG_ERRORS
+AUTONOMY_ERR_EOF
+    log "autonomy config REFUSED: every repo resolves L0 until $AUTONOMY_CONFIG_FILE parses"
+  fi
+  if autonomy_override_active; then
+    log "autonomy: global override present at $AUTONOMY_OVERRIDE_FILE — every repo pinned to L0; unattended drafting continues"
+  fi
+fi
 
 FAILED=0
 
@@ -708,6 +774,23 @@ while IFS= read -r RENTRY; do
     continue
   fi
   log "== repo $REPO_SLUG ($REPO_DIR) live=$LIVE_BRANCH integration=$BASE_BRANCH"
+
+  # The repo's autonomy level: RESOLVED AND LOGGED, NEVER ACTED ON. Nothing
+  # after this block reads AUTONOMY_LEVEL. AUTONOMY_LOG is deliberately EMPTY
+  # for a repo with no section in the config, so a machine that has never heard
+  # of autonomy emits not one extra line — the inertness claim is a property of
+  # the output, not a promise in a comment.
+  if [ "$AUTONOMY_AVAILABLE" = yes ]; then
+    autonomy_resolve "$REPO_DIR" "$REPO_SLUG"
+    if [ -n "$AUTONOMY_LOG" ]; then
+      while IFS= read -r ALINE; do
+        [ -n "$ALINE" ] || continue
+        log "$ALINE"
+      done <<AUTONOMY_LOG_EOF
+$AUTONOMY_LOG
+AUTONOMY_LOG_EOF
+    fi
+  fi
 
   # Repos disagree on the case of the epics directory (this repo uses
   # docs/epics, Oracle-Simple-Convert uses DOCS/EPICS). Ask the repo instead of
