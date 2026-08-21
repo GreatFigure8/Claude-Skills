@@ -1,6 +1,6 @@
 # Epic: L2 — approved work reaches a pull request without a human
 
-**Status:** in flight (item 3 of 4 — the last; items 1, 2 and 2b done)
+**Status:** code-complete, NOT closed — all four items merged; **two live LODE verifications outstanding**, and no rung is enabled
 **Source:** GH #39 — the third epic on this issue. Epic 08 designed the ladder and stopped at its
 measurement on a NO-GO; epic 09 fixed the four defects that verdict named; this one builds the
 one rung the evidence actually supports.
@@ -205,6 +205,31 @@ Verified on 2026-08-21. Each line names how.
   silently broken.
 
 ### 3. L2 — dispatch to a pull request, and stop
+- **Outcome: DONE in code, with its live verification OUTSTANDING.** PR #66, merged `2626259`.
+  Battery on merged `main`: **2181 cases, 0 failures** (1928 + 253). Runner diff exactly
+  **+57 / −0**; **zero** new authority (`gh pr merge` / `issue close` / `issue edit` / `pr edit`
+  all absent). Five negative controls, all `rc 2` — including one that adds a single extra line
+  inside the item-3 block and fails with *"the reconstruction is 57 lines, not 56 … the anchors
+  rotted"*.
+- **Inertness proven at three levels, the third being the one that matters on a live timer.**
+  (1) shipped vs a 57-line reconstruction, byte-identical on an unconfigured repo, with a
+  discriminating L2 pair alongside; (2) that reconstruction is byte-for-byte
+  `git show 243052a:.../unattended-intake.sh`, checked with `cmp` outside the suite; (3) **live** —
+  shipped and pre-item-3 both `--dry-run` across all four configured repos into scratch, stdout and
+  stderr byte-identical, zero autonomy lines, zero L2 lines, nothing created.
+- **Nothing can execute today, and this is structural rather than a setting.** There is no
+  `~/.config/claude-intake/autonomy` and no `promotions/`, so every repo resolves `L0
+  (unconfigured)`. Item 1 made a level above L0 *refused* without a promotion record, and
+  promotion records are written by a human action, never by the automation.
+- **Four decisions the plan left open, made and flagged by the executor:**
+  1. **A declared dependency must be MERGED, not merely dispatched** — otherwise cycle 2 cuts item 2
+     from an integration branch lacking item 1. It is a *wait*, not a failure.
+  2. **L2 requires a declared `gates.<type>`** — a repo declaring none is refused, which is why no
+     repo can be promoted without also declaring provisioning. Config, not code.
+  3. **The branch is pushed before the executor starts**, which makes "a blocked item is never
+     retried" structural rather than remembered.
+  4. **The runner opens the PR, not the executor** — `gh pr create` is absent from the executor's
+     allowlist, so the denylist can sit between the work existing and the work being proposed.
 - **Branch:** `feat/autonomy-l2-dispatch`
 - **Depends on:** 1, 2, 2b
 - **Scope:** At L2, for each configured repo in turn, find the **next undispatched work item of an
@@ -339,3 +364,35 @@ is last.
   sibling in the same house style*. It also gave the better reason for the uncommitted hunk than the
   hunk's own comment did: without touching the runner, item 2b touches no code path that executes
   today, so the DoD's "byte-identical to today" clause would have been **vacuous**.
+
+## Why this epic is code-complete but NOT closed
+
+All four items are merged and the battery on `main` is **2181 cases, 0 failures**. Two things stand
+between that and a closed epic, and neither is code:
+
+1. **Item 2b's live LODE verification** — a freshly-created LODE worktree running
+   `bash scripts/test-both.sh` **and** `pnpm --filter web test` green with no manual step.
+2. **Item 3's live LODE cycle** — one approved epic's next item carried from queue to open PR
+   against `dev` with no human action and the gate actually run.
+
+Both were forbidden by their dispatches because a parallel session was working that repo all day.
+Everything is proven against a **synthetic** repo of the same shape, and in the item 2b executor's
+own words, *"matches the shape" is a weaker claim than "ran there"*. **The epic must not be marked
+closed on synthetic evidence** — that is precisely the substitution epic 08's verdict was about.
+
+Enabling L2 additionally needs a **promotion record**, which is a human action by design.
+
+## Log
+- 2026-08-21 — **item 3 verified cold and merged (`2626259`); the epic is code-complete.** Started
+  and finished in one day alongside epic 09 items 2, 4, 6, 7 and 8. Test coverage across the skill
+  went **879 → 2181 cases** with zero failures at every merge.
+- 2026-08-21 — **a convention gap found by measuring the parser against real plans, deliberately
+  not invented.** LODE carries two work items today that permanently refuse their whole epic every
+  cycle: one reading `### 3. CANCELLED —` with no branch, and one whose branch field reads
+  `deferred to **epic 180 item 5**`. The refusals are *correct* — the dispatch says a missing
+  `Branch:` line means refuse, never guess — but a `- **Branch:** n/a` convention would make them
+  ordinary rather than alarming. The executor declined to invent it unilaterally, which is the
+  behaviour this workflow wants. Worth filing.
+- 2026-08-21 — three parser defects found the same way, all fixed: tab-as-IFS field collapse,
+  **lexical epic ordering** (LODE is past epic 190, where `100` sorts before `99`), and
+  `Depends on: none (independent of 1 and 2)`.
