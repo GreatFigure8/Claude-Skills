@@ -1,6 +1,6 @@
 # Epic: L1 preconditions — make the machine able to receive what good drafting produces
 
-**Status:** in flight (item 4 of 7; items 1, 2, 3, 6 and 7 done)
+**Status:** in flight (items 5 and 8 of 8; items 1, 2, 3, 4, 6 and 7 done)
 **Source:** GH #39 (continues epic 08, which stopped at its item 1 on a NO-GO verdict)
 **Live branch:** per-repo (`main` here, `main` for LODE)   **Integration branch:** per-repo (`main` here, `dev` for LODE)   **Pre-epic tag:** n/a — no autonomy rung is enabled by this epic
 
@@ -183,6 +183,25 @@ Verified against the repo and both trackers on 2026-08-20, not recalled:
 - **Rollback:** revert; the runner returns to drafting everything labelled.
 
 ### 4. Collision detection in admission, not in drafter goodwill
+- **Outcome: DONE.** PR #59, merged `57a4239`. Battery on merged `main`: **1204 cases, 0
+  failures** — `main`'s own 1077 plus 127 new, so nothing was lost in the neighbouring suites.
+  Negative control holds the house pattern: against the pre-item-4 script the suite exits **1**
+  with a hard error (*"could not lift `normalise_declared_paths` … this is a hard failure, not a
+  skip"*) rather than passing quietly.
+- **It chose recall over precision, on measurement, and says so in the artifact.** The rejected
+  leading-token rule loses `hooks/tests/active-epic-fixtures.sh` — a file #25 and #50 genuinely
+  share — because #25 wraps its declaration across two lines. The cost of recall is that 2 of the
+  4 paths reported for #26 x #50 are files #26 only reads. **It changed no verdict**, and the PR
+  body, the plan section the runner writes, and the counterpart comment all state it.
+- **Two decisions it made outside its dispatch, both accepted by the orchestrator.**
+  1. **The check runs only when `REC=plan`.** A `no-work` proposal carries no `**Scope:**` block,
+     so the colliding-unknown rule would have turned every honest `no-work` into `needs-decision`
+     and deleted item 1's outcome. This is a necessary interaction with item 1 that this plan did
+     not anticipate, not scope growth.
+  2. **The generic-token denylist** (`plan.md`, `status`, `docs/epics`) is **taken out of Deferred
+     and delivered here**, as one revertible constant. Verified rather than accepted on the
+     executor's word: PR #26 declares `status/` and PR #50 declares `docs/epics/`, `plan.md` and
+     `status/`, so without it those two collide on `status/` alone — a token that says nothing.
 - **Branch:** `feat/intake-collision-detection`
 - **Depends on:** 1 (consumes the `needs-decision` outcome)
 - **Scope:** After a proposal is drafted and before its PR is opened, compare the files and
@@ -376,6 +395,37 @@ reported: #795 is **open** with **four merged PRs** on branches named `*/795-*`,
   to item 3. Item 6 implemented the approved rule correctly; widening what counts as "in flight"
   is a rule change, and the executor that found it was right not to make it unilaterally.
 
+### 8. A filed epic is work in flight
+- **Branch:** `fix/intake-wip-filed-epics`
+- **Depends on:** 7 (done) — this adds a fourth signal beside item 7's two and item 6's one
+- **Why this exists, found by measurement rather than reasoning.** On 2026-08-21, immediately
+  after epic 10 was filed for **GH #57**, that issue was classified live: it returns **DRAFT**.
+  #57 has a filed, approved epic at `docs/epics/10-declared-paths/plan.md` carrying
+  `**Source:** GH #57` — but the plan was committed straight to `main`, so no PR declares
+  "Part of #57" and no branch is named for it. **All three existing in-flight signals are
+  PR-shaped or branch-shaped, and a plan filed by direct commit is neither.** Every epic in this
+  repo was filed exactly that way, epic 09 included.
+- **Scope:** add a fourth block signal: a `plan.md` under the repo's epics directory whose
+  `**Source:**` names this issue and whose `**Status:**` is not `closed`. It is the most
+  authoritative of the four and the only local one — no API call, no rate limit, no timeline.
+  The skip comment names which of the now-four signals fired, per item 7's rule.
+- **The self-reference trap, for the fourth time in this epic — do not walk into it.** The
+  runner's own proposals live at `<EPICS_DIR>/proposed-<N>-<slug>/plan.md` carrying
+  `**Source:** GH #N` at `**Status:** planning`. Read naively, **every proposal the runner writes
+  would block the issue it was written for**, which is exactly the shape of the #48/PR #52 defect
+  item 6 existed to remove. Runner-authored proposal folders must be excluded by the same
+  `proposed-` convention the branch prefix already uses.
+- **Not in scope:** admission policy generally; what a skip does once decided; reading plans from
+  anywhere but the integration branch's tree.
+- **Definition of done:** GH #57 classifies **SKIP** naming epic 10; an issue whose only epic is
+  `closed` still classifies DRAFT; **an issue whose only match is the runner's own
+  `proposed-<N>` folder still classifies DRAFT** (the self-reference case, as a fixture); item 6's
+  and item 7's live verdicts are unchanged — re-run the n=13 classification and only #57 moves;
+  a mutant proves the exclusion is load-bearing.
+- **Verification:** live `--dry-run` over every open issue in both repos, diffed against the
+  post-item-7 measurement; the mutant; the full battery.
+- **Rollback:** revert; the check returns to item 7's three signals.
+
 ### 5. Re-measure on hard briefs, and re-verdict
 - **Branch:** `chore/l1-remeasure`
 - **Depends on:** 1, 2, 3, 4 — measuring the old drafter says nothing about the fixed one
@@ -400,7 +450,7 @@ reported: #795 is **open** with **four merged PRs** on branches named `*/795-*`,
 
 ## Sequence
 
-**(1 ∥ 3) → (2 ∥ 6) → (4 ∥ 7) → 5**, where **6 and 7 must both precede 5**.
+**(1 ∥ 3) → (2 ∥ 6) → (4 ∥ 7) → 8 → 5**, where **6, 7 and 8 must all precede 5**.
 
 Items 2 and 6 did run in parallel and landed cleanly against each other — measured, not assumed:
 zero diff lines of overlap in either direction, and PR #55 stayed `MERGEABLE/CLEAN` after #56
