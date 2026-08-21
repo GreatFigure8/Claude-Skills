@@ -236,14 +236,45 @@ while IFS= read -r RENTRY; do
     log "skip: no GitHub remote (or gh unauthenticated) -> $REPO_DIR"
     continue
   fi
-  # Default branch per repo — never assume 'main'. This is also the PR base.
-  # An explicit base in the repos list wins; the GitHub default is only a
-  # fallback. Default branch and INTEGRATION branch are not the same thing —
-  # this repo integrates on main, LODE integrates on dev.
+  # TWO branch facts per repo, and they are not the same fact:
+  #
+  #   LIVE_BRANCH  the branch that must keep working — GitHub's default branch
+  #   BASE_BRANCH  the INTEGRATION branch: what work items merge into, and the
+  #                base of every PR this runner opens
+  #
+  # This repo has both on main; LODE is live on main and integrates on dev. An
+  # explicit base in the repos list sets the integration branch; the GitHub
+  # default is only its fallback. Never assume 'main' for either.
+  #
+  # The default-branch query is UNCONDITIONAL, and that is the whole of epic 09
+  # item 2. It used to live in the `else` arm below, so a repo carrying a
+  # `|base` override — exactly LODE's shape — never resolved its live branch at
+  # all. Both values are handed to the drafter as stated facts in the prompt,
+  # because a drafter filling them in from recall got them wrong on 2 of 7
+  # proposals: LODE #741 and #739 both declared `**Live branch:** dev`, which is
+  # LODE's INTEGRATION branch.
+  #
+  # Initialised before use rather than trusted to be assigned below. These are
+  # loop variables in a `set -u` script, and the failure mode this whole block
+  # exists to remove is a header value that came from somewhere other than this
+  # repo — so no path through here may leave either of them carrying one.
+  LIVE_BRANCH=""
+  DEFAULT_BRANCH=""
+  DEFAULT_BRANCH="$("$GH_BIN" repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null || true)"
+  case "$DEFAULT_BRANCH" in
+    ''|null)
+      # Unavailable is itself a fact, and it is passed on as one. `unknown` in a
+      # plan header is a question a human answers in seconds; a plausible wrong
+      # branch reads as correct and survives review — which is how this defect
+      # reached production twice. The reason is logged so it is never silent.
+      LIVE_BRANCH=unknown
+      log "WARN: could not resolve the live (default) branch for $REPO_SLUG — the drafter is told 'unknown', never a guess" ;;
+    *) LIVE_BRANCH="$DEFAULT_BRANCH" ;;
+  esac
   if [ -n "$BASE_OVERRIDE" ]; then
     BASE_BRANCH="$BASE_OVERRIDE"
   else
-    BASE_BRANCH="$("$GH_BIN" repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null || true)"
+    BASE_BRANCH="$DEFAULT_BRANCH"
     [ -n "$BASE_BRANCH" ] || BASE_BRANCH=main
   fi
   if ! "$GIT_BIN" ls-remote --exit-code --heads origin "$BASE_BRANCH" >/dev/null 2>&1; then
@@ -255,7 +286,7 @@ while IFS= read -r RENTRY; do
     log "skip: worktree root does not exist: $WT_ROOT"
     continue
   fi
-  log "== repo $REPO_SLUG ($REPO_DIR) base=$BASE_BRANCH"
+  log "== repo $REPO_SLUG ($REPO_DIR) live=$LIVE_BRANCH integration=$BASE_BRANCH"
 
   # Repos disagree on the case of the epics directory (this repo uses
   # docs/epics, Oracle-Simple-Convert uses DOCS/EPICS). Ask the repo instead of
@@ -507,6 +538,27 @@ WIPLINE
     **Status:** planning
     **Source:** GH #$N
     **Recommendation:** one of plan | no-work | needs-decision — see below
+
+  SUPPLIED HEADER FACTS — these are read from this repository's own configuration by the
+  runner that started you. They are not yours to work out. Copy them into the header
+  verbatim, exactly as written here:
+    **Live branch:** ${LIVE_BRANCH}
+    **Integration branch:** ${BASE_BRANCH}
+  and this repository keeps its epics in ${EPICS_DIR}/ — use that path exactly, including
+  its capitalisation.
+
+  Do NOT infer, re-derive or improve those two branch values: not from the branch you are
+  standing on, not from what similar repositories usually do, and not from memory. They are
+  handed to you because a drafter left to fill them in itself got them wrong on 2 of 7
+  proposals, naming the INTEGRATION branch as the live one — on the exact field the first
+  invariant of this workflow (the live branch is never written to) is written in terms of.
+  Live and integration are frequently different branches, and on this repository they may
+  well be. If a value above reads unknown, then write unknown in the header and say in
+  Grounding that it could not be resolved. Never substitute a plausible-looking branch name
+  for a fact you were not given: a wrong-but-believable header is worse than an admitted gap,
+  because it reads as correct and gets approved.
+
+  **Pre-epic tag:** is NOT supplied. That one is yours to judge — propose a tag, or n/a.
 
   THE RECOMMENDATION — pick exactly one, and put it in the header directly under Status:
     plan            There is real work here. The body is a normal epic plan. This is the
