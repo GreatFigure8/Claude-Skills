@@ -9,9 +9,11 @@ This file is the **permission** surface: what the machine may do. Its sibling
 actually run the gates at all, and what the gates are for a given item type. Separate files
 for the same reason `repos` and `autonomy` are separate — see "Why a sibling file" below.
 
-**As shipped by epic 11 item 1 this surface is inert.** Everything below is parsed,
-validated, resolved and logged, and **nothing acts on it**. `AUTONOMY_ENFORCED=no` in
-the library is that claim in a form a fixture asserts. Item 3 is what wires it.
+**Epic 11 item 1 shipped this surface inert; item 3 connected it.** Everything below is
+parsed, validated, resolved and logged *here*, and acted on in exactly one place —
+`bin/dispatch.sh`, described in `references/l2-dispatch.md`. `AUTONOMY_ENFORCED=yes` in
+the library is that claim in a form a fixture asserts. Nothing in *this* file ever acts:
+it answers questions about permission and writes nothing but its own variables.
 
 ## The ladder
 
@@ -131,7 +133,9 @@ A work item's plan says what it intends to touch in **prose**. That is not machi
 
 The denylist is therefore enforced **after the executor returns and before the PR is opened**,
 against `git diff --name-only`. The library's function takes paths on **stdin and nothing
-else**; there is deliberately no variant that accepts a plan, a scope block or a declaration.
+else**; there is deliberately no variant that accepts a plan, a scope block or a
+declaration. `bin/dispatch.sh` is the caller, and it calls this after the executor has
+returned and before it opens anything.
 
 ```bash
 git -C "$WT" diff --name-only "$BASE...HEAD" | autonomy_deny_diff_paths
@@ -223,12 +227,18 @@ bin/autonomy.sh --check --repos ~/.config/claude-intake/repos   # every configur
 git diff --name-only | bin/autonomy.sh --deny-paths --repo <path> --slug <owner/name>
 ```
 
-Read-only in every mode. The runner never invokes this path; it exists so a human — and a
-fixture — can see the whole resolved surface without opening a session.
+Read-only in every mode. Neither the runner nor the dispatcher invokes this path; it exists
+so a human — and a fixture — can see the whole resolved surface without opening a session.
 
 ## Fixtures
 
-`assets/claude-config/hooks/tests/autonomy-control-fixtures.sh` — 244 cases.
+`assets/claude-config/hooks/tests/autonomy-control-fixtures.sh` — 261 cases.
+
+Section O was "the switchboard is wired to nothing" for the whole of item 1 and is now
+"wired, and to exactly one thing": the runner still reads no policy value and calls no
+policy function, and every part of the policy is asserted to be consumed by the dispatcher.
+An assertion aimed at a file the behaviour moved out of is an assertion that passes forever
+while meaning nothing.
 
 The one that matters is **case K, the inertness proof**: it reconstructs the runner as it
 stood before this item by deleting exactly the 83 lines the item added (refusing to run at

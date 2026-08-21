@@ -85,6 +85,12 @@ LIB="${INTAKE_FIXTURE_STATUS_LIB:-$BIN_DIR/intake-status.sh}"
 SCRIPT="${INTAKE_FIXTURE_SCRIPT:-$BIN_DIR/unattended-intake.sh}"
 HOOK="${INTAKE_FIXTURE_SESSION_HOOK:-$HOOKS_DIR/session-start-context.sh}"
 AUTONOMY_LIB="$BIN_DIR/autonomy.sh"
+# Epic 11 item 3's dispatch library, passed EXPLICITLY for the same reason
+# INTAKE_AUTONOMY_LIB is: the runner resolves it relative to its OWN path, so any
+# reconstruction that lives in the sandbox would silently lose it while the
+# shipped copy kept it, and a byte-identity proof would then be about two
+# variables instead of one. Items 1 and 2b's suites carry the identical line.
+CP_DISPATCH_LIB="${INTAKE_FIXTURE_DISPATCH_LIB:-$BIN_DIR/dispatch.sh}"
 
 # ---------------------------------------- the negative control's tripwires
 # Not skips, not warnings: aborts. Pointed at a pre-item-2 tree this suite must
@@ -585,6 +591,7 @@ intake_env() { # $1 = case dir -> the environment every run shares
     "INTAKE_LOG=$D/intake.log" "INTAKE_LOCK=$D/.lock" \
     "INTAKE_WORKTREE_ROOT=$D/worktrees" \
     "INTAKE_AUTONOMY_LIB=$AUTONOMY_LIB" "INTAKE_STATUS_LIB=$STATUS_LIB_UNDER_TEST" \
+    "INTAKE_DISPATCH_LIB=$CP_DISPATCH_LIB" \
     "INTAKE_AUTONOMY_FILE=$D/autonomy" "INTAKE_AUTONOMY_OVERRIDE=$D/AUTONOMY-OFF" \
     "INTAKE_STOP_FILE=$D/STOP" "INTAKE_PROMOTIONS_DIR=$D/promotions" \
     "FIXTURE_CASE_DIR=$D" "FIXTURE_SANDBOX=$SANDBOX" "FIXTURE_REPO_SLUG=fixture/repo" \

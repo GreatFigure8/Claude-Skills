@@ -316,10 +316,17 @@ consumes the outcome is built against them, and so that a consumer which violate
 violating a stated contract rather than improvising a missing one.
 
 **The hard stops.** These are stops, not defaults — there is no flag, label, or issue body
-that turns any of them off:
+that turns any of them off. They are the stops of the **drafting** cycle, which is what
+this file describes and what runs on every repo including unconfigured ones. Since epic 11
+item 3 the same process also carries a **dispatch** pass, which is a separate path with its
+own stops, its own admission policy, and its own ceiling: `references/l2-dispatch.md`. It
+is unreachable below L2, so on an unconfigured repo the list below is the whole of what the
+process can do.
 
 - It **never approves.** `**Status:** planning` is the only status it may write.
-- It **never dispatches an executor.** Not for item 1, not for a "trivial" item.
+- It **never dispatches an executor.** Not for item 1, not for a "trivial" item. (Dispatch
+  is L2's job, from an epic a human has *already* approved — never from a proposal this
+  path drafted, because a `planning` plan is not dispatchable at any rung.)
 - It **never writes code.** Its diff touches `docs/epics/<NN>-<slug>/` and nothing else.
 - It **never merges** — not the PR it opened, not anything else. It never pushes to the
   integration branch.

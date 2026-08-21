@@ -91,15 +91,18 @@
 # and no environment file. Copying credential material into a worktree where a
 # headless drafter holds Write is a widened blast radius bought for no benefit.
 # Provisioning belongs to DISPATCH worktrees only, and the runner's drafting path
-# does not call it.
+# does not call it. Since item 3, bin/dispatch.sh calls provision_preflight for
+# every dispatch worktree and for no drafting one — the split is preserved by
+# there being exactly one caller.
 
 # =========================================================================
 # CONTRACT MARKERS — asserted by the fixtures
 # =========================================================================
 # Whether any code path in this build invokes the provisioner as part of a
-# cycle. `no` for the whole of item 2b: this is the mechanism, item 3 is the
-# dispatcher that calls it.
-PROVISION_DISPATCH_WIRED=no
+# cycle. `no` for the whole of item 2b, and `yes` since item 3: bin/dispatch.sh
+# calls provision_preflight before every executor it starts, and refuses the
+# dispatch outright when the smoke check fails.
+PROVISION_DISPATCH_WIRED=yes
 
 # ------------------------------------------------------------------- paths
 PROVISION_CONFIG_FILE="${INTAKE_PROVISION_FILE:-$HOME/.config/claude-intake/provisioning}"

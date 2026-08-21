@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # The autonomy control surface — dev-epic-workflow, epic 11 item 1.
 #
-# THIS FILE IS A SWITCHBOARD WIRED TO NOTHING. It parses, validates, resolves
-# and reports the controls that a later item will act on. It changes no
-# decision any existing code path makes, and `AUTONOMY_ENFORCED` below says so
-# in a form a fixture can assert. Item 3 of epic 11 is what flips that.
+# THIS FILE IS THE SWITCHBOARD, AND SINCE EPIC 11 ITEM 3 IT IS CONNECTED. It
+# parses, validates, resolves and reports the controls; `bin/dispatch.sh` is the
+# one file that acts on them, and `AUTONOMY_ENFORCED` below says so in a form a
+# fixture can assert. Nothing in THIS file ever acts: it answers questions about
+# permission and writes nothing but its own variables. What it now grants is one
+# rung — L2 — whose ceiling is an open pull request.
 #
 # Used two ways:
 #   sourced   `. autonomy.sh` — the runner and (later) the dispatcher call the
@@ -119,9 +121,12 @@
 # epic 11 and are refused rather than silently clamped.
 AUTONOMY_CEILING=L2
 
-# Whether anything ACTS on a resolved level. `no` for the whole of item 1 —
-# this is the machine-readable form of "ships inert", and a fixture asserts it.
-AUTONOMY_ENFORCED=no
+# Whether anything ACTS on a resolved level. `no` for the whole of item 1, and
+# `yes` since item 3 wired bin/dispatch.sh to it. This is the machine-readable
+# form of "a resolved level now has consequences", and a fixture asserts it —
+# flipping it back to `no` while the dispatcher exists would be a lie a fixture
+# catches rather than a comment nobody re-reads.
+AUTONOMY_ENFORCED=yes
 
 # ------------------------------------------------------------------- paths
 AUTONOMY_CONFIG_FILE="${INTAKE_AUTONOMY_FILE:-$HOME/.config/claude-intake/autonomy}"
@@ -686,7 +691,7 @@ autonomy_resolve() { # $1 = repo checkout path, $2 = repo slug
   AUTONOMY_REASON="configured $CONF; $AUTONOMY_PROMOTION_DETAIL"
   AUTONOMY_LOG="autonomy: $RSLUG resolves to $CONF — $AUTONOMY_PROMOTION_DETAIL
 autonomy: $RSLUG policy — require-labels=[${AUTONOMY_REQUIRE_LABELS:-none}] forbid-labels=[${AUTONOMY_FORBID_LABELS:-none}] max-files=$AUTONOMY_MAX_FILES max-diff-lines=$AUTONOMY_MAX_DIFF_LINES deny-paths=[${AUTONOMY_DENY_PATHS:-none}] (+${AUTONOMY_DENY_FLOOR_COUNT:-0} built-in)
-autonomy: NOTHING ACTS ON THIS — AUTONOMY_ENFORCED=$AUTONOMY_ENFORCED in this build (epic 11 item 1 ships the control surface inert)"
+autonomy: THIS LEVEL IS ENFORCED — AUTONOMY_ENFORCED=$AUTONOMY_ENFORCED; at L2 the next undispatched work item may be executed and proposed as a pull request, and nothing beyond that (no approval, no merge, no issue closed)"
   return 0
 }
 
