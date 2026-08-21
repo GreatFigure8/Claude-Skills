@@ -1,6 +1,6 @@
 # Epic: L1 preconditions — make the machine able to receive what good drafting produces
 
-**Status:** in flight (item 1 of 6)
+**Status:** in flight (items 2 and 6 of 6, parallel)
 **Source:** GH #39 (continues epic 08, which stopped at its item 1 on a NO-GO verdict)
 **Live branch:** per-repo (`main` here, `main` for LODE)   **Integration branch:** per-repo (`main` here, `dev` for LODE)   **Pre-epic tag:** n/a — no autonomy rung is enabled by this epic
 
@@ -81,6 +81,20 @@ Verified against the repo and both trackers on 2026-08-20, not recalled:
 ## Work items
 
 ### 1. Non-approval outcomes as a first-class drafter product
+- **Outcome: DONE.** PR #53, merged `ba25b9b`. Verified cold: block ordering correct
+  (`check_work_in_progress` :485 precedes `REC_FILE` :505), item 3's own suite passes 60/60
+  against this branch, full gate suite green on merged `main` at **879 cases, 0 failures**.
+- **Delivered narrower than this plan's Grounding claimed, and the executor said so unprompted.**
+  The fixtures prove the *plumbing* carries a recommendation faithfully, using a stub drafter.
+  Whether a live model returns `no-work` instead of inventing a plan is untested and untestable
+  hermetically — see the corrected Grounding bullet. Item 5 measures it.
+- **A cross-item fixture defect surfaced during the rebase and is worth remembering.** Item 1's
+  `gh` stub did not answer the `gh api …/timeline` query item 3 had just introduced, so every case
+  in item 1's suite was silently taking item 3's *degraded* `unknown` path rather than the normal
+  `clear` path. The suite was green while exercising the wrong branch of someone else's new code.
+  Found and fixed by the executor itself. **The general lesson: a stub that does not answer a new
+  query does not fail — it silently degrades**, so a suite passing after a neighbouring item lands
+  is not evidence that it tested anything.
 - **Branch:** `feat/intake-nonapproval-outcomes`
 - **Depends on:** none
 - **Scope:** Give the drafter a closed vocabulary of terminal outcomes and a place to put it.
