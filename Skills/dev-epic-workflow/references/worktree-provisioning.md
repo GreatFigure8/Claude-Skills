@@ -5,9 +5,12 @@ what "the gates" means for a given item. Implemented by
 `assets/claude-config/bin/worktree-provision.sh`; the permission surface it sits beside is
 `references/autonomy-control-surface.md`.
 
-**As shipped by epic 11 item 2b nothing calls it.** `PROVISION_DISPATCH_WIRED=no` in the
-library is that claim in a form a fixture asserts. Item 3 is the dispatcher, and it is what
-calls `provision_preflight`.
+**Epic 11 item 2b shipped the mechanism; item 3 is the caller.**
+`PROVISION_DISPATCH_WIRED=yes` in the library is that claim in a form a fixture asserts.
+`bin/dispatch.sh` calls `provision_preflight` before every executor it starts and refuses
+the dispatch outright when the smoke check fails — see `references/l2-dispatch.md`. There
+is exactly **one** caller, and it is a dispatch path, which is what keeps "a drafting
+worktree is never provisioned" true by construction rather than by care.
 
 ## Why this exists
 
@@ -184,7 +187,7 @@ is a lie, and the exit code is the half a script reads.
 
 ## Fixtures
 
-`assets/claude-config/hooks/tests/worktree-provision-fixtures.sh` — 173 cases.
+`assets/claude-config/hooks/tests/worktree-provision-fixtures.sh` — 178 cases.
 
 The one that carries the item is **case K**: a synthetic repo is built with the measured
 shape, the bare worktree is **required** to fail with `RuntimeError: DB_PASSWORD is not set`,
@@ -200,6 +203,11 @@ across the log, stdout, stderr and the call stream. **That pair alone would pass
 that does nothing**, so the same pair is run again against a *malformed* config, where the
 shipped runner must name the bad key and the reconstruction must be blind to it. Inertness
 and discrimination are the same two runs.
+
+Section M was "nothing is wired yet" for the whole of item 2b and is now "wired, and by
+exactly one caller": the runner still only loads and validates, and the dispatcher is
+asserted to call the preflight, to ask for the declared gate set, and to refuse the
+dispatch when the preflight fails.
 
 Four mutants each break a case that passes on the shipped library: an advisory smoke check, a
 gate lookup that falls through instead of refusing an undeclared item type, a disabled
