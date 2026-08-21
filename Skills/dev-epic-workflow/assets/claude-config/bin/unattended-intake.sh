@@ -342,6 +342,46 @@ fi
 
 log "unattended intake starting — label=$LABEL dry-run=$DRY_RUN repos=$(printf '%s' "$REPOS" | grep -c . )"
 
+# ----------------------------------- worktree provisioning (epic 11 item 2b)
+# Sourced defensively and NEVER fatally, for the same reason the control surface
+# above is: this file runs unattended on a 600-second timer against live
+# repositories, so a new dependency that CAN stop a cycle is worse than one that
+# is briefly unreadable.
+#
+# NOTHING IN THIS FILE PROVISIONS ANYTHING, AND A DRAFTING WORKTREE NEVER IS.
+# Drafting runs no gate, so it needs no environment file and no install — and
+# copying credential material into a worktree where a headless drafter holds
+# Write would widen the blast radius to buy nothing. Provisioning belongs to
+# DISPATCH worktrees, which is epic 11 item 3. The library is sourced here for
+# two reasons only: so a malformed declaration is reported on the timer rather
+# than discovered at the first dispatch, and so the dispatcher inherits it.
+#
+# SILENT WHEN THE FILE IS ABSENT, which is the state of every machine that has
+# not opted in, and the reason an unconfigured run's log is byte-identical to
+# what it was before this item.
+PROVISION_LIB="${INTAKE_PROVISION_LIB:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/worktree-provision.sh}"
+PROVISION_AVAILABLE=no
+if [ -r "$PROVISION_LIB" ]; then
+  # shellcheck disable=SC1090
+  if . "$PROVISION_LIB" 2>/dev/null; then PROVISION_AVAILABLE=yes; fi
+fi
+if [ "$PROVISION_AVAILABLE" = yes ]; then
+  provision_load >/dev/null 2>&1 || true
+  if [ "$PROVISION_CONFIG_PRESENT" = yes ]; then
+    if [ "$PROVISION_CONFIG_OK" = yes ]; then
+      log "provisioning: $(printf '%s\n' "$PROVISION_PARSED" | awk -F'\t' 'NF>=2 && $1 != "" {print $1}' | sort -u | grep -c .) repo section(s) declared in $PROVISION_CONFIG_FILE"
+    else
+      while IFS= read -r PLINE; do
+        [ -n "$PLINE" ] || continue
+        log "provisioning config REFUSED: $PLINE"
+      done <<PROVISION_ERR_EOF
+$PROVISION_CONFIG_ERRORS
+PROVISION_ERR_EOF
+      log "provisioning config REFUSED: nothing is provisioned and no dispatch may proceed until $PROVISION_CONFIG_FILE parses (drafting is unaffected)"
+    fi
+  fi
+fi
+
 # The autonomy config is validated ONCE per run, not once per repo, and it is
 # SILENT when the file does not exist — which is the state of every machine that
 # has not opted in, and the reason an unconfigured run's log is byte-identical to

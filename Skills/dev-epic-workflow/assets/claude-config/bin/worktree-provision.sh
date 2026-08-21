@@ -761,9 +761,12 @@ provision_preflight() { # $1 = repo path, $2 = repo slug, $3 = worktree path
 # ---------------------------------------------------------------------- CLI
 _provision_cli_usage() { sed -n '1,10p' "$0"; }
 
+# rc 1 when this repo is REFUSED, so the exit code agrees with the text. A mode
+# that prints "no dispatch may proceed" and exits 0 is a mode whose exit code is
+# a lie, and the exit code is the half a script reads.
 _provision_cli_one() { # $1 path, $2 slug
-  local P="$1" S="$2" T
-  provision_resolve "$P" "$S" || true
+  local P="$1" S="$2" T RC=0
+  provision_resolve "$P" "$S" || RC=1
   printf 'repo            %s\n' "${S:-${P:-<none>}}"
   printf '  path          %s\n' "$(provision_normalise_path "$P")"
   if [ "$PROVISION_DECLARED" = yes ]; then
@@ -783,6 +786,7 @@ CLI_TYPES_EOF
   else
     printf '  provisioning  %s (a bare worktree, exactly as before this existed)\n' "${PROVISION_REASON:-unconfigured}"
   fi
+  return "$RC"
 }
 
 _provision_cli() {
@@ -836,7 +840,7 @@ _provision_cli() {
   fi
   printf 'dispatch wired  %s   (item 2b ships the mechanism; item 3 is what calls it)\n' "$PROVISION_DISPATCH_WIRED"
   if [ -n "$REPO_PATH" ] || [ -n "$REPO_SLUG" ]; then
-    _provision_cli_one "$REPO_PATH" "$REPO_SLUG"
+    _provision_cli_one "$REPO_PATH" "$REPO_SLUG" || RC=1
   fi
   return "$RC"
 }
