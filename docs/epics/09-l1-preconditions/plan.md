@@ -1,6 +1,6 @@
 # Epic: L1 preconditions — make the machine able to receive what good drafting produces
 
-**Status:** in flight (items 5 and 8 of 8; items 1, 2, 3, 4, 6 and 7 done)
+**Status:** in flight (item 5 of 8 only; items 1, 2, 3, 4, 6, 7 and 8 done — **item 5 is blocked, see its brief survey**)
 **Source:** GH #39 (continues epic 08, which stopped at its item 1 on a NO-GO verdict)
 **Live branch:** per-repo (`main` here, `main` for LODE)   **Integration branch:** per-repo (`main` here, `dev` for LODE)   **Pre-epic tag:** n/a — no autonomy rung is enabled by this epic
 
@@ -396,6 +396,26 @@ reported: #795 is **open** with **four merged PRs** on branches named `*/795-*`,
   is a rule change, and the executor that found it was right not to make it unilaterally.
 
 ### 8. Read the label the contract already mandates
+- **Outcome: DONE.** PR #60, merged `f82bea7`. Battery on merged `main`: **1297 cases, 0
+  failures** (1204 + 93). Both negative controls hard-error rather than passing quietly — the
+  skip suite gives 40 failures then `ERROR: the no-label mutant is identical to the script`, and
+  the session-start suite 5 then the equivalent for its own mutant.
+- **This item's DoD clause was WRONG, and the executor was right to contradict it.** It said
+  *"verdicts identical, reasons changing to the label"*. **Five verdicts flip DRAFT→SKIP** —
+  `claude-skills` #57 and LODE #803, #824, #829, #832 — and all five are epics **approved but not
+  yet dispatched**. Verified rather than accepted: LODE #803 and #824 carry `epic:planned` and
+  their plans read `**Status:** approved`. That state produces **no PR and no branch**, so all
+  three inferred signals are structurally blind to it. The plan predicted this in two places (the
+  GH #57 Log entry and item 5's survey) and the DoD was never updated to match.
+- **The fallback is proven live, not merely by fixture.** `claude-skills` #41 carries zero labels
+  and a merged closing PR (#45), and the pre- and post-item-8 scripts SKIP it identically via
+  `already-done`. Items 6 and 7 were demoted, not deleted.
+- **One extra API call was spent deliberately, and the reasoning is accepted.** "Zero extra calls"
+  holds exactly at selection — the labels ride on the title fetch that already existed. The
+  *pre-PR re-check* has no call to ride on, so it spends one `gh issue view`. That second
+  evaluation exists to catch a human filing an epic mid-window, which is **precisely** the
+  no-PR-no-branch case; and when the label is present it returns before the timeline, PR-view and
+  branch queries, so it removes more calls than it adds.
 - **Branch:** `fix/intake-wip-read-the-label`
 - **Depends on:** 7 (done)
 - **THE FINDING, and it reframes items 3, 6 and 7.** `references/issue-intake.md:71-72` already
@@ -722,3 +742,20 @@ header from config, refuses duplicated work, and detects collisions is better at
   was fixed by hand on 2026-08-21. LODE is 8 of 8 correct; `claude-skills` was 0 of 1. That is why
   item 8 keeps items 6 and 7's signals as a fallback rather than deleting them: a label is a
   declaration that depends on discipline, a merged closing PR is evidence that does not.
+- 2026-08-21 — **item 8 verified cold and merged** (`f82bea7`); merged `main` is **1297 cases, 0
+  failures**. Its DoD clause was wrong and is corrected in place rather than quietly satisfied:
+  five verdicts flip, because *approved-but-not-yet-dispatched* is a state with no PR and no
+  branch, and nothing before item 8 could see it.
+- 2026-08-21 — **the mention-versus-declaration class recurred a fifth time, live, inside this
+  item's own pull request.** PR #60's body quotes *"no PR says `Part of #57`"* — and under item
+  7's rule that sentence makes #57 skip, attributed to PR #60. **The second time in this epic that
+  a PR made the issue it documented undraftable** (PR #52 did it to #48). Item 8 masks it wherever
+  a label exists, but an unlabelled issue quoted this way is still falsely skipped, and a skip
+  removes `claude-intake`. Narrowing `Part of` the way item 6 narrowed closing linkage is a rule
+  change, so it is parked rather than taken — this epic's own precedent.
+- 2026-08-21 — **two further findings parked.** (1) **Nothing removes `epic:planned` when an epic
+  closes** — LODE #837 is open, labelled, and its plan reads `closed`, so a stale label can
+  permanently retire an issue from unattended intake. The new skip comment names the remedy; the
+  ritual does not. (2) **Item 5's method now collides with item 8**: item 5 works by labelling
+  issues so the runner drafts them, and item 8 skips anything already carrying an epic label,
+  which narrows an already-empty brief pool further.
