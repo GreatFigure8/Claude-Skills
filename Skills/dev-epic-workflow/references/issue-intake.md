@@ -219,6 +219,66 @@ valid, and the field is purely additive. Present but outside the vocabulary is *
 logged verbatim and treated as `needs-decision`. Matching is case-insensitive and ignores
 anything after the value, so `no-work (duplicate of #758)` is `no-work`.
 
+**Admission can downgrade a recommendation, and it is the only thing that may.**
+After the plan is drafted and **before** its PR is opened, the runner compares the
+files and modules the fresh proposal declares it will touch against those declared by
+every other **open** proposal in the same repository. On overlap it rewrites that
+proposal's own `**Recommendation:**` from `plan` to `needs-decision`, names the
+counterpart proposal and the shared paths in the plan body and in the PR, and comments
+on both issues. The drafter is not consulted and does not need to have noticed.
+
+This is **not a fourth outcome** — the vocabulary above stays closed at three. A genuine
+file collision *is* a real choice a human must make before either plan is worth
+approving, which is what `needs-decision` already means. The downgrade is written into
+the **plan file**, not only into the PR, because `session-start-context.sh` buckets a
+proposal by reading `**Recommendation:**` out of the plan header: a proposal left at
+`plan` keeps rendering under *awaiting approval*, where it can be approved without the
+collision ever being registered.
+
+**What it never does.** It does not resolve the collision, order the two epics, or close
+either as superseded — that is precisely the decision being routed. The counterpart
+proposal is annotated **by a comment on its issue** and is never rewritten: its pull
+request is open and someone may be reading it.
+
+**How a declaration is read**, because this is a trade-off and not a detail:
+
+- **`**Scope:**` blocks only.** `**Not in scope:**` is the opposite of a declaration —
+  "the tempting adjacent thing this deliberately skips" — and reading it manufactures a
+  false positive on the first real pair available.
+- **Paths match on suffixes at path-component boundaries.** One plan writing
+  `Skills/…/hooks/tests/x.sh` and another writing `hooks/tests/x.sh` are naming one
+  file; exact-string matching misses the pair, and basename-only matching collides
+  everything.
+- **Recall is preferred to precision, deliberately.** Every path-like token in a Scope
+  block counts, including one a plan mentions only as a file it reads. The alternative —
+  reading only the token that leads a bullet — was measured against the live proposals
+  and loses a real collision, because declarations wrap across lines. So a reported path
+  may be one side only reads; read both Scope blocks before concluding there is no
+  conflict.
+- **Three structural tokens never collide anything:** `plan.md`, `status/` and
+  `docs/epics/`. They are the shape of a plan rather than the subject of one, they
+  appear in live Scope blocks, and under suffix matching they would otherwise collide
+  every proposal with every other, forever.
+- **Only a `plan` is checked.** A `no-work` proposal proposes no edits and usually
+  carries no Scope block at all; running the rule over it would turn every honest
+  `no-work` into a `needs-decision`. A draft that already says `needs-decision` is
+  already where a collision would put it.
+- **An empty declaration is colliding-unknown**, not "no overlap". A `plan` whose Scope
+  names no file at all returns `needs-decision` with that stated as the reason, rather
+  than passing silently.
+- **A failed query publishes anyway, loudly.** If the open-proposal enumeration itself
+  fails, the proposal is published unchecked and the runner logs that it was — the same
+  rule the work-in-progress check uses. A GitHub blip must not stop a runner that worked
+  yesterday.
+- **Only `intake/proposed-*` branches are enumerated.** An attended proposal on
+  `docs/intake-<NN>-<slug>` is invisible to this check. That gap is real and small, and
+  it is recorded rather than papered over.
+
+**The long-run answer is a structured field, not a better parser.** The plan template
+offers only free-text `**Scope:** what changes, in files/modules`, which is the entire
+reason this reads prose and trades precision against recall. A machine-readable
+declaration the drafter fills would delete the heuristic outright.
+
 **Routing is a human's job — and this is the contract that says so.** Nothing acts on a
 recommendation today: the runner does not approve a `plan`, does not close a `no-work`, and
 does not escalate a `needs-decision`. It states the outcome in the PR, in the issue comment,
