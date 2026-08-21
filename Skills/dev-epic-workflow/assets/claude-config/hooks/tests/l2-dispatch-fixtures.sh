@@ -1013,6 +1013,380 @@ check "I7: ...and the refusal says there is nothing to propose" "yes" \
       "$(yesno grep -q 'wrote no status record at all' "$I7/intake.log")"
 
 echo
+echo "=== J. the kill switches are heard, including MID-FLIGHT ================"
+J1="$(mkcase J1)"; mk_dispatchable "$J1"
+touch "$J1/AUTONOMY-OFF"
+RC="$(run_intake "$J1")"
+check "J1: the global override pins the repo to L0"          "yes" \
+      "$(yesno grep -q 'pinned to L0' "$J1/intake.log")"
+check "J1: ...so nothing is dispatched"                      "0" \
+      "$(grep -c '^claude ' "$J1/calls.log" | tr -d ' ')"
+check "J1: ...and unattended drafting is explicitly untouched" "yes" \
+      "$(yesno grep -q 'unattended drafting continues' "$J1/intake.log")"
+check "J1: ...revoked by one file, and undone by removing it" "0" "$RC"
+# MID-FLIGHT. The executor may run for an hour, and the file may appear during
+# it. L2's ceiling is a pull request, so dropping to L0 mid-flight means the pull
+# request is not opened — and the work is on origin either way.
+J2="$(mkcase J2)"; mk_dispatchable "$J2"
+printf 'MODE=normal\n' > "$J2/executor.conf"
+printf 'touch "%s/AUTONOMY-OFF"\n' "$J2" >> "$J2/executor.conf"
+RC="$(run_intake "$J2")"
+check "J2: an override that appears DURING the run stops the pull request" "0" \
+      "$(grep -c '^gh pr create' "$J2/calls.log" | tr -d ' ')"
+check "J2: ...saying it appeared while the executor was running" "yes" \
+      "$(yesno grep -q 'appeared at .* while the executor was running' "$J2/intake.log")"
+check "J2: ...and that the branch is pushed and complete"    "yes" \
+      "$(yesno grep -q 'is pushed and complete' "$J2/intake.log")"
+check "J2: NOTHING WAS LOST — the executor's commit is on origin" "yes" \
+      "$(yesno test "$("$REAL_GIT" --git-dir="$J2/repo-origin.git" rev-parse feat/the-thing 2>/dev/null)" != "$("$REAL_GIT" --git-dir="$J2/repo-origin.git" rev-parse main)")"
+J3="$(mkcase J3)"; mk_dispatchable "$J3"
+touch "$J3/STOP"
+RC="$(run_intake "$J3")"
+check "J3: the STOP file prevents the cycle entirely"        "0" "$RC"
+check "J3: ...before any GitHub call at all"                 "0" \
+      "$(grep -c '^gh ' "$J3/calls.log" | tr -d ' ')"
+check "J3: ...and says drafting stopped too, not just dispatch" "yes" \
+      "$(yesno grep -q 'not even L0 drafting' "$J3/intake.log")"
+
+echo
+echo "=== K. THE INERTNESS PROOF, and the pair that makes it discriminating ==="
+# Reconstruct the runner as it stood before this item by deleting exactly the
+# lines the item added. Brittle ON PURPOSE: if the blocks move, the line count
+# stops matching and this section STOPS rather than proving nothing.
+PRE="$SANDBOX/unattended-intake.pre-item-3.sh"; sandboxed "$PRE"
+line_of() { grep -nF -m1 -- "$2" "$1" | cut -d: -f1; }
+K_S1="$(line_of "$SCRIPT" '# ------------------------------------------------ L2 dispatch (epic 11 item 3)')"
+# tail -1, deliberately: that header appears TWICE in the runner — once over the
+# item 4 constants near the top and once over its functions. The block this item
+# added sits immediately before the SECOND one, and `grep -m1` would give the
+# first, producing a reversed sed range that deletes nothing and a line count
+# that silently lies.
+K_E1="$(grep -n '^# ------------------------------------------------ collision detection (item 4)$' "$SCRIPT" | tail -1 | cut -d: -f1)"
+K_S2="$(line_of "$SCRIPT" '  # ------------------------------------------ L2 dispatch (epic 11 item 3)')"
+K_E2="$(line_of "$SCRIPT" "  intake_status_cycle scanning \"enumerating issues labelled")"
+for V in "$K_S1" "$K_E1" "$K_S2" "$K_E2"; do
+  case "$V" in ''|*[!0-9]*)
+    echo "ERROR: an anchor for the pre-item-3 reconstruction did not match." >&2
+    echo "       The item-3 blocks moved, so section K would prove nothing. Fix the anchors." >&2
+    exit 2 ;;
+  esac
+done
+sed -e "${K_S2},$((K_E2 - 1))d" -e "${K_S1},$((K_E1 - 1))d" "$SCRIPT" > "$PRE"
+chmod +x "$PRE"
+K_REMOVED=$(( $(wc -l < "$SCRIPT") - $(wc -l < "$PRE") ))
+check "K: the reconstruction removes exactly the item's 56 added lines" "56" "$K_REMOVED"
+if [ "$K_REMOVED" -ne 56 ]; then
+  echo "ERROR: the pre-item-3 reconstruction is $K_REMOVED lines, not 56. Either the" >&2
+  echo "       item grew or the anchors rotted; either way section K is not a proof." >&2
+  exit 2
+fi
+cmp -s "$SCRIPT" "$PRE" && { echo "ERROR: the reconstruction is identical to the script" >&2; exit 2; }
+/bin/bash -n "$PRE" || { echo "ERROR: the pre-item-3 reconstruction does not parse" >&2; exit 2; }
+check "K: and it carries no trace of dispatch CODE"          "0" \
+      "$(grep -v '^[[:space:]]*#' "$PRE" | grep -cE 'DISPATCH_|dispatch_' | tr -d ' ')"
+check "K: while the shipped runner does"                     "yes" \
+      "$(yesno grep -q 'DISPATCH_LIB' "$SCRIPT")"
+
+# --- K1: UNCONFIGURED, shipped vs pre-item-3, byte for byte.
+KA="$(mkcase K-after)";  KB="$(mkcase K-before)"
+RC_A="$(run_intake "$KA")"
+SCRIPT_UNDER_TEST="$PRE"; RC_B="$(run_intake "$KB")"; SCRIPT_UNDER_TEST="$SCRIPT"
+check "K: both unconfigured runs succeeded"                  "0|0" "$RC_A|$RC_B"
+check "K: precondition — neither is configured for autonomy" "no" \
+      "$(yesno test -e "$KA/autonomy")"
+for STREAM in intake.log stdout.log stderr.log calls.log; do
+  check "K: BYTE-IDENTICAL to the pre-item-3 runner — $STREAM" "same" \
+        "$(if diff -q <(normalise "$KA" < "$KA/$STREAM") \
+                     <(normalise "$KB" < "$KB/$STREAM") >/dev/null 2>&1; \
+           then printf 'same'; else printf 'DIFFERENT'; fi)"
+done
+check "K: not one extra line was logged"                     "0" \
+      "$(( $(wc -l < "$KA/intake.log") - $(wc -l < "$KB/intake.log") ))"
+# The sandbox's own mktemp name contains "l2-dispatch", so this is asked of the
+# NORMALISED log: otherwise the case matches the harness and not the code.
+check "K: the word 'dispatch' never appears in an unconfigured run's log" "0" \
+      "$(normalise "$KA" < "$KA/intake.log" | grep -ci dispatch | tr -d ' ')"
+check "K: no worktree was created by either"                 "0" \
+      "$(ls -A "$KA/worktrees" 2>/dev/null | grep -c . | tr -d ' ')"
+check "K: and no branch was cut on origin"                   "1" \
+      "$("$REAL_GIT" --git-dir="$KA/repo-origin.git" for-each-ref --format='%(refname:short)' refs/heads | grep -c . | tr -d ' ')"
+
+# --- K2: THE PAIR THAT MAKES K1 A PROOF. The same two runners against a repo
+# configured at L2 with a dispatchable item: the shipped one must dispatch to a
+# pull request, and the reconstruction must be blind to the whole idea. Without
+# this, K1 would pass on a runner that does nothing at all.
+KC="$(mkcase K-l2-after)";  mk_dispatchable "$KC"
+KD="$(mkcase K-l2-before)"; mk_dispatchable "$KD"
+RC_C="$(run_intake "$KC")"
+SCRIPT_UNDER_TEST="$PRE"; RC_D="$(run_intake "$KD")"; SCRIPT_UNDER_TEST="$SCRIPT"
+check "K2: both configured runs exit 0"                      "0|0" "$RC_C|$RC_D"
+check "K2: the SHIPPED runner dispatches the item"           "1" \
+      "$(grep -c '^claude ' "$KC/calls.log" | tr -d ' ')"
+check "K2: ...and opens a pull request"                      "1" \
+      "$(grep -c '^gh pr create' "$KC/calls.log" | tr -d ' ')"
+check "K2: NEGATIVE CONTROL — the pre-item-3 runner dispatches NOTHING" "0" \
+      "$(grep -c '^claude ' "$KD/calls.log" | tr -d ' ')"
+check "K2: ...opens no pull request"                         "0" \
+      "$(grep -c '^gh pr create' "$KD/calls.log" | tr -d ' ')"
+# Item 1's own log lines legitimately SAY "L2" — that is the level it resolved.
+# What must be absent is a line the DISPATCHER wrote, and every one of those
+# begins the message with `L2:` or `L2 REFUSED`.
+check "K2: ...and is blind to the very idea of dispatch"     "0" \
+      "$(normalise "$KD" < "$KD/intake.log" | grep -cE '^L2( |:)' | tr -d ' ')"
+check "K2: ...where the shipped runner wrote several such lines" "yes" \
+      "$(yesno test "$(normalise "$KC" < "$KC/intake.log" | grep -cE '^L2( |:)' | tr -d ' ')" -ge 4)"
+check "K2: ...while still resolving the level, because item 1 already did" "yes" \
+      "$(yesno grep -q 'resolves to L2' "$KD/intake.log")"
+check "K2: ...and still drafting, because L0 is untouched by any of this" "0" "$RC_D"
+check "K2: the two logs DIFFER, which is what K1 could not show alone" "DIFFERENT" \
+      "$(if diff -q <(normalise "$KC" < "$KC/intake.log") \
+                   <(normalise "$KD" < "$KD/intake.log") >/dev/null 2>&1; \
+         then printf 'same'; else printf 'DIFFERENT'; fi)"
+check "K2: no branch was cut on the reconstruction's origin"  "1" \
+      "$("$REAL_GIT" --git-dir="$KD/repo-origin.git" for-each-ref --format='%(refname:short)' refs/heads | grep -c . | tr -d ' ')"
+
+# --- K3: the library removed entirely — the runner must behave as before it.
+KE="$(mkcase K-nolib)"; mk_dispatchable "$KE"
+LIB_UNDER_TEST="$SANDBOX/there-is-no-dispatch-library-here.sh"
+RC_E="$(run_intake "$KE")"
+LIB_UNDER_TEST="$LIB"
+check "K3: a MISSING dispatch library cannot stop a cycle"   "0" "$RC_E"
+check "K3: ...it dispatches nothing"                         "0" \
+      "$(grep -c '^claude ' "$KE/calls.log" | tr -d ' ')"
+check "K3: ...and drafting is untouched"                     "yes" \
+      "$(yesno grep -q 'nothing labelled' "$KE/intake.log")"
+check "K3: precondition — the library really was absent"     "no" \
+      "$(yesno test -e "$SANDBOX/there-is-no-dispatch-library-here.sh")"
+KF="$(mkcase K-brokenlib)"; mk_dispatchable "$KF"
+BROKEN="$SANDBOX/broken-dispatch.sh"; sandboxed "$BROKEN"; printf 'oops() {\n' > "$BROKEN"
+LIB_UNDER_TEST="$BROKEN"; RC_F="$(run_intake "$KF")"; LIB_UNDER_TEST="$LIB"
+check "K3: a library that does not PARSE cannot stop a cycle either" "0" "$RC_F"
+check "K3: ...and still dispatches nothing"                  "0" \
+      "$(grep -c '^claude ' "$KF/calls.log" | tr -d ' ')"
+
+echo
+echo "=== L. the ceiling is enforced by the ALLOWLIST, not by the prose ======="
+# ONLY the tool arguments. The brief deliberately contains the string `gh pr
+# create` — it is the sentence telling the executor it does not have that tool —
+# so asking this question of the whole argv would answer about the prose.
+L_ARGS="$(grep -E '^(Bash\(|Read$|Write$|Edit$|Glob$|Grep$)' "$H/claude-args" 2>/dev/null)"
+check "L: the executor is given no way to CREATE a pull request" "0" \
+      "$(printf '%s\n' "$L_ARGS" | grep -c 'pr create' | tr -d ' ')"
+check "L: ...nor to MERGE one"                               "0" \
+      "$(printf '%s\n' "$L_ARGS" | grep -c 'pr merge' | tr -d ' ')"
+check "L: ...nor to CLOSE an issue"                          "0" \
+      "$(printf '%s\n' "$L_ARGS" | grep -c 'issue close' | tr -d ' ')"
+check "L: ...nor to EDIT an issue"                           "0" \
+      "$(printf '%s\n' "$L_ARGS" | grep -c 'issue edit' | tr -d ' ')"
+check "L: it CAN use git, which it needs to commit and push" "1" \
+      "$(printf '%s\n' "$L_ARGS" | grep -c '^Bash(git:\*)$' | tr -d ' ')"
+check "L: and the declared gate command's own binary is allowed" "1" \
+      "$(printf '%s\n' "$L_ARGS" | grep -c '^Bash(true:\*)$' | tr -d ' ')"
+check "L: the brief TELLS it the runner opens the PR"        "yes" \
+      "$(contains "$(cat "$H/claude-argv")" "DO NOT OPEN THE PULL")"
+check "L: ...and says the restriction is enforced, not requested" "yes" \
+      "$(contains "$(cat "$H/claude-argv")" "so this is enforced rather than requested")"
+check "L: the brief forbids editing the plan"                "yes" \
+      "$(contains "$(cat "$H/claude-argv")" "Do NOT edit docs/epics/11-fixture/plan.md")"
+check "L: ...and touching the integration branch"            "yes" \
+      "$(contains "$(cat "$H/claude-argv")" "and never main")"
+check "L: ...and dispatching a subagent of its own"          "yes" \
+      "$(contains "$(cat "$H/claude-argv")" "Do NOT dispatch a subagent of your own")"
+check "L: it is told the worktree is already able to run its gates" "yes" \
+      "$(contains "$(cat "$H/claude-argv")" "ALREADY PROVISIONED AND ITS GATES HAVE BEEN SMOKE-TESTED")"
+check "L: ...and to push on its very first commit"           "yes" \
+      "$(contains "$(cat "$H/claude-argv")" "Push on your very first commit")"
+
+echo
+echo "=== M. MUTANTS: each must break a case that passes on the shipped lib ==="
+# A case only proves something if a plausible weakening of the code breaks it.
+# Each mutant below is a change somebody could genuinely make, believing it
+# harmless — and every one of them removes a brake.
+mutant_fn() { # $1 = out, $2 = function name, $3 = injected first line
+  awk -v fn="$2() {" -v inj="$3" 'index($0, fn) == 1 { print; print "  " inj; next } { print }' \
+      "$LIB" > "$1"
+  cmp -s "$LIB" "$1" && { echo "ERROR: mutant $2 is identical to the library — the function moved." >&2; exit 2; }
+  /bin/bash -n "$1" || { echo "ERROR: mutant $2 does not parse" >&2; exit 2; }
+}
+
+# M1 — the denylist made advisory. "The reviewer will see it anyway" is the most
+# tempting weakening in the file, and it is the one that lets an unattended
+# executor propose a change to CI configuration.
+M1="$SANDBOX/mutant-advisory-denylist.sh"; sandboxed "$M1"
+mutant_fn "$M1" dispatch_check_diff "DISPATCH_DIFF_FILES=1; DISPATCH_DIFF_LINES=1; DISPATCH_DENIED=; return 0"
+MA="$(mkcase M1)"; mk_dispatchable "$MA"
+printf 'FILES=".github/workflows/ci.yml"\n' > "$MA/executor.conf"
+LIB_UNDER_TEST="$M1"; RC="$(run_intake "$MA")"; LIB_UNDER_TEST="$LIB"
+check "M1: an advisory denylist WOULD open a PR touching CI config" "1" \
+      "$(grep -c '^gh pr create' "$MA/calls.log" | tr -d ' ')"
+check "M1: ...where the shipped library refuses it (case I1)"       "0" \
+      "$(grep -c '^gh pr create' "$I1/calls.log" | tr -d ' ')"
+
+# M2 — the executor's milestone stops being read. This is "the gates are the
+# executor's business", and it restores item 2b's worst named outcome exactly:
+# a pull request opened for a run that never reported running a gate.
+M2="$SANDBOX/mutant-ignore-milestone.sh"; sandboxed "$M2"
+awk '{ print }
+     /^dispatch_read_executor_status\(\) \{/ { print "  DISPATCH_EXECUTOR_STATE=gates-passed; DISPATCH_EXECUTOR_DETAIL=assumed; return 0" }' \
+    "$LIB" > "$M2"
+/bin/bash -n "$M2" || { echo "ERROR: mutant M2 does not parse" >&2; exit 2; }
+MB="$(mkcase M2)"; mk_dispatchable "$MB"
+printf 'MODE=nostatus\n' > "$MB/executor.conf"
+LIB_UNDER_TEST="$M2"; RC="$(run_intake "$MB")"; LIB_UNDER_TEST="$LIB"
+check "M2: assuming gates-passed WOULD open a PR for a silent executor" "1" \
+      "$(grep -c '^gh pr create' "$MB/calls.log" | tr -d ' ')"
+check "M2: ...where the shipped library refuses it (case I4)"          "0" \
+      "$(grep -c '^gh pr create' "$I4/calls.log" | tr -d ' ')"
+
+# M3 — the level gate passes at any level. This is the whole inertness claim:
+# with it gone, every unconfigured repo on the machine becomes dispatchable.
+M3="$SANDBOX/mutant-no-level-gate.sh"; sandboxed "$M3"
+sed -e 's|if \[ "${AUTONOMY_LEVEL:-L0}" != "$DISPATCH_LEVEL" \]; then|if false; then|' "$LIB" > "$M3"
+cmp -s "$LIB" "$M3" && { echo "ERROR: the level gate moved — mutant M3 proves nothing." >&2; exit 2; }
+/bin/bash -n "$M3" || { echo "ERROR: mutant M3 does not parse" >&2; exit 2; }
+MC="$(mkcase M3)"
+LIB_UNDER_TEST="$M3"; RC="$(run_intake "$MC")"; LIB_UNDER_TEST="$LIB"
+check "M3: without the level gate an UNCONFIGURED repo is no longer silent" "yes" \
+      "$(yesno test "$(normalise "$MC" < "$MC/intake.log" | grep -cE '^L2( |:)' | tr -d ' ')" -ge 1)"
+check "M3: ...where the shipped library says nothing at all (case K)"      "0" \
+      "$(normalise "$KA" < "$KA/intake.log" | grep -cE '^L2( |:)' | tr -d ' ')"
+
+# M4 — the executor's milestone stops being a gate. "It committed, it pushed,
+# ship it" is a one-line deletion, and it opens a pull request for an executor
+# that never reported reaching its gates.
+M4="$SANDBOX/mutant-any-milestone.sh"; sandboxed "$M4"
+awk 'BEGIN { skip = 0 }
+     /^  case "\$DISPATCH_EXECUTOR_STATE" in$/ { skip = 1; next }
+     skip && /^  esac$/ { skip = 0; next }
+     skip { next }
+     { print }' "$LIB" > "$M4"
+cmp -s "$LIB" "$M4" && { echo "ERROR: the milestone gate moved — mutant M4 proves nothing." >&2; exit 2; }
+/bin/bash -n "$M4" || { echo "ERROR: mutant M4 does not parse" >&2; exit 2; }
+MD="$(mkcase M4)"; mk_dispatchable "$MD"
+printf 'STATE=implementing\n' > "$MD/executor.conf"
+LIB_UNDER_TEST="$M4"; RC="$(run_intake "$MD")"; LIB_UNDER_TEST="$LIB"
+check "M4: accepting any milestone WOULD publish an unfinished item" "1" \
+      "$(grep -c '^gh pr create' "$MD/calls.log" | tr -d ' ')"
+check "M4: ...where the shipped library refuses it (case I5)"        "0" \
+      "$(grep -c '^gh pr create' "$I5/calls.log" | tr -d ' ')"
+
+# M4B — the `blocked` branch removed. The milestone gate above still stops the
+# pull request, so this mutant publishes nothing — and that is the point: two
+# independent brakes cover it. What the mutant DOES destroy is the distinction
+# the plan's open question turns on. `blocked` means the automation cannot
+# resolve this and must not retry; `refused` means the policy said no. A reader
+# who cannot tell them apart cannot know whether to answer a question or change
+# a config.
+M4B="$SANDBOX/mutant-no-blocked-branch.sh"; sandboxed "$M4B"
+sed -e 's|if \[ "$DISPATCH_EXECUTOR_STATE" = blocked \]; then|if false; then|' "$LIB" > "$M4B"
+cmp -s "$LIB" "$M4B" && { echo "ERROR: the blocked branch moved — mutant M4B proves nothing." >&2; exit 2; }
+/bin/bash -n "$M4B" || { echo "ERROR: mutant M4B does not parse" >&2; exit 2; }
+MDB="$(mkcase M4B)"; mk_dispatchable "$MDB"
+printf 'STATE=blocked\n' > "$MDB/executor.conf"
+LIB_UNDER_TEST="$M4B"; RC="$(run_intake "$MDB")"; LIB_UNDER_TEST="$LIB"
+check "M4B: without it a blocked executor is recorded as merely refused" "yes" \
+      "$(yesno grep -q '"state": "refused"' "$MDB/repo/docs/epics/.intake/status/dispatch-feat-the-thing.json")"
+check "M4B: ...and nothing says it must not be retried"                 "0" \
+      "$(grep -c 'this is NOT retried' "$MDB/intake.log" | tr -d ' ')"
+check "M4B: ...where the shipped library records blocked (case I3)"     "yes" \
+      "$(yesno grep -q '"state": "blocked"' "$I3/repo/docs/epics/.intake/status/dispatch-feat-the-thing.json")"
+
+# M5 — dispatchability decided from the plan's PROSE instead of from origin.
+# This is the mistake the whole selection rule exists to prevent, so it is worth
+# proving that the prose really is not consulted: an item whose title screams
+# DONE, whose branch is nowhere on origin, must still be dispatched.
+M5="$(mkcase M5)"
+configure_l2 "$M5"; configure_gates "$M5"
+add_plan "$M5" 11-fixture <<'PLAN'
+# Epic: the prose is a liar
+**Status:** approved
+**Source:** GH #90
+## Work items
+### 1. This item is finished — DONE (PR #842) — do not dispatch it
+- **Branch:** `feat/the-thing`
+- **Gates:** unit
+PLAN
+RC="$(run_intake "$M5")"
+check "M5: a 'DONE (PR #842)' title does NOT stop the item being dispatched" "1" \
+      "$(grep -c '^claude ' "$M5/calls.log" | tr -d ' ')"
+check "M5: ...because dispatchability is asked of origin, never of prose"   "1" \
+      "$(grep -c '^gh pr create' "$M5/calls.log" | tr -d ' ')"
+
+echo
+echo "=== N. the read-only CLI ================================================"
+N="$(mkcase N)"; mk_dispatchable "$N"
+cli() { INTAKE_GIT="$BIN/git" INTAKE_GH="$BIN/gh" \
+        INTAKE_AUTONOMY_FILE="$N/autonomy" INTAKE_AUTONOMY_OVERRIDE="$N/AUTONOMY-OFF" \
+        INTAKE_STOP_FILE="$N/STOP" INTAKE_PROMOTIONS_DIR="$N/promotions" \
+        INTAKE_PROVISION_FILE="$N/provisioning" \
+        FIXTURE_CASE_DIR="$N" FIXTURE_REPO_SLUG="fixture/repo" HOME="$N/home" \
+        /bin/bash "$LIB_UNDER_TEST" "$@" 2>&1; }
+# calls.log is the HARNESS's record of the queries these modes make; excluding it
+# is not a loophole, it is excluding the observer from the observation.
+ro_fingerprint() { find "$N" -type f ! -name calls.log | sort | xargs cksum 2>/dev/null | cksum; }
+BEFORE="$(ro_fingerprint)"
+OUT="$(cli --check --repo "$N/repo" --slug fixture/repo)"
+check "N: --check says the ceiling is an open pull request"   "yes" \
+      "$(contains "$OUT" "an OPEN pull request against the integration branch")"
+check "N: ...and lists what it never does"                    "yes" \
+      "$(contains "$OUT" "never           approves · merges · closes an issue · chains to another item")"
+check "N: ...and reports the resolved level"                  "yes" "$(contains "$OUT" "level           L2")"
+check "N: ...and the gate set it would hand over"             "yes" "$(contains "$OUT" "gates           true")"
+OUT="$(cli --plan "$N/repo/docs/epics/11-fixture/plan.md")"
+check "N: --plan reports the status it parsed"                "yes" "$(contains "$OUT" "status          approved")"
+check "N: ...and each item with its branch"                   "yes" "$(contains "$OUT" "branch=feat/the-thing")"
+OUT="$(cli --select --repo "$N/repo" --slug fixture/repo)"
+check "N: --select names the item it would dispatch"          "yes" "$(contains "$OUT" "item            1 — Do the thing")"
+check "N: THE READ-ONLY MODES CHANGED NOTHING ON DISK"        "$BEFORE" "$(ro_fingerprint)"
+check "N: there is no --dispatch mode at all"                 "0" \
+      "$(grep -c -- '--dispatch)' "$LIB" | tr -d ' ')"
+
+echo
+echo "=== O. --dry-run reports and mutates nothing, anywhere =================="
+O="$(mkcase O)"; mk_dispatchable "$O"
+BEFORE_ORIGIN="$("$REAL_GIT" --git-dir="$O/repo-origin.git" for-each-ref --format='%(refname:short) %(objectname)' refs/heads | cksum)"
+RC="$(run_intake "$O" --dry-run)"
+check "O: --dry-run exits 0"                                  "0" "$RC"
+check "O: it says what it would dispatch"                     "yes" \
+      "$(yesno grep -q 'DRY-RUN: would cut' "$O/stdout.log")"
+check "O: ...and that it would stop at a pull request"        "yes" \
+      "$(yesno grep -q 'Nothing merged, nothing closed' "$O/stdout.log")"
+check "O: no executor was invoked"                            "0" \
+      "$(grep -c '^claude ' "$O/calls.log" | tr -d ' ')"
+check "O: no worktree was created"                            "0" \
+      "$(ls -A "$O/worktrees" 2>/dev/null | grep -c . | tr -d ' ')"
+check "O: no branch was cut on origin"                        "$BEFORE_ORIGIN" \
+      "$("$REAL_GIT" --git-dir="$O/repo-origin.git" for-each-ref --format='%(refname:short) %(objectname)' refs/heads | cksum)"
+check "O: no pull request was created"                        "0" \
+      "$(grep -c '^gh pr create' "$O/calls.log" | tr -d ' ')"
+check "O: and no control plane was created under the repo"    "no" \
+      "$(yesno test -e "$O/repo/docs/epics/.intake")"
+
+echo
+echo "=== sandbox discipline (GH #15) ========================================"
+ESCAPES="$(grep -l 'STUB UNANSWERED' "$SANDBOX"/*/calls.log 2>/dev/null | head -3)"
+check "no gh query went unanswered (silent degradation)" "" "$ESCAPES"
+check "the host repo did not move (HEAD + working tree)" "$HOST_BEFORE" "$(host_fingerprint)"
+check "every run redirects HOME into the sandbox" "3" \
+      "$(grep -c 'HOME="\$[A-Za-z0-9_]*/home"' "$0" | tr -d ' ')"
+check "and redirects every control file away from the live config" "6" \
+      "$(grep -oE 'INTAKE_(AUTONOMY_FILE|AUTONOMY_OVERRIDE|STOP_FILE|PROMOTIONS_DIR|PROVISION_FILE|LOG)=' "$0" | sort -u | grep -c .)"
+check "no case ever names a real repository path" "0" \
+      "$(grep -cE '(Source/(claude-skills|Oracle-Simple-Convert))' "$0" | tr -d ' ')"
+# Asked as "no control-file variable is ever pointed at a real config path",
+# rather than as "the string never appears": this file's own header SAYS it never
+# touches that directory, and the check above would have to exempt itself too.
+check "no control file here points at a real ~/.config path" "0" \
+      "$(grep -v '^[[:space:]]*#' "$0" | grep -cE 'INTAKE_[A-Z_]+=[^ ]*\.config/' | tr -d ' ')"
+
+echo
+echo "=== stderr from the runner (empty unless it errored on its own) ========"
+for E in "$SANDBOX"/*/stderr.log; do
+  [ -s "$E" ] || continue
+  printf '%s:\n' "$E"; head -5 "$E"
+done
+
+echo
 echo "cases: $CASES   failures: $FAILURES"
 [ "$FAILURES" -eq 0 ] || exit 1
 exit 0
