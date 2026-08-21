@@ -4,6 +4,11 @@ The switchboard that governs what the unattended machinery may do without a huma
 Implemented by `assets/claude-config/bin/autonomy.sh`; read by
 `assets/claude-config/bin/unattended-intake.sh`.
 
+This file is the **permission** surface: what the machine may do. Its sibling
+`references/worktree-provisioning.md` is the **capability** surface: whether a worktree can
+actually run the gates at all, and what the gates are for a given item type. Separate files
+for the same reason `repos` and `autonomy` are separate — see "Why a sibling file" below.
+
 **As shipped by epic 11 item 1 this surface is inert.** Everything below is parsed,
 validated, resolved and logged, and **nothing acts on it**. `AUTONOMY_ENFORCED=no` in
 the library is that claim in a form a fixture asserts. Item 3 is what wires it.
