@@ -67,12 +67,29 @@ Milestones, in order — you may only move forward through them:
 `pr-opened`, `blocked`, and `cancelled` are terminal **for you**. Merging is the
 orchestrator's job, never yours.
 
+**And one value that is not a milestone at all: `unknown`.** Use it when you know your
+own record may not reflect reality — you clobbered it, a write did not land, you found it
+holding someone else's item, or you cannot verify what it says. Put the reason in
+`detail`. It is deliberately outside the vocabulary above so that nothing can read it as
+progress. **Never repair a suspect record into a plausible one:** a wrong-but-plausible
+status is worse than an obviously-broken one, because the orchestrator acts on the
+plausible one and reconciles from the obviously-broken one. This is not hypothetical —
+GH #63 records an executor writing into a sibling epic's status file through a helper
+whose command line did not show the target path. Which is also why **the path must be
+visible in the command you run**: correct resolution and invisible resolution are
+independent properties, and only the second one causes that bug.
+
 Two fields are not yours to invent: the hooks add `agent_id` (which agent owns this
 item) and `terminal: true` (stamped at your SubagentStop, and only for the owning
 agent). If a rewrite would drop an `agent_id` that is already there, carry it through.
 
 This file is the contract, not a courtesy: the orchestrator and Jonathan read the file,
 not your prose. Status updates are cheap; a stale status file is a lie.
+
+**But it is a convenience view, not the truth.** The branch, the pushed commits and the
+PR are authoritative; `status/` is a faster way to look at them. That is exactly why the
+GH #63 clobber cost nothing — and exactly why you must never invert it by trusting a
+status file over the repo, yours or anyone else's.
 
 ## The lifecycle you execute
 
