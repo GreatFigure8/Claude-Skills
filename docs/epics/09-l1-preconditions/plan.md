@@ -201,6 +201,36 @@ Verified against the repo and both trackers on 2026-08-20, not recalled:
 - **Verification:** the three fixtures; plus a grep confirming the check runs before `gh pr create`
   in the script's control flow.
 - **Rollback:** revert; detection reverts to drafter goodwill, which is where it is today.
+- **Detector design, carried over from the blocked first dispatch (2026-08-21) so it is not
+  re-derived.** The first executor reported `blocked` without writing a line of code — correctly,
+  because DoD clause 1 *was* the disputed behaviour — but it measured the detector against the
+  five real proposals first, and those findings stand:
+  - **Declared paths come from `**Scope:**` blocks only.** Including `**Not in scope:**` would
+    manufacture a false positive immediately: PR #25's *Not in scope* names `cancel-gate.sh`,
+    which PR #26's *Scope* declares.
+  - **Suffix normalisation is mandatory.** PR #26 writes
+    `Skills/dev-epic-workflow/assets/claude-config/hooks/tests/active-epic-fixtures.sh`; PR #50
+    writes `hooks/tests/active-epic-fixtures.sh` for the same file. Exact-string matching misses
+    the pair entirely. Basename-only matching is the opposite error — it collides every proposal
+    on `plan.md` and `status/`, which appear as Scope tokens in #50.
+  - **Precision and recall genuinely trade off on real prose, measured both ways.** Restricting to
+    the token that *leads* a Scope bullet removes both known false positives **and loses a true
+    collision** (#25's declaration is a comma list wrapped across two lines, so #25 ↔ #50 drops to
+    zero). Pick deliberately; do not discover this in production.
+  - **Enumeration:** open PRs whose `headRefName` starts with `intake/proposed-`; the counterpart
+    plan path is derivable from the branch (`<EPICS_DIR>/proposed-<rest>/plan.md`) and the
+    counterpart issue number is the digits after `proposed-`. Verified against all five live
+    proposals, LODE's `DOCS/EPICS` casing included.
+  - **Insertion point:** after the `REC` block and before `REC_TITLE_TAG=""`, so the tag, body and
+    comment `case` all consume the settled value; `gh pr create` follows. Well clear of item 7's
+    `check_work_in_progress`.
+- **The mention-versus-declaration defect appears here too, one layer up — verified.** PR #26's
+  Scope names `subagent-lifecycle.sh` and `subagent-tool-logger.sh` only as files it compares
+  *against*, and its own *Not in scope* says "any change to `subagent-lifecycle.sh` or
+  `subagent-tool-logger.sh` themselves (this item only reads what they already write)". A mention
+  is not a declaration, exactly as a cross-reference was not a claim of work in flight. **This is
+  the same defect class as items 3/6, at the file layer instead of the issue layer** — the third
+  time this epic has met it.
 
 ### 6. Narrow "references" to closing linkage, not any cross-reference
 - **Outcome: DONE.** PR #56, merged `62aa16e`. Verified cold on 2026-08-21 against the repo, not
@@ -398,10 +428,17 @@ header from config, refuses duplicated work, and detects collisions is better at
   well-specified. Candidates: LODE's older un-triaged backlog, `needs-triage` issues with low
   confidence scores, and issues deliberately filed thin. This needs an answer before item 5 is
   dispatched, not before the epic is approved.
-- **Should `needs-decision` also be reachable *after* a plan is drafted** — i.e. can a proposal
-  start as `plan` and be downgraded by item 4's collision check? Item 4 assumes yes. If Jonathan
-  prefers a proposal's recommendation to be immutable once written, item 4 instead opens the PR
-  and comments the collision without changing the header.
+- ~~**Should `needs-decision` also be reachable *after* a plan is drafted?**~~ **RESOLVED
+  2026-08-21: yes — admission downgrades.** A genuine file collision *is* the human decision the
+  outcome exists to route, and downgrading is what puts it in the SessionStart *awaiting a
+  decision* bucket rather than *awaiting approval*, where it could be approved without the
+  collision ever being registered. Item 4's Scope and DoD stand as written; no amendment needed.
+  **The rate objection was considered and rejected on the evidence:** all three open proposals
+  collide pairwise, so `needs-decision` becomes the common case — but that is an honest property
+  of this backlog (three infrastructure fixes genuinely share one test harness), not the drafter
+  escape hatch the Risks table warns about. The two mechanisms are different: the risk row is
+  about a *drafter* reaching for `needs-decision` when a brief is hard; this is *admission*
+  reporting a measured overlap.
 - **Does a `no-work` proposal still open a PR?** It carries a plan file that says "do not approve
   me". A PR is the current, uniform delivery mechanism and is easy to close; a bare issue comment
   is lighter but breaks the one-shape-for-every-outcome property. Leaning: keep the PR, because
@@ -438,6 +475,19 @@ header from config, refuses duplicated work, and detects collisions is better at
   to this epic's subject matter but independently scoped; keep it separate.
 - Any change to the rubric. It was written before the drafts were read and that ordering is what
   makes it evidence; re-fitting it would destroy the property.
+- **A structured declaration field in `references/plan-template.md`.** The template offers only
+  free-text `**Scope:** what changes, in files/modules`, which is the entire reason item 4 has to
+  parse prose and trade precision against recall. A machine-readable field the drafter fills would
+  delete that heuristic outright — and, more importantly, would kill the mention-versus-declaration
+  class this epic has now hit three times. **This is probably the better long-run answer than
+  tuning an extractor**, but it changes the template and the drafter prompt, so it is its own
+  epic, not item 4's scope.
+- **Attended proposals are invisible to a prefix-based enumerator.** `docs/intake-<NN>-<slug>` is
+  a documented proposal branch shape in `references/issue-intake.md` and does not start with
+  `intake/proposed-`, so item 4's collision check will not see one. Real gap; small; not item 4's
+  to close.
+- **Generic tokens need a denylist.** `plan.md`, `status/` and `docs/epics/` appear as Scope
+  tokens in live proposals and would collide universally under any suffix-matching rule.
 
 ## Log
 - 2026-08-20 — drafted following epic 08's NO-GO verdict on L1. Grounded by re-reading the verdict,
@@ -498,3 +548,18 @@ header from config, refuses duplicated work, and detects collisions is better at
   open question, because the classification was taken before the item was written. Item 4 was
   told explicitly that the `plan`→`needs-decision` downgrade question is **not its to resolve** —
   if the implementation forces the answer it reports `blocked` rather than choosing.
+- 2026-08-21 — **item 4's first dispatch returned `blocked` without writing a line of code, and
+  that was the right call.** The plan's open question was not adjacent to item 4; it *was* item 4's
+  first DoD clause, verbatim, and the Scope sentence and a Risks row assumed the same answer. The
+  executor could not write any of the three mandated fixtures without silently deciding it, and
+  said so instead of choosing. **Verified cold before the question went to Jonathan:** branch
+  untouched at `a4f597e`, zero commits, no PR, tree clean, `intake.log` byte-identical — and the
+  collision measurement re-derived independently from the `origin/intake/proposed-*` branches
+  rather than from the summary.
+- 2026-08-21 — **RESOLVED: admission downgrades the header to `needs-decision`.** The evidence that
+  might have argued the other way — all three open proposals collide pairwise, so the downgrade is
+  the common case — was weighed and rejected as an objection: the overlaps are real (three
+  infrastructure fixes genuinely share `active-epic-fixtures.sh`), so a high rate is honest signal
+  about this backlog rather than the drafter escape hatch the Risks table warns about. Item 4's
+  Scope and DoD needed no amendment; the open question is struck and item 4 re-dispatched with the
+  blocked run's detector design carried into the plan so it is not re-derived.
