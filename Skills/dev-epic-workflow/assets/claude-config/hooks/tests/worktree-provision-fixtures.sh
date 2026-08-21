@@ -492,17 +492,34 @@ check "L: ...naming the diff it would have caused"   "yes" \
       "$(contains "$PV_OUT" "the executor's diff would contain changes it did not make")"
 
 echo
-echo "=== M. THE CONTRACT MARKER: NOTHING IS WIRED YET ========================"
-check "M: the library says dispatch is not wired"    "PROVISION_DISPATCH_WIRED=no" \
+echo "=== M. THE CONTRACT MARKER: WIRED, AND BY EXACTLY ONE CALLER ============"
+# For the whole of item 2b this section asserted that NOTHING called the
+# provisioner. Epic 11 item 3 is the caller it was waiting for, so the assertions
+# are inverted rather than left pointing at a file the behaviour moved out of —
+# and the part that still matters is unchanged: exactly one caller, and it is a
+# dispatch path, never the drafting one.
+M_DISPATCHER="${INTAKE_FIXTURE_DISPATCH_LIB:-$(cd "$(dirname "$0")/../../bin" && pwd)/dispatch.sh}"
+check "M: the library says dispatch IS wired"        "PROVISION_DISPATCH_WIRED=yes" \
       "$(grep -m1 '^PROVISION_DISPATCH_WIRED=' "$LIB")"
 check "M: and --check prints it, so a human can see" "yes" \
-      "$(pv "$A_NONE" --check; contains "$PV_OUT" "dispatch wired  no")"
-# The runner must not call the provisioner. This is the assertion that would
-# catch item 3's work arriving early and unannounced in item 2b's branch.
-check "M: the runner calls no provisioning function" "0" \
-      "$(grep -cE '(^|[^_[:alnum:]])provision_(preflight|worktree|smoke_check|gates|gate_brief)[[:space:]]*$|(^|[^_[:alnum:]])provision_(preflight|worktree|smoke_check|gates|gate_brief)[[:space:]]+' "$SCRIPT" | tr -d ' ')"
+      "$(pv "$A_NONE" --check; contains "$PV_OUT" "dispatch wired  yes")"
+check "M: precondition — the dispatcher exists and parses" "yes" \
+      "$(yesno /bin/bash -n "$M_DISPATCHER")"
+# THE RUNNER STILL ONLY LOADS AND VALIDATES. Everything that ACTS is in the
+# dispatcher, which is what keeps "a drafting worktree is never provisioned" true
+# by construction rather than by care: the drafting path cannot reach the caller.
+check "M: the runner still calls no provisioning function" "0" \
+      "$(grep -v '^[[:space:]]*#' "$SCRIPT" | grep -cE '(^|[^_[:alnum:]])provision_(preflight|worktree|smoke_check|gates|gate_brief)[[:space:]]*$|(^|[^_[:alnum:]])provision_(preflight|worktree|smoke_check|gates|gate_brief)[[:space:]]+' | tr -d ' ')"
 check "M: ...it only loads and validates the config" "yes" \
       "$(yesno grep -q 'provision_load' "$SCRIPT")"
+check "M: the DISPATCHER calls the preflight"        "yes" \
+      "$(yesno grep -q 'provision_preflight "' "$M_DISPATCHER")"
+check "M: ...and asks for the declared gate set"     "yes" \
+      "$(yesno grep -q 'provision_gate_brief "' "$M_DISPATCHER")"
+check "M: ...and REFUSES the dispatch when the preflight fails" "yes" \
+      "$(yesno grep -q 'worktree provisioning refused this dispatch' "$M_DISPATCHER")"
+check "M: ...and never calls provision_worktree without the smoke check" "0" \
+      "$(grep -v '^[[:space:]]*#' "$M_DISPATCHER" | grep -cE '(^|[^_[:alnum:]])provision_(worktree|smoke_check)[[:space:]]' | tr -d ' ')"
 
 echo
 echo "=== N. THE RUNNER: INERTNESS PROVEN, AND THE CASE THAT DISCRIMINATES ====="
@@ -531,8 +548,13 @@ if [ "$N_REMOVED" -ne 40 ]; then
 fi
 cmp -s "$SCRIPT" "$PRE" && { echo "ERROR: the reconstruction is identical to the script" >&2; exit 1; }
 /bin/bash -n "$PRE" || { echo "ERROR: the pre-item-2b reconstruction does not parse" >&2; exit 1; }
-check "N: and it carries no trace of provisioning"   "0" \
-      "$(grep -ci 'PROVISION' "$PRE" | tr -d ' ')"
+# CODE, not prose. Epic 11 item 3's block in the runner legitimately describes
+# what it does — it provisions a dispatch worktree — and a bare `grep -i
+# provision` would count that sentence as item 2b's code surviving the deletion.
+# What this case asserts is that item 2b's MECHANISM is gone, and the mechanism
+# is named by its variable prefix and its function prefix.
+check "N: and it carries no trace of provisioning CODE" "0" \
+      "$(grep -v '^[[:space:]]*#' "$PRE" | grep -cE 'PROVISION_|provision_' | tr -d ' ')"
 check "N: while the shipped runner does"             "yes" \
       "$(yesno grep -q 'PROVISION_LIB' "$SCRIPT")"
 
@@ -598,6 +620,10 @@ N_SUT="$SCRIPT"
 # has nothing to do with item 2b. Both sides get the same library. Item 1's
 # suite carries the identical line for the identical reason.
 N_STATUS_LIB="${INTAKE_FIXTURE_STATUS_LIB:-$(cd "$(dirname "$0")/../../bin" && pwd)/intake-status.sh}"
+# Epic 11 item 3's dispatch library, for the identical reason. Without it the
+# reconstruction below would lose the dispatcher while the shipped copy kept it,
+# and this proof would be about two variables instead of one.
+N_DISPATCH_LIB="${INTAKE_FIXTURE_DISPATCH_LIB:-$(cd "$(dirname "$0")/../../bin" && pwd)/dispatch.sh}"
 run_intake() { # $1 = case dir, rest = extra args -> exit code
   RI_D="$1"; shift; sandboxed "$RI_D"
   INTAKE_GIT="$NBIN/git" INTAKE_GH="$NBIN/gh" INTAKE_CLAUDE="$NBIN/claude" \
@@ -606,7 +632,7 @@ run_intake() { # $1 = case dir, rest = extra args -> exit code
   INTAKE_REPO_DIR="$RI_D/repo" INTAKE_LOG="$RI_D/intake.log" \
   INTAKE_LOCK="$RI_D/.lock" INTAKE_WORKTREE_ROOT="$RI_D/worktrees" \
   INTAKE_PROVISION_FILE="$RI_D/provisioning" INTAKE_PROVISION_LIB="$LIB_UNDER_TEST" \
-  INTAKE_STATUS_LIB="$N_STATUS_LIB" \
+  INTAKE_STATUS_LIB="$N_STATUS_LIB" INTAKE_DISPATCH_LIB="$N_DISPATCH_LIB" \
   FIXTURE_CASE_DIR="$RI_D" FIXTURE_REPO_SLUG="fixture/repo" \
   HOME="$RI_D/home" \
     /bin/bash "$N_SUT" "$@" > "$RI_D/stdout.log" 2> "$RI_D/stderr.log"

@@ -1002,8 +1002,23 @@ dispatch_repo() { # $1 repo, $2 slug, $3 epics dir, $4 integration branch,
 
   DISPATCH_REFUSAL=""; DISPATCH_PR_URL=""; DISPATCH_WORKTREE=""
   DISPATCH_EXECUTOR_STATE=""; DISPATCH_EXECUTOR_DETAIL=""
+  # Cleared per repo. The runner reads it to decide whether this repo's cycle
+  # record closes `finished` or `failed`, and inheriting the previous repo's
+  # value would attribute one repo's failure to another — the same defect
+  # REPO_FAILED_ON_ENTRY already exists to prevent on the drafting side.
+  DISPATCH_STATE=""
 
-  # THE BUDGET, FIRST. It is a hard stop: exceeding it stops new work and never
+  # THE LEVEL, FIRST AND SILENTLY. Every repo with no autonomy configuration
+  # resolves L0, and an L0 repo produces NOT ONE LINE from this file — no log, no
+  # GitHub call, no worktree. That silence is the inertness guarantee at the level
+  # a human notices, and it lives HERE rather than in the runner's `if` for the
+  # same reason `provision_resolve` owns its own silent path: the policy owns the
+  # question, and the caller should not have to know the answer's variable name.
+  if [ "${AUTONOMY_LEVEL:-L0}" != "$DISPATCH_LEVEL" ]; then
+    return 1
+  fi
+
+  # THE BUDGET, NEXT. It is a hard stop: exceeding it stops new work and never
   # shrinks work to fit.
   if ! autonomy_budget_allows_item "$DISPATCH_ITEMS_DONE"; then
     dispatch_emit "L2: $SLUG — no dispatch this cycle: ${AUTONOMY_REFUSAL:-budget}"

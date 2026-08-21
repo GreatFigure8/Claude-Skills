@@ -333,6 +333,13 @@ set_issues() { D="$1"; shift; sandboxed "$D"; : > "$D/issues"
 
 SCRIPT_UNDER_TEST="$SCRIPT"
 LIB_UNDER_TEST="$LIB"
+# Epic 11 item 3's dispatch library, passed EXPLICITLY for the same reason
+# INTAKE_STATUS_LIB is: the runner resolves it relative to its OWN path, so the
+# reconstruction in case K — which lives in the sandbox — would silently lose it
+# while the shipped copy kept it, and the two sides of a byte-identity proof
+# would differ for a reason that has nothing to do with item 1. Both sides get
+# the same library. Items 2b and 2's suites carry the identical line.
+DISPATCH_LIB_FOR_FIXTURES="${INTAKE_FIXTURE_DISPATCH_LIB:-$(cd "$(dirname "$0")/../../bin" && pwd)/dispatch.sh}"
 
 run_intake() { # $1 = case dir, rest = extra args -> exit code on stdout
   D="$1"; shift; sandboxed "$D"
@@ -342,6 +349,7 @@ run_intake() { # $1 = case dir, rest = extra args -> exit code on stdout
   INTAKE_LOG="$D/intake.log" INTAKE_LOCK="$D/.lock" \
   INTAKE_WORKTREE_ROOT="$D/worktrees" \
   INTAKE_AUTONOMY_LIB="$LIB_UNDER_TEST" INTAKE_STATUS_LIB="$STATUS_LIB" \
+  INTAKE_DISPATCH_LIB="$DISPATCH_LIB_FOR_FIXTURES" \
   INTAKE_AUTONOMY_FILE="$D/autonomy" INTAKE_AUTONOMY_OVERRIDE="$D/AUTONOMY-OFF" \
   INTAKE_STOP_FILE="$D/STOP" INTAKE_PROMOTIONS_DIR="$D/promotions" \
   FIXTURE_CASE_DIR="$D" FIXTURE_SANDBOX="$SANDBOX" FIXTURE_REPO_SLUG="fixture/repo" \
@@ -922,10 +930,20 @@ grant "$M2" fixture/repo L2 >/dev/null
 RC="$(run_intake "$M2")"
 check "M2: without the override the repo logs its resolved level" "yes" \
       "$(yesno grep -q 'autonomy: fixture/repo resolves to L2' "$M2/intake.log")"
-check "M2: and says out loud that nothing acts on it"             "yes" \
-      "$(yesno grep -q 'NOTHING ACTS ON THIS — AUTONOMY_ENFORCED=no' "$M2/intake.log")"
-check "M2: and the cycle behaves exactly as at L0 — it still drafts and stops" "yes" \
+check "M2: and says out loud that the level is ENFORCED"          "yes" \
+      "$(yesno grep -q 'THIS LEVEL IS ENFORCED — AUTONOMY_ENFORCED=yes' "$M2/intake.log")"
+# Until epic 11 item 3 this case asserted that an L2 repo "behaves exactly as at
+# L0". That was true of item 1 and is now FALSE, so it is restated rather than
+# left passing on a claim the code stopped making: at L2 a dispatch is ATTEMPTED,
+# and drafting still runs regardless of what the attempt found.
+check "M2: L0 drafting still runs at L2 — the rungs are additive"  "yes" \
       "$(yesno grep -q 'gh pr create' "$M2/calls.log")"
+check "M2: and a dispatch IS attempted at L2"                      "yes" \
+      "$(yesno grep -q 'L2 REFUSED: the branch listing for fixture/repo came back empty' "$M2/intake.log")"
+check "M2: ...refusing rather than guessing when it cannot decide"  "yes" \
+      "$(yesno grep -q 'refusing rather than guessing' "$M2/intake.log")"
+check "M2: so no executor was invoked and no worktree cut"          "0" \
+      "$(grep -c 'invoking claude -p --agent work-item-executor' "$M2/intake.log" | tr -d ' ')"
 
 echo
 echo "=== N. a malformed config is loud, refuses everything, drafts anyway ===="
@@ -939,21 +957,49 @@ check "N: and saying what it costs"       "yes" "$(yesno grep -q 'every repo res
 check "N: L0 drafting is untouched"       "yes" "$(yesno grep -q 'gh pr create' "$N/calls.log")"
 
 echo
-echo "=== O. the switchboard is wired to nothing =============================="
-check "O: the library declares itself inert"     "AUTONOMY_ENFORCED=no" \
+echo "=== O. the switchboard is WIRED, and to exactly one thing =============="
+# UNTIL EPIC 11 ITEM 3 THIS SECTION ASSERTED THAT NOTHING ACTED ON A RESOLVED
+# LEVEL. That was item 1's whole claim and it is now false by design, so the
+# assertions are restated rather than left passing against the wrong file: the
+# runner still reads no policy value, and the one file that does is the
+# dispatcher. An assertion aimed at a file the behaviour moved out of is an
+# assertion that passes forever while meaning nothing.
+check "O: the library declares itself wired"     "AUTONOMY_ENFORCED=yes" \
       "$(grep -m1 '^AUTONOMY_ENFORCED=' "$LIB")"
-# Comments are stripped first. The runner's comments SAY that nothing reads the
-# level, and an assertion that counts its own documentation is an assertion that
-# passes when the documentation is a lie.
+# Comments are stripped first. Comments SAY what the code does, and an assertion
+# that counts its own documentation is an assertion that passes when the
+# documentation is a lie.
 code_only() { grep -v '^[[:space:]]*#' "$1"; }
-check "O: the runner never reads the resolved LEVEL to decide anything" "0" \
+DISPATCHER="$DISPATCH_LIB_FOR_FIXTURES"
+check "O: precondition — the dispatcher exists and parses" "yes" \
+      "$(yesno /bin/bash -n "$DISPATCHER")"
+check "O: the RUNNER still reads no resolved level itself" "0" \
       "$(code_only "$SCRIPT" | grep -c 'AUTONOMY_LEVEL' | tr -d ' ')"
-check "O: nor the policy"                        "0" \
+check "O: nor any policy value"                  "0" \
       "$(code_only "$SCRIPT" | grep -cE 'AUTONOMY_(DENY_PATHS|MAX_FILES|MAX_DIFF_LINES|REQUIRE_LABELS|FORBID_LABELS|BUDGET_)' | tr -d ' ')"
 check "O: nor calls a single policy function"    "0" \
       "$(code_only "$SCRIPT" | grep -cE 'autonomy_(admit_labels|deny_diff_paths|check_size|diff_size|budget_allows|promotion_check)' | tr -d ' ')"
-check "O: the only library calls it makes are load, resolve and override_active" "3" \
+check "O: the only library calls the runner makes are load, resolve and override_active" "3" \
       "$(code_only "$SCRIPT" | grep -oE 'autonomy_[a-z_]+' | sort -u | grep -c .)"
+# THE OTHER HALF, which is what makes the four above mean something now: the
+# policy IS consumed, by one file, and every part of it is consumed.
+check "O: the DISPATCHER reads the resolved level" "yes" \
+      "$(yesno grep -q 'AUTONOMY_LEVEL' "$DISPATCHER")"
+check "O: ...and applies the label policy"         "yes" \
+      "$(yesno grep -q 'autonomy_admit_labels' "$DISPATCHER")"
+check "O: ...and the denylist, against the DIFF"   "yes" \
+      "$(yesno grep -q 'diff --name-only' "$DISPATCHER")"
+check "O: ...feeding exactly that into autonomy_deny_diff_paths" "yes" \
+      "$(yesno grep -q 'autonomy_deny_diff_paths' "$DISPATCHER")"
+check "O: ...and the size ceiling"                 "yes" \
+      "$(yesno grep -q 'autonomy_check_size' "$DISPATCHER")"
+check "O: ...and both halves of the budget"        "2" \
+      "$(grep -oE 'autonomy_budget_allows_(item|time)' "$DISPATCHER" | sort -u | grep -c .)"
+check "O: ...and re-asks the override mid-cycle"   "yes" \
+      "$(yesno test "$(grep -c 'autonomy_override_active' "$DISPATCHER")" -ge 2)"
+# The denylist takes a DIFF and there is deliberately no variant taking a plan.
+check "O: no declaration-based denylist call exists anywhere" "0" \
+      "$(grep -cE 'autonomy_deny_(scope|plan|declared)' "$DISPATCHER" "$LIB" "$SCRIPT" | grep -v ':0$' | wc -l | tr -d ' ')"
 check "O: the library NEVER writes a file"       "0" \
       "$(grep -cE '(^|[^0-9<>])>>?[[:space:]]*"?\$' "$LIB" | tr -d ' ')"
 check "O: the library never mkdir/touch/rm/mv"   "0" \
@@ -964,10 +1010,34 @@ check "O: nothing ever writes the promotions directory" "0" \
       "$(grep -cE '>[[:space:]]*"?\$(AUTONOMY_PROMOTIONS_DIR|\{AUTONOMY_PROMOTIONS_DIR)' "$LIB" "$SCRIPT" | grep -v ':0$' | wc -l | tr -d ' ')"
 check "O: no eval anywhere — config never becomes code" "0" \
       "$(code_only "$LIB" | grep -cE '(^|[[:space:]])eval[[:space:]]' | tr -d ' ')"
-check "O: the runner still never merges a PR"    "0" "$(grep -c 'pr merge' "$SCRIPT" | tr -d ' ')"
-check "O: still never closes an issue"           "0" "$(grep -c 'issue close' "$SCRIPT" | tr -d ' ')"
-check "O: still never edits a PR"                "0" "$(grep -c 'pr edit' "$SCRIPT" | tr -d ' ')"
-check "O: still never dispatches an executor"    "0" "$(grep -c 'work-item-executor' "$SCRIPT" | tr -d ' ')"
+# THE HARD STOPS. Asserted across the runner AND the dispatcher, because item 3
+# moved the acting code into a second file and a stop that is only checked in the
+# file that no longer acts is not a stop.
+# Comments stripped on BOTH sides: item 3's prose says at length what it never
+# does, and an assertion that its own documentation trips is an assertion that
+# fails for being right.
+both_code() { grep -h -v '^[[:space:]]*#' "$SCRIPT" "$DISPATCHER"; }
+check "O: nothing here ever merges a PR"         "0" "$(both_code | grep -c 'pr merge' | tr -d ' ')"
+check "O: nor closes an issue"                   "0" "$(both_code | grep -c 'issue close' | tr -d ' ')"
+check "O: nor edits a PR"                        "0" "$(both_code | grep -c 'pr edit' | tr -d ' ')"
+# The three `issue edit` calls in the runner are the DRAFTING path's label
+# removal and predate epic 11. The dispatcher edits no issue at all: it does not
+# label, comment on, or close the tracker item it is delivering.
+check "O: the three issue edits are all the drafter's label removal" "3" \
+      "$(grep -v '^[[:space:]]*#' "$SCRIPT" | grep -c 'issue edit "\$[A-Z0-9]*" --remove-label' | tr -d ' ')"
+check "O: the DISPATCHER edits no issue at all"  "0" \
+      "$(grep -v '^[[:space:]]*#' "$DISPATCHER" | grep -c 'issue edit' | tr -d ' ')"
+check "O: nor comments on one"                   "0" \
+      "$(grep -v '^[[:space:]]*#' "$DISPATCHER" | grep -c 'issue comment' | tr -d ' ')"
+check "O: the dispatcher never writes to a plan"  "0" \
+      "$(grep -v '^[[:space:]]*#' "$DISPATCHER" | grep -cE '(>|>>|mv|sed -i|tee)[^|]*DISPATCH_PLAN' | tr -d ' ')"
+# The runner itself dispatches nothing directly: it calls the dispatcher, which
+# is the one file that names the executor — invoked BY NAME so its contract is
+# never re-inlined or forked here.
+check "O: the RUNNER names no executor"          "0" \
+      "$(grep -c 'work-item-executor' "$SCRIPT" | tr -d ' ')"
+check "O: the DISPATCHER invokes it BY NAME"     "yes" \
+      "$(yesno grep -q -- '--agent work-item-executor' "$DISPATCHER")"
 check "O: this item adds no new gh query"        "yes" \
       "$(yesno test "$(grep -c '"\$GH_BIN"' "$SCRIPT")" -eq "$(grep -c '"\$GH_BIN"' "$PRE")")"
 # Control flow: the stop check comes before EVERYTHING that could fail first.
@@ -1008,7 +1078,7 @@ cli() { INTAKE_AUTONOMY_FILE="$P/autonomy" INTAKE_AUTONOMY_OVERRIDE="$P/AUTONOMY
         /bin/bash "$LIB_UNDER_TEST" "$@" 2>&1; }
 BEFORE="$(find "$P" -type f | sort | xargs cksum 2>/dev/null | cksum)"
 OUT="$(cli --check --repo "$P/repo" --slug fixture/repo)"
-check "P: --check reports the ceiling and that nothing acts" "yes" "$(contains "$OUT" "ceiling         L2     enforced=no")"
+check "P: --check reports the ceiling and that it IS enforced" "yes" "$(contains "$OUT" "ceiling         L2     enforced=yes")"
 check "P: reports the resolved level"                        "yes" "$(contains "$OUT" "level         L2")"
 check "P: reports the budget"                                "yes" "$(contains "$OUT" "max-items=2 max-wall-clock=2700s")"
 check "P: names the config file even when it is absent"      "yes" \

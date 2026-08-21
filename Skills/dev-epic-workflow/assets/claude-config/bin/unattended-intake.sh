@@ -463,6 +463,33 @@ fi
 
 FAILED=0
 
+# ------------------------------------------------ L2 dispatch (epic 11 item 3)
+# THE ONLY THING IN THIS FILE THAT CAN CHANGE A REPOSITORY WITHOUT A HUMAN.
+# Items 1, 2 and 2b built a switchboard, a control plane and a capability check
+# and wired none of them to anything; this is what wires them, and bin/dispatch.sh
+# is where every decision it makes lives. Its ceiling is one sentence: L2's
+# ceiling is an OPEN PULL REQUEST. It never approves, never merges, never closes
+# an issue and never chains to another item.
+#
+# Sourced defensively and NEVER fatally, exactly as the three libraries above
+# are: this file runs unattended on a 600-second timer against live repositories,
+# so a new dependency that CAN stop a cycle is a worse outcome than one that is
+# briefly unreadable. An unreadable dispatch library means no dispatch and L0
+# drafting carries on.
+DISPATCH_LIB="${INTAKE_DISPATCH_LIB:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/dispatch.sh}"
+DISPATCH_AVAILABLE=no
+if [ -r "$DISPATCH_LIB" ]; then
+  # shellcheck disable=SC1090
+  if . "$DISPATCH_LIB" 2>/dev/null; then DISPATCH_AVAILABLE=yes; fi
+fi
+if [ "$DISPATCH_AVAILABLE" = yes ]; then
+  # The library reports LIVE through this runner's own log(), rather than
+  # accumulating lines and flushing them at the end. A dispatch can take forty
+  # minutes, and the two epic 11 executors that froze mid-item cost 105 minutes
+  # precisely because nothing distinguished "working quietly" from "dead".
+  dispatch_emit() { log "$*"; }
+fi
+
 # ------------------------------------------------ collision detection (item 4)
 # Two proposals that would edit the same file are a HUMAN DECISION, and this is
 # where that is noticed. LODE #732 and #733 each worked out for themselves that
@@ -917,6 +944,36 @@ AUTONOMY_LOG_EOF
   # exactly where the records they should be reading instead now live.
   [ -n "$INTAKE_STATUS_DIR" ] && log "control plane: $INTAKE_STATUS_DIR"
   REPO_FAILED_ON_ENTRY="$FAILED"
+
+  # ------------------------------------------ L2 dispatch (epic 11 item 3)
+  # ONE ITEM, THEN STOP. At L2 this takes the next undispatched work item of an
+  # epic at `approved` or `in flight`, admits it, cuts and provisions its
+  # worktree, runs an executor in it, checks the REAL diff against the
+  # sensitive-path denylist, opens the pull request and stops. The per-cycle
+  # budget defaults to one item for the whole cycle, across every repo.
+  #
+  # HERE, before the label and issue queries, for one structural reason: the
+  # drafting path below `continue`s to the next repo the moment there is nothing
+  # labelled, which is the state of most repos most of the time. A dispatch pass
+  # placed after it would never run in the common case.
+  #
+  # IT RETURNS IMMEDIATELY AND SILENTLY BELOW L2, and that is the whole inertness
+  # claim. Every repo with no autonomy configuration resolves L0, and an L0 repo
+  # gets not one log line, not one GitHub call and not one directory out of this
+  # — a property of the code, asserted by fixture, rather than a promise in a
+  # comment. The level test lives in the library with the rest of the policy, so
+  # this file does not have to know what the answer is called.
+  if [ "$DISPATCH_AVAILABLE" = yes ]; then
+    dispatch_repo "$REPO_DIR" "$REPO_SLUG" "$EPICS_DIR" "$BASE_BRANCH" \
+                  "$WT_ROOT" "$DRY_RUN" "$SKILL_DIR" || true
+    # A REFUSAL IS NOT A FAILURE — the runner did the right thing, exactly as
+    # skip_issue argues for the drafting path — but a FAILURE is, and letting the
+    # repo's cycle record close as `finished` after one would be a wrong-but-
+    # plausible record, which is the class of lie the control plane exists to
+    # prevent.
+    if [ "${DISPATCH_STATE:-}" = failed ]; then FAILED=1; fi
+  fi
+
   intake_status_cycle scanning "enumerating issues labelled '$LABEL' in $REPO_SLUG"
 
   # Ensure the label exists so a first run does not fail on a missing label.
