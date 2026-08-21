@@ -167,9 +167,21 @@ case "${1:-}" in
     esac ;;
   api)
     P=""
-    for A in "$@"; do case "$A" in */issues/*/timeline*|*/contents/*) P="$A" ;; esac; done
+    for A in "$@"; do
+      case "$A" in */issues/*/timeline*|*/contents/*|*/branches*) P="$A" ;; esac
+    done
     [ -n "$P" ] || unanswered "api path not modelled"
     case "$P" in
+      */branches*)
+        # Epic 09 item 7's work-in-progress BRANCH signal, answered DELIBERATELY
+        # and empty: no case in this file has a branch named for its issue, so
+        # item 7's check stays on its `clear` path and these fixtures stay about
+        # collisions. Leaving it unanswered would put every case below on item
+        # 7's degraded `unknown` path while this suite reported green — which is
+        # the same defect item 7 itself had to fix in item 2's stub.
+        printf 'x' >> "$CASE/branch-calls"
+        [ -f "$CASE/branches" ] && cat "$CASE/branches"
+        exit 0 ;;
       */issues/*/timeline*)
         [ -f "$CASE/timeline-fail" ] && { echo '{"message":"Not Found"}'; exit 1; }
         N="${P#*/issues/}"; N="${N%%/*}"
@@ -687,6 +699,10 @@ check "A: nothing was merged"                     "no"  "$(yesno called "$D" 'pr
 check "A: the issue was not closed"               "no"  "$(yesno called "$D" 'issue close')"
 check "A: the label came off exactly as before"   "yes" \
       "$(yesno called "$D" '^gh issue edit 90 --remove-label claude-intake')"
+# Not decoration: without this, every case above could be riding item 7's
+# degraded path and this file would still print green.
+check "A: item 7's branch listing was answered both times, not degraded" "2" \
+      "$(wc -c < "$D/branch-calls" 2>/dev/null | tr -d ' ')"
 
 echo
 echo "=== B. two proposals declaring DISJOINT files: nothing happens =========="
