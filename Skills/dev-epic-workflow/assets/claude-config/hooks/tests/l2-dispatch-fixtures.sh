@@ -1064,6 +1064,20 @@ K_S1="$(line_of "$SCRIPT" '# ------------------------------------------------ L2
 K_E1="$(grep -n '^# ------------------------------------------------ collision detection (item 4)$' "$SCRIPT" | tail -1 | cut -d: -f1)"
 K_S2="$(line_of "$SCRIPT" '  # ------------------------------------------ L2 dispatch (epic 11 item 3)')"
 K_E2="$(line_of "$SCRIPT" "  intake_status_cycle scanning \"enumerating issues labelled")"
+# The second block is preceded by a blank line the insertion added, and deleting
+# the header without it leaves a reconstruction one blank line away from the
+# runner that actually existed. Byte-identical has to mean byte-identical, so the
+# range starts at that blank — and the blank is asserted rather than assumed,
+# because silently deleting a non-blank line would be far worse than stopping.
+case "$K_S2" in
+  ''|*[!0-9]*) ;;
+  *) if [ -n "$(sed -n "$((K_S2 - 1))p" "$SCRIPT" | tr -d '[:space:]')" ]; then
+       echo "ERROR: the line before the item-3 repo-loop block is not blank." >&2
+       echo "       The reconstruction would delete a line the item did not add. Fix it." >&2
+       exit 2
+     fi
+     K_S2=$((K_S2 - 1)) ;;
+esac
 for V in "$K_S1" "$K_E1" "$K_S2" "$K_E2"; do
   case "$V" in ''|*[!0-9]*)
     echo "ERROR: an anchor for the pre-item-3 reconstruction did not match." >&2
@@ -1074,9 +1088,13 @@ done
 sed -e "${K_S2},$((K_E2 - 1))d" -e "${K_S1},$((K_E1 - 1))d" "$SCRIPT" > "$PRE"
 chmod +x "$PRE"
 K_REMOVED=$(( $(wc -l < "$SCRIPT") - $(wc -l < "$PRE") ))
-check "K: the reconstruction removes exactly the item's 56 added lines" "56" "$K_REMOVED"
-if [ "$K_REMOVED" -ne 56 ]; then
-  echo "ERROR: the pre-item-3 reconstruction is $K_REMOVED lines, not 56. Either the" >&2
+# 57 = the runner's whole diff against the pre-item-3 base, and that equality is
+# the point: `git diff --stat` on this branch reports 57 insertions and 0
+# deletions to the runner, so a reconstruction that removes 57 lines is the file
+# that existed before the item and not an approximation of it.
+check "K: the reconstruction removes exactly the item's 57 added lines" "57" "$K_REMOVED"
+if [ "$K_REMOVED" -ne 57 ]; then
+  echo "ERROR: the pre-item-3 reconstruction is $K_REMOVED lines, not 57. Either the" >&2
   echo "       item grew or the anchors rotted; either way section K is not a proof." >&2
   exit 2
 fi
