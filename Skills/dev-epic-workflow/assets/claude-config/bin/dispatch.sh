@@ -620,14 +620,25 @@ dispatch_gate_brief() { # sets DISPATCH_GATE_BRIEF / DISPATCH_GATE_COMMANDS
     DISPATCH_REFUSAL="the provisioning library (bin/worktree-provision.sh) is not loaded, so no gate set is declared for this repo — refusing to dispatch an executor that would have to guess its gates"
     return 1
   fi
-  DISPATCH_GATE_COMMANDS="$(provision_gates "$DISPATCH_GATE_TYPE")" || {
+  # A `$( )` AROUND A FUNCTION IS A SUBSHELL, AND EVERY GLOBAL IT SETS DIES WITH
+  # IT. `provision_gates` reports why it refused in PROVISION_REFUSAL, and
+  # captured this way that reason never reaches the caller — the refusal degrades
+  # to "none declared", which is a silent refusal wearing a message. So on
+  # failure it is called AGAIN, outside the capture, purely to repopulate the
+  # reason. It is read-only and idempotent, so the second call costs a function
+  # call and buys back a sentence a human can act on. (bin/intake-status.sh
+  # documents the identical hazard from the other direction: it takes its body as
+  # an argument rather than on stdin so its own refusals survive.)
+  if ! DISPATCH_GATE_COMMANDS="$(provision_gates "$DISPATCH_GATE_TYPE" 2>/dev/null)"; then
+    provision_gates "$DISPATCH_GATE_TYPE" >/dev/null 2>&1 || true
     DISPATCH_REFUSAL="no gate set for this item: ${PROVISION_REFUSAL:-none declared}. L2 dispatch requires the repo to declare gates.<type> in the provisioning file — an executor that has to work out its own gates is the failure this rung is built on top of"
     return 1
-  }
-  DISPATCH_GATE_BRIEF="$(provision_gate_brief "$DISPATCH_GATE_TYPE")" || {
+  fi
+  if ! DISPATCH_GATE_BRIEF="$(provision_gate_brief "$DISPATCH_GATE_TYPE" 2>/dev/null)"; then
+    provision_gate_brief "$DISPATCH_GATE_TYPE" >/dev/null 2>&1 || true
     DISPATCH_REFUSAL="the gate brief for this item could not be built: ${PROVISION_REFUSAL:-unknown reason}"
     return 1
-  }
+  fi
   return 0
 }
 
