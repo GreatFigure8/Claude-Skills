@@ -217,9 +217,10 @@ while IFS= read -r RENTRY; do
   # proposals: LODE #741 and #739 both declared `**Live branch:** dev`, which is
   # LODE's INTEGRATION branch.
   #
-  # Reset per iteration: these are loop variables, and inheriting the previous
-  # repo's answer would produce exactly the kind of plausible wrong value this
-  # block exists to stop.
+  # Initialised before use rather than trusted to be assigned below. These are
+  # loop variables in a `set -u` script, and the failure mode this whole block
+  # exists to remove is a header value that came from somewhere other than this
+  # repo — so no path through here may leave either of them carrying one.
   LIVE_BRANCH=""
   DEFAULT_BRANCH=""
   DEFAULT_BRANCH="$("$GH_BIN" repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null || true)"
