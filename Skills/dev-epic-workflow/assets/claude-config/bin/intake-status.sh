@@ -156,6 +156,7 @@ INTAKE_STATUS_TOTAL=0
 INTAKE_STATUS_DONE=0
 INTAKE_STATUS_ISSUE=""
 INTAKE_STATUS_LAST_ERROR=""
+INTAKE_STATUS_TREE_OUT=""
 
 intake_status_now() { date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || printf '1970-01-01T00:00:00Z'; }
 
@@ -195,9 +196,18 @@ intake_status_repo_root() { # $1 = a directory inside the repo -> stdout
   printf '%s' "$ISR_ROOT"
 }
 
-# Create (idempotently) and echo the reserved status tree. Echoes NOTHING and
-# returns 1 if it cannot be created, or if guarantee 2 has been violated.
+# Create (idempotently) the reserved status tree and put it in
+# INTAKE_STATUS_TREE_OUT. Returns 1, with INTAKE_STATUS_TREE_OUT empty, if it
+# cannot be created or if guarantee 2 has been violated.
+#
+# IT SETS A VARIABLE RATHER THAN ECHOING, and that is not a style choice: a
+# `$( )` around this call is a SUBSHELL, and the refusal reason it writes to
+# INTAKE_STATUS_LAST_ERROR would die with it. A control plane that refuses
+# itself silently is exactly the failure this whole item is about — the caller
+# would see an empty directory and no reason, which is the same information
+# content as the flat log nobody read.
 intake_status_tree() { # $1 = repo root, $2 = epics dir (repo-relative)
+  INTAKE_STATUS_TREE_OUT=""
   IST_ROOT="${1:-}"
   IST_EPICS="${2:-docs/epics}"
   [ -n "$IST_ROOT" ] && [ -d "$IST_ROOT" ] || return 1
@@ -239,7 +249,8 @@ intake_status_tree() { # $1 = repo root, $2 = epics dir (repo-relative)
       printf 'it cannot be trusted; go and read the repo.\n'
     } > "$IST_BASE/README" 2>/dev/null || true
   fi
-  printf '%s' "$IST_DIR"
+  INTAKE_STATUS_TREE_OUT="$IST_DIR"
+  return 0
 }
 
 # Atomic write: temp file beside the target, then mv. Never leaves a partial
@@ -273,13 +284,19 @@ intake_status_log() { # $1 = text
 # else: the class of bug is structurally unavailable rather than avoided by care.
 # It also LOGS the path it wrote, which is the only place that can be forgotten
 # and therefore the only place it belongs.
-intake_status_write() { # $1 = RESOLVED absolute target path; body on stdin
+#
+# THE BODY IS AN ARGUMENT, NOT STDIN, and that is not a style choice either.
+# `printf … | intake_status_write "$T"` runs the FUNCTION in a subshell, so
+# every global it sets — INTAKE_STATUS_LAST_ERROR above all — dies with the
+# pipeline and a refusal becomes a silent one. Records are a few hundred bytes;
+# an argument costs nothing and keeps the reason for a refusal alive in the
+# process that has to report it.
+intake_status_write() { # $1 = RESOLVED absolute target path, $2 = record body
   ISW_T="${1:-}"
   # Unbound reporter: an empty INTAKE_STATUS_DIR would make the prefix test `/*`
   # and admit every absolute path on the machine. Refuse before comparing.
   if [ -z "$INTAKE_STATUS_DIR" ] || [ -z "$ISW_T" ]; then
-    cat >/dev/null 2>&1
-    INTAKE_STATUS_LAST_ERROR="refusing a status write with no bound control plane"
+    INTAKE_STATUS_LAST_ERROR="refused a status write with no bound control plane"
     return 1
   fi
   ISW_REL="${ISW_T#"$INTAKE_STATUS_DIR"/}"
@@ -287,11 +304,10 @@ intake_status_write() { # $1 = RESOLVED absolute target path; body on stdin
   case "$ISW_REL" in
     ''|*/*|.|..|*..*)
       INTAKE_STATUS_LAST_ERROR="refused a status write to [$ISW_T]: not a direct child of the bound control plane [$INTAKE_STATUS_DIR]"
-      cat >/dev/null 2>&1
       intake_status_log "REFUSED a status write to $ISW_T — outside $INTAKE_STATUS_DIR"
       return 1 ;;
   esac
-  intake_status_atomic "$ISW_T" || {
+  printf '%s\n' "${2:-}" | intake_status_atomic "$ISW_T" || {
     INTAKE_STATUS_LAST_ERROR="could not write $ISW_T"
     intake_status_log "FAILED to write $ISW_T"
     return 1
@@ -334,9 +350,10 @@ intake_status_open() { # $1 = repo dir, $2 = repo slug, $3 = epics dir, $4 = loc
     INTAKE_STATUS_CYCLE_ID="$(intake_status_now | tr -d ':-' )-$INTAKE_STATUS_PID"
   [ -n "$INTAKE_STATUS_STARTED" ] || INTAKE_STATUS_STARTED="$(intake_status_now)"
   INTAKE_STATUS_ROOT="$(intake_status_repo_root "${1:-.}")"
-  ISO_DIR="$(intake_status_tree "$INTAKE_STATUS_ROOT" "${3:-docs/epics}")" || return 0
-  [ -n "$ISO_DIR" ] || return 0
-  INTAKE_STATUS_DIR="$ISO_DIR"
+  # NOT in a $( ): see intake_status_tree. The refusal reason has to survive.
+  intake_status_tree "$INTAKE_STATUS_ROOT" "${3:-docs/epics}" || return 0
+  [ -n "$INTAKE_STATUS_TREE_OUT" ] || return 0
+  INTAKE_STATUS_DIR="$INTAKE_STATUS_TREE_OUT"
   intake_status_log "── INTAKE CYCLE START ($INTAKE_STATUS_CYCLE_ID, unattended-intake) on $INTAKE_STATUS_REPO ──"
   return 0
 }
@@ -368,7 +385,7 @@ intake_status_cycle() { # $1 = state, $2 = detail
   ISC_QUEUED=$(( INTAKE_STATUS_TOTAL - INTAKE_STATUS_DONE ))
   [ "$ISC_QUEUED" -ge 0 ] || ISC_QUEUED=0
   ISC_TARGET="$INTAKE_STATUS_DIR/cycle.json"      # resolved HERE, visible HERE
-  {
+  ISC_BODY="$( {
     printf '{\n'
     printf '  "item": "unattended intake cycle %s",\n' "$(intake_status_escape "$INTAKE_STATUS_CYCLE_ID")"
     printf '  "branch": null,\n'
@@ -388,8 +405,9 @@ intake_status_cycle() { # $1 = state, $2 = detail
     printf '  "started": "%s",\n' "$(intake_status_escape "$INTAKE_STATUS_STARTED")"
     printf '  "finished": %s,\n'  "$ISC_FIN"
     printf '  "log": "agent-%s.log"\n' "$(intake_status_escape "$INTAKE_STATUS_CYCLE_ID")"
-    printf '}\n'
-  } | intake_status_write "$ISC_TARGET" || true
+    printf '}'
+  } )"
+  intake_status_write "$ISC_TARGET" "$ISC_BODY" || true
   intake_status_log "cycle $ISC_STATE — $ISC_DETAIL"
   intake_status_ledger cycle "$ISC_STATE" "$ISC_DETAIL" ""
   return 0
@@ -408,7 +426,7 @@ intake_status_issue() { # $1 = issue, $2 = branch, $3 = state, $4 = detail, $5 =
   [ -n "$ISI_BRANCH" ] && ISI_BR="\"$(intake_status_escape "$ISI_BRANCH")\""
   ISI_REFUSED=no
   ISI_TARGET="$INTAKE_STATUS_DIR/$ISI_SLUG.json"   # resolved HERE, visible HERE
-  {
+  ISI_BODY="$( {
     printf '{\n'
     printf '  "item": "intake #%s",\n'  "$(intake_status_escape "$ISI_N")"
     printf '  "branch": %s,\n'          "$ISI_BR"
@@ -421,8 +439,9 @@ intake_status_issue() { # $1 = issue, $2 = branch, $3 = state, $4 = detail, $5 =
     printf '  "repo": "%s",\n'          "$(intake_status_escape "$INTAKE_STATUS_REPO")"
     printf '  "issue": %s,\n'           "$ISI_NUM"
     printf '  "recommendation": "%s"\n' "$(intake_status_escape "${5:-}")"
-    printf '}\n'
-  } | intake_status_write "$ISI_TARGET" || ISI_REFUSED=yes
+    printf '}'
+  } )"
+  intake_status_write "$ISI_TARGET" "$ISI_BODY" || ISI_REFUSED=yes
   intake_status_log "#$ISI_N ${3:-} — ${4:-}"
   intake_status_ledger issue "${3:-}" "${4:-}" "$ISI_N"
   # A refused or failed write means the per-issue record on disk is NOT what
