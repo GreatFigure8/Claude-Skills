@@ -99,21 +99,53 @@ Verified on 2026-08-21. Each line names how.
   showing every one still resolving and still at L0.
 - **Rollback:** revert; nothing read the config anyway.
 
-### 2. The ledger, and a status surface that needs no session
-- **Branch:** `feat/autonomy-ledger`
+### 2. One control plane — the runner reports where the orchestrator already looks
+- **Branch:** `feat/autonomy-one-control-plane`
 - **Depends on:** 1
-- **Scope:** An append-only `~/.config/claude-intake/ledger.jsonl`, outside any repo, one record
-  per state transition: cycle start, item admitted, item refused with reason, executor started,
-  executor returned, PR opened, error. Plus a `--status` view that renders it without a session.
-  **This is how a human watches the thing run**, and it is the source of truth for the promotion
-  records item 1 defined.
-- **Not in scope:** the digest (deferred); any UI.
-- **Definition of done:** every transition appears exactly once; the ledger survives a killed run
-  mid-cycle without corruption; `--status` is accurate against the repo and the ledger together;
-  a refused item states which policy refused it.
-- **Verification:** fixtures including a `SIGKILL` mid-cycle; a replay comparing ledger against
-  actual branches and PRs.
-- **Rollback:** revert; the log file remains and is harmless.
+- **THE DEFECT, measured 2026-08-21, not supposed.** There are **two telemetry universes** and only
+  one of them is visible from a session:
+
+  | | Orchestrated executor | Unattended runner |
+  |---|---|---|
+  | `status.json` milestones | yes | **0 writes** |
+  | agent log in the epic's `status/` tree | yes | none |
+  | visible to `/tasks` | yes | no |
+  | surfaced by SessionStart | yes | **0 references** |
+  | where it reports | the canonical repo control plane | one flat file outside every repo |
+
+  Counted directly: the runner contains **zero** writes matching
+  `status.json|STATUS_DIR|signals/subagent|agent-*.log`, and `session-start-context.sh` contains
+  **zero** references to a running cycle. On 2026-08-21 the runner drafted nine LODE proposals and
+  the only way to watch it was to know `~/.config/claude-intake/intake.log` exists and `tail -f` it
+  by hand. **An automation nobody can see is not automation, it is a background process.**
+- **The premise this serves, in Jonathan's words:** *"there should STILL be an orchestrator; there
+  should still be status reported to the orchestrator; nothing should just happen without it
+  reporting status here in Claude Code. We automate all the processes so the user can watch while
+  doing other things."* Watching must be the default, not a thing you remember to set up.
+- **Scope:** the unattended runner reports into the **same** control plane the orchestrated path
+  already uses, rather than a second one. Per cycle and per issue it writes a `status.json`-shaped
+  record and an agent-style log into the canonical status tree, resolved the same way the hooks
+  resolve it (`git rev-parse --path-format=absolute --git-common-dir`, so a worktree cannot split
+  it). `session-start-context.sh` gains a section that surfaces a cycle **in flight** — which issue
+  is being drafted, how many are queued, and when the last cycle finished — so **any** session that
+  opens already knows, with no `tail` and no prior knowledge. The append-only
+  `ledger.jsonl` remains, but as the durable audit trail underneath, not as the interface.
+- **A drafting run has no epic yet, and that is the design problem to solve.** A proposal is being
+  *written*; there is no `docs/epics/<NN>/` to report into. Decide where an intake cycle's status
+  lives so it is discoverable by the same rules — a reserved intake status tree is the obvious
+  answer, and it must not be mistaken for an epic by the active-epic resolver (GH #9 and GH #11 are
+  what that mistake looks like).
+- **Not in scope:** the digest; any UI; changing what the runner does — only what it reports.
+- **Definition of done:** a session opened mid-cycle is told a cycle is running, which issue, and
+  how many remain, without being asked; a cycle killed mid-flight leaves a status record that says
+  so rather than looking finished; every transition appears exactly once in the ledger; the
+  intake status tree is never selected as the active epic, proven by fixture against the
+  `active-epic-fixtures.sh` resolver; a repo with no autonomy config still reports its drafting
+  cycles, because L0 needs watching too.
+- **Verification:** open a session during a real multi-issue cycle and read the injection; `SIGKILL`
+  a cycle and confirm the record says interrupted; replay the ledger against the branches and PRs
+  actually created.
+- **Rollback:** revert; telemetry returns to the flat log, which is where it is today.
 
 ### 2b. A dispatched worktree can actually run the gates
 - **Branch:** `feat/autonomy-worktree-provisioning`
@@ -257,3 +289,13 @@ is last.
   being told the wrong ones, survived a mid-item rebase into the same file, and reported all four
   problems unprompted. **n=1 on this stack.** That is enough to keep building and not enough to
   enable the rung, which is exactly what item 3's definition of done already says.
+- 2026-08-21 — **item 2 re-scoped from "a ledger" to "one control plane", on Jonathan's
+  correction, and the correction is right.** The epic had accepted a second telemetry universe as
+  normal: orchestrated executors report `status.json` milestones into the canonical status tree
+  where hooks and `/tasks` can see them, while the unattended runner reports into a flat file
+  outside every repo that nobody sees unless they remember it exists. Counted rather than
+  asserted: **zero** control-plane writes in the runner, **zero** SessionStart references to a
+  running cycle. It surfaced the moment the runner began drafting nine LODE proposals and the only
+  way to watch was a hand-armed `tail -f`. **The premise of the whole programme is that the user
+  watches while doing other things — which requires the watching to be default, not assembled by
+  hand each time.**
