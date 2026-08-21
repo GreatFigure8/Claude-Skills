@@ -286,6 +286,20 @@ rather than whitespace because checkout paths contain spaces. **The base is the 
 a base that does not exist on `origin` causes that repo to be skipped with a logged reason
 rather than a failed run.
 
+**Header facts are supplied, never recalled.** Both branch fields of the plan header are
+resolved by the runner — from the repos list and from `gh repo view --json defaultBranchRef` —
+and injected into the drafter's prompt as stated facts it must copy verbatim:
+`**Live branch:**` is the GitHub default branch, `**Integration branch:**` is the base above,
+and the epics directory is the one the repo actually uses. The default-branch query runs
+**unconditionally**, including for repos that override their base: it used to be the fallback
+*inside* the no-override branch, so the repos most likely to have live ≠ integration were the
+only ones whose live branch was never resolved at all. That is not a hypothetical — two of
+seven unattended proposals declared the integration branch as the live one, on the field the
+"never write to the live branch" rule is stated in terms of. Where a value cannot be resolved
+the drafter is handed `unknown` and told to write `unknown`: a gap a reader closes in seconds
+beats a plausible wrong branch that reads as correct and gets approved. `**Pre-epic tag:**` is
+deliberately *not* supplied — it is a judgement, and it stays the drafter's to propose.
+
 **The runner never touches your checkout.** It does not `switch`, does not `pull`, and does not
 care which branch you are standing on: it fetches, then cuts its worktree from
 `origin/<base>`. It runs unattended on a timer, so it could otherwise have moved you off your
