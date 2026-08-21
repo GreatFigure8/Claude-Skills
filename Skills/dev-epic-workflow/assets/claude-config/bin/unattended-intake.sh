@@ -317,7 +317,7 @@ FAILED=0
 # cannot be ruled out.
 #
 # REPO_SLUG and EPICS_DIR are read at call time from the repo loop below, the
-# same way check_work_in_progress reads REPO_SLUG.
+# same way the work-in-progress helper defined inside that loop reads REPO_SLUG.
 COLLISION_STATUS=""
 COLLISION_SUMMARY=""
 COLLISION_DETAIL=""
