@@ -623,6 +623,17 @@ autonomy_resolve() { # $1 = repo checkout path, $2 = repo slug
   AUTONOMY_MAX_FILES=""
   AUTONOMY_MAX_DIFF_LINES=""
 
+  # FIRST, before anything about the config is even looked up. A human who
+  # dropped this file in wants to be told that is why, not to be told about a
+  # typo three sections down: both answers are L0, but only one of them is the
+  # answer to "what did I just do".
+  if autonomy_override_active; then
+    AUTONOMY_LEVEL=L0
+    AUTONOMY_REASON="global override present at $AUTONOMY_OVERRIDE_FILE"
+    AUTONOMY_LOG="autonomy: $RSLUG pinned to L0 — $AUTONOMY_REASON (unattended drafting continues)"
+    return 0
+  fi
+
   SEC_PATH=""; SEC_SLUG=""
   if [ -n "$AUTONOMY_PARSED" ]; then
     if [ -n "$RPATH" ] && _autonomy_section_exists "$RPATH"; then SEC_PATH="$RPATH"; fi
@@ -635,12 +646,6 @@ autonomy_resolve() { # $1 = repo checkout path, $2 = repo slug
   fi
   SEC="$SEC_PATH"; [ -n "$SEC" ] || SEC="$SEC_SLUG"
 
-  if autonomy_override_active; then
-    AUTONOMY_LEVEL=L0
-    AUTONOMY_REASON="global override present at $AUTONOMY_OVERRIDE_FILE"
-    AUTONOMY_LOG="autonomy: $RSLUG pinned to L0 — $AUTONOMY_REASON (unattended drafting continues)"
-    return 0
-  fi
   if [ "$AUTONOMY_CONFIG_OK" != yes ]; then
     AUTONOMY_REASON="autonomy config is invalid; every repo resolves L0"
     AUTONOMY_LOG="autonomy: $RSLUG pinned to L0 — $AUTONOMY_REASON"

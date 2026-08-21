@@ -560,6 +560,41 @@ check "D: and the stop file is NOT the override" "L2" \
 rm "$DD/STOP"
 
 echo
+echo "=== D2. one repo, one section — two claims is a conflict, not a merge ==="
+D2="$(mkcase D2)"
+cat > "$D2/autonomy" <<CFG
+[$D2/repo]
+level = L0
+
+[fixture/repo]
+level = L0
+CFG
+check "D2: a path section and a slug section for one repo -> L0" "L0" \
+      "$(libsh "$D2" "$D2/repo" fixture/repo 'autonomy_resolve "$RP" "$RS"; printf "%s" "$AUTONOMY_LEVEL"')"
+check "D2: and the refusal names both sections" "yes" \
+      "$(contains "$(libsh "$D2" "$D2/repo" fixture/repo 'autonomy_resolve "$RP" "$RS"; printf "%s" "$AUTONOMY_REASON"')" "both configure this repo — one repo, one section")"
+check "D2: either section ALONE is fine — this is a conflict, not a syntax error" "configured L0" \
+      "$(printf '[fixture/repo]\nlevel = L0\n' > "$D2/autonomy"; libsh "$D2" "$D2/repo" fixture/repo 'autonomy_resolve "$RP" "$RS"; printf "%s" "$AUTONOMY_REASON"')"
+# Precedence: the override outranks even the conflict, because "I dropped the
+# file in" is the answer the human who dropped it in is looking for.
+cat > "$D2/autonomy" <<CFG
+[$D2/repo]
+level = L0
+
+[fixture/repo]
+level = L0
+CFG
+touch "$D2/AUTONOMY-OFF"
+check "D2: with the override present, THAT is the reason reported" "yes" \
+      "$(contains "$(libsh "$D2" "$D2/repo" fixture/repo 'autonomy_resolve "$RP" "$RS"; printf "%s" "$AUTONOMY_REASON"')" "global override present at")"
+rm "$D2/AUTONOMY-OFF"
+check "D2: a malformed config also loses to the override" "yes" \
+      "$(printf 'nonsense\n' > "$D2/autonomy"; touch "$D2/AUTONOMY-OFF"; contains "$(libsh "$D2" "$D2/repo" fixture/repo 'autonomy_resolve "$RP" "$RS"; printf "%s" "$AUTONOMY_REASON"')" "global override present at")"
+rm "$D2/AUTONOMY-OFF"
+check "D2: and without it, the malformed config is what is reported" "yes" \
+      "$(contains "$(libsh "$D2" "$D2/repo" fixture/repo 'autonomy_resolve "$RP" "$RS"; printf "%s" "$AUTONOMY_REASON"')" "autonomy config is invalid")"
+
+echo
 echo "=== E. a level above the ceiling is refused, never clamped =============="
 for LV in L3 L4; do
   E="$(mkcase "E-$LV")"

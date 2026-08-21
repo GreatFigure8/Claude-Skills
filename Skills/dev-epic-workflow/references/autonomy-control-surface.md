@@ -223,7 +223,20 @@ fixture — can see the whole resolved surface without opening a session.
 
 ## Fixtures
 
-`assets/claude-config/hooks/tests/autonomy-control-fixtures.sh`, including the inertness
-proof (an unconfigured run compared against the pre-item-1 runner) and four mutants that
-must fail: a shrunken denylist floor, an advisory override, a missing stop check, and a
-pass-through promotion check.
+`assets/claude-config/hooks/tests/autonomy-control-fixtures.sh` — 244 cases.
+
+The one that matters is **case K, the inertness proof**: it reconstructs the runner as it
+stood before this item by deleting exactly the 83 lines the item added (refusing to run at
+all if the count is not 83), executes both against an identical unconfigured fixture, and
+compares the gh/git/claude call stream, the log, stdout, stderr, the issue comments and the
+drafted plan **byte for byte**. Only the timestamp, the case directory and the sandbox path
+are normalised away, and each of those three is a property of the harness.
+
+The suite is built brittle on purpose. It **aborts** rather than passing when the library is
+absent or has lost its `AUTONOMY_ENFORCED` marker; case L runs the stop-file scenario against
+that pre-item-1 runner and requires the cycle to **run**, so the passing case is
+discriminating; and three library mutants — a shrunken denylist floor, an advisory override,
+a pass-through promotion check — each break a case that passes on the shipped library.
+
+It never reads or writes `~/.config/claude-intake`: `HOME` and all four control-file paths
+are redirected into the sandbox.
