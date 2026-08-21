@@ -1,6 +1,6 @@
 # Epic: L1 preconditions — make the machine able to receive what good drafting produces
 
-**Status:** in flight (items 4 and 7 of 7; items 1, 2, 3 and 6 done)
+**Status:** in flight (item 4 of 7; items 1, 2, 3, 6 and 7 done)
 **Source:** GH #39 (continues epic 08, which stopped at its item 1 on a NO-GO verdict)
 **Live branch:** per-repo (`main` here, `main` for LODE)   **Integration branch:** per-repo (`main` here, `dev` for LODE)   **Pre-epic tag:** n/a — no autonomy rung is enabled by this epic
 
@@ -322,6 +322,29 @@ reported: #795 is **open** with **four merged PRs** on branches named `*/795-*`,
 "Part of #795". That is item 7.
 
 ### 7. Treat a named branch or a declared "Part of" as work in flight
+- **Outcome: DONE.** PR #58, merged `b6ac3d2`. Full battery on merged `main`: **1077 cases, 0
+  failures** (the skip suite grew 108 → 178, the header suite 78 → 80). Negative control holds the
+  item 6 pattern: against the pre-item-7 script the suite **hard-errors** building mutant Y rather
+  than quietly passing.
+- **Its stated DoD could not be checked as written, because both repos moved during the run — and
+  the replacement measurement is better.** LODE #795, #811 and #801 all closed mid-execution, and
+  PRs #816/#817 landed declaring closure, so all three now skip under *item 6's* rule and the
+  branch `feat/811-…` the DoD names no longer exists. Re-measured live on 2026-08-21 over **every
+  open issue in both repos (n=13)** instead: item 7 flips exactly three, all correct —
+  `claude-skills` **#39** → SKIP (`in-flight-pr`, merged PR #51 "Part of #39", i.e. this epic
+  itself), LODE **#815** → SKIP (`in-flight-pr`, merged PR #828), LODE **#821** → SKIP
+  (`in-flight-branch`). Ten stay DRAFT; item 6's flips (#15, #48, #54) are intact.
+- **LODE #821 is the live proof of the branch-only signal, observed directly rather than
+  inherited.** Issue OPEN, **zero** open-or-merged PRs referencing it, and branch
+  `feat/821-a-live-thinking-indicator` on origin. Item 6's rule drafts it; item 7 skips it. The
+  executor reported the same class on #801 and that instance is gone — #801 closed and its branch
+  was deleted — so **that observation is unreproducible and is recorded as unverified**; #821
+  stands in its place as evidence taken cold.
+- **It found and fixed a stub defect in item 2's suite, which is the item 1 lesson a third time.**
+  `intake-header-fixtures.sh` had a catch-all `api)` arm answering *every* api path with the
+  timeline's answer file — so item 7's new branch listing was handed a list of PR numbers and the
+  harness reported the query answered. It came out `clear` by luck. Now per-path (`*/branches*`),
+  with a separate counter and two assertions that the branch listing actually ran.
 - **Branch:** `fix/intake-wip-inflight-epics`
 - **Depends on:** 6 (done) — this widens the check item 6 narrowed
 - **Why this exists, measured not supposed.** Item 6 correctly narrowed *blocking* to closing
@@ -563,3 +586,23 @@ header from config, refuses duplicated work, and detects collisions is better at
   about this backlog rather than the drafter escape hatch the Risks table warns about. Item 4's
   Scope and DoD needed no amendment; the open question is struck and item 4 re-dispatched with the
   blocked run's detector design carried into the plan so it is not re-derived.
+- 2026-08-21 — **item 7 verified cold and merged** (`b6ac3d2`); battery on merged `main` is
+  **1077 cases, 0 failures**. Its DoD table had gone stale inside its own execution window —
+  LODE closed #795, #811 and #801 and merged their closing PRs while it ran — so verification was
+  taken as a **fresh live classification over every open issue in both repos (n=13)** rather than
+  against the table. Three flips, all correct, and the branch-only signal got a live true positive
+  (LODE #821: open, zero PRs, branch on origin) to replace the one that had disappeared.
+- 2026-08-21 — **merge-safety fact, confirmed rather than assumed.** The launchd agent's
+  `ProgramArguments` names
+  `/Users/jonathanstevenson/Source/claude-skills/Skills/dev-epic-workflow/assets/claude-config/bin/unattended-intake.sh`
+  — **the main checkout itself, not an installed copy.** Every merge to `main` therefore goes live
+  on the next 1800s tick, items 2, 3 and 6 included. It armed nothing in practice: **zero open
+  issues carry `claude-intake` in either repo**, checked at merge time.
+- 2026-08-21 — **a gap item 7 does not close, found by classifying GH #57 after epic 10 was
+  filed for it.** #57 has a **filed, approved epic** (`docs/epics/10-declared-paths/plan.md`,
+  `Source: GH #57`) and still classifies **DRAFT**, because that plan was committed straight to
+  `main` — no PR says "Part of #57" and no branch is named for it. All three in-flight signals are
+  PR-shaped or branch-shaped, and **a plan filed by direct commit is neither.** The authoritative
+  signal already exists and is local: a `plan.md` under `docs/epics/` carrying `Source: GH #<n>`
+  whose Status is not `closed`. Not item 7's to add — it implemented the approved rule — and
+  recorded here rather than lost.
