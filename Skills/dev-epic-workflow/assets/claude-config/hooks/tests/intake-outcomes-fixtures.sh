@@ -128,6 +128,19 @@ case "${1:-} ${2:-}" in
     esac ;;
   "label list")   printf 'claude-intake\tRun unattended intake\n' ;;
   "issue list")   cat "$OUT/issues.txt" 2>/dev/null ;;
+  "api "*|"api")
+    # The work-in-progress check's issue-timeline query (epic 09 item 3). Empty
+    # by default, so the check reports `clear` and drafting proceeds — the
+    # ordinary path. If timeline-late.txt exists, the SECOND call onwards
+    # returns it instead: that is the #757 race, a blocking PR appearing between
+    # selection and publication, which only the pre-PR re-check can see.
+    printf 'x' >> "$OUT/api-calls"
+    if [ -f "$OUT/timeline-late.txt" ] && [ "$(wc -c < "$OUT/api-calls" | tr -d ' ')" -ge 2 ]; then
+      cat "$OUT/timeline-late.txt"
+    else
+      cat "$OUT/timeline-prs.txt" 2>/dev/null || true
+    fi ;;
+  "pr view")      cat "$OUT/wip-pr.txt" 2>/dev/null || true ;;
   "issue view")   cat "$OUT/issue-title.txt" 2>/dev/null ;;
   "issue comment")
     arg_after --body "$@" > "$OUT/issue-comment.txt" ;;
@@ -205,7 +218,9 @@ PROPOSAL="docs/epics/proposed-${ISSUE}-${SLUG}"
 # Sets: RUN_DIR (all artifacts), RUN_RC (runner exit code)
 run_intake() {
   RUN_DIR="$SANDBOX/run-$1"; sandboxed "$RUN_DIR"
-  rm -rf "$RUN_DIR"; mkdir -p "$RUN_DIR/out" "$RUN_DIR/wt"
+  [ "${RUN_PRESEEDED:-no}" = yes ] || rm -rf "$RUN_DIR"
+  RUN_PRESEEDED=no
+  mkdir -p "$RUN_DIR/out" "$RUN_DIR/wt"
 
   # A local bare repo standing in for GitHub, and a checkout of it.
   git_sb_init "$RUN_DIR"
@@ -422,7 +437,7 @@ check "the branch touches ONLY the proposal folder" "${PROPOSAL}/plan.md" \
 check "the run really did call gh (pr create, exactly once)" "1" \
       "$(grep -c '^pr create' "$RUN_DIR/out/gh-calls.log" | tr -d ' ')" "no-work"
 check "no merge, no close, no review: gh calls are the known set" "" \
-      "$(grep -vE '^(repo view|label list|issue list|issue view|issue comment|issue edit|pr create)' \
+      "$(grep -vE '^(repo view|label list|issue list|issue view|issue comment|issue edit|pr create|pr view|api --paginate)' \
            "$RUN_DIR/out/gh-calls.log" | head -5)" "no-work"
 check "main on origin is untouched by the run" \
       "$(git_sb "$RUN_DIR/checkout" rev-parse main)" \
@@ -505,6 +520,41 @@ check "mutant drops the outcome from the title" "$EXPECT_TITLE_PLAIN" "$(out pr-
 check "so case C's title expectation does NOT hold there" "differs" \
       "$([ "$(out pr-title.txt)" = "intake: [no-work] proposed epic for #${ISSUE} — ${SLUG}" ] \
          && echo same || echo differs)" "mutant"
+
+# ============================================================================
+echo
+echo "=== H2. a proposal that is never published has no outcome ==============="
+echo "    (epic 09 item 3's pre-PR re-check skips the issue when a blocking PR"
+echo "     appears between selection and publication — the #757 race. The"
+echo "     recommendation is read AFTER that check on purpose: skip_issue"
+echo "     removes the worktree the plan lives in, and logging an outcome for a"
+echo "     proposal that was then discarded would be false telemetry. This case"
+echo "     exists to keep those two blocks in that order.)"
+run_intake_late() {
+  RUN_DIR="$SANDBOX/run-$1"; sandboxed "$RUN_DIR"
+  rm -rf "$RUN_DIR"; mkdir -p "$RUN_DIR/out"
+  # Seeded BEFORE the run: the first timeline query (selection) still comes back
+  # empty, so the issue is drafted; the second (pre-PR) names the merged PR.
+  printf '758\n' > "$RUN_DIR/out/timeline-late.txt"
+  printf 'MERGED fix/attended-758 https://github.com/fixture/repo/pull/758\n' > "$RUN_DIR/out/wip-pr.txt"
+  RUN_PRESEEDED=yes
+  run_intake "$1" "$2"
+}
+# run_intake wipes out/ unless told the case pre-seeded it.
+run_intake_late late-skip "$DRAFTS/no-work.md"
+check "a skip is not a failure: exit status" "0" "$RUN_RC" "late-skip"
+check "the issue was skipped at the pre-PR re-check" "1" \
+      "$(grep -c 'SKIP #757 (pre-PR re-check)' "$RUN_DIR/intake.log" | tr -d ' ')" "late-skip"
+check "NO pull request was opened" "no" \
+      "$([ -s "$RUN_DIR/out/pr-title.txt" ] && echo yes || echo no)" "late-skip"
+# …and the draft really was produced first, or the two checks above would pass
+# by describing a run that never got far enough to have an outcome at all.
+check "the drafter DID run (the plan existed, and said no-work)" "yes" \
+      "$([ -s "$RUN_DIR/out/prompt.txt" ] && echo yes || echo no)" "late-skip"
+check "and NO recommendation was logged for it" "0" \
+      "$(grep -c 'recommendation=' "$RUN_DIR/intake.log" | tr -d ' ')" "late-skip"
+check "the issue comment is the skip evidence, not an outcome" "1" \
+      "$(grep -c 'skipped this issue' "$RUN_DIR/out/issue-comment.txt" | tr -d ' ')" "late-skip"
 
 # ============================================================================
 # The SessionStart injection. Same sandbox discipline; no runner involved.
