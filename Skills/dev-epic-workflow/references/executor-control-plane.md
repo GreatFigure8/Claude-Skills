@@ -206,12 +206,16 @@ Two tiers:
   The gate fails open by construction: malformed hook input, `jq` and `python3` both
   missing, no git, an unreadable sentinel — every error path allows the call. All of that
   is exercised by `assets/claude-config/hooks/tests/cancel-gate-fixtures.sh`, which builds
-  a throwaway sandbox and never touches a real repo. It is one of three harnesses under
-  `assets/claude-config/hooks/tests/` — `cancel-gate-fixtures.sh` (the kill switch),
-  `lifecycle-fixtures.sh` (brackets, ownership, terminal stamping) and
-  `active-epic-fixtures.sh` (which epic the telemetry goes to). Run **all three** after
-  changing any control-plane hook, **before** `install.sh` puts the change live; each
-  builds and destroys its own sandbox, so they are safe to run at any time.
+  a throwaway sandbox and never touches a real repo. It is one of several harnesses under
+  `assets/claude-config/hooks/tests/`; the control-plane ones are
+  `cancel-gate-fixtures.sh` (the kill switch), `lifecycle-fixtures.sh` (brackets,
+  ownership, terminal stamping), `active-epic-fixtures.sh` (which epic the telemetry goes
+  to, including that the reserved intake tree is never one) and
+  `intake-control-plane-fixtures.sh` (the unattended runner's own reporting). Run **the
+  whole directory** after changing any control-plane hook, **before** `install.sh` puts
+  the change live; each builds and destroys its own sandbox, so they are safe to run at
+  any time. `session-start-fixtures.sh` needs `INTAKE_REPO_LIST=/nonexistent` so it cannot
+  read a real machine's intake config.
 
   Cancellation is loss-free by construction: everything pushed is safe, and the executor
   pushed on its first commit. After a cancel, the orchestrator decides: re-dispatch with
@@ -224,6 +228,30 @@ Two tiers:
   an item's truth is `status.json` + `origin`. If `state: pr-opened` and the PR exists,
   the item is ready for review no matter what any sidebar claims; if the marker file is
   gone and `terminal: true` is stamped, the run is over.
+- **And within that pair, `origin` outranks `status.json`. Status is a convenience view;
+  the branch and the PR are the truth.** This is load-bearing rather than a nicety. On
+  2026-08-21 an executor clobbered a **sibling epic's** `status.json` — a well-formed
+  write that simply went to the wrong file — and it cost nothing, *because nobody was
+  acting on the status file* (GH #63). The moment anything starts trusting `status.json`
+  over the repo, that same class of bug becomes expensive. Making telemetry easier to
+  read — which is exactly what surfacing it at SessionStart does — must not make it
+  authoritative.
+- **`state: unknown` means "do not trust this record".** It is a defined out-of-band
+  value, deliberately outside the milestone vocabulary so nothing can read it as
+  progress, and it is what a writer uses when it knows its record may not reflect
+  reality — a clobber, a refused write, a reconstruction it could not verify. **A
+  wrong-but-plausible status is worse than an obviously-broken one, because the
+  orchestrator acts on the plausible one.** Never repair a suspect record into a
+  plausible state; write `unknown` with a `detail` saying what happened, and reconcile
+  from `git log`, `git diff --stat` and the PR.
+- **The target path must be visible at the call site.** The clobber above went through a
+  helper whose command line did not show the file it wrote. Correct resolution and
+  *invisible* resolution are independent properties, and only the second one causes that
+  bug — so a helper that takes an epic-relative name and resolves the full path
+  internally is the hazard **however correct its resolution is**. Write status with the
+  resolved path visible in the command you run (the temp-file-then-`mv` the executor
+  contract specifies does exactly that); that is also how the PostToolUse hook binds a
+  status file to the agent that owns it.
 - **`terminal` is now evidence, not decoration.** It is stamped only by the agent that
   owns the item, so its presence means *that executor's run ended* — it can no longer be
   produced by an unrelated stop. The converse is weaker on purpose: an absent stamp with a
@@ -239,6 +267,93 @@ Two tiers:
 - **`blocked` is a feature.** The executor must stop and return on any ambiguity rather
   than guess. The orchestrator resolves the question (with Jonathan if needed) and
   re-dispatches — decisions stay in the session Jonathan actually sits in.
+
+## The unattended intake control plane
+
+**One control plane, not two.** Until epic 11 item 2 there were two telemetry universes
+and only one of them was visible from a session. The orchestrated executor wrote
+`status.json` milestones and an `agent-<id>.log` into the canonical status tree, where the
+hooks, `/tasks` and SessionStart could all see them. The unattended runner
+(`references/issue-intake.md`) wrote **zero** control-plane records and this hook made
+**zero** references to a running cycle: watching it draft nine proposals meant knowing
+`~/.config/claude-intake/intake.log` exists and `tail -f`-ing it by hand. An automation
+nobody can see is not automation, it is a background process — so the runner now reports
+where the orchestrator already looks.
+
+**A drafting run has no epic yet, and that is the design problem.** A proposal is being
+*written*; there is no `docs/epics/<NN>-<slug>/` to report into. So an intake cycle reports
+into a **reserved tree**, resolved by the same rule as everything else here — the canonical
+root, never a worktree:
+
+```
+<repo-root>/<epics-dir>/.intake/
+  .gitignore                   `*`, which git applies to this file too, so the whole
+                               directory is invisible to `git status` in the target repo
+  README                       says, in the tree, that it is not an epic
+  status/cycle.json            the cycle, status.json-SHAPED (item/branch/state/detail/
+                               commit/updated) plus cycle id, pid, lock, issue, queue
+  status/<branch-slug>.json    one per issue, named exactly as an executor's is
+  status/agent-<cycle>.log     one per CYCLE, in the same `<ts> | ── … ──` shape
+                               subagent-lifecycle.sh writes, so one reader reads both
+  status/ledger.jsonl          the durable audit trail underneath — append-only, one line
+                               per transition and never more than one. Not the interface
+```
+
+`branch` and `commit` are `null` in a cycle record, always and on purpose: a drafting cycle
+is not on a branch and has no HEAD of its own, and writing a plausible value there would be
+the same class of lie as a plausible-but-wrong plan header.
+
+**It must never be mistaken for an epic**, because GH #9 and GH #11 are what that mistake
+costs. Three independent guarantees, any one of which suffices:
+
+1. **The name begins with a dot.** Every resolver globs `docs/epics/*/plan.md` or
+   `docs/epics/*/`, and a shell `*` does not match a leading dot — so the active-epic
+   resolver, the epic-queue section, the handoff and autosnapshot globs and the session-end
+   guard cannot see it at all. (A **gitignore** `*` *does* match a leading dot, which is why
+   `docs/epics/*/status/` already covers it in this repo.)
+2. **It never contains a `plan.md`.** Resolution paths (b) and (c) require a readable
+   `plan.md`, so no plan means no candidacy — and `bin/intake-status.sh` **refuses the tree
+   outright** if one ever appears rather than writing into a directory that could steal a
+   live executor's telemetry.
+3. **Nothing in the runner writes `.claude/signals/active-epic`.** Pointer resolution is an
+   orchestrator act at dispatch setup, and the unattended runner is not an orchestrator.
+
+`hooks/tests/active-epic-fixtures.sh` section O proves guarantee 1 against the **real**
+resolver in both hooks and across all three parser variants — including with an
+`in flight` `plan.md` planted inside the reserved tree, which it still cannot select.
+
+**Watching is the default.** `session-start-context.sh` reads `cycle.json` and tells any
+session that opens whether a cycle is in flight, which issue is drafting, how many are done
+and queued, and where to `tail` it. It costs no fork beyond the two `git rev-parse` calls
+that find the canonical root: the record is written one key per line in a fixed order
+precisely so a reader with neither `jq` nor `python3` can parse it with builtins. Writer and
+reader are a **matched pair** — change the shape in `bin/intake-status.sh` and change it in
+the hook; `hooks/tests/intake-control-plane-fixtures.sh` is what tells you that you did not.
+
+**Is a cycle still running?** Two conditions, both builtins: the recorded `pid` answers
+`kill -0`, **and** the recorded `lock` directory still exists. Requiring the lock is what
+stops a recycled pid reading as a live cycle. The three ways a cycle can die are not the
+same thing and are not reported as though they were:
+
+| how it ended | what runs | what the record says |
+|---|---|---|
+| normally | the runner's own close | `finished`, or `failed` if an issue failed |
+| abnormal exit, or a fatal untrapped signal such as **SIGHUP** | the EXIT trap | `interrupted`, with the reason |
+| **SIGTERM** / SIGINT | the trap returns and the runner **carries on**, as it did before this item | the signal is recorded in the log and the ledger; the state is **not** changed |
+| **SIGKILL** | nothing at all | stays non-terminal — and the *reader* infers it: a non-terminal state whose pid is gone **did not finish** |
+
+That last row is the point of the whole design. A record reading `drafting` forever is
+indistinguishable from a cycle still working, and one reading `finished` when the process
+died is worse — wrong *and* plausible, which is the one a reader acts on.
+
+**The flat log survives underneath** and now names the resolved control plane once per repo
+(`control plane: <abs path>`), so a human who still tails `intake.log` is told where the
+records they should be reading instead now live.
+
+**It reports; it does not act.** Nothing in this path approves a plan, dispatches an item,
+merges a PR or closes an issue, and no decision in the runner reads a telemetry variable —
+proven by running the same cycle with the library removed and requiring the `gh` and
+`claude` call streams, the drafted plan, the issue comments and stdout to be identical.
 
 ## Dispatch conventions (orchestrator side)
 
@@ -302,3 +417,7 @@ that's what `/handoff` still exists for.
 | Cancel ignored by the model | Impossible — PreToolUse denial is system-level, not advisory |
 | Stale marker after a crashed run | Harmless to the gate and logger — both attribute per call by `agent_id` and never read markers; SubagentStop still clears markers >24h old, and they are safe to delete by hand |
 | Scope grows mid-item | Executor's hard boundary: finish the agreed slice, propose the split in its return summary |
+| An unattended drafting cycle running unseen | SessionStart reads `<epics-dir>/.intake/status/cycle.json` and says so to every session that opens |
+| A cycle SIGKILLed mid-flight leaving a record that looks finished | The record keeps `pid` and `lock`; a non-terminal state whose pid is gone reads as **did not finish**, never as progress |
+| A status write landing in the wrong epic | The writer takes an already-resolved path and refuses anything that is not a direct child of the tree it bound to; the reserved intake tree cannot address an epic folder at all |
+| A record that may not reflect reality | `state: unknown` — out of band, so nothing reads it as progress — plus the rule that `origin` outranks `status.json` |

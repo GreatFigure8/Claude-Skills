@@ -591,6 +591,13 @@ nkcase() { # $1 = name -> case dir
   printf '%s' "$NK_D"
 }
 N_SUT="$SCRIPT"
+# Epic 11 item 2's telemetry library, passed EXPLICITLY for the same reason
+# INTAKE_PROVISION_LIB is: the runner resolves it relative to its OWN path, so
+# the reconstruction below — which lives in the sandbox — would silently lose it
+# and the two sides of this byte-identity proof would differ for a reason that
+# has nothing to do with item 2b. Both sides get the same library. Item 1's
+# suite carries the identical line for the identical reason.
+N_STATUS_LIB="${INTAKE_FIXTURE_STATUS_LIB:-$(cd "$(dirname "$0")/../../bin" && pwd)/intake-status.sh}"
 run_intake() { # $1 = case dir, rest = extra args -> exit code
   RI_D="$1"; shift; sandboxed "$RI_D"
   INTAKE_GIT="$NBIN/git" INTAKE_GH="$NBIN/gh" INTAKE_CLAUDE="$NBIN/claude" \
@@ -599,6 +606,7 @@ run_intake() { # $1 = case dir, rest = extra args -> exit code
   INTAKE_REPO_DIR="$RI_D/repo" INTAKE_LOG="$RI_D/intake.log" \
   INTAKE_LOCK="$RI_D/.lock" INTAKE_WORKTREE_ROOT="$RI_D/worktrees" \
   INTAKE_PROVISION_FILE="$RI_D/provisioning" INTAKE_PROVISION_LIB="$LIB_UNDER_TEST" \
+  INTAKE_STATUS_LIB="$N_STATUS_LIB" \
   FIXTURE_CASE_DIR="$RI_D" FIXTURE_REPO_SLUG="fixture/repo" \
   HOME="$RI_D/home" \
     /bin/bash "$N_SUT" "$@" > "$RI_D/stdout.log" 2> "$RI_D/stderr.log"

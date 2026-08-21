@@ -391,6 +391,17 @@ processed in full isolation, with its own label check, issue list, epic folder, 
 one repo failing is logged and skipped and never stops the others. A single lock covers the
 whole run, so two repos are never processed concurrently.
 
+**Watching it, without knowing it is there.** The runner reports every cycle and every
+issue into the repo's own control plane — a reserved `<epics-dir>/.intake/status/` tree,
+resolved at the canonical repo root exactly as the executor hooks resolve theirs — and
+`session-start-context.sh` surfaces a cycle **in flight** to any session that opens: which
+issue is drafting, how many are done and queued, and where to `tail` it. Nothing has to be
+armed by hand. The flat `intake.log` remains as the audit trail underneath and now names
+the resolved control plane once per repo, so tailing it still tells you where to look
+instead. The reserved tree begins with a dot and holds no `plan.md`, so no resolver can
+mistake it for an epic. Full design, and what each way of killing a cycle records, in
+`references/executor-control-plane.md` — "The unattended intake control plane".
+
 **Failure behaviour.** A run that fails part-way leaves no half-filed epic on the
 integration branch — the branch and PR are the unit, so an incomplete run is a branch
 nobody merges. The failure is reported as a comment on the issue, and the trigger label

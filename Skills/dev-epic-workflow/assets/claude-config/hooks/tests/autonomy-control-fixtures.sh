@@ -68,6 +68,12 @@ TESTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 BIN_DIR="$(cd "$TESTS_DIR/../../bin" && pwd)"
 SCRIPT="${INTAKE_FIXTURE_SCRIPT:-$BIN_DIR/unattended-intake.sh}"
 LIB="${INTAKE_FIXTURE_AUTONOMY_LIB:-$BIN_DIR/autonomy.sh}"
+# Epic 11 item 2's telemetry library, passed EXPLICITLY for the same reason
+# INTAKE_AUTONOMY_LIB is: the runner resolves it relative to its own path, so
+# case K's reconstruction — which lives in the sandbox — would silently lose it
+# and the two sides of the byte-identity proof would differ for a reason that
+# has nothing to do with item 1. Both sides get the same library.
+STATUS_LIB="${INTAKE_FIXTURE_STATUS_LIB:-$BIN_DIR/intake-status.sh}"
 
 # ---------------------------------------- the negative control's tripwire
 # Not a skip, not a warning: an abort. Pointed at a pre-item-1 tree this suite
@@ -335,7 +341,7 @@ run_intake() { # $1 = case dir, rest = extra args -> exit code on stdout
   INTAKE_REPO_LIST="$D/repos" INTAKE_REPO_DIR="$D/repo" \
   INTAKE_LOG="$D/intake.log" INTAKE_LOCK="$D/.lock" \
   INTAKE_WORKTREE_ROOT="$D/worktrees" \
-  INTAKE_AUTONOMY_LIB="$LIB_UNDER_TEST" \
+  INTAKE_AUTONOMY_LIB="$LIB_UNDER_TEST" INTAKE_STATUS_LIB="$STATUS_LIB" \
   INTAKE_AUTONOMY_FILE="$D/autonomy" INTAKE_AUTONOMY_OVERRIDE="$D/AUTONOMY-OFF" \
   INTAKE_STOP_FILE="$D/STOP" INTAKE_PROMOTIONS_DIR="$D/promotions" \
   FIXTURE_CASE_DIR="$D" FIXTURE_SANDBOX="$SANDBOX" FIXTURE_REPO_SLUG="fixture/repo" \

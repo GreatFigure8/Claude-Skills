@@ -18,7 +18,9 @@
 # a queued plan is, by construction, the newest plan.md in the repo.
 #
 # Sections A-J are epic 03's original cases, re-run here as regression; K-N are
-# the queue rule. Section E changed with the behaviour it describes: "newest
+# the queue rule; O is epic 11 item 2's reserved intake tree, which must be
+# invisible to this resolver — a drafting cycle has no epic yet, so its
+# telemetry lives in docs/epics/.intake/ and a shell * cannot match the dot. Section E changed with the behaviour it describes: "newest
 # open epic wins" is now "newest epic IN THE SAME STATE wins", because state is
 # the primary key and mtime only breaks ties within a state.
 #
@@ -583,6 +585,125 @@ for V in full nojq bare; do
       check "[$PASS] Status [$S]" "$EXP" "$(life_epic "$ORCH" "$AGENT")" "$V"
     done
   done
+done
+
+# ============================================================================
+echo
+echo "=== O. THE RESERVED INTAKE TREE IS NEVER AN EPIC (epic 11 item 2) ======="
+echo "    (unattended drafting has no epic yet, so it reports into a reserved"
+echo "     tree. GH #9 and GH #11 are what mistaking it for an epic costs.)"
+#
+# Proven HERE, against the real resolver in the real hooks, rather than by
+# reading the code — the whole reason this file exists is that reading the code
+# said the mtime rule was fine twice.
+#
+# THE RESERVED NAME IS READ FROM THE LIBRARY, not spelled again here. Rename it
+# in bin/intake-status.sh and this section stops rather than quietly proving
+# something about a directory nothing writes to any more.
+INTAKE_LIB="$(cd "$(dirname "$0")/../../bin" && pwd)/intake-status.sh"
+if [ ! -f "$INTAKE_LIB" ]; then
+  echo "ERROR: no intake control plane at $INTAKE_LIB." >&2
+  echo "       Section O tests epic 11 item 2's reserved tree. Against a tree" >&2
+  echo "       that predates it there is nothing to test. Aborting." >&2
+  exit 1
+fi
+RESERVED="$(sed -n 's/^INTAKE_STATUS_RESERVED_DIR="\(.*\)"$/\1/p' "$INTAKE_LIB" | head -1)"
+case "$RESERVED" in
+  .?*) ;;
+  *) echo "ERROR: the reserved intake dir is [$RESERVED]. GUARANTEE 1 is that it" >&2
+     echo "       begins with a dot, because a shell * cannot match one. Without" >&2
+     echo "       that, nothing below is a proof. Aborting." >&2
+     exit 1 ;;
+esac
+echo "    reserved dir, read from $INTAKE_LIB: [$RESERVED]"
+
+# Did anything at all land inside the reserved tree? One answer, and it does NOT
+# use a * glob — using the very glob under test as the observable would make
+# this a tautology.
+intake_tree_touched() { # $1 = checkout root  $2 = epics dir
+  if [ -n "$(ls -A "$1/$2/$RESERVED/status" 2>/dev/null | grep -v '^cycle.json$' \
+              | grep -v '^ledger.jsonl$' | grep -v '^README$' | grep -v '^planted' || true)" ]; then
+    printf 'touched'
+  else
+    printf 'clean'
+  fi
+}
+
+# A reserved tree that looks EXACTLY like an epic's status tree from the outside:
+# a status/ directory, agent logs, status json. Everything an epic folder has
+# except the one thing that makes a folder an epic — a plan.md.
+make_reserved_tree() { # $1 = checkout root  $2 = epics dir
+  mkdir -p "$1/$2/$RESERVED/status"
+  printf '*\n' > "$1/$2/$RESERVED/.gitignore"
+  printf 'not an epic\n' > "$1/$2/$RESERVED/README"
+  printf '{\n  "state": "drafting"\n}\n' > "$1/$2/$RESERVED/status/cycle.json"
+  printf '{}\n' > "$1/$2/$RESERVED/status/planted-proposal.json"
+  printf 'planted\n' > "$1/$2/$RESERVED/status/planted-agent.log"
+  printf '{}\n' > "$1/$2/$RESERVED/status/ledger.jsonl"
+}
+
+for V in full nojq bare; do
+  # (i) THE RESERVED TREE IS THE ONLY THING UNDER docs/epics, and it is the
+  #     newest thing on disk. If it were resolvable it would win outright.
+  B="$SANDBOX/O1-$V"; rm -rf "$B"; mkdir -p "$B/orch/.claude/signals"
+  git_q -C "$B/orch" init -q
+  make_reserved_tree "$B/orch" "docs/epics"
+  : > "$SANDBOX/stderr-O.log"
+  fx_lifecycle SubagentStart "$AGENT" | CLAUDE_PROJECT_DIR="$B/orch" PATH="$(path_for "$V")" \
+    /bin/bash "$LIFECYCLE" > "$SANDBOX/stdout-O.log" 2> "$SANDBOX/stderr-O.log"
+  check "O: reserved tree alone -> hook resolves NOTHING" "<none>" \
+        "$(life_epic "$B/orch" "$AGENT")" "$V"
+  check "O: and writes nothing into the reserved tree" "clean" \
+        "$(intake_tree_touched "$B/orch" "docs/epics")" "$V"
+  check "O: silently — no stdout" "0" "$(wc -c < "$SANDBOX/stdout-O.log" | tr -d ' ')" "$V"
+  check "O: silently — no stderr" "0" "$(wc -c < "$SANDBOX/stderr-O.log" | tr -d ' ')" "$V"
+  run_log "$B/orch" "$AGENT" "echo hi" "$V"
+  check "O: the LOGGER agrees — nothing in the reserved tree" "clean" \
+        "$(intake_tree_touched "$B/orch" "docs/epics")" "$V"
+
+  # (ii) A REAL EPIC ALONGSIDE IT: the real epic wins and the reserved tree is
+  #      untouched, even though the reserved tree is newer.
+  B="$SANDBOX/O2-$V"; mkrepo "$B"; ORCH="$B/orch"
+  sleep 1; make_reserved_tree "$ORCH" "docs/epics"       # newest thing in the repo
+  run_life "$ORCH" SubagentStart "$AGENT" "$V"
+  check "O: a real epic alongside it still wins" "$OPEN_EPIC" \
+        "$(life_epic "$ORCH" "$AGENT")" "$V"
+  check "O: reserved tree untouched" "clean" "$(intake_tree_touched "$ORCH" "docs/epics")" "$V"
+
+  # (iii) GUARANTEE 2, THE INDEPENDENT ONE: even with a plan.md planted in it —
+  #       a plan that says `in flight`, which is the strongest possible claim to
+  #       being the active epic — the resolver still cannot see it, because a
+  #       shell * does not match a leading dot. Two guarantees, either one
+  #       sufficient; this proves the first alone holds when the second is
+  #       violated. (The library REFUSES such a tree; that is its own fixture.)
+  B="$SANDBOX/O3-$V"; rm -rf "$B"; mkdir -p "$B/orch/.claude/signals"
+  git_q -C "$B/orch" init -q
+  make_reserved_tree "$B/orch" "docs/epics"
+  plan_file "$B/orch/docs/epics/$RESERVED" "in flight (item 1 of 1)"
+  check "O: precondition — a plan.md really is planted in the reserved tree" "yes" \
+        "$([ -f "$B/orch/docs/epics/$RESERVED/plan.md" ] && printf yes || printf no)" "$V"
+  run_life "$B/orch" SubagentStart "$AGENT" "$V"
+  check "O: an in-flight plan.md inside it STILL cannot be selected" "<none>" \
+        "$(life_epic "$B/orch" "$AGENT")" "$V"
+  check "O: still nothing written there" "clean" \
+        "$(intake_tree_touched "$B/orch" "docs/epics")" "$V"
+
+  # (iv) NOT EVEN BY POINTER. The pointer accepts a bare folder name, and the
+  #      runner must never write one — but if a human did, resolution would be
+  #      honoured. This records what that costs, so the claim is "the runner
+  #      never writes the pointer", not "the pointer cannot name it".
+  printf '%s\n' "$RESERVED" > "$B/orch/.claude/signals/active-epic"
+  rm -rf "$B/orch"/docs/epics/*/status 2>/dev/null || true
+  run_life "$B/orch" SubagentStart "$AGENT" "$V"
+  check "O: a HAND-WRITTEN pointer to it would be honoured (hence guarantee 3)" "touched" \
+        "$(intake_tree_touched "$B/orch" "docs/epics")" "$V"
+  # The POINTER PATH, and comments stripped first: the library documents
+  # guarantee 3 in prose and the README it plants names the resolver, so a
+  # looser pattern would pass only while the explanation was missing — the wrong
+  # direction for an assertion to be unfailable in.
+  check "O: and the runner writes no pointer — no CODE names it in the library" "0" \
+        "$(grep -v '^[[:space:]]*#' "$INTAKE_LIB" | grep -c 'signals/active-epic' | tr -d ' ')" "$V"
+  rm -f "$B/orch/.claude/signals/active-epic"
 done
 
 echo

@@ -466,6 +466,149 @@ backlog_section() {
 
 backlog_section
 
+# Unattended intake: is a DRAFTING CYCLE RUNNING RIGHT NOW? (epic 11 item 2)
+#
+# THE DEFECT THIS CLOSES, counted rather than supposed: before this item the
+# runner made ZERO writes to any control plane and this hook contained ZERO
+# references to a running cycle. On 2026-08-21 it drafted nine proposals against
+# a live repo and the only way to watch was to know that
+# ~/.config/claude-intake/intake.log exists and `tail -f` it by hand. Watching
+# has to be the DEFAULT, not a thing assembled from prior knowledge each time —
+# so ANY session that opens is told, without asking and without a `tail`.
+#
+# WHERE IT READS, and why it is not an epic. The runner reports into a RESERVED
+# tree — <canonical-root>/<epics-dir>/.intake/status/ — deliberately named with
+# a leading dot and deliberately holding no plan.md, so the active-epic resolver
+# in subagent-lifecycle.sh / subagent-tool-logger.sh and the epic-queue section
+# above cannot see it: they glob docs/epics/*/ and a shell * does not match a
+# leading dot. GH #9 and GH #11 are what mistaking it for an epic would cost.
+# It is also a different directory from any epic's status/, so the orphan-log
+# pile of GH #63 cannot bury it.
+#
+# COST: no forks, no network, no subprocess, no clock. Two parameter expansions
+# for the canonical root, a glob, one file read capped at INTAKE_CYCLE_MAX_KEYS
+# lines, and `kill -0` (a bash builtin). There is nothing here to time out, and
+# a missing, unreadable or unparseable record produces NO output at all — the
+# same fail-silent contract every other section of this hook keeps.
+INTAKE_CYCLE_RESERVED_DIR=".intake"
+INTAKE_CYCLE_MAX_KEYS=40
+
+# Is a recorded cycle still alive? TWO conditions, both builtins:
+#   the recorded pid answers `kill -0`, AND the recorded lock directory exists.
+# The lock is what stops a RECYCLED pid reading as a live cycle; the runner's own
+# EXIT trap removes it. A cycle that ended normally says so in `state`; one
+# SIGKILLed writes nothing at all, because traps do not run — so a NON-TERMINAL
+# state whose process is gone is INTERRUPTED, and saying "drafting" there would
+# be the wrong-but-plausible answer this whole surface exists to avoid.
+intake_cycle_section() {
+  IY_ROOT="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  if [ -n "$IY_ROOT" ]; then IY_ROOT="${IY_ROOT%/*}"; fi        # .../repo/.git -> .../repo
+  [ -n "$IY_ROOT" ] || IY_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  [ -n "$IY_ROOT" ] && [ -d "$IY_ROOT" ] || return 0
+
+  # docs/epics first — the overwhelming case, and a direct test rather than a
+  # glob. Then the two-level glob, because repos disagree on the case of the
+  # epics directory (this repo uses docs/epics, Oracle-Simple-Convert uses
+  # DOCS/EPICS) and the runner asks the repo instead of asserting.
+  IY_FILE=""
+  for IY_C in "$IY_ROOT/docs/epics/$INTAKE_CYCLE_RESERVED_DIR/status/cycle.json" \
+              "$IY_ROOT"/*/*/"$INTAKE_CYCLE_RESERVED_DIR"/status/cycle.json; do
+    [ -f "$IY_C" ] && [ -r "$IY_C" ] || continue
+    IY_FILE="$IY_C"; break
+  done
+  [ -n "$IY_FILE" ] || return 0                  # never configured, never run: silence
+  IY_DIR="${IY_FILE%/cycle.json}"
+
+  # The record is written ONE KEY PER LINE, in a fixed order, by
+  # bin/intake-status.sh, precisely so it can be read with shell builtins and no
+  # jq, no python3, no awk. Writer and reader are a MATCHED PAIR — change the
+  # shape there and change it here; hooks/tests/intake-control-plane-fixtures.sh
+  # is what tells you that you did not.
+  IY_STATE=""; IY_DETAIL=""; IY_REPO=""; IY_PID=""; IY_LOCK=""; IY_ISSUE=""
+  IY_TOTAL=""; IY_DONE=""; IY_QUEUED=""; IY_FINISHED=""; IY_UPDATED=""; IY_CYCLE=""; IY_LOG=""
+  IY_N=0
+  while IFS= read -r IY_LINE || [ -n "$IY_LINE" ]; do
+    IY_N=$((IY_N + 1))
+    [ "$IY_N" -gt "$INTAKE_CYCLE_MAX_KEYS" ] && break
+    case "$IY_LINE" in *'":'*) ;; *) continue ;; esac
+    IY_K="${IY_LINE#*\"}"; IY_K="${IY_K%%\"*}"
+    IY_V="${IY_LINE#*\": }"
+    IY_V="${IY_V%,}"
+    case "$IY_V" in '"'*'"') IY_V="${IY_V#\"}"; IY_V="${IY_V%\"}" ;; esac
+    case "$IY_K" in
+      state)     IY_STATE="$IY_V" ;;
+      detail)    IY_DETAIL="$IY_V" ;;
+      updated)   IY_UPDATED="$IY_V" ;;
+      repo)      IY_REPO="$IY_V" ;;
+      cycle)     IY_CYCLE="$IY_V" ;;
+      pid)       IY_PID="$IY_V" ;;
+      lock)      IY_LOCK="$IY_V" ;;
+      issue)     IY_ISSUE="$IY_V" ;;
+      total)     IY_TOTAL="$IY_V" ;;
+      done)      IY_DONE="$IY_V" ;;
+      queued)    IY_QUEUED="$IY_V" ;;
+      finished)  IY_FINISHED="$IY_V" ;;
+      log)       IY_LOG="$IY_V" ;;
+    esac
+  done < "$IY_FILE" 2>/dev/null
+  [ -n "$IY_STATE" ] || return 0                 # not a record we understand: silence
+
+  case "$IY_ISSUE" in ''|null|*[!0-9]*) IY_ISSUE="" ;; esac
+  case "$IY_PID"   in ''|*[!0-9]*)      IY_PID=""   ;; esac
+  case "$IY_TOTAL" in ''|*[!0-9]*)      IY_TOTAL=0  ;; esac
+  case "$IY_DONE"  in ''|*[!0-9]*)      IY_DONE=0   ;; esac
+  case "$IY_QUEUED" in ''|*[!0-9]*)     IY_QUEUED=0 ;; esac
+  [ -n "$IY_REPO" ] || IY_REPO="this repo"
+
+  # `unknown` is the OUT-OF-BAND value, not a milestone: the record is saying it
+  # cannot be trusted. It is rendered FIRST and as a warning, because a
+  # wrong-but-plausible status is worse than an obviously-broken one — a reader
+  # acts on the plausible one. Never dressed up as a stage of progress.
+  if [ "$IY_STATE" = "unknown" ]; then
+    echo
+    echo "### ⚠️ Unattended intake: the last cycle's record is UNTRUSTWORTHY"
+    echo "- \`state: unknown\` — ${IY_DETAIL:-no reason recorded}"
+    echo "- Do not read it as progress. The branches, the PRs and \`$IY_DIR/ledger.jsonl\` are the truth."
+    return 0
+  fi
+
+  IY_LIVE=no
+  case " finished failed stopped interrupted " in
+    *" $IY_STATE "*) IY_LIVE=terminal ;;
+    *) if [ -n "$IY_PID" ] && kill -0 "$IY_PID" 2>/dev/null \
+          && [ -n "$IY_LOCK" ] && [ -d "$IY_LOCK" ]; then IY_LIVE=yes; else IY_LIVE=gone; fi ;;
+  esac
+
+  IY_WHICH="issue #${IY_ISSUE}"
+  [ -n "$IY_ISSUE" ] || IY_WHICH="no issue yet"
+
+  if [ "$IY_LIVE" = yes ]; then
+    echo
+    echo "### 🟡 Unattended intake: a drafting cycle is IN FLIGHT right now"
+    # No ${x^^}: this must run on the macOS system bash, which is 3.2.
+    echo "- \`${IY_STATE}\` ${IY_WHICH} in \`${IY_REPO}\` — ${IY_DONE} of ${IY_TOTAL} done, ${IY_QUEUED} still queued (pid ${IY_PID}, since ${IY_UPDATED:-?})."
+    [ -n "$IY_DETAIL" ] && echo "- ${IY_DETAIL}"
+    echo "- Records: \`$IY_DIR/\` — watch with \`tail -f $IY_DIR/${IY_LOG:-agent-$IY_CYCLE.log}\`; one \`*.json\` per issue, and every transition in \`ledger.jsonl\` beside them."
+    echo "- It DRAFTS ONLY: it never approves a plan, dispatches an item, merges a PR or closes an issue."
+    echo "- Expect new proposal branches and PRs to appear under you. Status here is a CONVENIENCE VIEW; the branches, the PRs and the ledger are the truth."
+    return 0
+  fi
+
+  if [ "$IY_LIVE" = gone ]; then
+    echo
+    echo "### ⚠️ Unattended intake: the last cycle DID NOT FINISH"
+    echo "- Its record still reads \`${IY_STATE}\` (${IY_WHICH} in \`${IY_REPO}\`, ${IY_DONE} of ${IY_TOTAL} done) but the process is gone — killed, or the machine went down."
+    echo "- Treat its records as incomplete rather than finished. Reconcile against the branches and PRs; \`$IY_DIR/ledger.jsonl\` has every transition it managed to write."
+    return 0
+  fi
+
+  # Terminal, and therefore one line: when the last cycle ended and how it went.
+  echo
+  echo "- Unattended intake: last cycle **${IY_STATE}** ${IY_FINISHED:-$IY_UPDATED} — ${IY_DONE} of ${IY_TOTAL} issues in \`${IY_REPO}\`. Records: \`$IY_DIR/\`."
+}
+
+intake_cycle_section
+
 # Unattended intake config for THIS repo — armed or not, and against which base.
 #
 # The config is per-repo and lives outside the repo, so from inside a session it
