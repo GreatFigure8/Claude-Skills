@@ -84,6 +84,36 @@
 # here and the reader in hooks/session-start-context.sh are a MATCHED PAIR: if
 # you change the shape here, change it there, and the fixtures will tell you.
 #
+# --------------------------------------------- WHAT THESE RECORDS ARE NOT
+#
+# STATUS IS A CONVENIENCE VIEW. THE REPO IS THE TRUTH. The branch, the PR and
+# the ledger are authoritative; a status record is a faster way to look at them
+# and nothing more. This item makes status far MORE prominent — surfaced at
+# SessionStart to every session that opens — and that is precisely when the
+# assumption is worth restating: if anything ever starts trusting a status file
+# over the repo, a single mis-addressed write stops being free. It has already
+# happened once (GH #63): an executor clobbered a SIBLING EPIC's status.json and
+# it cost nothing, because nobody was acting on it.
+#
+# TWO RULES FOLLOW, AND BOTH ARE IMPLEMENTED HERE RATHER THAN ADVISED.
+#
+#   THE TARGET PATH MUST BE VISIBLE AT THE CALL SITE. The clobber went through a
+#   helper whose command line did not show the file it wrote. Correct resolution
+#   and INVISIBLE resolution are independent properties and only the second one
+#   causes that bug — so a helper that takes an epic-relative name and resolves
+#   the path internally is the hazard HOWEVER CORRECT its resolution is. Here:
+#   `intake_status_write` takes an already-resolved absolute path, resolves
+#   nothing itself, refuses anything that is not a direct child of the tree this
+#   process bound to, and LOGS the path it wrote. Every caller assigns the target
+#   to a named variable on the line above the call.
+#
+#   THERE IS A DEFINED OUT-OF-BAND VALUE FOR "THIS RECORD IS UNTRUSTWORTHY":
+#   `state: unknown` (INTAKE_STATUS_UNTRUSTED_STATE), deliberately outside the
+#   milestone vocabulary so that nothing can read it as progress. A
+#   wrong-but-plausible status is WORSE than an obviously-broken one, because a
+#   reader acts on it. `intake_status_unknown` is how a writer says so, and it
+#   overrides a terminal state rather than being blocked by one.
+#
 # IS A CYCLE STILL RUNNING? Two conditions, both builtins, no clock and no fork:
 #   the recorded pid answers `kill -0`, AND the recorded lock directory exists.
 # A cycle that finished normally says so in `state`. One killed with SIGTERM
@@ -102,7 +132,14 @@ INTAKE_STATUS_RESERVED_DIR=".intake"
 
 # Cycle state vocabulary, most to least advanced. `finished`, `failed`,
 # `stopped` and `interrupted` are TERMINAL: a reader must not call them running.
-INTAKE_STATUS_TERMINAL_STATES="finished failed stopped interrupted"
+# `unknown` is terminal too, and is NOT a milestone — see below.
+INTAKE_STATUS_TERMINAL_STATES="finished failed stopped interrupted unknown"
+
+# THE OUT-OF-BAND VALUE. Not a milestone, not a stage of progress, and on
+# purpose not spellable as one: it means "do not trust this record". A reader
+# must render it as a warning and never as a state the cycle reached. It is
+# terminal so that a later, cheerier write cannot paper over it.
+INTAKE_STATUS_UNTRUSTED_STATE="unknown"
 
 # ------------------------------------------------------------------- state
 INTAKE_STATUS_AVAILABLE=yes
@@ -195,7 +232,11 @@ intake_status_tree() { # $1 = repo root, $2 = epics dir (repo-relative)
       printf 'status/cycle.json          the cycle in flight, or the last one\n'
       printf 'status/<branch>.json       one record per issue drafted\n'
       printf 'status/agent-<cycle>.log   the agent-style log for one cycle\n'
-      printf 'status/ledger.jsonl        append-only audit trail, one line per transition\n'
+      printf 'status/ledger.jsonl        append-only audit trail, one line per transition\n\n'
+      printf 'STATUS IS A CONVENIENCE VIEW. THE REPO IS THE TRUTH: the branches, the\n'
+      printf 'pull requests and ledger.jsonl are authoritative, and these records are a\n'
+      printf 'faster way to look at them. A record reading "state": "unknown" is saying\n'
+      printf 'it cannot be trusted; go and read the repo.\n'
     } > "$IST_BASE/README" 2>/dev/null || true
   fi
   printf '%s' "$IST_DIR"
@@ -220,6 +261,42 @@ intake_status_log() { # $1 = text
   [ -n "$INTAKE_STATUS_CYCLE_ID" ] || return 0
   printf '%s | %s\n' "$(intake_status_now)" "${1:-}" \
     >> "$INTAKE_STATUS_DIR/agent-$INTAKE_STATUS_CYCLE_ID.log" 2>/dev/null || true
+  return 0
+}
+
+# THE WRITE GUARD, and the invariant it enforces is NOT "validate the payload"
+# (GH #63). It is: THE TARGET PATH MUST BE VISIBLE AT THE CALL SITE. This
+# function resolves NOTHING — the caller hands it an absolute path it computed
+# into a named variable one line above — and it refuses any target that is not a
+# direct child of the tree this process bound to at intake_status_open. So a
+# record can never land in an epic's status tree, a sibling repo, or anywhere
+# else: the class of bug is structurally unavailable rather than avoided by care.
+# It also LOGS the path it wrote, which is the only place that can be forgotten
+# and therefore the only place it belongs.
+intake_status_write() { # $1 = RESOLVED absolute target path; body on stdin
+  ISW_T="${1:-}"
+  # Unbound reporter: an empty INTAKE_STATUS_DIR would make the prefix test `/*`
+  # and admit every absolute path on the machine. Refuse before comparing.
+  if [ -z "$INTAKE_STATUS_DIR" ] || [ -z "$ISW_T" ]; then
+    cat >/dev/null 2>&1
+    INTAKE_STATUS_LAST_ERROR="refusing a status write with no bound control plane"
+    return 1
+  fi
+  ISW_REL="${ISW_T#"$INTAKE_STATUS_DIR"/}"
+  case "$ISW_T" in "$INTAKE_STATUS_DIR"/*) ;; *) ISW_REL="" ;; esac
+  case "$ISW_REL" in
+    ''|*/*|.|..|*..*)
+      INTAKE_STATUS_LAST_ERROR="refused a status write to [$ISW_T]: not a direct child of the bound control plane [$INTAKE_STATUS_DIR]"
+      cat >/dev/null 2>&1
+      intake_status_log "REFUSED a status write to $ISW_T — outside $INTAKE_STATUS_DIR"
+      return 1 ;;
+  esac
+  intake_status_atomic "$ISW_T" || {
+    INTAKE_STATUS_LAST_ERROR="could not write $ISW_T"
+    intake_status_log "FAILED to write $ISW_T"
+    return 1
+  }
+  intake_status_log "wrote $ISW_T"
   return 0
 }
 
@@ -290,6 +367,7 @@ intake_status_cycle() { # $1 = state, $2 = detail
   case "$ISC_ISSUE" in ''|*[!0-9]*) ISC_ISSUE=null ;; esac
   ISC_QUEUED=$(( INTAKE_STATUS_TOTAL - INTAKE_STATUS_DONE ))
   [ "$ISC_QUEUED" -ge 0 ] || ISC_QUEUED=0
+  ISC_TARGET="$INTAKE_STATUS_DIR/cycle.json"      # resolved HERE, visible HERE
   {
     printf '{\n'
     printf '  "item": "unattended intake cycle %s",\n' "$(intake_status_escape "$INTAKE_STATUS_CYCLE_ID")"
@@ -311,7 +389,7 @@ intake_status_cycle() { # $1 = state, $2 = detail
     printf '  "finished": %s,\n'  "$ISC_FIN"
     printf '  "log": "agent-%s.log"\n' "$(intake_status_escape "$INTAKE_STATUS_CYCLE_ID")"
     printf '}\n'
-  } | intake_status_atomic "$INTAKE_STATUS_DIR/cycle.json" || true
+  } | intake_status_write "$ISC_TARGET" || true
   intake_status_log "cycle $ISC_STATE — $ISC_DETAIL"
   intake_status_ledger cycle "$ISC_STATE" "$ISC_DETAIL" ""
   return 0
@@ -328,6 +406,8 @@ intake_status_issue() { # $1 = issue, $2 = branch, $3 = state, $4 = detail, $5 =
   case "$ISI_NUM" in ''|*[!0-9]*) ISI_NUM=null ;; esac
   ISI_BR=null
   [ -n "$ISI_BRANCH" ] && ISI_BR="\"$(intake_status_escape "$ISI_BRANCH")\""
+  ISI_REFUSED=no
+  ISI_TARGET="$INTAKE_STATUS_DIR/$ISI_SLUG.json"   # resolved HERE, visible HERE
   {
     printf '{\n'
     printf '  "item": "intake #%s",\n'  "$(intake_status_escape "$ISI_N")"
@@ -342,9 +422,26 @@ intake_status_issue() { # $1 = issue, $2 = branch, $3 = state, $4 = detail, $5 =
     printf '  "issue": %s,\n'           "$ISI_NUM"
     printf '  "recommendation": "%s"\n' "$(intake_status_escape "${5:-}")"
     printf '}\n'
-  } | intake_status_atomic "$INTAKE_STATUS_DIR/$ISI_SLUG.json" || true
+  } | intake_status_write "$ISI_TARGET" || ISI_REFUSED=yes
   intake_status_log "#$ISI_N ${3:-} — ${4:-}"
   intake_status_ledger issue "${3:-}" "${4:-}" "$ISI_N"
+  # A refused or failed write means the per-issue record on disk is NOT what
+  # just happened. Saying nothing would leave a stale record reading as current,
+  # which is the wrong-but-plausible failure exactly. Say so, out of band.
+  if [ "$ISI_REFUSED" = yes ]; then
+    intake_status_unknown "a record for #$ISI_N could not be written (${INTAKE_STATUS_LAST_ERROR:-unknown reason}); the per-issue records in this tree may be stale — the branches, the PRs and ledger.jsonl are the truth"
+  fi
+  return 0
+}
+
+# SAY THE RECORD CANNOT BE TRUSTED, in the one value that cannot be mistaken for
+# progress (GH #63). Deliberately NOT a milestone: a reader that does not know
+# this word must still fail to read it as a stage of a healthy cycle. It writes
+# over a terminal state on purpose — "untrustworthy" is later news than
+# "finished", and a plausible record is the thing being prevented.
+intake_status_unknown() { # $1 = why
+  intake_status_active || return 0
+  intake_status_cycle "$INTAKE_STATUS_UNTRUSTED_STATE" "${1:-the record for this cycle is not trustworthy}"
   return 0
 }
 

@@ -897,6 +897,11 @@ AUTONOMY_LOG_EOF
   # watching. Reporting is not gated on a level, a config file, or a label.
   intake_status_close finished "moved on to the next repo"
   intake_status_open "$REPO_DIR" "$REPO_SLUG" "$EPICS_DIR" "$LOCK_DIR"
+  # THE RESOLVED PATH, NAMED IN THE RUN'S OWN LOG (GH #63: the target must be
+  # visible, not merely correct). It is also the bridge from the old interface
+  # to the new one — a human who still tails intake.log is told, once per repo,
+  # exactly where the records they should be reading instead now live.
+  [ -n "$INTAKE_STATUS_DIR" ] && log "control plane: $INTAKE_STATUS_DIR"
   REPO_FAILED_ON_ENTRY="$FAILED"
   intake_status_cycle scanning "enumerating issues labelled '$LABEL' in $REPO_SLUG"
 
