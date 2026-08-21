@@ -1,6 +1,6 @@
 # Epic: L1 preconditions — make the machine able to receive what good drafting produces
 
-**Status:** in flight (items 2 and 6 of 6, parallel)
+**Status:** in flight (items 4 and 7 of 7; items 1, 2, 3 and 6 done)
 **Source:** GH #39 (continues epic 08, which stopped at its item 1 on a NO-GO verdict)
 **Live branch:** per-repo (`main` here, `main` for LODE)   **Integration branch:** per-repo (`main` here, `dev` for LODE)   **Pre-epic tag:** n/a — no autonomy rung is enabled by this epic
 
@@ -120,6 +120,18 @@ Verified against the repo and both trackers on 2026-08-20, not recalled:
 - **Rollback:** revert; the field is additive and a proposal without it reads as `plan`.
 
 ### 2. Header metadata read from repo config, never from recall
+- **Outcome: DONE.** PR #55, merged `6271f30`. Verified cold on 2026-08-21: 3 declared files,
+  `Part of #39` once and `Closes` zero times, zero diff lines in item 6's territory, and the live
+  `--dry-run` resolves `live=main integration=main` for `claude-skills` and **`live=main
+  integration=dev` for LODE** — the exact pair #741 and #739 inverted — both matching
+  `git remote show origin`. Full battery on merged `main`: **1005 cases, 0 failures**.
+- **One DoD clause is deliberately carried, not met.** *"one live draft per repo compared against
+  `git remote show origin`"* was not done: `--dry-run` returns before the prompt is built, so
+  **only fixtures have exercised the new prompt text — no live model has yet seen it.** The risk
+  row *"header facts are passed in but the drafter overwrites them anyway"* is therefore **not
+  retired**, and item 2's own fixture case H deliberately shows a recall-based drafter still
+  writing `dev`. Decided 2026-08-21: item 5's live drafts supply that proof rather than burning a
+  hard-brief sample on a throwaway PR now.
 - **Branch:** `fix/intake-header-from-config`
 - **Depends on:** none
 - **Scope:** Resolve both branch facts in the runner and pass them to the drafter as *stated
@@ -191,6 +203,17 @@ Verified against the repo and both trackers on 2026-08-20, not recalled:
 - **Rollback:** revert; detection reverts to drafter goodwill, which is where it is today.
 
 ### 6. Narrow "references" to closing linkage, not any cross-reference
+- **Outcome: DONE.** PR #56, merged `62aa16e`. Verified cold on 2026-08-21 against the repo, not
+  the return summary — see the re-measurement below.
+- **The load-bearing design claim holds, and a controlled pair proves it.** `claude-skills` #45
+  (base `main` = the default branch, body "Closes #41") reports `closingIssuesReferences=[41]`;
+  LODE #758 (base `dev` ≠ default `main`, body line 91 "Closes #757") reports `[]`. Same keyword,
+  same shape, opposite result. **The keyword fallback is load-bearing, not a nicety** — without it
+  the one true positive this epic exists for goes undetected.
+- **The suite cannot silently pass against the old script.** Run against pre-item-6
+  `unattended-intake.sh` it does not merely fail, it **hard-errors** building mutant R
+  (*"the linkage gate moved, so case R proves nothing"*). The reverse control matches the
+  executor's claim exactly: main's suite against the new script gives **60 cases / 21 failures**.
 - **Branch:** `fix/intake-reference-narrowing`
 - **Depends on:** 3 (done) — this narrows the check item 3 added
 - **Scope:** Item 3 asks GitHub's issue timeline for any `cross-referenced` event whose source is
@@ -238,6 +261,68 @@ carries the label.** This item must land before the label is used on this repo a
 particular **before item 5**, which labels issues in order to draft them and would otherwise
 measure a drafter that never ran.
 
+**Re-measured cold on 2026-08-21, after PR #56 merged, by the orchestrator and not by the
+executor.** Every open issue in both repos was classified twice — once against `main` before the
+merge (item 3's rule) and once against item 6's script — and every blocking PR was read to confirm
+whether it declares closure. n=5 issues on `claude-skills`, n=7 on LODE.
+
+| Issue | item 3 rule | item 6 rule | Blocking PR read back | Correct? |
+|---|---|---|---|---|
+| #12 | SKIP | **DRAFT** | #38 — no closing link, no closing keyword | ✅ flip |
+| #15 | SKIP | **DRAFT** | #38 — no closing link, no closing keyword | ✅ flip |
+| #39 | SKIP | **DRAFT** | #47 — no closing link, no closing keyword | ✅ flip |
+| #48 | SKIP | **DRAFT** | #52 — no closing link, no closing keyword | ✅ flip |
+| **#54** | SKIP | **DRAFT** | **#55 — item 2's own PR, mentions #54, closes nothing** | ✅ flip |
+| LODE #757 | SKIP | SKIP | #758 merged, body "Closes #757" via the **`declared` fallback** | ✅ held |
+| LODE #786 | SKIP | SKIP | #792 merged, declares closure via the **`declared` fallback** | ✅ held |
+| LODE #766 | SKIP | SKIP | #808 merged, declares closure | ✅ held |
+| LODE #795 | SKIP | **DRAFT** | #799 says only "Part of #795" | ⚠️ see item 7 |
+| LODE #811/#803/#801 | — | DRAFT | nothing references them | — |
+
+**The measurement was worse than the plan's table said, in item 6's favour.** It listed four false
+positives; there were **five of five** — `#54` had appeared since, blocked by PR #55, *the pull
+request implementing this very epic's item 2*. Under item 3's rule every open issue on this repo
+was un-draftable. Both true positives survive, and both survive **through the keyword fallback**,
+which is the measurement that proves the fallback earns its place.
+
+**Two of item 6's executor's claims did not survive, and are corrected here.** It reported that
+LODE #766 and #795 both now classify `DRAFT`. **#766 does not** — it skips correctly via merged
+PR #808, a different PR than the one that blocked it before. **#795 does**, and it is worse than
+reported: #795 is **open** with **four merged PRs** on branches named `*/795-*`, every one saying
+"Part of #795". That is item 7.
+
+### 7. Treat a named branch or a declared "Part of" as work in flight
+- **Branch:** `fix/intake-wip-inflight-epics`
+- **Depends on:** 6 (done) — this widens the check item 6 narrowed
+- **Why this exists, measured not supposed.** Item 6 correctly narrowed *blocking* to closing
+  linkage, which is the right signal for **already done**. It left **already in flight**
+  undetected whenever the work is a multi-item epic, because those PRs say "Part of #N" and
+  deliberately do not declare closure until the final item. Measured 2026-08-21 across both repos
+  (n=11 issues): **LODE #811 is open right now with an OPEN PR (#814), a merged PR (#813) and a
+  branch `feat/811-reconcile-claim-against-ledger`, and today's runner would draft over it.**
+- **Scope:** add two further block signals to `check_work_in_progress`, both cheap, both measured
+  present on the real cases: (a) a non-runner branch on `origin` named `*/<issue>-*`; (b) an
+  open-or-merged non-runner PR whose body declares `Part of #<issue>`. Item 6's closing-linkage
+  path stays exactly as it is and remains the **already done** signal; these two are the
+  **already in flight** signal. The skip comment must name *which of the three* fired, because
+  the remedy differs: already-done means close the issue, in-flight means wait.
+- **Not in scope:** admission policy generally; any change to what a skip *does* once decided;
+  cross-repo (`owner/repo#N`) and full-URL references, which item 6 left unhandled and this item
+  does not pick up.
+- **Definition of done:** measured against the same live classification item 6 was, the rule flips
+  **exactly three** verdicts and no others — LODE #795 and #811 and `claude-skills` #39 go
+  `DRAFT`→`SKIP`, each naming the in-flight epic; **#12, #15, #48 and #54 stay `DRAFT`** so item
+  6's five flips are not undone; **LODE #757 and #786 stay `SKIP`** through the closing-linkage
+  path, unchanged; LODE #803 and #801 stay `DRAFT`. A fixture encodes the "Part of" case and a
+  mutant proves the branch signal is independently load-bearing.
+- **Verification:** re-run the live `--dry-run` classification over every open issue in both repos
+  and diff it against the table above — three cells change, nine do not.
+- **Rollback:** revert; the check returns to item 6's closing-linkage-only rule, which fails
+  *open* (drafts too much) rather than closed.
+- **Why this is item 7 and not a fix to item 6:** identical reasoning to why item 6 was not a fix
+  to item 3. Item 6 implemented the approved rule correctly; widening what counts as "in flight"
+  is a rule change, and the executor that found it was right not to make it unilaterally.
+
 ### 5. Re-measure on hard briefs, and re-verdict
 - **Branch:** `chore/l1-remeasure`
 - **Depends on:** 1, 2, 3, 4 — measuring the old drafter says nothing about the fixed one
@@ -262,7 +347,15 @@ measure a drafter that never ran.
 
 ## Sequence
 
-**(1 ∥ 3) → 2 → 4 → 6 → 5**, where **6 may run in parallel with 2 or 4**, and **6 must precede 5**.
+**(1 ∥ 3) → (2 ∥ 6) → (4 ∥ 7) → 5**, where **6 and 7 must both precede 5**.
+
+Items 2 and 6 did run in parallel and landed cleanly against each other — measured, not assumed:
+zero diff lines of overlap in either direction, and PR #55 stayed `MERGEABLE/CLEAN` after #56
+merged. **Item 7 replaces item 6 as the last gate before item 5**, for the same reason item 6
+was: item 5 labels issues in order to draft them, and while #795- and #811-shaped issues
+classify `DRAFT`, item 5 would draft duplicate proposals over epics already in flight and score
+the result as evidence. **4 and 7 are independent** — 4 touches admission before `gh pr create`,
+7 touches the work-in-progress helper — so they may run in parallel, each in its own worktree.
 
 Items 1, 2 and 3 are logically independent, but **1 and 2 are not safely concurrent**: both edit
 the same `PROMPT` string at `unattended-intake.sh:303`ff — item 1 adds the outcome vocabulary,
@@ -294,7 +387,7 @@ header from config, refuses duplicated work, and detects collisions is better at
 | Item 3's check is too broad and starves the runner | Medium | Labelled issues never drafted | The rule is narrow by construction — merged-or-open, non-runner-authored only; the `--dry-run` classification of every live labelled issue is a required verification step |
 | Item 3's check is too narrow and the race recurs | Low | A second wasted proposal | The check runs twice, and the second run is immediately before PR creation; the window shrinks from ~4 min to seconds |
 | Five genuinely hard briefs cannot be sourced without manufacturing them | **Medium** | Item 5 cannot deliver, or delivers synthetic evidence | Stating "not measured" is an explicit permitted outcome; manufactured briefs are not — the rubric already refuses to let a solved brief inflate a verdict |
-| Header facts are passed in but the drafter overwrites them anyway | Low | The 2-of-7 defect survives item 2 | The DoD requires a live draft per repo compared against `git remote show origin`, not a prompt review |
+| Header facts are passed in but the drafter overwrites them anyway | Low | The 2-of-7 defect survives item 2 | **NOT RETIRED at item 2's merge.** `--dry-run` returns before the prompt is built, so only fixtures have seen the new text. Item 5's live drafts are the first real test |
 | Collision detection depends on proposals declaring their touched files honestly | **Medium** | Overlap missed | The declaration is already a plan-template field; where it is absent or empty the check treats the proposal as colliding-unknown and returns `needs-decision` rather than passing silently |
 | Scope creep back into epic 08's ladder | Medium | This epic becomes epic 08 again | Invariant: no rung is enabled here; items 2 and 5 explicitly disclaim admission policy and the L1 switch |
 | Fixtures escape their sandbox (GH #15, still open) | Known-real | Working tree committed by a test | Item fixtures reuse the existing harness; GH #15 remains open and is **not** fixed here — flagged in Deferred |
@@ -368,3 +461,30 @@ header from config, refuses duplicated work, and detects collisions is better at
   fixtures stub the drafter, and whether a live model returns `no-work` instead of inventing a
   plan is a model property. Item 1's executor flagged the overclaim in its own return summary
   rather than letting it stand. Measuring it is item 5's job and item 5's alone.
+- 2026-08-21 — **items 2 and 6 verified cold by the orchestrator and merged** (PR #55 → `6271f30`,
+  PR #56 → `62aa16e`). Nothing was taken from either executor's return summary: the negative
+  controls were re-run (60/21 for the stale suite; the new suite *hard-errors* against the old
+  script rather than silently passing), the load-bearing `closingIssuesReferences` claim was
+  reduced to a controlled pair (#45 base=default → link populated; LODE #758 base≠default →
+  link empty despite "Closes #757"), and every open issue in both repos was re-classified against
+  both scripts. Full battery on merged `main`: **1005 cases, 0 failures**; working tree clean;
+  `~/.config/claude-intake/intake.log` byte-identical across 14 live `--dry-run` invocations.
+- 2026-08-21 — **the re-measurement was worse than this plan recorded, in item 6's favour.** The
+  table said four false positives; there were **five of five**, the new one being `#54`, blocked
+  by PR #55 — the pull request implementing this epic's own item 2. Item 3's rule had made every
+  open issue on this repo un-draftable.
+- 2026-08-21 — **two of item 6's executor's claims were corrected on verification.** LODE #766
+  does **not** flip to `DRAFT` (it skips correctly via merged PR #808); #795 does, and it is worse
+  than reported — open, with four merged `*/795-*` PRs all saying "Part of #795".
+- 2026-08-21 — **item 7 filed**, and the sequence changed to `(1 ∥ 3) → (2 ∥ 6) → (4 ∥ 7) → 5`.
+  The open question *"an issue whose epic is mid-flight now classifies DRAFT — widen the rule or
+  not?"* is **resolved: widen**, as its own item. The deciding evidence was found by measuring
+  rather than reasoning: **LODE #811 is open right now with an OPEN PR, a merged PR and a branch
+  named for it, and today's runner would draft over it.** Both proposed signals were measured
+  across n=11 live issues before being written down — they flip exactly three verdicts, all three
+  correct, and disturb neither item 6's five flips nor its two true positives.
+- 2026-08-21 — **decision: PR #55 merged with one DoD clause deliberately unmet.** No live model
+  has yet seen item 2's new prompt text, because `--dry-run` returns before the prompt is built.
+  Item 5's live drafts supply that proof; drafting a throwaway proposal now would burn a
+  hard-brief sample to test a string. The associated risk row is marked **NOT RETIRED** rather
+  than quietly dropped.
