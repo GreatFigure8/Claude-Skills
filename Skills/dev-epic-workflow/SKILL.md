@@ -98,6 +98,15 @@ If the epic starts from a divergent state, reconcile it as step zero of the plan
 
 **Dispatch** names the epic folder, the work item number, the branch name, and any decisions resolved since the plan was filed, and instructs the executor to read `plan.md` itself. While an executor runs, the **control plane** keeps it observable and stoppable — status contract, telemetry feeds, deterministic cancel sentinel, reconciliation rules: `references/executor-control-plane.md`. Cancel = touch a file; watch = tail the status log or the commit stream, or don't watch at all.
 
+**Announce every dispatch as a model table, in the same turn the executors start.** One row per agent, and the **Model** column is mandatory — Jonathan is paying for these contexts and should never have to ask which model is burning through an item:
+
+| Item | Branch | Model |
+| --- | --- | --- |
+| 212 item 2 — modal client gate | `feat/rules-page-client-gate` | Opus |
+| 213 item 2 — file viewer on `/conversions` | `feat/see-the-file-viewer-on-conversions` | Sonnet 5 |
+
+This is not dispatch-only: **any** subagent the orchestrator spawns — Phase 0 claim-verification, a search sweep, a mechanical test run — gets the same table, with the first two columns renamed to *Task / Scope* where there is no branch. A single spawn still gets a one-row table. Name the model passed on the Agent call's `model:` argument; write `inherited (<name>)` only when none was passed.
+
 **Direct mode** (the orchestrator-less fallback — executing an item in the interactive session itself) remains valid when Jonathan wants to drive an item hands-on, or when subagents aren't available. In direct mode the old rule applies unchanged: one session per work item, ending at land-and-reset via Phase 3.5's checkpoint.
 
 The item lifecycle, whoever executes it — **in orchestrated mode the orchestrator performs steps 1–2 as dispatch setup (refresh the base, create the item's worktree), the executor runs steps 3–8 in that worktree and stops, and steps 9–10 belong to the orchestrator** (in direct mode, one session does all ten):
