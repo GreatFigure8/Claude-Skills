@@ -1188,6 +1188,7 @@ PROVISION_REPORT_EOF
   # shellcheck disable=SC2086
   ( cd "$WT" && "$DISPATCH_CLAUDE" -p "$(dispatch_brief "$SLUG" "$BASE" "$SKILL")" \
       --agent work-item-executor \
+      --model sonnet \
       --add-dir "$SKILL" \
       --allowed-tools $TOOLS ) > "$DISPATCH_RUN_LOG" 2>&1 &
   CPID=$!
@@ -1365,7 +1366,7 @@ CLI_ITEMS_EOF
   esac
 
   printf 'dispatch        enforced=%s   ceiling=%s\n' "$DISPATCH_ENFORCED" "$DISPATCH_LEVEL"
-  printf 'executor        claude -p --agent work-item-executor   timeout=%ss\n' "$DISPATCH_EXECUTOR_TIMEOUT"
+  printf 'executor        claude -p --agent work-item-executor --model sonnet   timeout=%ss\n' "$DISPATCH_EXECUTOR_TIMEOUT"
   printf 'never           approves · merges · closes an issue · chains to another item\n'
   printf 'ceiling         an OPEN pull request against the integration branch\n'
   if [ -n "$REPO_PATH" ] || [ -n "$REPO_SLUG" ]; then

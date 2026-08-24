@@ -45,7 +45,7 @@ what is missing.
    nothing on origin, so a transient install failure does not permanently retire a work
    item.
 9. **Push the branch.** See "The point of no retry".
-10. **The executor.** `claude -p --agent work-item-executor`, with the item's brief and
+10. **The executor.** `claude -p --agent work-item-executor --model sonnet`, with the item's brief and
     the declared gate set, under a timeout, with a heartbeat every five minutes.
 11. **Push again, then judge.** Whatever it produced goes to origin before anything is
     decided about it.
@@ -185,7 +185,7 @@ on origin is what makes "never retried" structural rather than remembered.
 
 ## What the executor is told, and what it cannot do
 
-The contract is invoked **by name** — `claude -p --agent work-item-executor` — and is
+The contract is invoked **by name** — `claude -p --agent work-item-executor --model sonnet` — and is
 never re-inlined or forked here. The brief is the per-item dispatch an orchestrator would
 give in a session, plus the two places an unattended dispatch genuinely differs:
 
