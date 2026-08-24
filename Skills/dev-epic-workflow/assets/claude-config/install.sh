@@ -131,6 +131,7 @@ PYEOF
 # 3. Repo mode extras: gitignore runtime state, optional commit.
 if [ "$MODE" = "repo" ]; then
   for LINE in ".claude/handoff-autosnapshot.md" \
+              "docs/epics/handoff-autosnapshot.md" \
               ".claude/signals/" \
               "docs/epics/*/status/" \
               "docs/epics/*/CANCEL"; do

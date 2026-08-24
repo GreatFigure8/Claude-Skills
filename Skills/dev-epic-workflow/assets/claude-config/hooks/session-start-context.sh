@@ -52,8 +52,18 @@ if [ "${WT_COUNT:-1}" -gt 1 ]; then
   echo '```'
 fi
 
+# The ONE handoff, per dev-epic-workflow Phase 3.5: <epics-root>/handoff.md.
+# One fixed path per repo -- never a per-epic copy -- so a resuming session opens
+# a known file instead of globbing every epic folder and guessing which is live.
+# Repos differ only in how they case the epics root.
+EPICS_ROOT=""
+for D in docs/epics DOCS/EPICS docs/EPICS DOCS/epics; do
+  [ -d "$D" ] && { EPICS_ROOT="$D"; break; }
+done
+
 # Surface any emergency autosnapshot FIRST (compaction or dirty session-end), then delete it.
-for SNAP in "$(ls -t docs/epics/*/handoff-autosnapshot.md 2>/dev/null | head -1)" ".claude/handoff-autosnapshot.md"; do
+for SNAP in "${EPICS_ROOT:+$EPICS_ROOT/handoff-autosnapshot.md}" ".claude/handoff-autosnapshot.md" \
+            "$(ls -t docs/epics/*/handoff-autosnapshot.md 2>/dev/null | head -1)"; do
   if [ -n "$SNAP" ] && [ -f "$SNAP" ]; then
     echo
     echo "### ⚠️ AUTOSNAPSHOT FOUND — a previous session compacted or ended uncleanly"
@@ -66,24 +76,62 @@ for SNAP in "$(ls -t docs/epics/*/handoff-autosnapshot.md 2>/dev/null | head -1)
   fi
 done
 
-# Inject the newest handoff, if any.
-HANDOFF="$(ls -t docs/epics/*/handoff.md 2>/dev/null | head -1)"
+# Inject the repo's one handoff, if it exists.
+HANDOFF="${EPICS_ROOT:+$EPICS_ROOT/handoff.md}"
 if [ -n "$HANDOFF" ] && [ -f "$HANDOFF" ]; then
-  EPIC_DIR="$(dirname "$HANDOFF")"
+  # The handoff names its epic in an `**Epic:**` field -- the path is no longer
+  # derivable from the handoff's own location, and "none" is a legitimate value
+  # (intake / orchestrator sessions), so the plan line is emitted only when the
+  # named plan actually exists.
+  EPIC_DIR="$(sed -n 's/^\*\*Epic:\*\* *//p' "$HANDOFF" 2>/dev/null | head -1 | tr -d '\r')"
   echo
   echo "### Active session handoff: ${HANDOFF}"
-  echo "Epic plan: ${EPIC_DIR}/plan.md — read it before acting."
+  if [ -n "$EPIC_DIR" ] && [ -f "${EPIC_DIR}/plan.md" ]; then
+    echo "Epic plan: ${EPIC_DIR}/plan.md — read it before acting."
+  fi
   echo "Per dev-epic-workflow Phase 0/3.5: verify everything under 'Claimed but NOT yet verified' against the repo before building on it."
   echo
   echo '```'
-  cat "$HANDOFF"
+  # Context budget: inject only the load-bearing sections. The preamble carries
+  # branch/commit/worktree; "Claimed but NOT verified" is what Phase 0 REQUIRES
+  # re-grounding; "Exact next action" is the resume point. Everything else --
+  # what landed, what was verified, environment, open questions -- is on disk
+  # two lines away and is read on demand. Measured 2026-08-22: the full file
+  # was ~1,050 words injected into every session's floor, and the floor is
+  # ~75% of a disciplined session's total token cost.
+  python3 - "$HANDOFF" <<'EXTRACT'
+import re, sys
+lines = open(sys.argv[1], errors="ignore").read().splitlines()
+keep, out, skipped = True, [], 0
+want = re.compile(r"(not.*verifi|exact next|blocked|open question)", re.I)
+for ln in lines:
+    if ln.startswith("## "):
+        keep = bool(want.search(ln))
+    if keep:
+        out.append(ln)
+    else:
+        skipped += 1
+print("\n".join(out).strip())
+if skipped:
+    print(f"\n_({skipped} further lines in this handoff were not injected — "
+          f"read the file itself if you need what landed, how it was verified, "
+          f"or the environment state.)_")
+EXTRACT
   echo '```'
 else
-  NEWEST_PLAN="$(ls -t docs/epics/*/plan.md 2>/dev/null | head -1)"
+  NEWEST_PLAN="$(ls -t "${EPICS_ROOT:-docs/epics}"/*/plan.md 2>/dev/null | head -1)"
   if [ -n "$NEWEST_PLAN" ]; then
     echo
     echo "### No active handoff. Newest epic plan: ${NEWEST_PLAN}"
   fi
+fi
+
+# Per-epic handoffs are a defect since the one-file rule: they make every session
+# hunt. Name them once so the next checkpoint folds them in and deletes them.
+STRAY_HANDOFFS="$(ls "${EPICS_ROOT:-docs/epics}"/*/handoff.md 2>/dev/null | tr '\n' ' ')"
+if [ -n "$STRAY_HANDOFFS" ]; then
+  echo
+  echo "- Stray per-epic handoff(s): ${STRAY_HANDOFFS}— the handoff is ONE file at ${EPICS_ROOT:-docs/epics}/handoff.md. Fold anything still live into it and \`git rm\` these."
 fi
 
 # Epics filed but NOT yet dispatched — the queue Jonathan plans ahead into,

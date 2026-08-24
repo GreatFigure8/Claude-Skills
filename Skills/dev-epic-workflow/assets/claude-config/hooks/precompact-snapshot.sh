@@ -21,10 +21,18 @@ fi
 
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
 
-# Snapshot lands in the active epic folder; fall back to .claude/ if no epic exists.
-EPIC_DIR="$(ls -td docs/epics/*/ 2>/dev/null | head -1)"
-if [ -n "$EPIC_DIR" ]; then
-  SNAP="${EPIC_DIR%/}/handoff-autosnapshot.md"
+# Snapshot lands beside the repo's one handoff; fall back to .claude/ if no epics root exists.
+# The ONE handoff, per dev-epic-workflow Phase 3.5: <epics-root>/handoff.md.
+# One fixed path per repo -- never a per-epic copy -- so a resuming session opens
+# a known file instead of globbing every epic folder and guessing which is live.
+# Repos differ only in how they case the epics root.
+EPICS_ROOT=""
+for D in docs/epics DOCS/EPICS docs/EPICS DOCS/epics; do
+  [ -d "$D" ] && { EPICS_ROOT="$D"; break; }
+done
+
+if [ -n "$EPICS_ROOT" ]; then
+  SNAP="${EPICS_ROOT}/handoff-autosnapshot.md"
 else
   mkdir -p .claude 2>/dev/null || true
   SNAP=".claude/handoff-autosnapshot.md"

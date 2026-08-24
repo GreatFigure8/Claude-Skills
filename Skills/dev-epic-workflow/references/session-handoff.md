@@ -8,11 +8,19 @@ Sessions are disposable; the epic folder is not. This reference defines the arti
 |---|---|---|
 | Durable conventions, stack rules | `CLAUDE.md` | Permanent |
 | Epic-level truth: outcome, work items, decisions, deferred | `docs/epics/<NN-slug>/plan.md` | Life of the epic |
-| Mid-item conversational delta | `docs/epics/<NN-slug>/handoff.md` | Until next checkpoint (overwritten) or item merge (deleted) |
-| Emergency pre-compact snapshot | `docs/epics/<NN-slug>/handoff-autosnapshot.md` (fallback: `.claude/handoff-autosnapshot.md`) | Until next SessionStart surfaces it |
+| Mid-item conversational delta | `docs/epics/handoff.md` — **one file per repo, never one per epic** | Until next checkpoint (overwritten) or item merge (deleted) |
+| Emergency pre-compact snapshot | `docs/epics/handoff-autosnapshot.md` (fallback: `.claude/handoff-autosnapshot.md`) | Until next SessionStart surfaces it |
 | Everything else | git | Permanent |
 
 The handoff carries **only** what exists in conversation and nowhere on disk. If a fact is already in the plan, in a commit message, or derivable from `git status`, it does not belong in the handoff — small handoff, fast resume.
+
+## One handoff per repo — `docs/epics/handoff.md`
+
+**Every session in a repo checkpoints to the same file: `docs/epics/handoff.md`** (in whatever case the repo already spells that folder, e.g. `DOCS/EPICS/handoff.md`). It sits at the root of the epics folder, beside the numbered epic folders, never inside one.
+
+Handoffs are **session** state, not epic state, and one fixed path is what makes a resume cheap: the SessionStart hook opens one known file instead of globbing every epic folder, sorting by mtime and guessing which of several stale handoffs is the live one. Scattering them per epic makes every future session pay to find the one that matters — and makes it easy to resume from the wrong one.
+
+Epic-level truth that must outlive the session does not go here at all: it goes in that epic's `plan.md`, where the status header, the work items and the Deferred parking lot already live. The handoff's `**Epic:**` field is a pointer to that folder, so nothing is lost by having one file.
 
 ## handoff.md template
 
@@ -20,6 +28,7 @@ The handoff carries **only** what exists in conversation and nowhere on disk. If
 # Session Handoff — <epic slug> / work item <N>
 
 **Written:** <ISO timestamp>
+**Epic:** <path to the epic folder, e.g. docs/epics/12-oauth-refresh-rotation — or "none">
 **Branch:** <branch> (pushed: yes — non-negotiable)
 **Last commit:** <short-hash> <subject>
 **Worktree:** <path, or "main checkout">
@@ -50,9 +59,10 @@ The handoff carries **only** what exists in conversation and nowhere on disk. If
 
 Rules:
 
-- **Overwrite, never append.** It is a snapshot, not a log. History lives in git — the handoff is committed, so every checkpoint is recoverable from `git log` anyway.
+- **One path, always.** `docs/epics/handoff.md`. A handoff written into an epic folder is a defect, however natural it feels while working inside that epic; migrate any that predate this rule by folding what is still live into the single file and `git rm`-ing them.
+- **Overwrite, never append.** It is a snapshot, not a log. History lives in git — the handoff is committed, so every checkpoint is recoverable from `git log docs/epics/handoff.md` anyway. Carry a prior session's content forward only where it is still live (unmerged branch, unverified claim, unanswered question).
 - **Commit and push it** (`chore(epic): session handoff — <item>`). An unpushed checkpoint is not a checkpoint.
-- **Delete it at land-and-reset** (Phase 3 step 10). A handoff for a merged item is stale state; the epic closes (Phase 5) with no handoff files anywhere.
+- **Delete it at land-and-reset** (Phase 3 step 10) when nothing else is in flight. A handoff describing a merged item is stale state that the next session will be injected with and made to verify; the epic closes (Phase 5) with no handoff file left behind.
 
 ## Checkpoint ritual → the `/handoff` command
 
@@ -68,7 +78,7 @@ The ritual (commit + push, write handoff, commit + push handoff, announce safe-t
 
 ## Resume ritual — automatic, then verified
 
-The **SessionStart hook** fires on `startup`, `resume`, `clear`, and `compact`, and injects into context: current branch, short status, recent log, worktree list, the newest `handoff.md` under `docs/epics/`, and — loudly — any `handoff-autosnapshot.md` left by a compaction or a dirty session end (which it then deletes, so warnings never go stale).
+The **SessionStart hook** fires on `startup`, `resume`, `clear`, and `compact`, and injects into context: current branch, short status, recent log, worktree list, the repo's single `docs/epics/handoff.md` (plus the epic plan its `**Epic:**` field names), and — loudly — any `handoff-autosnapshot.md` left by a compaction or a dirty session end (which it then deletes, so warnings never go stale).
 
 It then adds up to three one-line *queue* views, each emitted only when it has something to say — so a session that is simply resuming an epic sees none of them. The first two split the filed-but-not-running epics by which gate they are sitting behind; they share one blank line and render as a single two-line list:
 
