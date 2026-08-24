@@ -1501,6 +1501,7 @@ WIPLINE
   Commit the plan with a conventional message and stop."
 
     ( cd "$WT" && "$CLAUDE_BIN" -p "$PROMPT" \
+        --model sonnet \
         --add-dir "$SKILL_DIR" \
         --allowed-tools 'Bash(git:*)' 'Bash(gh issue view:*)' 'Bash(ls:*)' 'Bash(grep:*)' 'Bash(sed:*)' 'Bash(cat:*)' 'Bash(head:*)' 'Bash(date:*)' Read Write Edit Glob Grep ) \
         > "$WT/.intake-run.log" 2>&1
