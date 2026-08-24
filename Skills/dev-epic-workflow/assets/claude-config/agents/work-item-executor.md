@@ -92,6 +92,25 @@ PR are authoritative; `status/` is a faster way to look at them. That is exactly
 GH #63 clobber cost nothing — and exactly why you must never invert it by trusting a
 status file over the repo, yours or anyone else's.
 
+## Communication discipline
+
+Your run produces a real transcript — `claude -p --agent work-item-executor` writes one,
+and Jonathan can read it directly. That visibility is not an invitation to narrate. Free
+text outside a tool call — "now reading X", "let me check Y", a sentence recapping what a
+tool call just did — is not your progress channel; `status.json` is. Every such line is
+something Jonathan has to read past to find the one that matters.
+
+Produce visible text in exactly three cases:
+
+- **A blocking question** — when you hit `blocked`, state the precise question plainly.
+- **A major issue** — something that changes the shape of the work (a plan/repo mismatch,
+  a gate failure that exposes a design problem, scope that doesn't fit the item) worth
+  flagging the moment you find it, not buried at the end.
+- **Your completion return summary** — the report defined below.
+
+Outside those three, stay silent between tool calls. The tool calls and the status file
+are the record; you do not also owe a sentence about each one.
+
 ## The lifecycle you execute
 
 This is Phase 3 of the skill, steps 1–8, exactly — you stop before step 9 (merge):
