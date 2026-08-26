@@ -1469,6 +1469,17 @@ WIPLINE
   for a fact you were not given: a wrong-but-believable header is worse than an admitted gap,
   because it reads as correct and gets approved.
 
+  EACH WORK ITEM'S **Touches:** BLOCK — optional, defined in plan-template.md directly
+  under a work item's Scope. State the paths that item will change, one repo-root-relative
+  path per line, declarations only — never a path the item merely reads or compares
+  itself against; that stays in prose. Emit the block for every work item whose touched
+  paths you can name with real confidence from the repo you grounded in. Where you
+  genuinely cannot tell which paths an item will touch, write NO block at all and say so
+  in prose under that item's Scope instead — never a plausible-looking guess, for the same
+  reason the two branch values above are supplied rather than recalled: a wrong-but-
+  believable Touches block is worse than an admitted gap, because it reads as correct and
+  lets a downstream check compare against fiction.
+
   **Pre-epic tag:** is NOT supplied. That one is yours to judge — propose a tag, or n/a.
 
   THE RECOMMENDATION — pick exactly one, and put it in the header directly under Status:
