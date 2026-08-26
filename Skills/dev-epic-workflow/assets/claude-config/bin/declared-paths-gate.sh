@@ -146,10 +146,25 @@ declared_paths_gate_run() { # $1=plan $2=item $3=base $4=head $5=repo
     return 0
   fi
 
-  DIFF="$(git -C "$REPO" diff --name-only "${BASE}...${HEAD}" 2>&1)"
-  if [ $? -ne 0 ]; then
-    printf 'declared-paths-gate: git diff --name-only %s...%s failed in %s:\n%s\n' \
-      "$BASE" "$HEAD" "$REPO" "$DIFF" >&2
+  # -M so a rename is one renamed path, not a delete+add pair (a pure rename
+  # still prints only the new path with --name-only, confirmed against real
+  # git). -c core.quotepath=false so non-ASCII paths come back as raw UTF-8,
+  # matching how they're written in the plan, instead of octal-escaped.
+  # stdout and stderr are captured separately — merging them (as before) let
+  # any advisory line git writes to stderr on a *successful* diff masquerade
+  # as a bogus path in the parsed set.
+  local DIFF_ERR_FILE DIFF_RC DIFF_STDERR
+  DIFF_ERR_FILE="$(mktemp "${TMPDIR:-/tmp}/declared-paths-gate.XXXXXX" 2>/dev/null)" || {
+    printf 'declared-paths-gate: could not create a temp file for git diff stderr\n' >&2
+    return 2
+  }
+  DIFF="$(git -c core.quotepath=false -C "$REPO" diff --name-only -M "${BASE}...${HEAD}" 2>"$DIFF_ERR_FILE")"
+  DIFF_RC=$?
+  DIFF_STDERR="$(cat "$DIFF_ERR_FILE" 2>/dev/null)"
+  rm -f "$DIFF_ERR_FILE"
+  if [ "$DIFF_RC" -ne 0 ]; then
+    printf 'declared-paths-gate: git diff --name-only -M %s...%s failed in %s:\n%s\n' \
+      "$BASE" "$HEAD" "$REPO" "$DIFF_STDERR" >&2
     return 2
   fi
 
