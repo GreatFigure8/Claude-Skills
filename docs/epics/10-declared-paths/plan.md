@@ -1,6 +1,6 @@
 # Epic: Work items declare the paths they touch
 
-**Status:** in flight (items 1, 2, and 3 of 4 done — item 2 merged `9257d3e`, item 3 merged `158be6b`; item 4 pending)
+**Status:** in flight (item 4 of 4)
 **Source:** GH #57 (split out of GH #39 / epic 09 item 4)
 **Live branch:** `main`   **Integration branch:** `main`   **Pre-epic tag:** n/a — additive, every change reverts by merge-revert
 
