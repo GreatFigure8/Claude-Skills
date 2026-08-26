@@ -1,115 +1,65 @@
-# Session Handoff — 11-l2-autonomous-dispatch / work item 3 (last; epic code-complete, development PAUSED)
+# Session Handoff — 12-subagent-output-discipline / work item 1 (PR open, awaiting merge)
 
-> **Folded 2026-08-26 from `docs/epics/11-l2-autonomous-dispatch/handoff.md`.** One handoff per
-> repo lives here; the per-epic copy is gone. **Everything below dates to 2026-08-22 and was
-> NOT re-verified at the move** — the file was relocated verbatim, not refreshed. Treat every
-> claim in "Verified this session" as a claim from four days ago and re-ground before acting
-> on it. The "Claimed but NOT yet verified", "Exact next action", "Environment state" and
-> "Open questions" sections are still live and are the reason this file was kept.
-
-
-**Written:** 2026-08-22T15:40:00Z
+**Written:** 2026-08-26T12:48:43Z
+**Epic:** docs/epics/12-subagent-output-discipline
 **Branch:** main (pushed: yes)
-**Last commit:** 535163c chore(epic): session handoff — 11-l2-autonomous-dispatch item 3
+**Last commit:** dc11ce6 chore(epic-12): mark item 1 in flight, point control plane at epic 12
 **Worktree:** main checkout (/Users/jonathanstevenson/Source/claude-skills)
 
-> **Development on this repo is paused at Jonathan's instruction.** He is focusing on getting
-> LODE to fully convert an HDL file. This session wrote no code here — it re-verified the prior
-> handoff's claims and corrected one line of out-of-repo intake config. Nothing is half-done.
-
 ## Verified this session
-
-Every line names how it was checked. Nothing here rests on a previous handoff's word.
-
-- **Epic 11's four items are merged.** `git log --oneline --merges`: item 1 `440239d`,
-  item 2b `e3d5e42`, item 2 `243052a`, item 3 `2626259`.
-- **Battery re-run green on merged `main`: 2181 cases, 0 failures across all 12 suites.** Run
-  this session in the main checkout, not on a feature branch, with
-  `INTAKE_REPO_LIST=/nonexistent` (GH #54, environmental). Per-suite: active-epic 416,
-  autonomy-control 261, cancel-gate 111, intake-collision 127, intake-control-plane 178,
-  intake-header 81, intake-outcomes 96, intake-skip 251, l2-dispatch 231, lifecycle 107,
-  session-start 144, worktree-provision 178. Every suite rc=0. This is an independent
-  reproduction of the prior handoff's identical figure, not a restatement of it.
-- **Nothing above L0 can execute.** `ls ~/.config/claude-intake/` shows **no `autonomy` file
-  and no `promotions/` directory**, so every repo resolves `L0 (unconfigured)`.
-- **The launchd runner is healthy at 600s.** `launchctl list` shows it loaded with last exit 0;
-  `PlistBuddy` reads `StartInterval 600`. Observed cycles this session: 15:06, 15:16, 15:26,
-  15:37 — matching the interval.
-- **Nothing labelled `claude-intake` in any of the four repos.** Confirmed both from
-  `intake.log` ("nothing labelled 'claude-intake' — nothing to do" for all four, every cycle)
-  and `gh issue list` on this repo. The runner is no-opping.
-- **AIX Payroll Compare's intake base was WRONG and is now FIXED.** `~/.config/claude-intake/repos`
-  had no `|` suffix for it, so proposals would have targeted GitHub's default `main`. Checked the
-  repo directly: `dev` exists, is the branch actually checked out there, and `gh repo view` confirms
-  the default is `main` — i.e. the config was genuinely pointing at the wrong base. Corrected to
-  `|dev`, backed up to `repos.bak-103506-aixdev`. **Confirmed live**: the 15:37:11Z cycle logged
-  `live=main integration=dev`. No restart was needed — the runner re-reads the config each cycle.
-  (The 15:26:58Z cycle still logged `integration=main`; that is correct, the edit landed 15:35:06Z.)
-- **The SessionStart injection calling epic 11 "awaiting approval" is BY DESIGN, not a defect.**
-  Its Status header (`code-complete, NOT closed — ...`) is unparseable, and
-  `session-start-context.sh:230` deliberately buckets anything unparseable into the approval
-  queue; lines 115–117 document why (an approved epic shown as needing approval costs a glance,
-  a `planning` epic shown as dispatchable costs the gate). **No issue should be filed for this.**
-- **This checkout is clean**, on `main`, in sync with `origin/main` at `535163c`, and
-  `git worktree list` shows only the main checkout. No branches, worktrees, or executors are
-  held by this session in any repo.
-- **Open-issue state on this repo:** #39 carries `epic:in-progress` (epic 09) and #57 carries
-  `epic:planned` (epic 10) — both correctly labelled. Unplanned: #63, #61, #54, #48, #15.
+- **GH #68 filed and epic 12 planned/dispatched.** Issue filed (`gh issue create`), plan filed at
+  `docs/epics/12-subagent-output-discipline/plan.md`, commented with the plan permalink and
+  work-item checklist, labelled `epic:in-progress` (swapped from `epic:planned` at dispatch).
+- **Item 1 executed and verified cold, not just taken on the executor's return summary.**
+  PR #69 (`docs/subagent-output-discipline-every-spawn` → `main`): `gh pr view` shows
+  `state: OPEN`, `mergeable: MERGEABLE`, 1 commit (`e1118c6`). `gh pr diff 69` read directly —
+  confirms `SKILL.md` gained the **Output discipline** paragraph in Phase 3 (all spawn types,
+  not just `work-item-executor`) and the dispatch sentence now names it; `work-item-executor.md`'s
+  Communication discipline section now points at that paragraph instead of restating it, keeps
+  the three exceptions verbatim (blocking question / major issue / return summary — the mid-run
+  exception Jonathan explicitly asked to keep), and the readability rationale is replaced with
+  the cost one. Matches plan.md's item 1 scope exactly; nothing outside it touched.
+- **Unrelated tree cleanup, this session:** committed a pre-existing uncommitted edit to
+  `docs/skill-docs/dev-epic-workflow/dev-epic-workflow-commands.md` (b58f590 — default prompts
+  now use repo-relative `docs/EPICS/handoff.md`, not a hardcoded Oracle-Simple-Convert path).
+  Folded the stray `docs/epics/11-l2-autonomous-dispatch/handoff.md` into this file's *previous*
+  version verbatim (105f316), which this session's overwrite now supersedes per the "one handoff,
+  a snapshot not a log" rule — its content is preserved in `git log docs/epics/handoff.md` at
+  `105f316` if it's ever needed again.
+- **Tree is clean, `main` in sync with `origin/main`** (`git status --short` empty, `git status -sb`
+  shows no ahead/behind).
 
 ## Claimed but NOT yet verified
-
-Carried forward unchanged — this session addressed none of them.
-
-- **Item 2b's live LODE verification — NEVER RUN.** Its DoD requires a freshly-created LODE
-  worktree to run `bash scripts/test-both.sh` **and** `pnpm --filter web test` green with no
-  manual step, diffed against oracle 2385 / postgres 2384 / web 1166. **Proven only against a
-  synthetic repo of the same shape.**
-- **Item 3's live LODE cycle — NEVER RUN.** One approved epic's next item from queue to open PR
-  on `dev`, unattended, with the gate actually run.
-- **`claude -p --agent work-item-executor` has never been exercised by the L2 runner.** The
-  executor is a stub in every fixture. Still the single most load-bearing unproven assumption in
-  epic 11. **Epic 11 is merged but not trusted, and this is why.**
-- **GH #63's stated cause** (`SubagentStart` not firing rather than firing-and-failing) remains an
-  inference from absent owner records for ~39 stub ids. The hook was never instrumented.
-- **`shellcheck` has never been run** on any of epic 11's shell. Not installed on this machine;
-  `bash -n` was used as a declared substitute, not an equivalent.
-- **`intake-control-plane-fixtures.sh` case G3's reported flakiness is unresolved.** It **passed**
-  in this session's battery run. That is n=1 against a claimed 1-in-2 failure rate — a failure to
-  reproduce, not a clearance. Do not close the report on this evidence.
-- **Epic 10 (declared-paths) is filed and approved but entirely unstarted.** No item dispatched.
-- **Epic 09 item 5's brief survey may be stale.** #869 is one real data point at n=1 against a
-  requirement of ≥5.
-- **All LODE repo facts are second-hand.** The five active worktrees (178, 179, three on epic 192)
-  and `dev` at `93094cef` come from the *previous* session's observation and were **not
-  re-checked** this session. Re-ground before acting on them.
+- **PR #69 is unreviewed and unmerged.** Executor's gate claim ("no build/CI applies to this
+  docs-only change; the plan's own grep/diff verification commands served as the gate") was not
+  independently re-run against the plan's exact command list by this session — the diff was read,
+  the commands were not re-executed.
+- **Item 2 (drift fixture) is undispatched.** Depends on item 1; item 1 isn't merged yet, so item 2
+  hasn't been started or even scoped further than plan.md's description.
+- **Everything the 2026-08-22 handoff (epic 11) carried is still exactly as stale as it was** —
+  this session did not touch epic 11, LODE, or the L2 runner. That includes: item 2b/3's live LODE
+  verification never run, `work-item-executor` never exercised by the *unattended L2 runner*
+  specifically (today's dispatch was interactive/orchestrated, a different path), launchd agent
+  state, and the open questions below. See `git log -p docs/epics/handoff.md` at commit `105f316`
+  for the full prior text if any of it needs re-surfacing.
 
 ## Exact next action
-
-Development here is paused — switch to LODE and get an HDL file converting end to end; return to
-this repo only to run item 2b's live provisioning check and one supervised L2 cycle when LODE is
-free, which is the only gap between epic 11 being merged and being trusted.
+- Review and merge PR #69, then decide whether to dispatch item 2 (drift fixture) next or re-scope
+  it first — plan.md flags that the fixture harnesses all target shell scripts today and item 2
+  asserts on a markdown file, which may need a different assertion style than its neighbours.
 
 ## Environment state
-
-- **launchd agent `com.jonathanstevenson.unattended-intake` is LOADED and left running**,
-  `StartInterval 600`, watching 4 repos at **L0 (drafting only)**. It no-ops every 10 minutes
-  because nothing is labelled. Unload with:
-  `launchctl unload ~/Library/LaunchAgents/com.jonathanstevenson.unattended-intake.plist`
-- `~/.config/claude-intake/repos` now reads: claude-skills→main, Oracle-Simple-Convert→dev,
-  **AIX Payroll Compare→dev (corrected this session)**, oracle-mcp-services→dev-v2.
-  Backups: `repos.bak-094731`, `repos.bak-preepic30`, `repos.bak-103506-aixdev`.
-- **No `autonomy` config and no `promotions/` directory exist** — this is what keeps L2 inert.
-- No services, migrations, tunnels, or seeded data from this session. No issues filed this session.
+- **A worktree is still open:** `/Users/jonathanstevenson/Source/claude-skills-docs-subagent-output-discipline-every-spawn`
+  on branch `docs/subagent-output-discipline-every-spawn` (HEAD `e1118c6`), left in place because
+  PR #69 hasn't merged. Remove with `git worktree remove` after merge, per Phase 3.5's own checkpoint
+  cleanup step.
+- `.claude/signals/active-epic` points at `12-subagent-output-discipline` (gitignored, local-only,
+  not committed).
+- No services, migrations, tunnels, or seeded test data from this session.
 
 ## Open questions for Jonathan
-
-- **Do you want L2 enabled once the live verifications pass?** It needs a promotion record, which
-  item 1 made a deliberate human action — the automation cannot write one.
-- **File the `- **Branch:** n/a` convention?** Two real LODE items (a `CANCELLED` item with no
-  branch, and one reading `deferred to epic 180 item 5`) currently make item 3 refuse their whole
-  epic every cycle. The refusals are correct; the convention would make them ordinary.
-- **Epic 09 item 5** — re-measure, or close epic 09 on "not measured"?
-- **Epic 10 is unstarted.** It would let item 3's denylist check declarations before execution
-  rather than the diff after.
-- **Epic 11 stays open** while its two live verifications are outstanding. Confirm that is right,
-  or say the word and it can be closed on the synthetic evidence.
+- Merge PR #69 now, or hold it for something else first?
+- Carried forward, unanswered, from the 2026-08-22 handoff (epic 11) — still open as far as this
+  session knows: do you want L2 enabled once epic 11's live verifications pass; should the
+  `- **Branch:** n/a` convention be filed as its own issue; re-measure epic 09 item 5 or close it
+  on "not measured"; and is epic 10 (declared-paths, filed and approved) ready to dispatch?
