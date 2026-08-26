@@ -196,7 +196,41 @@ declared_paths_gate_run() { # $1=plan $2=item $3=base $4=head $5=repo
 }
 
 # ---------------------------------------------------------------------- CLI
-_declared_paths_gate_usage() { sed -n '1,35p' "$0" | sed 's/^# \{0,1\}//'; }
+_declared_paths_gate_usage() {
+  # A heredoc, not a slice of the header comment: a line-range slice (the
+  # prior implementation) silently truncates or grows stale the moment the
+  # header comment above changes length, and cutting from line 1 mangles the
+  # shebang into the first line of output. This is immune to both.
+  cat <<'USAGE_EOF'
+declared-paths-gate.sh — WARN-only check that a work item's declared
+`**Touches:**` block matches what the branch actually touched.
+
+Usage:
+  declared-paths-gate.sh --plan <path/to/plan.md> --item <N> --base <ref>
+                          [--head <ref>] [--repo <path>]
+
+  --plan   path to the epic's plan.md (required)
+  --item   the work item number, matching its `### N. <title>` heading
+           (required) — also accepts a split-item id, e.g. `3a`
+  --base   the ref the diff is measured from, e.g. `origin/main` (required)
+  --head   the ref the diff is measured to (default: HEAD)
+  --repo   the git repo to run `git diff` in (default: cwd)
+
+Exit codes:
+  0   declared paths match the diff exactly, or the item declares no
+      Touches block ("not declared" is never a failure)
+  1   a mismatch was found (declared-but-untouched and/or
+      touched-but-undeclared) — a WARN for a human, not a build failure
+  2   the check itself could not run (bad arguments, plan or item not
+      found, git diff failed) — fix the invocation and rerun; this is
+      never a clean pass and never a WARN
+
+Sourced use: `. declared-paths-gate.sh` exposes `declared_paths_gate_run`
+and `declared_paths_gate_extract_touches` without executing the CLI, for a
+fixture harness or a future caller that wants the parsed sets rather than
+the report.
+USAGE_EOF
+}
 
 _declared_paths_gate_cli() {
   local PLAN="" ITEM="" BASE="" HEAD="HEAD" REPO="."
