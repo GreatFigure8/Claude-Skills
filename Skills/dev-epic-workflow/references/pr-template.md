@@ -63,9 +63,9 @@ reads nothing else should understand the change from this paragraph.>
 
 <!-- Pasted output, not prose. One line per check: command → result. -->
 - `<command>` → <result>
-- `git diff --stat <base>...HEAD` → touched paths match scope: <yes/no + note>
+- `git diff --stat <base>...HEAD` → <pasted output>
 - `git grep -n "<removed-symbol>"` → <no matches / n/a — nothing removed>
-- `Skills/dev-epic-workflow/assets/claude-config/bin/declared-paths-gate.sh --plan docs/epics/<NN>-<epic-slug>/plan.md --item <N> --base <base>` → <pasted output — "not declared" if the item carries no `**Touches:**` block; a mismatch WARNs and does not block>
+- `Skills/dev-epic-workflow/assets/claude-config/bin/declared-paths-gate.sh --plan docs/epics/<NN>-<epic-slug>/plan.md --item <N> --base <base>` → <pasted output — "not declared" if the item carries no `**Touches:**` block; a mismatch WARNs and does not block. Replaces the old manual "touched paths match scope: yes/no + note" eyeball check.>
 
 ### Gates (per `stack-gates.md`)
 - [ ] Python: `ruff check` / `mypy` / `pytest` clean
