@@ -1,5 +1,13 @@
 # Session Handoff — 11-l2-autonomous-dispatch / work item 3 (last; epic code-complete, development PAUSED)
 
+> **Folded 2026-08-26 from `docs/epics/11-l2-autonomous-dispatch/handoff.md`.** One handoff per
+> repo lives here; the per-epic copy is gone. **Everything below dates to 2026-08-22 and was
+> NOT re-verified at the move** — the file was relocated verbatim, not refreshed. Treat every
+> claim in "Verified this session" as a claim from four days ago and re-ground before acting
+> on it. The "Claimed but NOT yet verified", "Exact next action", "Environment state" and
+> "Open questions" sections are still live and are the reason this file was kept.
+
+
 **Written:** 2026-08-22T15:40:00Z
 **Branch:** main (pushed: yes)
 **Last commit:** 535163c chore(epic): session handoff — 11-l2-autonomous-dispatch item 3
