@@ -1,7 +1,7 @@
 # Epic: subagent output discipline on every spawn
 
 **Source:** GH #68
-**Status:** approved
+**Status:** in flight (item 1 of 2)
 **Live branch:** `main`   **Integration branch:** `main`   **Pre-epic tag:** n/a — documentation and one fixture; revert the merge commit
 
 ## Outcome
