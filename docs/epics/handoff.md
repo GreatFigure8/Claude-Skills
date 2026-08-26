@@ -1,75 +1,37 @@
-# Session Handoff — epic 12 closed; epic 10 in flight, item 1 merged
+# Session Handoff — epic 10 (declared paths) / items 2 and 3
 
-**Written:** 2026-08-26 (end of session, per Jonathan's explicit request before `/clear`)
-**Epic:** docs/epics/10-declared-paths (item 1 of 4 done; items 2, 3, 4 unblocked, undispatched)
+**Written:** 2026-08-26T14:45:52Z
+**Epic:** docs/epics/10-declared-paths
 **Branch:** main (pushed: yes)
-**Last commit:** a4165a6 chore(epic-12): close epic — both items merged and verified live
-**Worktree:** main checkout only (`git worktree list` shows nothing else — both item worktrees
-were removed at land-and-reset)
-
-## Decisions made this session
-- **Jonathan's original ask today was narrowly epic 12** ("make sure sub-agents stay quiet and
-  don't talk to themselves"). The orchestrator additionally dispatched epic 10 item 1 under a
-  broader "dispatch up to 3 available work items" instruction — flagged explicitly as scope
-  expansion beyond the original ask, and Jonathan confirmed he's fine with it ("we can work on
-  epic 10 as that's valuable").
-- **PR #71 (epic 12 item 2) and PR #70 (epic 10 item 1) both merged this session**, on Jonathan's
-  explicit instruction ("merge 71 ... I assume 70 is ready to be merged ... you take care of
-  merging 70 and 71"). Both were verified cold before merge (diff-stat matched claimed scope,
-  fixture/grep re-run directly), not merged on the executor's word alone.
-- **Epic 12 is now closed.** Both items merged; source issue GH #68 closed with a retro comment.
-  Confirmed the fix is actually live in the installed skill — `~/.claude/skills/dev-epic-workflow`
-  is a symlink into this repo's `Skills/dev-epic-workflow`, and reading through that symlink shows
-  the "Output discipline" block in `SKILL.md`, the drift-fixture pointer, and zero "read past"
-  occurrences in `work-item-executor.md`. **This is ready for Jonathan to test today**, per his
-  request — no further action needed to "deploy" it; it's live the moment `main` has the merge,
-  which it does.
-- **Epic 10 stays open, explicitly, for next session.** Item 1 (`**Touches:**` field defined on
-  `plan-template.md`, `SKILL.md`, `issue-intake.md`) is merged (`18d0380`). Items 2 and 3 both
-  depend only on item 1 and are now dispatchable in parallel (safe — same epic, one
-  `active-epic` pointer covers both). Item 4 depends on item 1 **and** epic 09 item 4 (already
-  merged, confirmed this session as PR #59) — also unblocked. None of items 2/3/4 have been
-  started.
+**Last commit:** 0a3afd2 chore(epic-10): items 2 and 3 pr-opened, awaiting review
+**Worktree:** main checkout
 
 ## Verified this session
-- `gh pr view 70/71` both showed `state: OPEN → MERGED`, clean, no conflicts, before merge.
-- Post-merge on `main`: `grep -n "Output discipline"` and the drift fixture
-  (`bash Skills/dev-epic-workflow/assets/claude-config/hooks/tests/output-discipline-drift-fixtures.sh`)
-  both confirmed directly — fixture reports `cases: 17 failures: 0`.
-- `git worktree remove` for both item worktrees, `git branch -d` for both branches (clean deletes,
-  not forced — confirms both were actually merged), `git worktree prune`, `git fetch --prune`.
-- GH #68 checklist fully ticked and issue closed; GH #57 got a progress comment naming item 1's
-  merge commit and which items are now unblocked (no checklist exists on #57 — it was filed as
-  prose, not a checklist, so a comment is the equivalent record).
-- Control-plane cleanup: epic 12's entire `status/` directory removed (epic closed); epic 10's
-  merged-item status file and its two agent logs removed; three stray agent logs from prior
-  sessions in epic 12's tree were also cleared as part of the same directory removal.
-  `.claude/signals/active-epic` now points at `10-declared-paths` (gitignored, local-only) since
-  that's the only epic left in flight.
+- Epic 10 item 1 (docs/declared-paths-field) was already done/merged (18d0380) before this session — confirmed via plan.md header at session start.
+- Item 2 and item 3 are independent per plan.md's explicit "Depends on" lines (both depend only on item 1) and touch disjoint files — dispatched in parallel, each in its own worktree.
+- Item 2 (`feat/intake-declare-touched-paths`) executor returned `pr-opened` → PR #74, confirmed cold via `gh pr view 74`: OPEN, base=main, head=feat/intake-declare-touched-paths, MERGEABLE.
+- Item 3 (`feat/declared-paths-gate`) executor returned `pr-opened` → PR #72, confirmed cold via `gh pr view 72`: OPEN, base=main, head=feat/declared-paths-gate, MERGEABLE.
+- Item 2's new fixture harness (`intake-touches-fixtures.sh`): 21 cases, 0 failures (executor's report). Two pre-existing, unrelated failures were reproduced on unmodified main too: `intake-outcomes-fixtures.sh` (35/96 failing) and `session-start-fixtures.sh` (2/144 failing, already tracked as open issue #54) — not introduced by this branch.
+- Item 3's new fixture harness (`declared-paths-gate-fixtures.sh`): 16 cases, 0 failures, including a negative control (executor's report).
+- PR #73 (`fix/superseded-status-treated-as-awaiting-approval`), unrelated to this session's dispatch, merged to main externally during this session — main advanced from 4b71919 to ef6cd8e underneath us. Not something this session authored.
+- Both dispatch worktrees pre-created by the orchestrator (`../claude-skills-intake-declare-touched-paths`, `../claude-skills-declared-paths-gate`) went unused — the Agent tool's own `isolation: "worktree"` created separate harness worktrees under `.claude/worktrees/agent-<id>/` on SDK-generated branch names instead. Both executors worked around it by pushing to the correct branch name on origin via explicit refspec (`git push origin HEAD:refs/heads/<branch>`). PRs are correct. The two orphaned pre-created worktrees and the two harness agent-worktrees were all removed this session (`git worktree remove --force` + `prune`), verified via `git worktree list` showing only the main checkout afterward.
+- Added `.claude/worktrees/` to `.gitignore` (commit 15bded9) since the harness leaves that directory behind and it was showing as untracked.
 
 ## Claimed but NOT yet verified
-- **Jonathan has not yet actually tested the quiet-subagent behavior himself.** Everything above
-  confirms the *wording* is live and the fixture guards it; it does not confirm a real dispatched
-  subagent behaves differently in practice. That's today's actual test, still pending on his side.
-- Nothing else new — epic 11's carried-forward open questions (below) are untouched this session.
+- Neither PR #74 nor #72 has been reviewed/approved by Jonathan yet — nothing has been merged. Phase 4 verification here was cold-checked PR state (open/mergeable/correct base-head) and the executors' self-reported test/gate output; the diffs themselves have not been read line-by-line by this session.
+- Item 2's residual risk, stated explicitly by its own executor: whether a live (non-stubbed) drafter model actually complies with the new `**Touches:**` prompt instruction — only a real drafting cycle would confirm this, and none was run (the executor judged running one against the live `~/.config/claude-intake/` config, which has a `STOP` sentinel present, too risky to do unprompted).
+- If the next session dispatches with `isolation: "worktree"` again, expect the same orchestrator-pre-created-worktree-goes-unused pattern for item 4 — consider either not pre-creating a worktree when using Agent's own `isolation: "worktree"`, or dropping that isolation flag in favor of the manually-created worktree.
 
 ## Exact next action
-- Nothing is blocking. Next session's natural start: dispatch epic 10 items 2 and 3 in parallel
-  (both worktrees, same `active-epic` pointer since same epic), or one at a time if Jonathan
-  wants to review each PR before the next starts. Item 4 can go alongside or after.
+- Jonathan reviews and merges PR #74 (item 2) and PR #72 (item 3) at his own pace — independent PRs, no ordering requirement between them.
+- Once merged, land-and-reset both (Phase 3 step 10: pull main, delete branches remote+local, clean status/ entries), then re-check whether epic 09 item 4 has landed — epic 10 item 4 ("Collision detection reads the field") depends on item 1 (done) **and** on epic 09 item 4 having landed, which was not checked this session.
+- Clear `.claude/signals/active-epic` only at epic close (Phase 5), not before — it still correctly points at `10-declared-paths`.
 
 ## Environment state
-- No worktrees open beyond the main checkout. No services, migrations, tunnels, or seeded test
-  data from this session.
-- A background task chip is pending (not yet started, not part of any epic): investigate
-  `intake-outcomes-fixtures.sh` failing 35/96 on unmodified `main` — pre-existing, reproducible,
-  found incidentally by epic 12 item 2's executor, not named in any epic's Deferred list. It sits
-  outside this epic and outside epic 10; pick it up separately if/when convenient.
+- `.claude/signals/active-epic` = `10-declared-paths`.
+- No running services, no applied-but-unmerged migrations, no env vars set this session.
+- `git worktree list` shows only the main checkout — all item and harness worktrees from this session were cleaned up.
 
 ## Open questions for Jonathan
-- After testing the quiet-subagent behavior today: any wording still needs adjustment, or is it
-  good as merged?
-- Epic 10 items 2/3/4: dispatch all three roughly together next session, or sequence them?
-- Carried forward, unanswered, from the 2026-08-22 handoff (epic 11) — still open: do you want L2
-  enabled once epic 11's live verifications pass; should the `- **Branch:** n/a` convention be
-  filed as its own issue; re-measure epic 09 item 5 or close it on "not measured".
+- Should epic 10 item 4 wait for both PR #74 and PR #72 to merge (the plan's Sequence diagram implies `1 → (2 ∥ 3) → 4`), or does its explicit "Depends on: 1, and epic 09 item 4" line take precedence and it can start once epic 09 item 4 lands, in parallel with 2/3 still under review?
+- Any preference on avoiding the pre-created-worktree-goes-unused pattern for future parallel dispatches (see Claimed-but-not-verified above)?
