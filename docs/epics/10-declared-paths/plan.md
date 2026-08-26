@@ -1,6 +1,6 @@
 # Epic: Work items declare the paths they touch
 
-**Status:** in flight (items 1 and 3 of 4 done — item 3 merged `158be6b`; item 2 (PR #74) open awaiting review; item 4 pending)
+**Status:** in flight (items 1, 2, and 3 of 4 done — item 2 merged `9257d3e`, item 3 merged `158be6b`; item 4 pending)
 **Source:** GH #57 (split out of GH #39 / epic 09 item 4)
 **Live branch:** `main`   **Integration branch:** `main`   **Pre-epic tag:** n/a — additive, every change reverts by merge-revert
 
@@ -107,7 +107,7 @@ Verified against the repo on 2026-08-21, not recalled. Every line names how it w
   three surfaces agreeing and nothing else claiming otherwise.
 - **Rollback:** revert; the field is additive and nothing reads it yet.
 
-### 2. The drafter emits it
+### 2. The drafter emits it — done, merged `9257d3e`
 - **Branch:** `feat/intake-declare-touched-paths`
 - **Depends on:** 1
 - **Scope:** Make the unattended drafter produce a well-formed `**Touches:**` block per work item.
