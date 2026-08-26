@@ -63,7 +63,7 @@ One epic = one coherent outcome, decomposed into work items that each land indep
 - **Source** — the tracker ref (`Source: GH #<n>` / `Source: AB#<n>`) when the epic came through intake; omit only for untracked internal work.
 - **Grounding** — what was inspected, and what's assumed.
 - **Invariants** — what must not break while the epic is in flight (live installs keep working, tool names and contracts stay stable, no credential material in the repo, migrations stay forward-compatible).
-- **Work items** — numbered, each with: branch name, scope, files/modules touched, definition of done, and what it explicitly does *not* do.
+- **Work items** — numbered, each with: branch name, scope, a `**Touches:**` block naming the paths touched (`references/plan-template.md`), definition of done, and what it explicitly does *not* do.
 - **Sequence and dependencies** — which items unblock which.
 - **Risk and rollback** — per item: how to undo it.
 - **Deferred / out of scope** — the parking lot. Anything discovered mid-epic that isn't strictly needed goes here instead of into the current branch.
