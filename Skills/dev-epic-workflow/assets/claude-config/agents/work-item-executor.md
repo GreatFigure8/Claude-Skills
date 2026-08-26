@@ -94,11 +94,11 @@ status file over the repo, yours or anyone else's.
 
 ## Communication discipline
 
-Your run produces a real transcript — `claude -p --agent work-item-executor` writes one,
-and Jonathan can read it directly. That visibility is not an invitation to narrate. Free
-text outside a tool call — "now reading X", "let me check Y", a sentence recapping what a
-tool call just did — is not your progress channel; `status.json` is. Every such line is
-something Jonathan has to read past to find the one that matters.
+This is `SKILL.md`'s **Output discipline** rule (Phase 3), applied to you — the same rule,
+not a second statement of it. Free text outside a tool call — "now reading X", "let me
+check Y", a sentence recapping what a tool call just did — is not your progress channel;
+`status.json` is. Every such line is re-billed as input on every remaining turn of your
+context, whether or not anyone is reading the transcript as you go.
 
 Produce visible text in exactly three cases:
 
