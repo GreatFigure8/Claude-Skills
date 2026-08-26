@@ -165,12 +165,15 @@ GHSTUB
 # code change under test existed, which is exactly the failure mode epic 09
 # item 1's post-mortem is about.
 #
-#   FIXTURE_DRAFTER=faithful (default)  the compliant case: item 1 gets a
-#     well-formed block, item 2 states in prose that its paths are not
-#     determinable and gets no block — never a guess.
-#   FIXTURE_DRAFTER=noinstruction  same stub, but the prompt it was actually
-#     given (the mutant below strips the instruction) carries no Touches
-#     marker, so it writes neither item's Touches block — nothing to copy.
+# The stub auto-detects via HAS_MARKER, a scan of the prompt for the
+# plan-template.md heading text (no FIXTURE_DRAFTER env var involved):
+#
+#   HAS_MARKER=yes (the normal case, prompt built from the real template)
+#     item 1 gets a well-formed Touches block, item 2 states in prose that
+#     its paths are not determinable and gets no block — never a guess.
+#   HAS_MARKER=no (a case whose runner mutates the prompt to strip the
+#     instruction, simulating a stale/pre-fix template) the stub writes
+#     neither item's Touches block — nothing to copy.
 cat > "$BIN/claude" <<'CLSTUB'
 #!/usr/bin/env bash
 set -u
@@ -313,7 +316,7 @@ pushed_plan() { # $1 = origin bare dir -> the plan.md as pushed
 # **Touches:** block, backticks stripped, one per line.
 touches_of_item() { # $1 = plan text (stdin), $2 = item number
   awk -v n="$2" '
-    BEGIN { want = "### " n "."; in_item = 0; in_touches = 0 }
+    BEGIN { want = "### " n "\\."; in_item = 0; in_touches = 0 }
     /^### [0-9]+\./ { in_item = ($0 ~ ("^" want)); in_touches = 0; next }
     in_item && /\*\*Touches:\*\*/ { in_touches = 1; next }
     in_item && in_touches && /^  - `/ {
@@ -323,14 +326,6 @@ touches_of_item() { # $1 = plan text (stdin), $2 = item number
       next
     }
     in_item && in_touches { in_touches = 0 }
-  '
-}
-
-item_scope() { # $1 = plan text (stdin), $2 = item number -> the Scope bullet's text
-  awk -v n="$2" '
-    BEGIN { want = "### " n "."; in_item = 0 }
-    /^### [0-9]+\./ { in_item = ($0 ~ ("^" want)); next }
-    in_item && /\*\*Scope:\*\*/ { print; getline; while ($0 ~ /^  [a-z]/) { print; getline } }
   '
 }
 
