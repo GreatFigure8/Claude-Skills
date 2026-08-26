@@ -317,9 +317,11 @@ epic_queue_section() {
 
     case "$EQ_STATE" in
       [Cc][Ll][Oo][Ss][Ee][Dd]*) continue ;;
+      [Ss][Uu][Pp][Ee][Rr][Ss][Ee][Dd][Ee][Dd]*) continue ;;
       [Ii][Nn][-[:space:]][Ff][Ll][Ii][Gg][Hh][Tt]*) continue ;;
       [Aa][Pp][Pp][Rr][Oo][Vv][Ee][Dd]*) EQ_QUEUE="dispatch" ;;
-      *) EQ_QUEUE="approval" ;;         # `planning`, and anything unparseable
+      [Pp][Ll][Aa][Nn][Nn][Ii][Nn][Gg]*) EQ_QUEUE="approval" ;;
+      *) EQ_QUEUE="approval" ;;         # anything unparseable — surface it for a human to sort out
     esac
 
     # A non-`plan` recommendation moves it out of the approval queue: it is not
