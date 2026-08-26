@@ -293,10 +293,12 @@ request is open and someone may be reading it.
   `docs/intake-<NN>-<slug>` is invisible to this check. That gap is real and small, and
   it is recorded rather than papered over.
 
-**The long-run answer is a structured field, not a better parser.** The plan template
-offers only free-text `**Scope:** what changes, in files/modules`, which is the entire
-reason this reads prose and trades precision against recall. A machine-readable
-declaration the drafter fills would delete the heuristic outright.
+**The long-run answer is a structured field, not a better parser.** `references/plan-template.md`
+now defines exactly that: a per-work-item `**Touches:**` block, one repo-root-relative path
+per line, declarations only. Nothing reads it here yet — the drafter does not emit it and
+this collision check still parses `**Scope:**` prose, both by design until the field has a
+producer and a consumer. Once it does, a machine-readable declaration replaces this
+heuristic outright rather than refining it.
 
 **Routing is a human's job — and this is the contract that says so.** Nothing acts on a
 recommendation today: the runner does not approve a `plan`, does not close a `no-work`, and

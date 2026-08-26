@@ -35,6 +35,7 @@ Things that must remain true for the whole epic:
 - **Branch:** `<type>/<epic-slug>-<item-slug>`
 - **Depends on:** none | item N
 - **Scope:** what changes, in files/modules
+- **Touches:** the paths this item declares it will change (optional — see below)
 - **Not in scope:** the tempting adjacent thing this deliberately skips
 - **Definition of done:** observable conditions, not intentions
 - **Verification:** the exact command/grep/query that proves it
@@ -59,6 +60,39 @@ here instead of in the current branch.
 ```
 
 ---
+
+## The `**Touches:**` field
+
+Optional, per work item, directly under **Scope**. It states the paths this item will
+*change* — for a program to read, not a human to infer from prose. `**Scope:**` stays
+exactly where it is and keeps explaining *what changes and why*; `**Touches:**` is the
+same fact in a form a check can compare against a diff.
+
+```markdown
+- **Touches:**
+  - `Skills/dev-epic-workflow/references/plan-template.md`
+  - `Skills/dev-epic-workflow/SKILL.md`
+```
+
+Three rules, each earning its place from a measured failure:
+
+1. **One path per line.** A comma list wrapped across two lines has already lost a real
+   entry in a live proposal — a line per path can't drop one that way.
+2. **Repo-root-relative, always.** Two drafts of the same file have already been seen
+   naming it two different ways (a full repo path and a truncated one). Fixing the form
+   at the source removes the normalisation problem from every consumer, rather than
+   asking each one to solve it again.
+3. **Declarations only.** A path this item merely reads, or compares itself against, is
+   named in prose — `**Scope:**` or `**Not in scope:**` — never here. A live proposal has
+   already named a file only as something it reads while explicitly stating in its own
+   `**Not in scope:**` that the file itself is untouched; conflating the two would have
+   made that a false positive.
+
+**Absence means "not declared," never a failure.** Every consumer degrades to that
+reading rather than failing closed — a plan without the field stays exactly as valid as
+one with it. Consequently the field is **not retrofitted**: existing plans that predate
+it are left alone rather than rewritten, and this is the decision, recorded here so it
+does not need to be re-litigated per epic.
 
 ## Worked example (shape only)
 
