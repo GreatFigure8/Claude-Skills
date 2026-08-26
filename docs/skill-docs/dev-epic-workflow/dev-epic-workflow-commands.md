@@ -8,7 +8,7 @@ These prompts provide you with a definitive way of interacting with the dev-epic
 
 ### Default Dispatch Prompt
 
-_dispatch 3 work items. If three are not available, then 2. If 2 are not available 1. If there are none available, just stop. you are to /handoff when whatever you dispatch initially is complete. Look at /Users/jonathanstevenson/Source/Oracle-Simple-Convert/docs/EPICS/handoff.md file for reference to what should be next. Execute work items that block others first. When the dispatched item is verified and pr'd, run /handoff. Remember to be quite during execution unless there is a blocker you need me to get past. Remember to use Sonnet 5 for mundane tasks that do not need deep thinking. Opus 5 should be used for all deep thinking tasks._
+_dispatch 3 work items. If three are not available, then 2. If 2 are not available 1. If there are none available, just stop. you are to /handoff when whatever you dispatch initially is complete. Look at docs/EPICS/handoff.md file for reference to what should be next. Execute work items that block others first. When the dispatched item is verified and pr'd, run /handoff. Remember to be quite during execution unless there is a blocker you need me to get past. Remember to use Sonnet 5 for mundane tasks that do not need deep thinking. Opus 5 should be used for all deep thinking tasks. DO NOT GO OUTSIDE OF YOUR REPO LOOKING FOR EPICS AND WORK ITEMS._
 
 ### Default Intake Prompt
 
@@ -20,4 +20,4 @@ The are alternate prompts for you to try in the event the default ones do not me
 
 ### Dispatch 1 Work Item at a Time
 
-_dispatch 1 work item. If there are none available, just stop. you are to /handoff when whatever you dispatch initially is complete. Look at /Users/jonathanstevenson/Source/Oracle-Simple-Convert/docs/EPICS/handoff.md file for reference to what should be next. Execute work items that block others first. When the dispatched item is verified and pr'd, run /handoff. Remember to be quite during execution unless there is a blocker you need me to get past. Remember to use Sonnet 5 for mundane tasks that do not need deep thinking. Opus 5 should be used for all deep thinking tasks._
+_dispatch 1 work item. If there are none available, just stop. you are to /handoff when whatever you dispatch initially is complete. Look at docs/EPICS/handoff.md file for reference to what should be next. Execute work items that block others first. When the dispatched item is verified and pr'd, run /handoff. Remember to be quite during execution unless there is a blocker you need me to get past. Remember to use Sonnet 5 for mundane tasks that do not need deep thinking. Opus 5 should be used for all deep thinking tasks._
