@@ -29,5 +29,6 @@ Thumbs.db
 
 # dev-epic-workflow runtime state (never committed)
 .claude/signals/
+.claude/worktrees/
 docs/epics/*/status/
 docs/epics/*/CANCEL
