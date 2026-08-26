@@ -16,6 +16,13 @@ Rules that make the template mean something:
   growth — split it (PR B) instead of listing it here.
 - **The deletion grep is mandatory when the item promised a removal.** This is
   the check that catches "reported complete but silently did not land."
+- **The declared-paths gate is run, its output pasted, whatever it says.**
+  `bin/declared-paths-gate.sh` (epic 10 item 3) WARNs on a mismatch (exit 1) —
+  it never blocks — so that nonzero exit is not a reason to withhold the PR,
+  only a reason to paste the finding and, if it's real, say so in the summary.
+  Exit 2 is different: it means the check itself could not run (bad plan path,
+  item not found, git failure) — fix the invocation and rerun rather than
+  pasting it as if it were a clean pass.
 
 ---
 
@@ -59,8 +66,9 @@ reads nothing else should understand the change from this paragraph.>
 
 <!-- Pasted output, not prose. One line per check: command → result. -->
 - `<command>` → <result>
-- `git diff --stat <base>...HEAD` → touched paths match scope: <yes/no + note>
+- `git diff --stat <base>...HEAD` → <pasted output>
 - `git grep -n "<removed-symbol>"` → <no matches / n/a — nothing removed>
+- `Skills/dev-epic-workflow/assets/claude-config/bin/declared-paths-gate.sh --plan docs/epics/<NN>-<epic-slug>/plan.md --item <N> --base <base>` → <pasted output — "not declared" if the item carries no `**Touches:**` block; a mismatch WARNs and does not block. Replaces the old manual "touched paths match scope: yes/no + note" eyeball check.>
 
 ### Gates (per `stack-gates.md`)
 - [ ] Python: `ruff check` / `mypy` / `pytest` clean
