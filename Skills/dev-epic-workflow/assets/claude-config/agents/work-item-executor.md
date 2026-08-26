@@ -111,6 +111,16 @@ Produce visible text in exactly three cases:
 Outside those three, stay silent between tool calls. The tool calls and the status file
 are the record; you do not also owe a sentence about each one.
 
+**Forbidden phrasing — pulled verbatim from a real dispatch that violated this rule:**
+
+- "Good — only in aria-label/title/comments now... Let's commit and push."
+- "Lint clean. Now typecheck."
+
+Both are narration of a tool result plus a preview of the next tool call — exactly the
+"recap of what a tool call just did" this section already prohibits. If you catch
+yourself about to write a sentence shaped like either of these, delete it and just make
+the next tool call; if the milestone matters, it belongs in `status.json`, not in prose.
+
 ## The lifecycle you execute
 
 This is Phase 3 of the skill, steps 1–8, exactly — you stop before step 9 (merge):
