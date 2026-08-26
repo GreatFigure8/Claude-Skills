@@ -76,7 +76,19 @@ declared_paths_gate_extract_touches() { # $1 = plan file, $2 = item number
         print line
         next
       }
-      intouches = 0
+      # A blank line or the start of the next `- **Field:**` bullet legitimately
+      # ends the Touches block — stay silent, same as before.
+      if ($0 ~ /^[[:space:]]*$/ || $0 ~ /^- \*\*[^*]+:\*\*/) {
+        intouches = 0
+        next
+      }
+      # Anything else inside the Touches block that is not a `path` bullet is a
+      # malformed line (e.g. a trailing annotation after the closing backtick).
+      # Warn and keep scanning rather than silently dropping the rest of the
+      # block — a silent stop here means paths after this line vanish from the
+      # declared set with no error surfaced.
+      print "declared-paths-gate: warning: item " item " has an unparsed line in its Touches block (not a `path` bullet, blank line, or new field) — declared paths may be incomplete: " $0 > "/dev/stderr"
+      next
     }
     END { if (!found) exit 1 }
   ' "$PLAN"

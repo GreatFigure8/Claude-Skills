@@ -89,6 +89,14 @@ cat_plan() {
     printf '%s\n' '### 3. no touches block'
     printf '%s\n' '- **Scope:** does stuff'
     printf '%s\n' '- **Not in scope:** nothing'
+    printf '%s\n' ''
+    printf '%s\n' '### 4. malformed touches line'
+    printf '%s\n' '- **Scope:** does stuff'
+    printf '%s\n' '- **Touches:**'
+    printf '%s\n' '  - `a.txt`'
+    printf '%s\n' '  - `foo.sh` (renamed from bar.sh)'
+    printf '%s\n' '  - `e.txt`'
+    printf '%s\n' '- **Not in scope:** nothing'
   } > "$PLAN"
 }
 cat_plan
@@ -113,6 +121,11 @@ mk_branch underreach-branch a.txt
 # both: item 2 declares a.txt, c.txt; branch touches a.txt, d.txt (c.txt
 # under-reach, d.txt over-reach, at the same time)
 mk_branch both-branch a.txt d.txt
+# malformed: item 4 declares a.txt, (a malformed bullet), e.txt; branch
+# touches exactly a.txt and e.txt — proves a malformed continuation line
+# (a `path` bullet with a trailing annotation, matching no strict pattern)
+# does not silently truncate extraction and drop e.txt from the declared set
+mk_branch malformed-branch a.txt e.txt
 
 run_gate() { # $1 script  $2 item  $3 head-branch -> stdout+stderr combined, sets RC
   GATE_OUT="$("$1" --plan "$PLAN" --item "$2" --base basepoint --head "$3" --repo "$REPO" 2>&1)"
@@ -158,6 +171,17 @@ run_gate "$GATE" "" exact-branch
 check "E2 missing --item exits 2" 2 "$RC"
 GATE_OUT="$("$GATE" --plan "$REPO/no-such-plan.md" --item 1 --base basepoint --head exact-branch --repo "$REPO" 2>&1)"; RC=$?
 check "E3 missing plan file exits 2" 2 "$RC"
+
+echo
+echo "=== F. malformed Touches line — warns, does not silently truncate ==="
+run_gate "$GATE" 4 malformed-branch
+check "F1 exit 0 — e.txt still counted as declared and touched" 0 "$RC"
+check_contains "F2 warns about the unparsed line on stderr" 1 "$GATE_OUT" \
+  "warning: item 4 has an unparsed line in its Touches block"
+check_contains "F3 does not report e.txt as touched-but-undeclared" 0 "$GATE_OUT" \
+  "touched-but-undeclared"
+check_contains "F4 does not report e.txt as declared-but-untouched" 0 "$GATE_OUT" \
+  "declared-but-untouched"
 
 echo
 echo "=== N. negative control: directions swapped must be CAUGHT ======"
