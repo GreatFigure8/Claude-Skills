@@ -100,7 +100,12 @@ declared_paths_gate_extract_touches() { # $1 = plan file, $2 = item number
 # them on principle even where not yet required). $1 minus $2, both newline-
 # separated, one entry per output line.
 _declared_paths_gate_diff_set() { # $1 = set A (newline list), $2 = set B (newline list)
-  local A="$1" B="$2" LINE FENCED_B
+  local A B LINE FENCED_B
+  # Trim leading/trailing whitespace on each line before fencing, same idiom
+  # as worktree-provision.sh's _provision_tree_clean(), so a stray trailing
+  # space on a declared or diffed path never defeats the exact-string match.
+  A="$(printf '%s' "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  B="$(printf '%s' "$2" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
   FENCED_B="
 $B
 "
