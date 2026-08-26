@@ -1,7 +1,7 @@
 # Epic: subagent output discipline on every spawn
 
 **Source:** GH #68
-**Status:** in flight (item 1 of 2)
+**Status:** in flight (item 2 of 2)
 **Live branch:** `main`   **Integration branch:** `main`   **Pre-epic tag:** n/a — documentation and one fixture; revert the merge commit
 
 ## Outcome
@@ -19,7 +19,7 @@ Every subagent this skill spawns — the `work-item-executor` and the ad-hoc one
 
 ## Work items
 
-### 1. One output-discipline rule, applied to every spawn
+### 1. One output-discipline rule, applied to every spawn — done, merged `14dd9f4`
 - **Branch:** `docs/subagent-output-discipline-every-spawn`
 - **Depends on:** none
 - **Scope:** `Skills/dev-epic-workflow/SKILL.md` — add a named **Output discipline** block in Phase 3, stated once, scoped to *any* subagent the orchestrator spawns, and add the clause to the dispatch payload list at `:100` so an ad-hoc spawn with no agent file still receives it. `Skills/dev-epic-workflow/assets/claude-config/agents/work-item-executor.md:95-112` — keep the three exceptions verbatim, replace the readability rationale ("something Jonathan has to read past") with the cost one, drop the opening that frames the transcript as visible and readable, and mark it as the same canonical rule rather than a second statement of it.
@@ -53,3 +53,4 @@ Every subagent this skill spawns — the `work-item-executor` and the ad-hoc one
 
 ## Log
 - 2026-08-26 — filed from GH #68. Approved with the mid-run "major issue" exception kept.
+- 2026-08-26 — item 1 merged (PR #69, merge commit `14dd9f4`). Verified cold against the diff: `grep -n "Output discipline" Skills/dev-epic-workflow/SKILL.md` matches, `grep -c "read past" .../work-item-executor.md` is 0, `git diff --stat` touched exactly the two claimed files. Branch/worktree removed; issue #68 checklist ticked.
