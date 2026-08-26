@@ -2,7 +2,14 @@
 # Fixture harness for COLLISION DETECTION IN ADMISSION in the unattended runner:
 #   ../../bin/unattended-intake.sh
 #
-# Epic 09 item 4. The behaviour under test, and the reason it exists:
+# Epic 09 item 4 gave admission this check. Epic 10 item 4 is this file's
+# current owner: it replaces the ORIGINAL prose extractor (tokenise
+# `**Scope:**` free text, guess which tokens are paths, drop generic ones,
+# trade recall against precision) with a reader of the structured
+# `**Touches:**` field epic 10 item 1 defined and item 2's drafter emits. This
+# suite is epic 09 item 4's own fixture suite, carried forward and re-pointed
+# at the new reader — same cases, same letters where the case still applies,
+# fixture PLAN TEXT rewritten from `**Scope:**` prose to `**Touches:**` blocks.
 #
 #   LODE #732 and #733 each worked out for themselves that they targeted the
 #   same `except` blocks in the same file, and each escalated to a human. That
@@ -18,41 +25,55 @@
 # needs-decision the proposal keeps rendering under *awaiting approval* — where
 # it can be approved without the collision ever being registered.
 #
-# WHAT COUNTS AS A DECLARATION is the hard part, and these fixtures pin every
-# decision that was measured rather than assumed (cases N, O, P replay the
-# measurement over the REAL Scope prose of live proposals #25, #26 and #50):
+# WHAT COUNTS AS A DECLARATION, under the new reader:
 #
-#   * `**Scope:**` blocks only. PR #25's *Not in scope* names `cancel-gate.sh`,
-#     which PR #26's *Scope* declares — including it manufactures a false
-#     positive on the first real pair available (case E).
-#   * Suffix matching at path-component boundaries. PR #26 writes the full
-#     `Skills/.../hooks/tests/active-epic-fixtures.sh` where PR #50 writes the
-#     short form of the same file; exact matching misses it (case D, mutant S).
-#   * Recall over precision, chosen on measurement, not taste: the leading-token
-#     rule removes the known false positives AND drops #25 <-> #50 to zero
-#     overlaps, losing a real shared file (case P proves both halves).
-#   * A denylist of exactly three structural tokens — `plan.md`, `status/`,
-#     `docs/epics/` — which appear in live Scope blocks and would otherwise
-#     collide every proposal with every other, forever (case F).
+#   * `**Touches:**` blocks only — one `- \`path\`` bullet per line, read
+#     literally. There is no tokenising and nothing left to guess at, so the
+#     whole PROSE measurement epic 10's Grounding section records (recall vs.
+#     precision, the denylist of structural tokens, English mistaken for a
+#     path) no longer applies: it was a property of parsing free text, and free
+#     text is no longer what is read. Cases N and P from the prior suite, which
+#     pinned that measurement, are gone for that reason, not forgotten.
+#   * A file named only in prose — `**Scope:**`, `**Not in scope:**`, anywhere
+#     else — is not a declaration, because prose is never read at all now
+#     (case E). PR #25's *Not in scope* naming `cancel-gate.sh`, which PR #26's
+#     *Scope* prose also names, was the first false positive the old extractor
+#     ever produced; it cannot recur because nothing outside a `**Touches:**`
+#     block is examined.
+#   * Suffix matching at path-component boundaries (`same_declared_path()`,
+#     untouched by this item) still guards against two spellings of the same
+#     file — case D, mutant S — even though item 1's rule is repo-root-relative
+#     always, because nothing enforces that rule at write time.
+#   * No denylist. `plan.md` / `status/` / `docs/epics/` existed only to filter
+#     structural nouns a prose tokeniser mistook for declarations; a
+#     `**Touches:**` block never contains a mistaken token; case F is
+#     repointed at proving that structural-sounding NOUNS IN PROSE (as opposed
+#     to real Touches entries) no longer even reach the comparison.
 #
 # The check runs ONLY for a `plan` recommendation. A `no-work` draft proposes no
-# edits and usually carries no Scope block at all, so running the
+# edits and usually carries no `**Touches:**` block at all, so running the
 # colliding-unknown rule over it would turn every honest no-work into a
 # needs-decision and quietly delete epic 09 item 1's outcome (case G).
 #
 # Cases:
-#   A  two proposals declaring the SAME file -> the second is downgraded to
-#      needs-decision, naming the first, in the header, the plan body, the PR
-#      title, the PR body, its own issue comment and the counterpart's issue
+#   A  two proposals declaring the SAME file (via Touches) -> the second is
+#      downgraded to needs-decision, naming the first, in the header, the plan
+#      body, the PR title, the PR body, its own issue comment and the
+#      counterpart's issue
 #   B  two proposals declaring DISJOINT files -> completely unaffected
-#   C  the real LODE #730/#731 pair, with every trace of the drafters' own
-#      collision reasoning stripped out -> still detected, from Scope alone
-#   D  suffix normalisation: a full path and a short path for the same file
-#   E  a file named only in `**Not in scope:**` is not a declaration
-#   F  `plan.md` / `status/` / `docs/epics/` do not collide anything
+#   C  the real LODE #730/#731 pair, re-declared via Touches with every trace
+#      of the drafters' own collision reasoning stripped out -> still detected
+#   D  suffix normalisation: a full path and a short path for the same file,
+#      each in its own Touches block
+#   E  a file named only in prose (Scope or Not in scope) is not a declaration
+#      — it is simply absent from the Touches block, not filtered out
+#   F  structural nouns (`plan.md`, `status/`, `docs/epics/`) appearing in
+#      PROSE do not collide anything, because prose is never read; a real
+#      Touches entry naming one of them WOULD collide (there is no denylist)
 #   G  a `no-work` draft is not checked and is not downgraded
-#   H  a `plan` draft whose Scope names no file at all -> colliding-unknown,
-#      downgraded rather than passed silently
+#   H  a `plan` draft with no `**Touches:**` block at all -> colliding-unknown,
+#      downgraded rather than passed silently — every proposal that predates
+#      this epic lands here
 #   I  the open-proposal query fails -> publishes anyway, and says so
 #   J  a counterpart plan that cannot be read -> logged, never silent, and the
 #      other counterpart is still compared
@@ -63,13 +84,21 @@
 #      little the fresh draft declares — there is nothing to rule out
 #   U  the drafter produced no plan file at all -> unknown, published loudly,
 #      and emphatically NOT a downgrade of a plan that is not there
-#   N  declared_paths() replayed over the REAL Scope prose of #25, #26, #50
-#   O  same_declared_path() boundary table
-#   P  the precision/recall measurement, replayed: the shipped rule finds
-#      #25 <-> #50, the rejected leading-token rule finds nothing
-#   Q  control flow: the check sits after the REC block and before gh pr create
+#   N  declared_paths() replayed directly over structured Touches text: one
+#      block, several blocks unioned across work items, a block that declares
+#      nothing, and a malformed line inside a block that is skipped rather than
+#      truncating what follows
+#   O  same_declared_path() boundary table (unchanged machinery, re-verified)
+#   Q  control flow: the check sits after the REC block and before gh pr create;
+#      the prose extractor and its denylist are GONE, not dormant
 #   R  mutant: delete the downgrade and case A publishes at `plan` again
 #   S  mutant: delete suffix matching and case D stops colliding
+#   V  the actual live proposals #25, #26 and #50 (verbatim plan text, fetched
+#      2026-08-26), which predate this epic and carry no `**Touches:**` block
+#      today, land on colliding-unknown exactly as the invariant requires; a
+#      simulated version of each carrying the field it does not have yet finds
+#      the same true collisions the old extractor found and neither of its two
+#      known false positives — the epic's own verification bullet, replayed
 #
 # SANDBOX DISCIPLINE (GH #15 is open: a fixture harness in this repo has already
 # escaped its sandbox and committed a real working tree). This harness:
@@ -84,11 +113,14 @@
 #     with silence would make every case below pass while testing nothing.
 #     See STUB UNANSWERED at the end.
 #   - fingerprints the repo it lives in before and after
+#   - case V's "live proposal" text is embedded VERBATIM as of the fetch date
+#     named above — a static heredoc, not a network call at test time, exactly
+#     like the prior suite's `pr25.md`/`pr26.md`/`pr50.md` embeds
 #
 # Usage:  bash Skills/dev-epic-workflow/assets/claude-config/hooks/tests/intake-collision-fixtures.sh
 #         INTAKE_FIXTURE_SCRIPT=/path/to/other-unattended-intake.sh bash ...
-#           (the override exists so this suite can be run against the PRE-ITEM-4
-#            script as a negative control; it must NOT pass there)
+#           (the override exists so this suite can be run against the
+#            PRE-ITEM-4 script as a negative control; it must NOT pass there)
 # Exit:   0 = every case matched its expectation, 1 = at least one mismatch.
 
 set -u
@@ -441,7 +473,10 @@ Fixture.
 
 ### 1. Alpha
 - **Branch:** `feat/alpha`
-- **Scope:** `src/alpha.ts` — rewrite the thing; also `docs/alpha-notes.md`.
+- **Scope:** rewrite the thing; also touches the release notes.
+- **Touches:**
+  - `src/alpha.ts`
+  - `docs/alpha-notes.md`
 - **Not in scope:** `src/beta.ts`, which belongs to another epic.
 
 ## Log
@@ -462,7 +497,10 @@ Fixture.
 
 ### 1. Beta
 - **Branch:** `feat/beta`
-- **Scope:** `src/beta.ts` — rewrite the other thing; also `docs/beta-notes.md`.
+- **Scope:** rewrite the other thing; also touches the release notes.
+- **Touches:**
+  - `src/beta.ts`
+  - `docs/beta-notes.md`
 - **Not in scope:** `src/alpha.ts`.
 
 ## Log
@@ -484,7 +522,9 @@ Fixture.
 
 ### 1. Alpha, again
 - **Branch:** `feat/alpha-twin`
-- **Scope:** `src/alpha.ts` — a different change to the same file.
+- **Scope:** a different change to the same file.
+- **Touches:**
+  - `src/alpha.ts`
 - **Not in scope:** everything else.
 
 ## Log
@@ -492,7 +532,8 @@ Fixture.
 P
 
 # The suffix-normalisation pair (case D): the SAME file, written long and short,
-# exactly as live proposals #26 and #50 write it.
+# each in its own Touches block, exactly as live proposals #26 and #50 write it
+# in their (still prose-only) Scope today.
 cat > "$PLANS/long-path.md" <<'P'
 # Epic: long
 
@@ -503,9 +544,9 @@ cat > "$PLANS/long-path.md" <<'P'
 ## Work items
 
 ### 1. Long
-- **Scope:**
-  - `Skills/dev-epic-workflow/assets/claude-config/hooks/tests/active-epic-fixtures.sh` —
-    extend section H.
+- **Scope:** extend section H.
+- **Touches:**
+  - `Skills/dev-epic-workflow/assets/claude-config/hooks/tests/active-epic-fixtures.sh`
 P
 
 cat > "$PLANS/short-path.md" <<'P'
@@ -518,11 +559,14 @@ cat > "$PLANS/short-path.md" <<'P'
 ## Work items
 
 ### 1. Short
-- **Scope:**
-  - `hooks/tests/active-epic-fixtures.sh` — a new case for the orphan bucket.
+- **Scope:** a new case for the orphan bucket.
+- **Touches:**
+  - `hooks/tests/active-epic-fixtures.sh`
 P
 
-# Case E: the file is named ONLY in Not in scope. It must not be a declaration.
+# Case E: the file is named ONLY in prose (Scope and Not in scope). Neither is a
+# `**Touches:**` block, so neither is read at all — not filtered, simply never
+# examined.
 cat > "$PLANS/mentions-only.md" <<'P'
 # Epic: mentions
 
@@ -533,12 +577,17 @@ cat > "$PLANS/mentions-only.md" <<'P'
 ## Work items
 
 ### 1. Mentions
-- **Scope:** `src/gamma.ts` only.
+- **Scope:** touches `src/gamma.ts` only; separately discusses `hooks/cancel-gate.sh`
+  and `src/alpha.ts` below, neither of which this item changes.
+- **Touches:**
+  - `src/gamma.ts`
 - **Not in scope:** any change to `hooks/cancel-gate.sh` or `src/alpha.ts`
   themselves — this item only reads what they already write.
 P
 
-# Case F: generic structural tokens plus one real, disjoint file each.
+# Case F: structural nouns named in PROSE (Scope, Outcome) do not collide
+# anything, because prose is never read at all — there is no denylist to do the
+# filtering, because nothing reaches the comparison for filtering to matter.
 cat > "$PLANS/generic-a.md" <<'P'
 # Epic: generic a
 
@@ -546,11 +595,17 @@ cat > "$PLANS/generic-a.md" <<'P'
 **Recommendation:** plan
 **Source:** GH #0
 
+## Outcome
+Touches this epic's own `plan.md`, its `status/` tree and the `docs/epics/`
+folder in the sense that every epic does; the real edit is elsewhere.
+
 ## Work items
 
 ### 1. Generic A
-- **Scope:** `src/alpha.ts`, plus this epic's own `plan.md`, its `status/` tree
-  and the `docs/epics/` folder.
+- **Scope:** the real change, discussed above only in passing relative to
+  `plan.md`, `status/` and `docs/epics/`.
+- **Touches:**
+  - `src/alpha.ts`
 P
 
 cat > "$PLANS/generic-b.md" <<'P'
@@ -560,14 +615,20 @@ cat > "$PLANS/generic-b.md" <<'P'
 **Recommendation:** plan
 **Source:** GH #0
 
+## Outcome
+Touches this epic's own `plan.md`, its `status/` tree and the `docs/epics/`
+folder in the sense that every epic does; the real edit is elsewhere.
+
 ## Work items
 
 ### 1. Generic B
-- **Scope:** `src/beta.ts`, plus this epic's own `plan.md`, its `status/` tree
-  and the `docs/epics/` folder.
+- **Scope:** the real change, discussed above only in passing relative to
+  `plan.md`, `status/` and `docs/epics/`.
+- **Touches:**
+  - `src/beta.ts`
 P
 
-# Case G: an honest no-work draft. No Scope block at all, by construction.
+# Case G: an honest no-work draft. No Touches block at all, by construction.
 cat > "$PLANS/no-work.md" <<'P'
 # Epic: nothing to do here
 
@@ -582,7 +643,8 @@ Already fixed by PR #12. There is nothing for an approved epic to dispatch.
 - fixture
 P
 
-# Case H: a `plan` whose Scope block names no file at all.
+# Case H: a `plan` with no `**Touches:**` block anywhere — every proposal that
+# predates this epic looks exactly like this.
 cat > "$PLANS/undeclared.md" <<'P'
 # Epic: vague
 
@@ -598,11 +660,14 @@ cat > "$PLANS/undeclared.md" <<'P'
 P
 
 # ---- the real LODE #730 / #731 pair, WITH THE DRAFTERS' OWN COLLISION
-# ---- REASONING STRIPPED OUT. Both plans detected this collision themselves and
-# ---- said so at length — in Grounding, in Risks and in Deferred. None of that
-# ---- prose is here: what follows is the `**Scope:**` blocks, verbatim, and a
-# ---- header. If admission still detects the pair from this, it does not depend
-# ---- on the drafter having noticed. (DoD clause 3.)
+# ---- REASONING STRIPPED OUT, and re-declared via `**Touches:**` rather than
+# ---- via the Scope prose both plans actually shipped with (neither carries the
+# ---- field; this simulates what each would look like once it did, same as
+# ---- case V does for the three live proposals). Both plans detected this
+# ---- collision themselves and said so at length — in Grounding, in Risks and
+# ---- in Deferred. None of that prose is here. If admission still detects the
+# ---- pair from a bare Touches block, it does not depend on the drafter having
+# ---- noticed. (DoD clause 3.)
 cat > "$PLANS/lode-730-stripped.md" <<'P'
 # Epic: Invalid query error surfaced to user as generic 502
 
@@ -613,28 +678,10 @@ cat > "$PLANS/lode-730-stripped.md" <<'P'
 ## Work items
 
 ### 2. Classify invalid-query failures and say so
-- **Scope:**
-  - `apps/api/src/api/routes/lookups.py`: add a small classifier (e.g.
-    `_is_invalid_query_error(exc: McpToolError) -> bool`) checking `exc.code`
-    against a short allow-list (populated once a real value is confirmed —
-    see Open question) and/or the exception text against a fixed set of
-    known invalid-query signatures (the ORA- codes and exception-class names
-    listed in Grounding, plus the observed
-    `PublicReportService::generateReport ... failed: due to oracle`
-    BIP-SQL-Runner wrapper shape).
-  - In `execute()`, split the current `except McpError as exc` (line 97-99)
-    into: `except McpToolError as exc` — log the real exception server-side,
-    then raise `HTTPException(502, detail=<invalid-query sentence>)` if
-    classified, else `HTTPException(502, detail=<short neutral sentence>)` —
-    placed **before** a residual `except McpError as exc` branch that keeps
-    today's behavior for the other `McpError` subtypes
-    (`McpAuthError`/`McpProtocolError`/`McpResultTooLargeError`) unchanged.
-  - Mirror the same three-way split in `execute_across()`'s
-    `except (McpConfigError, RuntimeError, McpError)` branch (lines 189-195):
-    `McpToolError` gets its own arm producing the same two possible
-    `ServerProbeResult.error` strings, still logged; other `McpError`
-    subtypes keep today's `str(exc)` behavior.
-  - No frontend change (confirmed in Grounding).
+- **Scope:** add a classifier for invalid-query failures in `lookups.py` and
+  route both `execute()` and `execute_across()` through it. No frontend change.
+- **Touches:**
+  - `apps/api/src/api/routes/lookups.py`
 - **Not in scope:** auto-correcting the user's SQL.
 P
 
@@ -648,19 +695,10 @@ cat > "$PLANS/lode-731-stripped.md" <<'P'
 ## Work items
 
 ### 1. Friendly, logged query-failure message on both lookup routes
-- **Scope:**
-  - `apps/api/src/api/routes/lookups.py`: import `McpToolError`; in `execute()`,
-    add an `except McpToolError` branch **before** the existing `except McpError`
-    branch that (a) logs the real exception server-side (`logger.warning` or
-    `.exception`, matching the pattern already used two lines below for the
-    unexpected-`Exception` branch) and (b) raises `HTTPException(502, detail=<short
-    generic sentence>)` — no `str(exc)` in the detail. Mirror the same split in
-    `execute_across()`'s `except (McpConfigError, RuntimeError, McpError)` branch:
-    give `McpToolError` its own arm with the same friendly text in the per-server
-    `error` field, still logged.
-  - No frontend change expected: `RuleChatEditor.tsx`'s `compileError` and
-    `CompareAcrossServers.tsx`'s `result.error` already render whatever string the
-    backend sends — fixing the backend's `detail`/`error` text is sufficient.
+- **Scope:** add a friendly, logged `McpToolError` branch to both `execute()`
+  and `execute_across()` in `lookups.py`. No frontend change expected.
+- **Touches:**
+  - `apps/api/src/api/routes/lookups.py`
 - **Not in scope:** parsing the Oracle error code out of the fault text.
 P
 
@@ -743,7 +781,7 @@ check "B: the counterpart plan WAS actually fetched (not skipped)" "yes" \
 echo
 echo "=== C. the real LODE #730 / #731 pair, collision reasoning stripped ====="
 echo "    (both drafters detected this themselves and wrote paragraphs about"
-echo "     it; none of that prose is in these fixtures — only Scope blocks)"
+echo "     it; none of that prose is in these fixtures — only Touches blocks)"
 D="$(mkcase C)"
 set_issues "$D" 730
 cp "$PLANS/lode-730-stripped.md" "$D/draft.md"
@@ -766,8 +804,9 @@ check "C: and the counterpart issue was told"     "yes" \
 
 echo
 echo "=== D. suffix normalisation: the same file, long path and short ========"
-echo "    (PR #26 writes Skills/.../hooks/tests/x.sh where PR #50 writes"
-echo "     hooks/tests/x.sh — exact-string matching misses the pair entirely)"
+echo "    (PR #26's Touches would write Skills/.../hooks/tests/x.sh where"
+echo "     PR #50's would write hooks/tests/x.sh — exact-string matching"
+echo "     misses the pair entirely; suffix matching is unchanged by item 4)"
 D="$(mkcase D)"
 set_issues "$D" 92
 cp "$PLANS/short-path.md" "$D/draft.md"
@@ -778,9 +817,9 @@ check "D: reported as the SHORTER common suffix"  "yes" \
       "$(yesno inpr "$D" '`hooks/tests/active-epic-fixtures.sh`')"
 
 echo
-echo "=== E. a file named only in 'Not in scope' is not a declaration ========="
-echo "    (PR #25's Not-in-scope names cancel-gate.sh, which PR #26 declares —"
-echo "     the first false positive any wider reading would manufacture)"
+echo "=== E. a file named only in prose is not a declaration =================="
+echo "    (mentioned in Scope AND in Not-in-scope; neither is a Touches block,"
+echo "     so neither is read — the mention-vs-declaration line, structurally)"
 D="$(mkcase E)"
 set_issues "$D" 93
 cp "$PLANS/mentions-only.md" "$D/draft.md"
@@ -790,9 +829,11 @@ check "E: src/alpha.ts in Not-in-scope does not collide" "plan" "$(title_rec "$D
 check "E: the plan file is untouched"             "plan" "$(file_rec "$D" 93)"
 
 echo
-echo "=== F. plan.md / status/ / docs/epics/ collide nothing =================="
-echo "    (all three appear as Scope tokens in live proposal #50; under suffix"
-echo "     matching they would otherwise collide every proposal, forever)"
+echo "=== F. plan.md / status/ / docs/epics/ named in PROSE collide nothing ===="
+echo "    (all three appear in live proposal #50's Scope prose; the OLD prose"
+echo "     extractor needed a denylist to keep them from colliding every"
+echo "     proposal forever — the new reader needs none, because prose is"
+echo "     never examined at all)"
 D="$(mkcase F)"
 set_issues "$D" 94
 cp "$PLANS/generic-b.md" "$D/draft.md"
@@ -804,7 +845,7 @@ check "F: and it is not because nothing was compared" "yes" \
 
 echo
 echo "=== G. a no-work draft is not checked, and is not downgraded ============"
-echo "    (it proposes no edits and carries no Scope block; running the"
+echo "    (it proposes no edits and carries no Touches block; running the"
 echo "     colliding-unknown rule over it would delete item 1's outcome)"
 D="$(mkcase G)"
 set_issues "$D" 95
@@ -818,9 +859,10 @@ check "G: and the runner says why it skipped the check" "yes" \
 check "G: no proposal was even enumerated"        "no"  "$(yesno called "$D" '^gh pr list')"
 
 echo
-echo "=== H. a plan that declares no files is colliding-unknown ==============="
-echo "    (an empty declaration is not evidence of no overlap — the epic's"
-echo "     Risks table says so, and it is the one case that fails loud)"
+echo "=== H. a plan with no Touches block at all is colliding-unknown =========="
+echo "    (an absent declaration is not evidence of no overlap — epic 10 item 4's"
+echo "     own Scope says so explicitly, and it is the one case that fails loud;"
+echo "     every proposal that predates this epic looks exactly like this)"
 D="$(mkcase H)"
 set_issues "$D" 96
 cp "$PLANS/undeclared.md" "$D/draft.md"
@@ -829,7 +871,7 @@ RC="$(run_intake "$D")"
 check "H: downgraded rather than passed silently" "needs-decision" "$(title_rec "$D")"
 check "H: the plan file says so too"              "needs-decision" "$(file_rec "$D" 96)"
 check "H: the reason is stated, not implied"      "yes" \
-      "$(yesno inpr "$D" 'declares no files or modules in any Scope block')"
+      "$(yesno inpr "$D" 'carries no `**Touches:**` block')"
 check "H: no counterpart was named (there is none)" "no" \
       "$(yesno called "$D" '^gh issue comment 77 ')"
 
@@ -938,94 +980,75 @@ check "U: the counterpart issue was not told anything" "no" \
 
 # ============================================================================
 # The extractor, exercised directly. Cases A-M prove the runner wires it up;
-# these prove the thing being wired up reads real prose correctly. The functions
-# are lifted OUT OF THE SCRIPT UNDER TEST rather than restated here, so a change
-# to the script is a change to what these assert.
-eval "$(sed -n "/^DECLARED_PATH_DENY_RE=/p" "$SCRIPT")"
-eval "$(awk '/^normalise_declared_paths\(\) \{/,/^}/' "$SCRIPT")"
+# these prove the thing being wired up reads a `**Touches:**` block correctly.
+# The functions are lifted OUT OF THE SCRIPT UNDER TEST rather than restated
+# here, so a change to the script is a change to what these assert. Only
+# `declared_paths` and `same_declared_path` are lifted — `normalise_declared_paths`
+# and `DECLARED_PATH_DENY_RE` no longer exist in the script, by design (case Q
+# asserts that directly), so lifting them would be an ERROR, not a skip.
 eval "$(awk '/^declared_paths\(\) \{/,/^}/' "$SCRIPT")"
 eval "$(awk '/^same_declared_path\(\) \{/,/^}/' "$SCRIPT")"
-for FN in normalise_declared_paths declared_paths same_declared_path; do
+for FN in declared_paths same_declared_path; do
   command -v "$FN" >/dev/null 2>&1 || {
-    echo "ERROR: could not lift $FN out of $SCRIPT — cases N/O/P would test" >&2
+    echo "ERROR: could not lift $FN out of $SCRIPT — cases N/O would test" >&2
     echo "       nothing at all, so this is a hard failure, not a skip." >&2
     exit 1; }
 done
-[ -n "${DECLARED_PATH_DENY_RE:-}" ] || { echo "ERROR: no DECLARED_PATH_DENY_RE" >&2; exit 1; }
+for FN in normalise_declared_paths; do
+  command -v "$FN" >/dev/null 2>&1 && {
+    echo "ERROR: $FN still exists in $SCRIPT — the prose extractor was supposed" >&2
+    echo "       to be DELETED, not left dormant (epic 10 item 4 DoD)" >&2
+    exit 1; }
+done
 
-PROSE="$SANDBOX/prose"; sandboxed "$PROSE"; mkdir -p "$PROSE"
-
-# VERBATIM from live proposal PR #25 (issue 15). The wrapped comma list in the
-# first bullet is the whole reason the recall question exists.
-cat > "$PROSE/pr25.md" <<'P'
-- **Scope:**
-  - `hooks/tests/cancel-gate-fixtures.sh`, `hooks/tests/lifecycle-fixtures.sh`,
-    `hooks/tests/active-epic-fixtures.sh`: port `session-start-fixtures.sh`'s `sandboxed()`
-    function verbatim (or the minimal adaptation each script's helper shapes require), and call
-    it at the top of every function that builds a path later used by a mutating command
-    (`mkrepo`/`mkorch`, `sentinel_reset`, `exec_status`, `commit_all`-equivalents, and any inline
-    `: >`, `printf … >`, `rm -f`, `mkdir -p` against a constructed path).
-  - In all three, rename `check()`'s verdict variable from `R` to `VERDICT` (matching
-    `session-start-fixtures.sh`), closing the collision class at its root rather than only
-    guarding against its one known symptom.
-- **Not in scope:** the `agent_id`-extraction duplication across hooks, the `hooks/lib/`
-  shared-source idea, branch-selector cancel semantics, and any change to the hooks under test
-  themselves (`cancel-gate.sh`, `subagent-lifecycle.sh`, `subagent-tool-logger.sh`) — all
-  pre-existing deferred items, untouched here.
-P
-
-# VERBATIM from live proposal PR #26 (issue 12).
-cat > "$PROSE/pr26.md" <<'P'
-- **Scope:**
-  - `Skills/dev-epic-workflow/assets/claude-config/hooks/tests/active-epic-fixtures.sh` —
-    extend section H ("the two hooks agree") from a pairwise `cmp` between
-    `subagent-lifecycle.sh` and `subagent-tool-logger.sh` to a three-way check that also
-    extracts and compares the `BEGIN/END active-epic resolution` block now present in
-    `cancel-gate.sh`, so drift in any of the three is caught the same way drift between the
-    original two already is.
-- **Not in scope:** any change to `subagent-lifecycle.sh` or `subagent-tool-logger.sh`
-  themselves (this item only reads what they already write).
-P
-
-# VERBATIM from live proposal PR #50 (issue 48).
-cat > "$PROSE/pr50.md" <<'P'
-- **Scope:**
-  - `subagent-lifecycle.sh` and `subagent-tool-logger.sh` — inside the shared resolution block:
-    when no pointer, no `in flight` plan, and no `approved` plan resolved, telemetry is
-    written under `$REPO_ROOT/.claude/signals/orphan-telemetry/` instead of any epic's own `status/`
-    tree — same file shapes as today (`agent-<id>.log` brackets and tool lines, `.agents/<id>.json`
-    bindings), so nothing downstream has to learn a new format.
-  - `hooks/tests/active-epic-fixtures.sh` — flip the four affected expectations in section N pass
-    `p2` from `third` to `running`; update section F's no-`Status:`-line case.
-  - `docs/epics/` and each epic's `plan.md` and `status/` tree are named here only because the
-    resolver walks them.
-P
+TOUCHES="$SANDBOX/touches"; sandboxed "$TOUCHES"; mkdir -p "$TOUCHES"
 
 echo
-echo "=== N. declared_paths() over the REAL Scope prose of #25 / #26 / #50 ===="
-check "N: #25 — the wrapped comma list is fully read" \
-      "hooks/tests/active-epic-fixtures.sh hooks/tests/cancel-gate-fixtures.sh hooks/tests/lifecycle-fixtures.sh session-start-fixtures.sh" \
-      "$(declared_paths < "$PROSE/pr25.md" | tr '\n' ' ' | sed -e 's/ $//')"
-check "N: #25 — Not-in-scope names cancel-gate.sh and it is NOT declared" "0" \
-      "$(declared_paths < "$PROSE/pr25.md" | grep -cx 'cancel-gate.sh' | tr -d ' ')"
-check "N: #25 — nor is hooks/lib/, also Not-in-scope only" "0" \
-      "$(declared_paths < "$PROSE/pr25.md" | grep -c 'hooks/lib' | tr -d ' ')"
-check "N: #25 — prose identifiers are not paths (mkrepo, check, VERDICT, R)" "0" \
-      "$(declared_paths < "$PROSE/pr25.md" | grep -cE '^(mkrepo|mkorch|check|VERDICT|R|sentinel_reset)$' | tr -d ' ')"
-check "N: #26 — the full path is read, and so is the cost of recall" \
-      "Skills/dev-epic-workflow/assets/claude-config/hooks/tests/active-epic-fixtures.sh cancel-gate.sh subagent-lifecycle.sh subagent-tool-logger.sh" \
-      "$(declared_paths < "$PROSE/pr26.md" | tr '\n' ' ' | sed -e 's/ $//')"
-check "N: #50 — plan.md, status/ and docs/epics/ are all denied" "0" \
-      "$(declared_paths < "$PROSE/pr50.md" | grep -cxE 'plan\.md|status|docs/epics' | tr -d ' ')"
-check "N: #50 — but the real files it declares survive" \
-      "\$REPO_ROOT/.claude/signals/orphan-telemetry .agents hooks/tests/active-epic-fixtures.sh subagent-lifecycle.sh subagent-tool-logger.sh" \
-      "$(declared_paths < "$PROSE/pr50.md" | tr '\n' ' ' | sed -e 's/ $//')"
-# English that looks like a path, and version numbers, must not become one — two
-# proposals sharing nothing but prose would otherwise collide.
-printf -- '- **Scope:** rewrite the handler and/or the parser (e.g. the 4.5 path, i.e. the slow one).\n' \
-  > "$PROSE/english.md"
-check "N: and/or, e.g., i.e. and 4.5 are not declared paths" "" \
-      "$(declared_paths < "$PROSE/english.md" | tr '\n' ' ' | sed -e 's/ $//')"
+echo "=== N. declared_paths() over structured Touches text ===================="
+# One block, read literally.
+printf -- '- **Touches:**\n  - `a/one.ts`\n  - `b/two.ts`\n' > "$TOUCHES/single.md"
+check "N: a single Touches block is read whole" "a/one.ts b/two.ts" \
+      "$(declared_paths < "$TOUCHES/single.md" | tr '\n' ' ' | sed -e 's/ $//')"
+
+# Two work items, each with its own Touches block, in one plan — unioned.
+cat > "$TOUCHES/two-items.md" <<'P'
+### 1. First
+- **Touches:**
+  - `a/one.ts`
+- **Not in scope:** `z/decoy.ts`
+
+### 2. Second
+- **Touches:**
+  - `b/two.ts`
+P
+check "N: Touches blocks from every work item in the plan are unioned" \
+      "a/one.ts b/two.ts" \
+      "$(declared_paths < "$TOUCHES/two-items.md" | tr '\n' ' ' | sed -e 's/ $//')"
+
+# Not-in-scope, immediately adjacent to a real Touches block, does not leak in —
+# structurally, because it is a different field, never because of a filter.
+check "N: Not-in-scope adjacent to a Touches block does not leak in" "0" \
+      "$(declared_paths < "$TOUCHES/two-items.md" | grep -cx 'z/decoy.ts' | tr -d ' ')"
+
+# A Touches block declared with nothing under it: no paths, exactly like no
+# block at all — case H's colliding-unknown path is what a caller sees next.
+printf -- '- **Touches:**\n- **Not in scope:** everything\n' > "$TOUCHES/empty.md"
+check "N: a Touches block with nothing under it declares nothing" "" \
+      "$(declared_paths < "$TOUCHES/empty.md" | tr '\n' ' ' | sed -e 's/ $//')"
+
+# A malformed line inside the block (no closing backtick) is skipped, and does
+# NOT truncate the well-formed lines that follow it — the prior prose extractor
+# had no equivalent failure mode because free text has no "malformed" shape;
+# a structured field does, and this is what happens when a hand-edit breaks it.
+cat > "$TOUCHES/malformed.md" <<'P'
+- **Touches:**
+  - `a/one.ts`
+  - this line has no backticks at all
+  - `b/two.ts`
+P
+check "N: a malformed line is skipped, not fatal, and does not truncate" \
+      "a/one.ts b/two.ts" \
+      "$(declared_paths < "$TOUCHES/malformed.md" | tr '\n' ' ' | sed -e 's/ $//')"
 
 echo
 echo "=== O. same_declared_path(): suffixes at COMPONENT boundaries only ======"
@@ -1048,43 +1071,80 @@ check "O: recall comes from the unrooted form matching, not from the leaf" "same
       "$(sdp 'x.sh' 'b/deep/x.sh')"
 
 echo
-echo "=== P. the precision/recall trade-off, replayed and measured ============"
-echo "    (the rejected rule — only the token that LEADS a Scope bullet —"
-echo "     removes the known false positives AND loses a real collision)"
-# The rejected rule, implemented here and nowhere else, so its cost is a number
-# in this file rather than an assertion in a PR body.
-scope_lines() {
-  awk '
-    BEGIN { in_scope = 0 }
-    {
-      if (match($0, /^[[:space:]]*[-*][[:space:]]+\*\*[Ss]cope:\*\*/)) {
-        in_scope = 1; print substr($0, RSTART + RLENGTH); next }
-      if (!in_scope) next
-      if (match($0, /^[[:space:]]*[-*][[:space:]]+\*\*[^*]+:\*\*/)) { in_scope = 0; next }
-      if ($0 ~ /^[[:space:]]*$/) { in_scope = 0; next }
-      if ($0 ~ /^#/)             { in_scope = 0; next }
-      if ($0 ~ /^[^[:space:]]/)  { in_scope = 0; next }
-      print
-    }'
-}
-declared_paths_leading() {
-  FIRST=yes
-  scope_lines | while IFS= read -r L; do
-    # A "lead" is the first path-like token of a Scope BULLET: either the
-    # remainder of the `- **Scope:**` line itself (emitted first) or a nested
-    # `  - ` sub-bullet. Continuation lines are deliberately not read — that is
-    # the whole of the rejected rule, and the whole of its cost.
-    LEAD=no
-    [ "$FIRST" = yes ] && LEAD=yes
-    FIRST=no
-    case "$L" in [[:space:]]*[-*][[:space:]]*) LEAD=yes ;; esac
-    case "$L" in [-*][[:space:]]*) LEAD=yes ;; esac
-    [ "$LEAD" = yes ] || continue
-    printf '%s\n' "$L" \
-      | sed -e 's/`/ /g' -e 's![^A-Za-z0-9._/*$-]! !g' | tr ' ' '\n' \
-      | normalise_declared_paths | head -1
-  done | grep -vEi "$DECLARED_PATH_DENY_RE" | sort -u
-}
+echo "=== V. the actual live proposals #25, #26, #50 — as-is, and once they ==="
+echo "    carry the field (verbatim Scope prose fetched 2026-08-26; none of"
+echo "     the three has a Touches block today — no retrofit, by invariant)"
+LIVE="$SANDBOX/live"; sandboxed "$LIVE"; mkdir -p "$LIVE"
+
+# AS-IS, verbatim: exactly what PR #25 (issue 15), PR #26 (issue 12) and PR #50
+# (issue 48) declare in their plan.md TODAY. Prose only, no Touches block —
+# every proposal that predates this epic looks like this.
+cat > "$LIVE/pr25-asis.md" <<'P'
+- **Scope:**
+  - `hooks/tests/cancel-gate-fixtures.sh`, `hooks/tests/lifecycle-fixtures.sh`,
+    `hooks/tests/active-epic-fixtures.sh`: port `session-start-fixtures.sh`'s `sandboxed()`
+    function verbatim (or the minimal adaptation each script's helper shapes require), and call
+    it at the top of every function that builds a path later used by a mutating command.
+  - In all three, rename `check()`'s verdict variable from `R` to `VERDICT`.
+- **Not in scope:** the `agent_id`-extraction duplication across hooks, the `hooks/lib/`
+  shared-source idea, branch-selector cancel semantics, and any change to the hooks under test
+  themselves (`cancel-gate.sh`, `subagent-lifecycle.sh`, `subagent-tool-logger.sh`).
+P
+
+cat > "$LIVE/pr26-asis.md" <<'P'
+- **Scope:**
+  - `Skills/dev-epic-workflow/assets/claude-config/hooks/tests/active-epic-fixtures.sh` —
+    extend section H ("the two hooks agree") from a pairwise `cmp` between
+    `subagent-lifecycle.sh` and `subagent-tool-logger.sh` to a three-way check that also
+    extracts and compares the `BEGIN/END active-epic resolution` block now present in
+    `cancel-gate.sh`, so drift in any of the three is caught the same way drift between the
+    original two already is.
+  - `Skills/dev-epic-workflow/references/executor-control-plane.md` — update the "Residual
+    limitation" paragraph.
+- **Not in scope:** any change to `subagent-lifecycle.sh` or `subagent-tool-logger.sh`
+  themselves (this item only reads what they already write).
+P
+
+cat > "$LIVE/pr50-asis.md" <<'P'
+- **Scope:**
+  - `subagent-lifecycle.sh` and `subagent-tool-logger.sh` — inside the shared resolution block:
+    when no pointer, no `in flight` plan, and no `approved` plan resolved, telemetry is
+    written under `$REPO_ROOT/.claude/signals/orphan-telemetry/` instead of any epic's own
+    `status/` tree.
+  - `references/executor-control-plane.md` — rewrite the "Which epic, decided explicitly" list.
+  - `hooks/tests/active-epic-fixtures.sh` — flip the four affected expectations in section N.
+P
+
+for P in pr25 pr26 pr50; do
+  check "V: #$P today (as-is) declares NOTHING — no Touches block, per invariant" "" \
+        "$(declared_paths < "$LIVE/$P-asis.md" | tr '\n' ' ' | sed -e 's/ $//')"
+done
+
+# SIMULATED: what each proposal's Touches block would read once it carries the
+# field — the real declared paths only, in the same long/short spellings each
+# proposal's own author actually used. subagent-lifecycle.sh and
+# subagent-tool-logger.sh are named in #26's Scope PROSE only as the pairwise
+# comparison it extends, never in a Touches block, because #26 does not touch
+# them — its own Not-in-scope says so.
+cat > "$LIVE/pr25-touches.md" <<'P'
+- **Touches:**
+  - `hooks/tests/cancel-gate-fixtures.sh`
+  - `hooks/tests/lifecycle-fixtures.sh`
+  - `hooks/tests/active-epic-fixtures.sh`
+P
+cat > "$LIVE/pr26-touches.md" <<'P'
+- **Touches:**
+  - `Skills/dev-epic-workflow/assets/claude-config/hooks/tests/active-epic-fixtures.sh`
+  - `Skills/dev-epic-workflow/references/executor-control-plane.md`
+P
+cat > "$LIVE/pr50-touches.md" <<'P'
+- **Touches:**
+  - `subagent-lifecycle.sh`
+  - `subagent-tool-logger.sh`
+  - `references/executor-control-plane.md`
+  - `hooks/tests/active-epic-fixtures.sh`
+P
+
 count_overlaps() { # $1, $2 = files of paths
   N=0
   while IFS= read -r A; do
@@ -1096,27 +1156,32 @@ count_overlaps() { # $1, $2 = files of paths
   done < "$1"
   printf '%s' "$N"
 }
-declared_paths          < "$PROSE/pr25.md" > "$PROSE/ship25"
-declared_paths          < "$PROSE/pr50.md" > "$PROSE/ship50"
-declared_paths_leading  < "$PROSE/pr25.md" > "$PROSE/lead25"
-declared_paths_leading  < "$PROSE/pr50.md" > "$PROSE/lead50"
-check "P: the SHIPPED rule finds the #25 <-> #50 collision" "1" \
-      "$(count_overlaps "$PROSE/ship25" "$PROSE/ship50")"
-check "P: on the file both really touch" "hooks/tests/active-epic-fixtures.sh" \
-      "$(grep -x 'hooks/tests/active-epic-fixtures.sh' "$PROSE/ship25" || true)"
-check "P: the REJECTED leading-token rule finds NOTHING" "0" \
-      "$(count_overlaps "$PROSE/lead25" "$PROSE/lead50")"
-check "P: because it never reads the wrapped continuation line" "0" \
-      "$(grep -c 'active-epic-fixtures' "$PROSE/lead25" | tr -d ' ')"
-check "P: the cost of recall, stated as a number: #26's two read-only files" "2" \
-      "$(declared_paths < "$PROSE/pr26.md" | grep -cE '^subagent-(lifecycle|tool-logger)\.sh$' | tr -d ' ')"
+declared_paths < "$LIVE/pr25-touches.md" > "$LIVE/set25"
+declared_paths < "$LIVE/pr26-touches.md" > "$LIVE/set26"
+declared_paths < "$LIVE/pr50-touches.md" > "$LIVE/set50"
+
+check "V: once declared, #25 <-> #50 still collide (hooks/tests/active-epic-fixtures.sh)" \
+      "1" "$(count_overlaps "$LIVE/set25" "$LIVE/set50")"
+check "V: once declared, #26 <-> #50 still collide — TWO files, long vs short spellings" \
+      "2" "$(count_overlaps "$LIVE/set26" "$LIVE/set50")"
+check "V: neither known false positive appears — #26 never declares subagent-lifecycle.sh" \
+      "0" "$(grep -cx 'subagent-lifecycle.sh' "$LIVE/set26" | tr -d ' ')"
+check "V: nor subagent-tool-logger.sh — so #26 <-> #50 cannot collide on either" "0" \
+      "$(grep -cx 'subagent-tool-logger.sh' "$LIVE/set26" | tr -d ' ')"
 
 echo
 echo "=== Q. control flow and single definition ==============================="
 check "Q: the enumeration jq is defined once"     "1" \
       "$(grep -c "^PROPOSAL_PR_JQ='" "$SCRIPT" | tr -d ' ')"
-check "Q: the denylist is defined once"           "1" \
-      "$(grep -c "^DECLARED_PATH_DENY_RE='" "$SCRIPT" | tr -d ' ')"
+check "Q: the prose denylist is GONE, not dormant (epic 10 item 4 DoD)" "0" \
+      "$(grep -c 'DECLARED_PATH_DENY_RE' "$SCRIPT" | tr -d ' ')"
+check "Q: the prose tokeniser normalise_declared_paths() is GONE too" "0" \
+      "$(grep -c 'normalise_declared_paths' "$SCRIPT" | tr -d ' ')"
+DECLARED_PATHS_BODY="$(awk '/^declared_paths\(\) \{/,/^}/' "$SCRIPT")"
+check "Q: declared_paths() itself reads Touches" "1" \
+      "$(printf '%s' "$DECLARED_PATHS_BODY" | grep -c 'Touches')"
+check "Q: and no longer mentions Scope at all" "0" \
+      "$(printf '%s' "$DECLARED_PATHS_BODY" | grep -ci 'Scope')"
 check "Q: the check is called exactly once"       "1" \
       "$(grep -c 'check_collisions "\$N"' "$SCRIPT" | tr -d ' ')"
 check "Q: the proposal branch prefix is still ONE constant" "1" \
