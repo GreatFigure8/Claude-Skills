@@ -1,7 +1,7 @@
 # Epic: subagent output discipline on every spawn
 
 **Source:** GH #68
-**Status:** in flight (item 2 of 2)
+**Status:** closed
 **Live branch:** `main`   **Integration branch:** `main`   **Pre-epic tag:** n/a — documentation and one fixture; revert the merge commit
 
 ## Outcome
@@ -54,3 +54,4 @@ Every subagent this skill spawns — the `work-item-executor` and the ad-hoc one
 ## Log
 - 2026-08-26 — filed from GH #68. Approved with the mid-run "major issue" exception kept.
 - 2026-08-26 — item 1 merged (PR #69, merge commit `14dd9f4`). Verified cold against the diff: `grep -n "Output discipline" Skills/dev-epic-workflow/SKILL.md` matches, `grep -c "read past" .../work-item-executor.md` is 0, `git diff --stat` touched exactly the two claimed files. Branch/worktree removed; issue #68 checklist ticked.
+- 2026-08-26 — item 2 merged (PR #71, merge commit `439d810`). Verified cold: diff touched exactly `SKILL.md` (one-line pointer) and the new `output-discipline-drift-fixtures.sh`; ran the fixture myself post-merge — `cases: 17 failures: 0`. Both work items done — epic closed. Confirmed live through the `~/.claude/skills/dev-epic-workflow` symlink: the Output discipline block, the drift-fixture pointer, and zero "read past" occurrences all read correctly from the installed skill.

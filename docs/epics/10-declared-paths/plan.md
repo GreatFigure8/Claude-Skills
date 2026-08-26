@@ -1,6 +1,6 @@
 # Epic: Work items declare the paths they touch
 
-**Status:** in flight (item 1 of 4)
+**Status:** in flight (item 1 of 4 done — items 2, 3, 4 all unblocked, none yet dispatched)
 **Source:** GH #57 (split out of GH #39 / epic 09 item 4)
 **Live branch:** `main`   **Integration branch:** `main`   **Pre-epic tag:** n/a — additive, every change reverts by merge-revert
 
@@ -78,7 +78,7 @@ Verified against the repo on 2026-08-21, not recalled. Every line names how it w
 
 ## Work items
 
-### 1. Define the field, and land it on every surface that defines it
+### 1. Define the field, and land it on every surface that defines it — done, merged `18d0380`
 - **Branch:** `docs/declared-paths-field`
 - **Depends on:** none
 - **Scope:** Add the field to `references/plan-template.md` with a worked example, and update the
