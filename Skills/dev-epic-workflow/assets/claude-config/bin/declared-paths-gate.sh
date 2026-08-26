@@ -58,7 +58,7 @@ declared_paths_gate_extract_touches() { # $1 = plan file, $2 = item number
   [ -f "$PLAN" ] || return 1
   awk -v item="$ITEM" '
     BEGIN { found = 0; insection = 0; intouches = 0 }
-    /^### [0-9]+\./ {
+    /^### [0-9]+[a-z]?\./ {
       n = $0
       sub(/^### /, "", n)
       sub(/\..*$/, "", n)
