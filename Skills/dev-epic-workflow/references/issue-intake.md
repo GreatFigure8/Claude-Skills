@@ -295,10 +295,10 @@ request is open and someone may be reading it.
 
 **The long-run answer is a structured field, not a better parser.** `references/plan-template.md`
 now defines exactly that: a per-work-item `**Touches:**` block, one repo-root-relative path
-per line, declarations only. Nothing reads it here yet — the drafter does not emit it and
-this collision check still parses `**Scope:**` prose, both by design until the field has a
-producer and a consumer. Once it does, a machine-readable declaration replaces this
-heuristic outright rather than refining it.
+per line, declarations only. The unattended drafter now emits it (epic 10 item 2), but
+nothing reads it here yet — this collision check still parses `**Scope:**` prose, by design
+until the field has a consumer too (epic 10 item 4). Once it does, a machine-readable
+declaration replaces this heuristic outright rather than refining it.
 
 **Routing is a human's job — and this is the contract that says so.** Nothing acts on a
 recommendation today: the runner does not approve a `plan`, does not close a `no-work`, and
