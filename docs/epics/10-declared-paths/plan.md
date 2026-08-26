@@ -1,6 +1,6 @@
 # Epic: Work items declare the paths they touch
 
-**Status:** in flight (item 1 of 4 done — items 2 (PR #74) and 3 (PR #72) open awaiting review, item 4 pending)
+**Status:** in flight (items 1 and 3 of 4 done — item 3 merged `158be6b`; item 2 (PR #74) open awaiting review; item 4 pending)
 **Source:** GH #57 (split out of GH #39 / epic 09 item 4)
 **Live branch:** `main`   **Integration branch:** `main`   **Pre-epic tag:** n/a — additive, every change reverts by merge-revert
 
@@ -129,7 +129,7 @@ Verified against the repo on 2026-08-21, not recalled. Every line names how it w
   before and after).
 - **Rollback:** revert; proposals go back to prose-only.
 
-### 3. The PR gate compares declaration against diff
+### 3. The PR gate compares declaration against diff — done, merged `158be6b`
 - **Branch:** `feat/declared-paths-gate`
 - **Depends on:** 1
 - **Scope:** A script that reads an item's declared paths and compares them against
