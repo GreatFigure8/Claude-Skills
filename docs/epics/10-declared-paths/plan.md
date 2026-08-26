@@ -1,6 +1,6 @@
 # Epic: Work items declare the paths they touch
 
-**Status:** in flight (item 4 of 4)
+**Status:** in flight (item 4 of 4 — PR #76 open, awaiting merge)
 **Source:** GH #57 (split out of GH #39 / epic 09 item 4)
 **Live branch:** `main`   **Integration branch:** `main`   **Pre-epic tag:** n/a — additive, every change reverts by merge-revert
 
@@ -147,7 +147,7 @@ Verified against the repo on 2026-08-21, not recalled. Every line names how it w
   for the absent field; a negative control showing the gate fails when the comparison is inverted.
 - **Rollback:** revert; the PR template's manual line comes back.
 
-### 4. Collision detection reads the field
+### 4. Collision detection reads the field — PR #76 open, awaiting merge
 - **Branch:** `refactor/collision-detection-reads-declarations`
 - **Depends on:** 1, **and on epic 09 item 4 having landed**
 - **Scope:** Replace item 4's prose extractor with a read of the declared block. A proposal that
