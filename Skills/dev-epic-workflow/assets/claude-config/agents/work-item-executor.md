@@ -127,7 +127,12 @@ This is Phase 3 of the skill, steps 1–8, exactly — you stop before step 9 (m
    logic change and says so.
 6. Rebase onto the integration branch immediately before opening the PR.
 7. Run every applicable gate in `references/stack-gates.md`. Report `gates-running`,
-   then `gates-passed` — or back to `implementing` with the failure in `detail`.
+   then `gates-passed` — or back to `implementing` with the failure in `detail`. As
+   part of this step, also run `Skills/dev-epic-workflow/assets/claude-config/bin/
+   declared-paths-gate.sh --plan <epic-plan-path> --item <N> --base <integration>`
+   (epic 10 item 3) and paste its output into the PR's Verification section. It
+   WARNs, it never blocks — a mismatch does not send you back to `implementing`,
+   and an item with no `**Touches:**` block reports "not declared" and exits 0.
 8. Open the PR against the integration branch using `references/pr-template.md`. If the
    plan header has a `Source:` tracker ref, include it in the PR body per
    `references/issue-intake.md` (`Part of #<n>` / `AB#<n>` — `Closes #<n>` only if the
