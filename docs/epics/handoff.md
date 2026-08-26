@@ -1,9 +1,9 @@
 # Session Handoff — epic 10 (declared paths) / item 3 merged, item 2 open
 
-**Written:** 2026-08-26T16:00:55Z
+**Written:** 2026-08-26T17:44:38Z
 **Epic:** docs/epics/10-declared-paths
 **Branch:** main (pushed: yes)
-**Last commit:** a49f5c2 docs: record the 'dispatch as many as possible' prompt variant
+**Last commit:** 6c7254b fix: add forbidden-phrasing anti-example to executor communication rule
 **Worktree:** main checkout
 
 ## Verified this session
@@ -13,10 +13,11 @@
 - **PR #72 merged** — `gh pr merge 72 --merge`, merge commit `158be6b`, confirmed via `gh pr view` (`state: MERGED`) and `git log` on `main` after a fast-forward pull. Land-and-reset completed: remote+local branch deleted, `git fetch --prune` run, item 3's own control-plane state removed (`status/agent-ac240b829e13c302a.log`, `status/agent-a7ca2472a81bb3419.log` — no `status/feat-declared-paths-gate.json` ever existed under that name). ~59 other `agent-*.log` files remain in `docs/epics/10-declared-paths/status/` from this session's many ad-hoc review/verify agents (angle finders, verifiers, item 2's fix agent) — deliberately left for epic-close cleanup rather than hand-sorted individually; they're gitignored, harmless, no action needed until Phase 5.
 - **Diagnosed and fixed a real deploy-drift issue, unrelated to epic 10, surfaced by a pasted transcript from a *different* repo (Oracle-Simple-Convert, epic 269).** `~/.claude/agents/work-item-executor.md` is installed by `install.sh` (copied, not symlinked) and had drifted one version behind this repo's source (dated Aug 24, missing the sharper "re-billed as input on every remaining turn" framing from the recent `test/subagent-output-discipline-drift` work). Re-ran `bash Skills/dev-epic-workflow/assets/claude-config/install.sh --user` twice this session — once mid-session to pick up `main`'s then-current copy, and again just now after PR #72's merge changed `work-item-executor.md` on `main` again. Confirmed identical via `diff` both times. This is machine-wide (`~/.claude/skills/dev-epic-workflow` is itself a symlink into this repo, so skill *content* never drifts — only the copied agent/hook files can, and only until `install.sh` is re-run).
 - Confirmed Oracle-Simple-Convert has no repo-local skill or agent override (`.claude/` there has no `skills/` or `agents/` dir) — it was correctly running on the machine-level install the whole time; the install was just stale.
+- **Follow-up on the narration-drift item below, this session, unrelated to epic 10**: a different pasted transcript showed a live executor narrating through nearly the whole run ("now reading X", "Lint clean. Now typecheck.", etc.) even though the installed `work-item-executor.md` was verified current — i.e. not a redeploy bug, but the model failing to comply with an already-correct, already-current instruction. Added a "Forbidden phrasing" anti-example block to the Communication discipline section (`Skills/dev-epic-workflow/assets/claude-config/agents/work-item-executor.md`), quoting the two offending lines verbatim as explicitly-forbidden phrasing. Re-ran `install.sh --user`, confirmed installed copy byte-identical to source again. Committed (`6c7254b`) and pushed. Filed [GreatFigure8/Claude-Skills#75](https://github.com/GreatFigure8/Claude-Skills/issues/75) to track this as an open, unsolved prompt-only-enforcement gap rather than something quietly closed by this patch — issue also raises whether a post-hoc transcript linter (flagging free-text lines between tool calls) is worth building as a mechanical backstop.
 
 ## Claimed but NOT yet verified
 - **PR #74 is still open, unmerged.** Its 3 fixes are pushed (`682ef1d`) and its fixture suite passes, but nobody has reviewed/approved it on GitHub yet.
-- Whether the sharper Communication-discipline wording (now correctly installed everywhere) actually reduces narration drift in a live dispatch is unproven — only provable by watching the next real executor run, not by reading files.
+- Whether the sharper Communication-discipline wording, **plus this session's added forbidden-phrasing anti-examples** (both now correctly installed everywhere), actually reduces narration drift in a live dispatch is unproven — only provable by watching the next real executor run, not by reading files. Tracked open in [#75](https://github.com/GreatFigure8/Claude-Skills/issues/75).
 - Epic 10 item 4 ("Collision detection reads the field") depends on item 1 (done) **and** on epic 09 item 4 having landed — that dependency was never re-checked this session.
 
 ## In-flight (deliberately left as a known gap, not a bug)
@@ -30,7 +31,7 @@
 
 ## Environment state
 - `.claude/signals/active-epic` = `10-declared-paths`.
-- `~/.claude/agents/work-item-executor.md` is current (identical to this repo's `main` source) as of this session's second `install.sh` run.
+- `~/.claude/agents/work-item-executor.md` is current (identical to this repo's `main` source) as of this session's third `install.sh` run (after the forbidden-phrasing anti-example addition).
 - `git worktree list` shows only the main checkout — all fix/review worktrees from this session were cleaned up.
 - No running services, no applied-but-unmerged migrations.
 
