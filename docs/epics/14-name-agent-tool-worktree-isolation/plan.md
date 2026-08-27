@@ -1,6 +1,6 @@
 # Epic: name the Agent-tool worktree-isolation mechanism in Phase 2/3
 
-**Status:** approved
+**Status:** in flight (item 1 of 1)
 **Live branch:** main
 **Integration branch:** main
 **Pre-epic tag:** n/a
