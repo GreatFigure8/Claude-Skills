@@ -158,3 +158,18 @@ Single item.
   interleaved trajectory duplicates itself from private thinking into visible text, and the
   current legalistic instruction form doesn't suppress it" (best current explanation, still not
   proven by a fair paired test).
+- 2026-08-27 — item 1 dispatched (`work-item-executor`, agent `a744f7244a64c793d`), landed
+  PR #81 (`31c46d6`), fixture and gates green, executor self-reported "no narration between
+  tool calls." Per the item's own definition of done, that self-report was independently checked
+  against the raw transcript JSONL
+  (`~/.claude/projects/-Users-jonathanstevenson-Source-claude-skills/.../subagents/agent-a744f7244a64c793d.jsonl`)
+  by a separate verification subagent, not trusted. **Result: FAILS.** 8 text blocks total, 1
+  legitimate (final return summary), 7 narration violations — the same "Now X" recap/preview
+  pattern epic 13's Forbidden-phrasing list already named, e.g. "Now let's set up the branch and
+  read the target files.", "Now run the drift fixture to check it passes.", "Now open the PR."
+  This is the third consecutive attempt (epics 12, 13, 15) that reads as fixed by grep/fixture and
+  fails on the live transcript. **PR #81 is NOT merged.** Item 1 is reported not-done per its own
+  definition of done — do not merge on "the text is present." Epic left `in flight`, open
+  question for Jonathan: whether to attempt the Deferred section's fair paired A/B test next, or
+  try a different lever entirely (e.g. a structural constraint rather than instruction wording —
+  since three wording-only attempts have now failed the same way).

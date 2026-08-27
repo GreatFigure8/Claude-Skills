@@ -1,28 +1,69 @@
-# Session Handoff — epic 15 filed and approved, ready to dispatch
+# Session Handoff — epic 15 item 1 dispatched, validation FAILED, PR #81 not merged
 
-**Written:** 2026-08-27T11:52:00Z
+**Written:** 2026-08-27T00:00:00Z (see git log for real timestamp)
 **Epic:** docs/epics/15-plain-phrasing-communication-discipline
 **Branch:** main (pushed: yes)
-**Last commit:** 36b9b6c chore(epic-15): file and approve plan — plain-phrasing Communication discipline
-**Worktree:** main checkout
-
-## Verified this session
-- Cleaned up three orphaned local `worktree-agent-*` branches (from earlier `isolation: "worktree"` dispatches whose worktrees were removed without deleting the branch) — confirmed each had zero commits ahead of `main` (`git log main..<branch>` empty) before deleting. Gone.
-- Jonathan reported the subagent output-discipline fix (epics 12 and 13) still isn't holding on real dispatches — 4th occurrence. Root-caused live rather than guessed: read the actual transcript JSONL of this session's own epic-14 dispatch and confirmed 9 narration violations in exactly the shapes epic 13's "Forbidden phrasing" list already named as banned.
-- Ran 6 diagnostic subagent dispatches to isolate the cause (full detail in `docs/epics/15-plain-phrasing-communication-discipline/plan.md` Grounding section): ruled out a Claude-Code-harness-level competing "give updates" instruction (a zero-instruction control stayed silent); ruled out `work-item-executor.md`'s file length/persona diluting the rule (the real agent type, full file, stayed silent on a scripted task); ruled out "enable extended thinking" as an available lever (it's already active — 13 thinking blocks recorded on the narrating epic-14 transcript, alongside the 9 narration blocks); found the trigger is specifically real judgment across a *long interleaved* trajectory (a single-shot judgment task stayed clean; the real 38-call dispatch didn't).
-- Tested Jonathan's own dispatch-prompt phrasing style (short, direct, single "unless there's a blocker" exception) against the current legalistic instruction on a real interleaved judgment task (audit 3 closed epics' retros against their outcomes). The plain-phrasing run executed 6 real tool calls across 3 judgment cycles with zero narration — the first clean result anywhere in the investigation on genuinely judgment-heavy work. (Not a fair paired A/B — the control run was refused by the executor as an unauthorized override attempt, so there's no matched comparison; this is a real positive signal, not proof.)
-- Filed epic 15 from that diagnosis, **already approved** by Jonathan in this session (he said "approve and run" before clearing) — replaces `work-item-executor.md`'s Communication discipline section with short plain phrasing (same three exceptions SKILL.md's canonical rule defines, no forbidden-phrasing bullet list, no violation narrative). Linked to source issue [GH #75](https://github.com/GreatFigure8/Claude-Skills/issues/75) (comment posted, labeled `epic:planned`). Committed and pushed (`36b9b6c`).
+**Last commit:** (this handoff commit, on top of 8f8018d dispatch marker)
+**Worktree:** main checkout; item worktree `.claude/worktrees/agent-a744f7244a64c793d` (branch
+`worktree-agent-a744f7244a64c793d`, item's real branch `docs/plain-phrasing-communication-discipline`
+pushed to origin, PR #81 open against `main`) — **not yet cleaned up, do not remove until the
+open question below is resolved**, since the branch/PR/worktree are evidence, not just landing
+scaffolding.
 
 ## Claimed but NOT yet verified
-- None outstanding from this session — everything above was checked against a repo command or a live subagent transcript, not recalled.
+- None outstanding — the one claim that mattered (executor's "no narration" self-report) was
+  independently checked against the raw transcript JSONL by a separate verification subagent,
+  not trusted. It failed the check. See below.
+
+## What happened this session
+1. Confirmed epic 15 (`docs/epics/15-plain-phrasing-communication-discipline/plan.md`) was the
+   only dispatchable work — single item, `approved`, no dependencies. Epic 11 is `awaiting
+   approval`, not dispatchable, and was left alone per instructions.
+2. Ran Phase 2/3 dispatch setup: refreshed `main`, pointed `.claude/signals/active-epic`, set
+   plan header to `in flight (item 1 of 1)`, moved GH #75 label `epic:planned` →
+   `epic:in-progress`, committed (`8f8018d`).
+3. Dispatched `work-item-executor` (Sonnet 5, `isolation: "worktree"`) for item 1: replace the
+   legalistic `## Communication discipline` section in
+   `Skills/dev-epic-workflow/assets/claude-config/agents/work-item-executor.md` with short plain
+   phrasing, update the drift fixture's markers to match.
+4. Executor finished clean: text replaced, drift fixture green (23 cases, 0 failures),
+   `declared-paths-gate.sh` exit 0, old "Forbidden phrasing"/"read past" text confirmed gone via
+   grep. Opened **PR #81** (`31c46d6`) against `main`, referencing GH #75. Executor's own return
+   summary claimed it did not narrate between tool calls during its own run.
+5. Per this item's own definition of done, that self-report is not sufficient — the plan requires
+   the orchestrator to independently read the real dispatch's transcript JSONL before merging.
+   Dispatched a separate verification subagent (Sonnet 5) to read
+   `agent-a744f7244a64c793d.jsonl` directly and count text/thinking blocks.
+6. **Verification result: FAILS.** 8 total text blocks, 1 legitimate (final return summary), 7
+   narration violations — the same "Now X" recap/preview pattern (e.g. "Now let's set up the
+   branch and read the target files.", "Now run the drift fixture to check it passes.", "Now open
+   the PR."). This is the **third** consecutive attempt (epics 12, 13, 15) at this exact fix that
+   reads as done by grep/fixture and fails on the live transcript.
+7. **Did not merge PR #81.** Recorded the finding in `plan.md`'s Log (full detail there, including
+   the transcript path and quoted violation lines). Plan header left at `in flight (item 1 of 1)`
+   — item 1 is reported **not done** per its own definition of done, not silently closed on "the
+   text is present."
 
 ## Exact next action
-- **Dispatch epic 15 item 1** (`docs/epics/15-plain-phrasing-communication-discipline/plan.md`, single item, branch `docs/plain-phrasing-communication-discipline`, Sonnet 5, `isolation: "worktree"`). It is `approved` and this repo's only dispatchable work.
-- **Before merging that item's PR, read its own dispatch transcript** for narration — the same way epic-14's failure was found — per the item's definition of done. If the executor building/opening its own PR still narrates, the item is genuinely done in terms of the doc edit but the *fix itself* is not verified; report that plainly rather than merging on "the text is present," which is exactly how epics 12 and 13 each looked done and weren't.
-- If a different real work item becomes available first (e.g. from `/intake` on one of the open issues below), that dispatch can serve as the validation transcript instead — the definition of done just needs one real dispatch's transcript read before merge, not necessarily this item's own.
+This is a blocker for Jonathan, not a mechanical next step — three wording-only attempts at the
+same fix have now failed identically. The plan's own Deferred section names the fallback: a fair
+paired A/B test (plain vs. legalistic phrasing, same real work item, same executor, without the
+"DIAGNOSTIC OVERRIDE" framing that tripped the executor's guardrails last time it was tried) —
+but a fourth wording attempt may not be the right lever anymore. Worth raising to Jonathan
+directly: does the pattern (self-narration surviving three independent phrasing changes) suggest
+this needs a **structural** constraint instead of an instruction — e.g. stripping `text` blocks
+from the executor's own turns programmatically, rather than asking the model not to produce them.
 
-## Environment state
-- None — no running services, no unmerged migrations, no env vars set this session. Local `main` is at `36b9b6c`, matching `origin/main`. No worktrees other than the main checkout (`git worktree list` clean).
+Do not merge PR #81 or close epic 15 until Jonathan has weighed in on that question. The item
+worktree and branch are intentionally left in place as evidence.
 
 ## Open questions for Jonathan
-- None blocking — epic 15 is approved and ready to dispatch on its own. (Carried forward, low priority, not blocking: the Agent-tool `isolation: "worktree"` branch-naming gap logged in epic 14's Deferred section — worth its own item only if it recurs.)
+- Attempt a 4th phrasing (paired A/B this time), or pivot to a structural/programmatic fix?
+- PR #81's actual diff (text replacement + fixture update) is fine on its own terms and could be
+  merged independently of the narration question if Jonathan wants the file cleanup regardless —
+  but the plan's definition of done ties merge to the live-transcript check, so that's his call to
+  override, not mine to assume.
+- Carried forward, low priority, not blocking: the Agent-tool `isolation: "worktree"` branch-
+  naming gap (worktree lands on an autogenerated branch, executor renames/recreates it itself) —
+  happened again this dispatch, still harmless, still not worth its own item unless it causes
+  real damage.
