@@ -1,6 +1,6 @@
 # Epic: L1 preconditions — make the machine able to receive what good drafting produces
 
-**Status:** in flight (item 5 of 8 only; items 1, 2, 3, 4, 6, 7 and 8 done — **item 5 is blocked, see its brief survey**)
+**Status:** closed
 **Source:** GH #39 (continues epic 08, which stopped at its item 1 on a NO-GO verdict)
 **Live branch:** per-repo (`main` here, `main` for LODE)   **Integration branch:** per-repo (`main` here, `dev` for LODE)   **Pre-epic tag:** n/a — no autonomy rung is enabled by this epic
 
@@ -474,6 +474,10 @@ reported: #795 is **open** with **four merged PRs** on branches named `*/795-*`,
 - **Depends on:** 1, 2, 3, 4 — measuring the old drafter says nothing about the fixed one
 - **BLOCKED on brief sourcing — see the survey below. As of 2026-08-21 LODE has *zero* available
   briefs: all 8 open issues carry filed epics.**
+- **CLOSED 2026-08-27 on "not measured"** — Jonathan's call per the Consequence bullet below:
+  the hard-brief sample cannot be assembled from real intake, and stripping a machine's
+  elaboration to manufacture briefs was not taken. Never dispatched; no branch, no worktree, no
+  code change.
 - **Scope:** Source **at least five genuinely under-specified briefs** — observations without a
   diagnosis, unstated constraints, real open questions — and ensure they are **not overtaken by
   attended work** while the runner drafts them (item 3's check now makes overtaking visible
@@ -759,3 +763,14 @@ header from config, refuses duplicated work, and detects collisions is better at
   ritual does not. (2) **Item 5's method now collides with item 8**: item 5 works by labelling
   issues so the runner drafts them, and item 8 skips anything already carrying an epic label,
   which narrows an already-empty brief pool further.
+- 2026-08-27 — **closed on "not measured."** Items 1–4 and 6–8 shipped and are merged on `main`.
+  Item 5 stayed blocked on brief sourcing exactly as the 2026-08-21 survey found it: the hard-brief
+  sample cannot be assembled from real intake, and constructing briefs from preserved raw notes was
+  Jonathan's call to make, not this plan's — he declined it rather than manufacture the sample.
+  Item 5 never dispatched; no branch, no worktree, no code change. L1 remains unmeasured and
+  un-enabled; a future epic that wants to enable it will need its own brief-sourcing plan, not a
+  resumption of this one.
+
+**Tracker.** GH #39 asked for the four epic-08 defects fixed and the measurement it lacked taken.
+The fixes shipped (items 1–4, 6–8); the measurement did not (item 5, closed not-measured). Left to
+Jonathan whether that closes #39 outright or leaves it open pending a future brief-sourcing epic.
