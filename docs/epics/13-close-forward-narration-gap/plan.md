@@ -1,6 +1,6 @@
 # Epic: close the forward-narration gap in subagent output discipline
 
-**Status:** approved
+**Status:** closed
 **Live branch:** main
 **Integration branch:** main
 **Pre-epic tag:** n/a
@@ -47,3 +47,9 @@ Single item.
 
 ## Log
 - 2026-08-27 — epic filed from GH #75, second live-dispatch evidence attached as a comment.
+- 2026-08-27 — item 1 dispatched to a Sonnet-5 `work-item-executor`; PR #78 opened, verified cold against `main...HEAD` diff (matches scope exactly: 3 anti-examples + disclaimer + 4 fixture markers), drift fixture re-run clean (`cases: 25 failures: 0`), merged to `main` (`4f53b38`). Epic closed — single item, no deferrals beyond the mechanical-linter item already recorded.
+
+### Retro
+- What got split: nothing — single-item epic, matched its sizing heuristic.
+- What got deferred: mechanical narration linter (GH #75's own open question), unchanged from the plan's original Deferred entry.
+- What surprised us: the dispatched executor didn't create a git worktree per Phase 2 — it checked the branch out directly in the orchestrator's shared main checkout, which left the orchestrator's `main` pointed at the item branch until land-and-reset caught it. No damage this time (orchestrator did no concurrent writes to `main` mid-item), but it's the exact hazard Phase 2 names from epic 01/GH #3. Worth checking the `work-item-executor` agent definition for whether it's actually invoking worktree creation before its next dispatch.
