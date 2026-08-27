@@ -1,6 +1,7 @@
 # Epic: replace the legalistic Communication discipline section with plain phrasing
 
-**Status:** in flight (item 1 of 1)
+**Status:** closed (superseded — see Log; GH #75 remains open, to be addressed by a new
+structural-fix epic)
 **Live branch:** main
 **Integration branch:** main
 **Pre-epic tag:** n/a
@@ -173,3 +174,27 @@ Single item.
   question for Jonathan: whether to attempt the Deferred section's fair paired A/B test next, or
   try a different lever entirely (e.g. a structural constraint rather than instruction wording —
   since three wording-only attempts have now failed the same way).
+- 2026-08-27 — Jonathan's decision: go structural, not a fourth wording attempt. Before
+  drafting a plan, researched what's actually available to intercept or strip a subagent's
+  freestanding text content blocks programmatically. Checked live against the real docs (not
+  memory) — Claude Code's Hooks Reference (https://code.claude.com/docs/en/hooks) and the Claude
+  Agent SDK Hooks docs (https://code.claude.com/docs/en/agent-sdk/hooks): neither exposes
+  block-level interception. The only hook that touches assistant text at all
+  (`MessageDisplay`) is explicitly display-only/read-only; every other hook (`PreToolUse`,
+  `PostToolUse`, `Stop`, `SubagentStart`/`SubagentStop`, `PreCompact`, etc.) fires around tool
+  calls or session boundaries, never on message content. **Confirmed: the only way to actually
+  strip text blocks before they re-enter a subagent's own context is to bypass the Task/Agent
+  tool's built-in dispatch loop entirely and drive the raw Anthropic Messages API in a custom
+  loop** — owning the conversation array directly, filtering text blocks out of each assistant
+  turn before appending it to history. This is materially bigger than the three prior attempts:
+  a bespoke executor harness (replicating tool execution, permissions, context management that
+  the Task tool currently provides for free), not a prompt edit. Presented this trade-off to
+  Jonathan; he chose to build it, starting next session ("we're going to do 1 after a clear").
+  **This epic (15) is closed as superseded** — its scoped outcome (fix via wording) is
+  abandoned, not achieved; GH #75 (the underlying narration problem) stays open and will be
+  re-scoped under a new epic for the custom Messages-API executor loop. **PR #81 is left open,
+  unmerged** — its diff (the plain-phrasing text replacement plus fixture update) is
+  functionally moot once text-block stripping is programmatic, but closing or merging it is
+  Jonathan's call, not decided here. GH #75's label (`epic:in-progress`) is left as-is rather
+  than guessed at; the next session's Phase 1 filing of the new epic should resolve it properly,
+  per the skill's own filing-updates-tracker rule.

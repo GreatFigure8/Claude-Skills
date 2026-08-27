@@ -1,69 +1,84 @@
-# Session Handoff — epic 15 item 1 dispatched, validation FAILED, PR #81 not merged
+# Session Handoff — epic 15 closed (superseded); next: file structural-fix epic
 
-**Written:** 2026-08-27T00:00:00Z (see git log for real timestamp)
-**Epic:** docs/epics/15-plain-phrasing-communication-discipline
+**Written:** 2026-08-27 (see git log for real timestamp)
+**Epic:** none in flight — epic 15 closed this session; the replacement epic has not been filed yet
 **Branch:** main (pushed: yes)
-**Last commit:** (this handoff commit, on top of 8f8018d dispatch marker)
-**Worktree:** main checkout; item worktree `.claude/worktrees/agent-a744f7244a64c793d` (branch
-`worktree-agent-a744f7244a64c793d`, item's real branch `docs/plain-phrasing-communication-discipline`
-pushed to origin, PR #81 open against `main`) — **not yet cleaned up, do not remove until the
-open question below is resolved**, since the branch/PR/worktree are evidence, not just landing
-scaffolding.
+**Last commit:** (this handoff commit)
+**Worktree:** main checkout only expected. One stray item worktree may remain from epic 15's
+dispatch: `.claude/worktrees/agent-a744f7244a64c793d` (branch `worktree-agent-a744f7244a64c793d`).
+Its real content is on the pushed branch `docs/plain-phrasing-communication-discipline` /
+**PR #81** (open, unmerged) — safe to `git worktree remove` once PR #81's fate is decided; not
+removed yet since it's still evidence for that open PR.
 
 ## Claimed but NOT yet verified
-- None outstanding — the one claim that mattered (executor's "no narration" self-report) was
-  independently checked against the raw transcript JSONL by a separate verification subagent,
-  not trusted. It failed the check. See below.
+- None outstanding — everything below is either a direct doc citation (URLs given) or a repo
+  state change made and confirmed in this session.
 
 ## What happened this session
-1. Confirmed epic 15 (`docs/epics/15-plain-phrasing-communication-discipline/plan.md`) was the
-   only dispatchable work — single item, `approved`, no dependencies. Epic 11 is `awaiting
-   approval`, not dispatchable, and was left alone per instructions.
-2. Ran Phase 2/3 dispatch setup: refreshed `main`, pointed `.claude/signals/active-epic`, set
-   plan header to `in flight (item 1 of 1)`, moved GH #75 label `epic:planned` →
-   `epic:in-progress`, committed (`8f8018d`).
-3. Dispatched `work-item-executor` (Sonnet 5, `isolation: "worktree"`) for item 1: replace the
-   legalistic `## Communication discipline` section in
-   `Skills/dev-epic-workflow/assets/claude-config/agents/work-item-executor.md` with short plain
-   phrasing, update the drift fixture's markers to match.
-4. Executor finished clean: text replaced, drift fixture green (23 cases, 0 failures),
-   `declared-paths-gate.sh` exit 0, old "Forbidden phrasing"/"read past" text confirmed gone via
-   grep. Opened **PR #81** (`31c46d6`) against `main`, referencing GH #75. Executor's own return
-   summary claimed it did not narrate between tool calls during its own run.
-5. Per this item's own definition of done, that self-report is not sufficient — the plan requires
-   the orchestrator to independently read the real dispatch's transcript JSONL before merging.
-   Dispatched a separate verification subagent (Sonnet 5) to read
-   `agent-a744f7244a64c793d.jsonl` directly and count text/thinking blocks.
-6. **Verification result: FAILS.** 8 total text blocks, 1 legitimate (final return summary), 7
-   narration violations — the same "Now X" recap/preview pattern (e.g. "Now let's set up the
-   branch and read the target files.", "Now run the drift fixture to check it passes.", "Now open
-   the PR."). This is the **third** consecutive attempt (epics 12, 13, 15) at this exact fix that
-   reads as done by grep/fixture and fails on the live transcript.
-7. **Did not merge PR #81.** Recorded the finding in `plan.md`'s Log (full detail there, including
-   the transcript path and quoted violation lines). Plan header left at `in flight (item 1 of 1)`
-   — item 1 is reported **not done** per its own definition of done, not silently closed on "the
-   text is present."
+1. Dispatched epic 15 item 1 (replace `work-item-executor.md`'s legalistic Communication
+   discipline section with plain phrasing). Executor landed clean gates and opened **PR #81**,
+   self-reporting no narration.
+2. Per the item's own definition of done, independently verified that self-report against the
+   raw transcript JSONL (not trusted) — **it failed**: 7 narration text blocks between tool
+   calls, the same pattern epic 13 already tried to ban by name. Third consecutive wording-only
+   attempt (epics 12, 13, 15) that read as fixed and wasn't. Did not merge PR #81; recorded the
+   finding in epic 15's plan Log and reported it to Jonathan as a blocker.
+3. Jonathan's decision: **pivot to a structural fix** — strip narration text blocks
+   programmatically instead of instructing the model not to produce them.
+4. Before drafting a plan, researched feasibility live against real docs (two research passes;
+   the first returned zero tool calls and was discarded as a guess, redispatched with an explicit
+   requirement to fetch real pages). **Finding, confirmed against source:**
+   - Claude Code's Hooks Reference (https://code.claude.com/docs/en/hooks) and the Claude Agent
+     SDK Hooks docs (https://code.claude.com/docs/en/agent-sdk/hooks) — neither exposes
+     block-level interception of assistant message content.
+   - The only hook that touches assistant text at all, `MessageDisplay`, is explicitly
+     display-only/read-only.
+   - Every other hook (`PreToolUse`, `PostToolUse`, `Stop`, `SubagentStart`/`SubagentStop`,
+     `PreCompact`, `UserPromptSubmit`, etc.) fires around tool calls or session boundaries, never
+     on message content — confirmed against this repo's own existing hooks too
+     (`subagent-tool-logger.sh` only ever sees `PostToolUse` payloads keyed on `tool_name`/
+     `tool_input`, never freestanding text).
+   - **The only way to actually strip a `text` content block before it re-enters a subagent's own
+     context is to bypass the Task/Agent tool's built-in dispatch loop entirely and drive the raw
+     Anthropic Messages API in a custom loop** — owning the conversation array directly, filtering
+     `type: "text"` blocks out of each assistant turn before appending it to history and sending
+     the next request.
+5. Presented that trade-off (this is a bespoke executor harness — tool execution, permissions,
+   context management all reimplemented — not a prompt edit) to Jonathan via AskUserQuestion.
+   **He chose to build it, explicitly starting next session**, not this one ("we're going to do 1
+   after a clear").
+6. Closed epic 15 as superseded (`docs/epics/15-plain-phrasing-communication-discipline/plan.md`,
+   Status now `closed (superseded)`, full retro in the Log). GH #75 (the underlying narration
+   issue) was deliberately left open and its label (`epic:in-progress`) left untouched — the next
+   session's epic filing is what should move it, not a guess made here. Removed
+   `.claude/signals/active-epic` since no epic is in flight now.
 
 ## Exact next action
-This is a blocker for Jonathan, not a mechanical next step — three wording-only attempts at the
-same fix have now failed identically. The plan's own Deferred section names the fallback: a fair
-paired A/B test (plain vs. legalistic phrasing, same real work item, same executor, without the
-"DIAGNOSTIC OVERRIDE" framing that tripped the executor's guardrails last time it was tried) —
-but a fourth wording attempt may not be the right lever anymore. Worth raising to Jonathan
-directly: does the pattern (self-narration surviving three independent phrasing changes) suggest
-this needs a **structural** constraint instead of an instruction — e.g. stripping `text` blocks
-from the executor's own turns programmatically, rather than asking the model not to produce them.
+**File a new epic** (Phase 0 → Phase 1 of dev-epic-workflow) for a custom Messages-API-driven
+executor loop that replaces the Task/Agent tool's dispatch for `work-item-executor` runs, filtering
+narration `text` blocks out of the conversation before each subsequent turn. Ground it properly
+before drafting — this is a materially different engineering shape than anything this repo has
+built so far (a hosting loop around the raw Anthropic Messages API, not a Claude Code
+config/prompt/hook change), so Phase 0 should cover at minimum:
+- What the Task/Agent tool currently gives `work-item-executor` for free that a custom loop would
+  have to reimplement or explicitly forgo: tool registration/execution, permission prompts,
+  context/compaction handling, the existing hooks this repo already relies on (cancel gate,
+  subagent lifecycle telemetry, tool logger) — do those hooks even fire for a custom-loop-driven
+  agent, or does this approach silently lose the whole control-plane telemetry system Phase 2/3
+  currently depend on?
+- Where this loop would actually run from — a script invoked by the orchestrator (Bash), a
+  separate long-running process, or something inside this repo's existing `assets/claude-config/`
+  tooling — and whether `Workflow`/the SDK's scripting surface is a better fit than a fully
+  hand-rolled loop.
+- Scope it small for a first item: prove the text-block-stripping mechanism works end to end on a
+  trivial scripted task before trying to replicate `work-item-executor`'s full lifecycle on top
+  of it.
 
-Do not merge PR #81 or close epic 15 until Jonathan has weighed in on that question. The item
-worktree and branch are intentionally left in place as evidence.
-
-## Open questions for Jonathan
-- Attempt a 4th phrasing (paired A/B this time), or pivot to a structural/programmatic fix?
-- PR #81's actual diff (text replacement + fixture update) is fine on its own terms and could be
-  merged independently of the narration question if Jonathan wants the file cleanup regardless —
-  but the plan's definition of done ties merge to the live-transcript check, so that's his call to
-  override, not mine to assume.
-- Carried forward, low priority, not blocking: the Agent-tool `isolation: "worktree"` branch-
-  naming gap (worktree lands on an autogenerated branch, executor renames/recreates it itself) —
-  happened again this dispatch, still harmless, still not worth its own item unless it causes
-  real damage.
+**Open questions for Jonathan, to resolve at or before filing:**
+- **PR #81's fate** — still open, unmerged. Its diff is a reasonable, harmless plain-phrasing
+  text change on its own terms, but functionally moot once stripping is programmatic. Merge it
+  anyway (no harm, minor readability win), or close it since the epic that produced it is
+  superseded?
+- Does the custom loop fully replace `work-item-executor` dispatch, or run alongside it as an
+  opt-in path — given the control-plane/telemetry dependency question above, a full replacement
+  may be a much bigger lift than Jonathan intends.
