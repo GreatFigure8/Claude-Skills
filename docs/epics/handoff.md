@@ -4,11 +4,8 @@
 **Epic:** none in flight — epic 15 closed this session; the replacement epic has not been filed yet
 **Branch:** main (pushed: yes)
 **Last commit:** (this handoff commit)
-**Worktree:** main checkout only expected. One stray item worktree may remain from epic 15's
-dispatch: `.claude/worktrees/agent-a744f7244a64c793d` (branch `worktree-agent-a744f7244a64c793d`).
-Its real content is on the pushed branch `docs/plain-phrasing-communication-discipline` /
-**PR #81** (open, unmerged) — safe to `git worktree remove` once PR #81's fate is decided; not
-removed yet since it's still evidence for that open PR.
+**Worktree:** main checkout only — clean. Epic 15's item worktree, branch, and `status/` directory
+were all removed at land-and-reset after PR #81 merged (below).
 
 ## Claimed but NOT yet verified
 - None outstanding — everything below is either a direct doc citation (URLs given) or a repo
@@ -52,6 +49,13 @@ removed yet since it's still evidence for that open PR.
    issue) was deliberately left open and its label (`epic:in-progress`) left untouched — the next
    session's epic filing is what should move it, not a guess made here. Removed
    `.claude/signals/active-epic` since no epic is in flight now.
+7. Jonathan called it: merge PR #81 anyway — "it's harmless." Merged (`3513c74`), pulled main,
+   deleted the item branch and worktree remotely and locally, `git fetch --prune`, removed
+   `docs/epics/15-plain-phrasing-communication-discipline/status/`. `git worktree list` shows
+   only the main checkout. The plain-phrasing text is live in
+   `Skills/dev-epic-workflow/assets/claude-config/agents/work-item-executor.md` now — it's a
+   fine instruction on its own terms, just not sufficient by itself (per the epic's own
+   validation failure), which is exactly why the structural fix is still the next epic.
 
 ## Exact next action
 **File a new epic** (Phase 0 → Phase 1 of dev-epic-workflow) for a custom Messages-API-driven
@@ -75,10 +79,6 @@ config/prompt/hook change), so Phase 0 should cover at minimum:
   of it.
 
 **Open questions for Jonathan, to resolve at or before filing:**
-- **PR #81's fate** — still open, unmerged. Its diff is a reasonable, harmless plain-phrasing
-  text change on its own terms, but functionally moot once stripping is programmatic. Merge it
-  anyway (no harm, minor readability win), or close it since the epic that produced it is
-  superseded?
 - Does the custom loop fully replace `work-item-executor` dispatch, or run alongside it as an
   opt-in path — given the control-plane/telemetry dependency question above, a full replacement
   may be a much bigger lift than Jonathan intends.
