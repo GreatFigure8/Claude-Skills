@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Drift fixture for the canonical output-discipline rule (GH #68, epic 12 item 2):
+# Drift fixture for the canonical output-discipline rule (GH #68, epic 12 item 2;
+# extended by GH #75, epic 13 item 1):
 #   ../../../../SKILL.md                                  ("Output discipline", Phase 3)
 #   ../../agents/work-item-executor.md                     ("Communication discipline")
 #
@@ -7,7 +8,10 @@
 # at it as the same rule rather than a second statement of it, replacing the old
 # reader-facing rationale ("something Jonathan has to read past...") with the cost
 # rationale (every self-narrating line is re-billed as input on every remaining turn
-# of the agent's context). This harness has two jobs:
+# of the agent's context). Epic 13 item 1 added pure-forward-announcement anti-examples
+# (no recap prefix, unlike the epic-12 examples) and a disclaimer that the Forbidden
+# phrasing block illustrates a pattern rather than an exhaustive blocklist. This
+# harness has two jobs:
 #
 #   1. Assert BOTH real files still carry the three permitted exceptions verbatim
 #      (a blocking question / a major issue / the completion return summary), and
@@ -73,6 +77,10 @@ EXEC_MARKERS=(
   "**A major issue**"
   "**Your completion return summary**"
   "re-billed as input on every remaining turn of your"
+  "Now let's implement."
+  "Let's check if the tests still pass."
+  "Now run gates: lint, typecheck, test, build."
+  "illustrate a pattern, not an exhaustive blocklist"
 )
 
 FORBIDDEN='read past'

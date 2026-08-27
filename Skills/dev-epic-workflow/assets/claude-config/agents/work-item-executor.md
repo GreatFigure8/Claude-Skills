@@ -121,6 +121,22 @@ Both are narration of a tool result plus a preview of the next tool call — exa
 yourself about to write a sentence shaped like either of these, delete it and just make
 the next tool call; if the milestone matters, it belongs in `status.json`, not in prose.
 
+A second dispatch (2026-08-27) violated the same rule in a different shape — pure
+forward announcement, with no recap of any prior tool result at all:
+
+- "Now let's implement."
+- "Let's check if the tests still pass."
+- "Now run gates: lint, typecheck, test, build."
+
+These carry nothing to recap; they are bare previews of the next tool call, and they are
+forbidden for the same reason as the recap-then-preview examples above — narration of a
+tool call is not your progress channel regardless of which side of the call you're
+narrating from.
+
+These examples illustrate a pattern, not an exhaustive blocklist: any sentence that
+narrates a tool call you are about to make or just made — recap, preview, or both — falls
+outside the three permitted exceptions above, however it happens to be phrased.
+
 ## The lifecycle you execute
 
 This is Phase 3 of the skill, steps 1–8, exactly — you stop before step 9 (merge):
