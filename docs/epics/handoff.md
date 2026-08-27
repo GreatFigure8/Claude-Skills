@@ -1,34 +1,35 @@
 # Session Handoff — orchestration session / no epic in flight
 
-**Written:** 2026-08-27T10:31:12Z
+**Written:** 2026-08-27T11:05:39Z
 **Epic:** none
 **Branch:** main (pushed: yes)
-**Last commit:** dfcb527 chore(epic-13): close epic — item 1 merged (PR #78, 4f53b38)
+**Last commit:** a8b6631 chore(epic-14): close epic — item 1 merged (PR #80, d3c70b9)
 **Worktree:** main checkout
 
 ## Verified this session
-- Dispatched epic 13 item 1 to a `work-item-executor` (Sonnet 5); it returned `pr-opened` on PR [#78](https://github.com/GreatFigure8/Claude-Skills/pull/78), branch `chore/close-forward-narration-gap`.
-- Verified PR #78 cold: `git diff --stat main...HEAD` matched the plan's declared scope exactly (2 files, `work-item-executor.md` Forbidden-phrasing block + `output-discipline-drift-fixtures.sh` markers); re-ran `output-discipline-drift-fixtures.sh` myself — `cases: 25 failures: 0`, all PASS including the 4 new markers and their mutation-flip checks.
-- Merged PR #78 (`gh pr merge --merge --delete-branch`) → `main` at `4f53b38`; confirmed via `git log --oneline -3` after `git pull --ff-only`. Local `main` is current with origin.
-- Land-and-reset completed: remote branch deleted, no local branch or worktree remained (checked `git branch -a` / `git worktree list` — clean).
-- Closed epic 13: plan header set to `**Status:** closed`, retro appended, `status/` dir and `active-epic` pointer removed (there was no `CANCEL` sentinel).
-- GH #75: posted a closing retro comment linking PR #78, then **explicitly left the issue open** — the plan's own risk table says #75 stays open regardless, since this epic is a mitigation not a claimed fix. (I closed it once by mistake mid-session and reopened it in the same session after re-reading the plan — confirmed reopened via `gh issue reopen 75` output.)
-- Committed and pushed the epic-13 close (`dfcb527`).
+- Surveyed all epic folders (`docs/epics/*/plan.md` status headers) directly rather than trusting the prior handoff's claim about epic 11: epics 01–10, 12, 13 are `closed`; epic 11 (`11-l2-autonomous-dispatch`) is actually `code-complete, NOT closed — all four items merged; two live LODE verifications outstanding, and no rung is enabled` — **not** `planning` as the previous handoff stated (that was stale). LODE is a different repo, so per this session's instruction to stay inside this repo, epic 11 was left untouched.
+- Epic 14 item 1 was marked `**Status:** in flight (item 1 of 1)` in `plan.md` but had never actually been dispatched — no branch, no PR, no `status.json` existed for it (confirmed via `git branch -a`, `gh pr list`, and `ls status/`). Dispatched it fresh to a `work-item-executor` (Sonnet 5, `isolation: "worktree"`).
+- Executor returned `pr-opened` on PR [#80](https://github.com/GreatFigure8/Claude-Skills/pull/80), branch `docs/name-agent-tool-worktree-isolation`. Verified cold: `gh pr diff 80` showed exactly the two declared sentences added at SKILL.md lines 89 and 117, nothing else touched; `declared-paths-gate.sh` passed (`match: every declared path was touched, and nothing touched was undeclared`).
+- Asked Jonathan explicitly before merging (per Phase 3 step 9 — merge requires approval); he said merge now. Merged PR #80 (`gh pr merge --merge --delete-branch`) → `main` at `d3c70b9`.
+- Land-and-reset completed: worktree removed (`git worktree remove .claude/worktrees/agent-ae00446b2785c9642`), local branch deleted, remote fetched/pruned, `status/` dir and `active-epic` pointer removed.
+- Closed epic 14: plan header set to `closed`, item 1 marked done with PR link, retro logged. Closed GH #79 with a closing comment (this epic's `Source:` issue) — full close, unlike epic 13's #75 which stayed open by design.
+- This resolves the open question the *previous* handoff carried forward: epic 14 was filed specifically to fix the worktree-isolation doc gap that epic 13's dispatch surfaced. That gap is now closed.
+- Committed and pushed the epic-14 close (`a8b6631`).
 
 ## Claimed but NOT yet verified
-- None outstanding from this session — everything above was checked against the repo or a live command output, not recalled.
+- None outstanding — everything above was checked against the repo or live command output, not recalled.
 
 ## In-flight (debugging / hypothesis state)
-- **Process deviation worth checking before the next dispatch:** the `work-item-executor` agent for epic 13 item 1 did not create a Phase-2 git worktree — it checked its branch out directly in the orchestrator's shared main checkout (confirmed via `git reflog`: HEAD moved from `main` to `chore/close-forward-narration-gap` mid-session with no `git worktree add` from the orchestrator side). No damage this run since the orchestrator did no concurrent writes to `main` during the item, but it's exactly the hazard Phase 2 documents from epic 01/GH #3. Not yet root-caused — worth reading `Skills/dev-epic-workflow/assets/claude-config/agents/work-item-executor.md`'s dispatch/setup steps before the next orchestrated dispatch to confirm whether worktree creation is actually being invoked by the orchestrator (dispatch step 2 is an orchestrator responsibility per the skill, not the executor's) or was simply skipped this run.
+- **New, smaller process deviation surfaced by epic 14's own dispatch** (logged in `docs/epics/14-name-agent-tool-worktree-isolation/plan.md` Deferred section): dispatching via `Agent` with `isolation: "worktree"` and a `Branch:` line in the prompt did **not** put the worktree on that named branch — it landed on an autogenerated `worktree-agent-<id>` branch, and the executor created the intended branch fresh from that HEAD rather than verifying a pre-existing one. Harmless this run (nothing else was on the wrong branch), but it deviates from `work-item-executor.md`'s lifecycle step 2 ("verify, don't re-create"). Not yet root-caused or fixed — worth its own item if it recurs.
+- Three orphaned local branches exist from `isolation: "worktree"` dispatches whose worktrees were later removed without deleting the branch: `worktree-agent-aad01e2b18a6f16cc`, `worktree-agent-ac240b829e13c302a` (pre-date this session), `worktree-agent-ae00446b2785c9642` (this session's epic-14 dispatch — the autogenerated branch from the point above, now superseded by the merged `docs/name-agent-tool-worktree-isolation`). Not investigated for content; likely safe to delete but not confirmed unpushed/empty of unique commits.
 
 ## Exact next action
-- No epic is in flight. Epic 11 (`11-l2-autonomous-dispatch`) is filed at `**Status:** planning` and awaiting Jonathan's approval before it can be dispatched — confirm the plan content is still what he wants before approving.
-- 6 open GitHub issues have no epic yet (#77, #63, #61, #54, #48, +1 more per last session-start injection) — `/intake #<n>` to plan one if picked up.
-- Separately: confirm whether the worktree-isolation gap noted above needs its own fix before relying on orchestrated dispatch again.
+- No epic is in flight and nothing in this repo is currently dispatchable: epic 11's only remaining work is live verification on the LODE repo (out of scope here), and 6 open GitHub issues (#77, #63, #61, #54, #48, +1 more) have no epic yet — `/intake #<n>` to plan one if picked up.
+- Before the next dispatch: decide whether the branch-naming gap above (Agent-tool `isolation: "worktree"` not honoring a requested branch name) is worth its own epic-14-style item, and whether to clean up the three orphaned `worktree-agent-*` local branches.
 
 ## Environment state
-- None — no running services, no unmerged migrations, no env vars set this session. Local `main` is at `dfcb527`, matching `origin/main`.
+- None — no running services, no unmerged migrations, no env vars set this session. Local `main` is at `a8b6631`, matching `origin/main`.
 
 ## Open questions for Jonathan
-- Should the epic-13 worktree-isolation gap (see In-flight note above) become its own work item / issue, or was it a one-off?
-- Epic 11 (`11-l2-autonomous-dispatch`) still needs your approval before it's dispatchable — nothing further from me until you weigh in.
+- Is the Agent-tool branch-naming gap (see In-flight above) worth its own fix, or a one-off to ignore?
+- OK to delete the three orphaned `worktree-agent-*` local branches, or should they be inspected first?
