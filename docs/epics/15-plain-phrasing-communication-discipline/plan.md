@@ -1,6 +1,6 @@
 # Epic: replace the legalistic Communication discipline section with plain phrasing
 
-**Status:** approved
+**Status:** in flight (item 1 of 1)
 **Live branch:** main
 **Integration branch:** main
 **Pre-epic tag:** n/a
