@@ -184,17 +184,6 @@ PLAN_HEADER_LINES=10
 # proposal, so detection can never drift from construction.
 PROPOSAL_PR_JQ='.[] | "\(.number) \(.headRefName)"'
 
-# Tokens that are the SHAPE of a plan rather than the subject of one. `plan.md`,
-# `status/` and `docs/epics/` appear as Scope tokens in live proposals (PR #50
-# declares all three), and under the suffix matching below they would collide
-# universally — every proposal against every other, forever. That is not high
-# recall, it is no signal at all, so they are excluded. Exactly the three the
-# epic 09 plan names, and no others invented here.
-#
-# Matched case-INSENSITIVELY on purpose: the epics directory's casing is a
-# per-repo fact this runner already has to ask about rather than assert
-# (docs/epics here, DOCS/EPICS on Oracle-Simple-Convert).
-DECLARED_PATH_DENY_RE='^(plan\.md|status|docs/epics)$'
 # The ONE directory this runner may create anything in. Not "wherever the repo
 # happens to live" — an unattended process on a timer should have a filesystem
 # footprint you can verify by reading a single line.
@@ -497,37 +486,18 @@ fi
 # which is the behaviour this replaces, because it is not a mechanism, it is two
 # drafters happening to be conscientious on the same afternoon.
 #
-# WHAT COUNTS AS A DECLARATION, and this is the whole difficulty:
-#
-#   * `**Scope:**` blocks ONLY. Including `**Not in scope:**` manufactures a
-#     false positive on the first real pair we have: PR #25's *Not in scope*
-#     names `cancel-gate.sh`, which PR #26's *Scope* declares. "The tempting
-#     adjacent thing this deliberately skips" is the opposite of a declaration.
-#
-#   * SUFFIX MATCHING at path-component boundaries, not exact strings and not
-#     basenames. Measured on the live proposals: PR #26 writes
-#     `Skills/dev-epic-workflow/assets/claude-config/hooks/tests/active-epic-fixtures.sh`
-#     where PR #50 writes `hooks/tests/active-epic-fixtures.sh` for the same
-#     file, so exact matching misses the pair entirely. Basename-only is the
-#     opposite error and collides everything on `plan.md`.
-#
-#   * RECALL OVER PRECISION, chosen deliberately and measured both ways on the
-#     five live proposals before being written down:
-#       - reading every path-like token in a Scope block finds all three real
-#         pairs (25<->26, 25<->50, 26<->50) and the LODE 730<->731 pair;
-#       - restricting to the token that LEADS a Scope bullet removes the two
-#         known false positives but drops 25<->50 to ZERO overlaps, losing a
-#         genuine shared file, because PR #25's declaration is a comma list
-#         wrapped across two lines.
-#     The cost of recall is stated rather than hidden: a mention is not a
-#     declaration, and PR #26's Scope names `subagent-lifecycle.sh` and
-#     `subagent-tool-logger.sh` only as files it compares AGAINST — its own
-#     *Not in scope* says so — yet they are reported. Measured, that noise never
-#     changed a verdict (#26 and #50 already collide truly on two other paths);
-#     it only adds names to a report a human is reading anyway. A missed
-#     collision costs two epics editing one file; a spare path name costs a
-#     reader ten seconds. The structured declaration field that would delete
-#     this heuristic outright is parked in the epic's Deferred list.
+# WHAT COUNTS AS A DECLARATION — epic 10 item 4. This used to be a prose
+# heuristic over `**Scope:**` free text (tokenise, guess which tokens are
+# paths, drop generic ones, trade recall against precision): see epic 09 item 4
+# and epic 10's Grounding section for the measurement that motivated replacing
+# it. It now reads the `**Touches:**` block epic 10 item 1 defined and item 2's
+# drafter emits — one path per line, repo-root-relative, declarations only —
+# and nothing else. That is a **deliberate reduction in cleverness**: a plan
+# with no `**Touches:**` block is not "read its Scope prose instead," it is
+# `undeclared`, which this file already turns into `colliding-unknown` ->
+# `needs-decision` below. Every proposal that predates this epic has no
+# `**Touches:**` block and lands there, exactly as intended — not retrofitted,
+# not guessed at.
 #
 # Sets, for the caller:
 #   COLLISION_STATUS   clear | collided | undeclared | unknown
@@ -540,10 +510,10 @@ fi
 #
 # `unknown` (the enumeration query itself failed) publishes anyway and says so,
 # exactly as the work-in-progress check does: a GitHub blip must not stop a
-# runner that worked yesterday. `undeclared` — the proposal names no files at
-# all — does NOT pass silently; it is colliding-unknown and returns the same
-# needs-decision, because an empty declaration is the one case where overlap
-# cannot be ruled out.
+# runner that worked yesterday. `undeclared` — the proposal carries no
+# `**Touches:**` block at all — does NOT pass silently; it is colliding-unknown
+# and returns the same needs-decision, because an absent declaration is the one
+# case where overlap cannot be ruled out.
 #
 # REPO_SLUG and EPICS_DIR are read at call time from the repo loop below, the
 # same way the work-in-progress helper defined inside that loop reads REPO_SLUG.
@@ -552,73 +522,39 @@ COLLISION_SUMMARY=""
 COLLISION_DETAIL=""
 COLLISION_PARTNERS=""
 
-# One candidate token per line on stdin -> the ones that are plausibly a path,
-# normalised. The two structural tests, and why prose fails them:
-#   a trailing `/` in the raw token  -> an explicit directory (`hooks/lib/`)
-#   a leaf of <stem>.<ext>           -> a file (`lookups.py`, `cancel-gate.sh`)
-# with stem >= 2 characters and ext 1-6 starting with a letter. That is what
-# keeps `and/or`, `e.g.`, `i.e.` and `4.5` out — every one of which appears in a
-# real Scope block, and any of which would otherwise collide two proposals that
-# share nothing but English.
-normalise_declared_paths() {
-  while IFS= read -r TOK; do
-    [ -n "$TOK" ] || continue
-    case "$TOK" in *[A-Za-z]*) ;; *) continue ;; esac
-    DIRISH=no
-    case "$TOK" in */) DIRISH=yes ;; esac
-    while :; do
-      case "$TOK" in
-        */) TOK="${TOK%/}" ;;
-        *.) TOK="${TOK%.}" ;;
-        *)  break ;;
-      esac
-    done
-    TOK="${TOK#./}"
-    [ -n "$TOK" ] || continue
-    if [ "$DIRISH" = yes ]; then printf '%s\n' "$TOK"; continue; fi
-    LEAF="${TOK##*/}"
-    case "$LEAF" in *.*) ;; *) continue ;; esac
-    STEM="${LEAF%.*}"
-    EXT="${LEAF##*.}"
-    case "$STEM" in ''|?) continue ;; esac
-    case "$EXT" in
-      [A-Za-z] \
-      |[A-Za-z][A-Za-z0-9] \
-      |[A-Za-z][A-Za-z0-9][A-Za-z0-9] \
-      |[A-Za-z][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9] \
-      |[A-Za-z][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9] \
-      |[A-Za-z][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;;
-      *) continue ;;
-    esac
-    printf '%s\n' "$TOK"
-  done
-}
-
-# A plan.md on stdin -> the files and modules it DECLARES, one per line, sorted.
-# The awk reads `**Scope:**` and its indented continuation lines, and stops at
-# the next `- **Field:**` bullet — which is how `**Not in scope:**` is excluded
-# without needing to name it. Backticks become separators before tokenising, so
-# `mkrepo`/`mkorch` is two identifiers and not one path.
+# A plan.md on stdin -> the paths it DECLARES via `**Touches:**` blocks, one per
+# line, sorted and de-duplicated. A plan may carry more than one work item, each
+# with its own `**Touches:**` block; every one in the document is read and
+# unioned, matching what the prose extractor did over every `**Scope:**` block.
+# Only a `  - `path`` sub-bullet directly inside a `**Touches:**` block counts —
+# the block ends at a blank line, the next `- **Field:**` bullet (which is how
+# `**Not in scope:**` is excluded without needing to name it, same as before),
+# or a heading. A path is read literally, exactly as written between the
+# backticks: no tokenising, no normalising, no denylist — the field is
+# structured, so there is nothing left to guess at.
 declared_paths() {
   awk '
-    BEGIN { in_scope = 0 }
+    BEGIN { in_touches = 0 }
     {
-      if (match($0, /^[[:space:]]*[-*][[:space:]]+\*\*[Ss]cope:\*\*/)) {
-        in_scope = 1
-        print substr($0, RSTART + RLENGTH)
+      if (match($0, /^[[:space:]]*[-*][[:space:]]+\*\*Touches:\*\*[[:space:]]*$/)) {
+        in_touches = 1
         next
       }
-      if (!in_scope) next
-      if (match($0, /^[[:space:]]*[-*][[:space:]]+\*\*[^*]+:\*\*/)) { in_scope = 0; next }
-      if ($0 ~ /^[[:space:]]*$/)     { in_scope = 0; next }
-      if ($0 ~ /^#/)                 { in_scope = 0; next }
-      if ($0 ~ /^[^[:space:]]/)      { in_scope = 0; next }
-      print
+      if (!in_touches) next
+      if (match($0, /^[[:space:]]+[-*][[:space:]]+`[^`]+`[[:space:]]*$/)) {
+        line = $0
+        sub(/^[[:space:]]+[-*][[:space:]]+`/, "", line)
+        sub(/`.*$/, "", line)
+        print line
+        next
+      }
+      if (match($0, /^[[:space:]]*[-*][[:space:]]+\*\*[^*]+:\*\*/)) { in_touches = 0; next }
+      if ($0 ~ /^[[:space:]]*$/)     { in_touches = 0; next }
+      if ($0 ~ /^#/)                 { in_touches = 0; next }
+      # Anything else inside the block is a malformed line, not a path — stay
+      # in the block (a stray annotation should not truncate what follows) but
+      # do not print it as a declared path.
     }' 2>/dev/null \
-    | sed -e 's/`/ /g' -e 's![^A-Za-z0-9._/*$-]! !g' \
-    | tr ' ' '\n' \
-    | normalise_declared_paths \
-    | grep -vEi "$DECLARED_PATH_DENY_RE" \
     | sort -u
 }
 
@@ -724,7 +660,7 @@ check_collisions() { # $1 = issue number, $2 = the fresh draft's plan.md, $3 = i
 
   # WHO could this collide with, decided BEFORE what it declares. Order matters
   # and getting it wrong is not academic: deciding `undeclared` first made a
-  # proposal with no Scope block collide with an empty world, which downgraded
+  # proposal with no Touches block collide with an empty world, which downgraded
   # every draft in a repo that has no open proposals at all. There is nothing to
   # rule out when there is nothing to rule it out against.
   CANDIDATES=""
@@ -754,8 +690,8 @@ ALLOPEN
     # empty declaration is not evidence of no overlap — see the epic's Risks
     # table, which chose this over passing silently.
     COLLISION_STATUS=undeclared
-    COLLISION_SUMMARY="this proposal declares no files or modules in any Scope block, so an overlap with the $CANDIDATE_COUNT other open proposal(s) cannot be ruled out"
-    COLLISION_DETAIL="  - No \`**Scope:**\` block in this plan names a file or a module, so there was nothing to compare against the $CANDIDATE_COUNT other open proposal(s) in this repository. An empty declaration is not evidence of no overlap."
+    COLLISION_SUMMARY="this proposal carries no \`**Touches:**\` block, so an overlap with the $CANDIDATE_COUNT other open proposal(s) cannot be ruled out"
+    COLLISION_DETAIL="  - No \`**Touches:**\` block anywhere in this plan, so there was nothing to compare against the $CANDIDATE_COUNT other open proposal(s) in this repository. An absent declaration is not evidence of no overlap."
     return 0
   fi
 
@@ -776,7 +712,7 @@ ALLOPEN
     fi
     THEIRS="$(printf '%s\n' "$CTEXT" | declared_paths)"
     [ -n "$THEIRS" ] || {
-      log "WARN #$1: open proposal PR #$CPR declares no files in any Scope block — no comparison was possible"
+      log "WARN #$1: open proposal PR #$CPR carries no \`**Touches:**\` block — no comparison was possible"
       continue
     }
     HITS=""
@@ -1604,7 +1540,7 @@ WIPLINE
     # comment all consume ONE settled value. `gh pr create` follows.
     #
     # It runs ONLY for a `plan`. A `no-work` proposal proposes no edits, so it
-    # cannot collide with anything — and it usually carries no `**Scope:**`
+    # cannot collide with anything — and it usually carries no `**Touches:**`
     # block at all, so the colliding-unknown rule would turn every honest
     # no-work into a needs-decision and quietly delete item 1's outcome. A draft
     # that already says needs-decision is already where a collision would put it.
@@ -1630,10 +1566,11 @@ WIPLINE
             printf 'exists to route. It is deliberately not made here: nothing was reordered,\n'
             printf 'superseded or closed, and the counterpart proposal was annotated by a comment\n'
             printf 'on its issue rather than rewritten.\n\n'
-            printf 'Declared files are read from `**Scope:**` blocks only and matched on path\n'
-            printf 'suffixes at component boundaries. The rule favours recall over precision, so a\n'
-            printf 'path named above may be one the counterpart only reads — read both `**Scope:**`\n'
-            printf 'blocks before concluding there is no conflict.\n\n'
+            printf 'Declared paths are read from `**Touches:**` blocks only, matched on path\n'
+            printf 'suffixes at component boundaries — a file merely mentioned in prose\n'
+            printf '(including `**Not in scope:**`) is not a declaration. A proposal with no\n'
+            printf '`**Touches:**` block at all lands here too, because an absent declaration\n'
+            printf 'is not evidence of no overlap.\n\n'
           } > "$COLLISION_SECTION" 2>/dev/null
           if ! downgrade_plan_recommendation "$REC_FILE" \
              || ! insert_plan_collision_section "$REC_FILE" "$COLLISION_SECTION"; then
@@ -1655,7 +1592,7 @@ $COLLISION_DETAIL
 
   Deciding which proposal owns the shared files — or that they should be one epic, or sequenced — is the human decision this outcome exists to route. Nothing here resolved it, ordered them, or superseded either. The counterpart proposal has been annotated **by comment on its issue** and was not edited: an open PR is not rewritten from under a reviewer.
 
-  Declarations are read from \`**Scope:**\` blocks only, matched on path suffixes at component boundaries, and the rule is tuned for recall over precision — so a listed path may be one the counterpart only reads. Check the two Scope blocks before concluding there is no conflict."
+  Declarations are read from \`**Touches:**\` blocks only, matched on path suffixes at component boundaries — a file merely mentioned in prose (including \`**Not in scope:**\`) is not a declaration, and a proposal carrying no \`**Touches:**\` block lands here too, because an absent declaration is not evidence of no overlap."
           COLLISION_ISSUE_TAIL="
 
   **Admission also found a collision** — $COLLISION_SUMMARY — which is why the recommendation is \`needs-decision\` rather than the \`plan\` the draft asked for. The PR names the overlapping paths and the counterpart proposal."
@@ -1730,7 +1667,7 @@ ${REC_PR_NOTE}${COLLISION_PR_NOTE}
 
   The new proposal is $PR_URL, and admission set its recommendation to \`needs-decision\` for exactly this reason. **Nothing here changes this issue or PR #$CPR** — no plan was rewritten, nothing was superseded, closed, or reordered. Which proposal owns the shared files, whether they should be one epic, and in what order they land, is a decision for you.
 
-  Declared files are read from \`**Scope:**\` blocks and matched on path suffixes; the rule favours recall, so a listed path may be one side only reads." >/dev/null 2>&1 || true
+  Declared paths are read from \`**Touches:**\` blocks and matched on path suffixes; a file merely mentioned in prose is not a declaration." >/dev/null 2>&1 || true
         log "#$N: collision annotated on #$CISSUE (counterpart proposal PR #$CPR)"
       done
     fi
