@@ -1,6 +1,6 @@
 # Epic: Work items declare the paths they touch
 
-**Status:** in flight (item 4 of 4 — PR #76 open, awaiting merge)
+**Status:** closed
 **Source:** GH #57 (split out of GH #39 / epic 09 item 4)
 **Live branch:** `main`   **Integration branch:** `main`   **Pre-epic tag:** n/a — additive, every change reverts by merge-revert
 
@@ -147,7 +147,7 @@ Verified against the repo on 2026-08-21, not recalled. Every line names how it w
   for the absent field; a negative control showing the gate fails when the comparison is inverted.
 - **Rollback:** revert; the PR template's manual line comes back.
 
-### 4. Collision detection reads the field — PR #76 open, awaiting merge
+### 4. Collision detection reads the field — merged, PR #76 (`21b900c`)
 - **Branch:** `refactor/collision-detection-reads-declarations`
 - **Depends on:** 1, **and on epic 09 item 4 having landed**
 - **Scope:** Replace item 4's prose extractor with a read of the declared block. A proposal that
@@ -228,3 +228,13 @@ coupled to the other epic.
   `.claude/signals/active-epic` pointer (which names `09-l1-preconditions`) and then by "newest
   plan marked **in flight**", never by mtime. A just-filed plan is always the newest plan, which
   is exactly the capture GH #11 was about — state outranks recency, so epic 09 keeps its executors.
+- 2026-08-27 — **closed. All four items shipped and are merged on `main`.** Item 4 (PR #76,
+  `21b900c`) was cold-verified before merge: `normalise_declared_paths` and
+  `DECLARED_PATH_DENY_RE` confirmed actually deleted from `unattended-intake.sh`, not left
+  dormant; `intake-collision-fixtures.sh` re-run on the PR branch, 129 cases, 0 failures. Item 4's
+  own gate run also surfaced a pre-existing, unrelated failure — `intake-outcomes-fixtures.sh`
+  shows 96 cases/35 failures, verified byte-identical against unmodified `main` before this PR, so
+  not a regression here. Root cause not investigated; queued for a future session per Jonathan.
+  Land-and-reset completed: worktree and branch removed, `main` fast-forwarded to `21b900c`.
+
+**Tracker.** GH #57 is closed by PR #76's merge, retiring the split from epic 09 item 4.
