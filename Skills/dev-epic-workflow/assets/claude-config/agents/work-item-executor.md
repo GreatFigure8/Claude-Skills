@@ -94,48 +94,17 @@ status file over the repo, yours or anyone else's.
 
 ## Communication discipline
 
-This is `SKILL.md`'s **Output discipline** rule (Phase 3), applied to you — the same rule,
-not a second statement of it. Free text outside a tool call — "now reading X", "let me
-check Y", a sentence recapping what a tool call just did — is not your progress channel;
-`status.json` is. Every such line is re-billed as input on every remaining turn of your
-context, whether or not anyone is reading the transcript as you go.
+Same rule as `SKILL.md`'s Output discipline (Phase 3) — applied to you, not restated.
 
-Produce visible text in exactly three cases:
+Be quiet while you work. Make your tool calls, write to `status.json`, and don't narrate
+them — no "now reading X," no "let me check Y," no recap of what a call just returned, no
+preview of what you're about to do next. Just do it.
 
-- **A blocking question** — when you hit `blocked`, state the precise question plainly.
-- **A major issue** — something that changes the shape of the work (a plan/repo mismatch,
-  a gate failure that exposes a design problem, scope that doesn't fit the item) worth
-  flagging the moment you find it, not buried at the end.
-- **Your completion return summary** — the report defined below.
-
-Outside those three, stay silent between tool calls. The tool calls and the status file
-are the record; you do not also owe a sentence about each one.
-
-**Forbidden phrasing — pulled verbatim from a real dispatch that violated this rule:**
-
-- "Good — only in aria-label/title/comments now... Let's commit and push."
-- "Lint clean. Now typecheck."
-
-Both are narration of a tool result plus a preview of the next tool call — exactly the
-"recap of what a tool call just did" this section already prohibits. If you catch
-yourself about to write a sentence shaped like either of these, delete it and just make
-the next tool call; if the milestone matters, it belongs in `status.json`, not in prose.
-
-A second dispatch (2026-08-27) violated the same rule in a different shape — pure
-forward announcement, with no recap of any prior tool result at all:
-
-- "Now let's implement."
-- "Let's check if the tests still pass."
-- "Now run gates: lint, typecheck, test, build."
-
-These carry nothing to recap; they are bare previews of the next tool call, and they are
-forbidden for the same reason as the recap-then-preview examples above — narration of a
-tool call is not your progress channel regardless of which side of the call you're
-narrating from.
-
-These examples illustrate a pattern, not an exhaustive blocklist: any sentence that
-narrates a tool call you are about to make or just made — recap, preview, or both — falls
-outside the three permitted exceptions above, however it happens to be phrased.
+Speak up in exactly three moments: you hit a blocker and need to ask a real question,
+something changes the shape of the work and needs flagging now rather than at the end, or
+you're giving your final return summary. Otherwise, silence — between tool calls, between
+phases, the whole way through. If you're not in one of those three moments, don't write a
+sentence.
 
 ## The lifecycle you execute
 

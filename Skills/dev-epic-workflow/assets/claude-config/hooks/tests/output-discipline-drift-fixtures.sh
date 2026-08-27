@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Drift fixture for the canonical output-discipline rule (GH #68, epic 12 item 2;
-# extended by GH #75, epic 13 item 1):
+# extended by GH #75, epic 13 item 1; GH #75 rephrased again by epic 15 item 1):
 #   ../../../../SKILL.md                                  ("Output discipline", Phase 3)
 #   ../../agents/work-item-executor.md                     ("Communication discipline")
 #
@@ -10,8 +10,11 @@
 # rationale (every self-narrating line is re-billed as input on every remaining turn
 # of the agent's context). Epic 13 item 1 added pure-forward-announcement anti-examples
 # (no recap prefix, unlike the epic-12 examples) and a disclaimer that the Forbidden
-# phrasing block illustrates a pattern rather than an exhaustive blocklist. This
-# harness has two jobs:
+# phrasing block illustrates a pattern rather than an exhaustive blocklist — but that
+# form (bulleted forbidden-phrasing list plus narrative about prior violations) kept
+# failing on real dispatches. Epic 15 item 1 replaced the whole section with a short,
+# plain, directly-phrased paragraph stating the same three exceptions with no bulleted
+# forbidden-phrasing list and no narrative. This harness has two jobs:
 #
 #   1. Assert BOTH real files still carry the three permitted exceptions verbatim
 #      (a blocking question / a major issue / the completion return summary), and
@@ -72,15 +75,14 @@ SKILL_MARKERS=(
 )
 
 EXEC_MARKERS=(
-  "Produce visible text in exactly three cases:"
-  "**A blocking question**"
-  "**A major issue**"
-  "**Your completion return summary**"
-  "re-billed as input on every remaining turn of your"
-  "Now let's implement."
-  "Let's check if the tests still pass."
-  "Now run gates: lint, typecheck, test, build."
-  "illustrate a pattern, not an exhaustive blocklist"
+  "Output discipline (Phase 3) — applied to you, not restated."
+  "Be quiet while you work."
+  "no recap of what a call just returned, no"
+  "preview of what you're about to do next. Just do it."
+  "Speak up in exactly three moments: you hit a blocker and need to ask a real question,"
+  "something changes the shape of the work and needs flagging now rather than at the end"
+  "you're giving your final return summary."
+  "If you're not in one of those three moments, don't write a"
 )
 
 FORBIDDEN='read past'
