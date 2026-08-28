@@ -156,3 +156,165 @@ SubagentStop, done by a process that can independently confirm this was a detach
 subprocess, or (b) a fresh run item that launches `claude -p --agent work-item-executor`
 from an actual shell with no parent Desktop session, and inspects the resulting environment
 for the same variables checked in §0 to confirm the shape before checking hook evidence.
+
+## Run 2 (detached)
+
+**Run date:** 2026-08-27/28 (local -0500 / UTC as shown below)
+**HEAD at time of this run's start:** `0603306` (Run 1's findings commit)
+**Orchestrator's stated intent for this run:** launch `claude -p` with `CLAUDE_CODE_CHILD_SESSION`,
+`CLAUDE_CODE_HOST_SESSION_ID`, `CLAUDE_CODE_MESSAGING_SOCKET`, `CLAUDE_CODE_MESSAGING_TOKEN`,
+`CLAUDE_CODE_SESSION_ID`, `CLAUDE_CODE_ENTRYPOINT`, `CLAUDE_PID`, `CLAUDECODE`, `CLAUDE_CODE_AGENT`
+explicitly unset, to produce a genuinely detached process for comparison against Run 1.
+
+### 1. This run's own environment, verbatim
+
+```
+$ env | grep -iE '^CLAUDE|^AGENT'
+CLAUDE_AGENT_SDK_VERSION=0.3.246
+CLAUDE_CODE_OAUTH_SCOPES=user:inference user:file_upload user:profile user:sessions:claude_code
+CLAUDE_CODE_ENABLE_ASK_USER_QUESTION_TOOL=true
+CLAUDE_CODE_EMIT_TOOL_USE_SUMMARIES=false
+CLAUDE_CODE_DISABLE_CRON=
+CLAUDE_CODE_EAGER_FLUSH=1
+CLAUDE_CODE_REPORT_FINDINGS=1
+CLAUDE_PREVIEW_CLASSIFIER_FLOOR=1
+CLAUDE_CODE_SDK_HAS_OAUTH_REFRESH=1
+CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH=1
+CLAUDE_EFFORT=high
+CLAUDE_CODE_ENTRYPOINT=sdk-cli
+CLAUDE_CODE_AGENT=work-item-executor
+CLAUDE_CODE_MESSAGING_SOCKET=/tmp/cc-socks/62138.sock
+CLAUDE_CODE_MESSAGING_TOKEN=e7ed6d0baecbfbf560da87d099884d2f
+CLAUDE_CODE_EXECPATH=/Users/jonathanstevenson/.local/share/claude/versions/2.1.241
+CLAUDECODE=1
+CLAUDE_CODE_SESSION_ID=2a8bdb2e-21ab-4415-97f5-2207c5daed30
+CLAUDE_CODE_CHILD_SESSION=1
+CLAUDE_PID=62138
+```
+
+### 2. Direct comparison against the nine variables the orchestrator says it unset
+
+| Variable | Run 1 value | This run (Run 2) | Actually absent? |
+|---|---|---|---|
+| `CLAUDE_CODE_CHILD_SESSION` | `1` | `1` | **No — still present** |
+| `CLAUDE_CODE_HOST_SESSION_ID` | `local_ba2e549e-...` | (not in output) | **Yes — absent** |
+| `CLAUDE_CODE_MESSAGING_SOCKET` | `/tmp/cc-socks/55927.sock` | `/tmp/cc-socks/62138.sock` | **No — still present** (new value) |
+| `CLAUDE_CODE_MESSAGING_TOKEN` | `1c7fa60d...` | `e7ed6d0b...` | **No — still present** (new value) |
+| `CLAUDE_CODE_SESSION_ID` | `058d1969-...` | `2a8bdb2e-...` | **No — still present** (new value) |
+| `CLAUDE_CODE_ENTRYPOINT` | `claude-desktop` | `sdk-cli` | **No — still set**, value changed from `claude-desktop` to `sdk-cli` |
+| `CLAUDE_PID` | `55927` | `62138` | **No — still present** (new value) |
+| `CLAUDECODE` | `1` | `1` | **No — still present** |
+| `CLAUDE_CODE_AGENT` | `work-item-executor` | `work-item-executor` | **No — still present** |
+
+**Plain statement:** the strip did not take for eight of the nine named variables. Only
+`CLAUDE_CODE_HOST_SESSION_ID` is genuinely absent this run. `CLAUDE_CODE_CHILD_SESSION=1` and a live
+`CLAUDE_CODE_MESSAGING_SOCKET`/`CLAUDE_CODE_MESSAGING_TOKEN` pair — the two signals Run 1 flagged as
+the strongest evidence of a nested child session with a live channel back to a parent — are both
+still present, with fresh values (new PID, new socket path, new token), meaning this run still has an
+active messaging socket to *some* parent process. `CLAUDE_CODE_ENTRYPOINT` did change value
+(`claude-desktop` → `sdk-cli`), which is the one variable showing any difference in kind rather than
+just a fresh session identifier, but it was not unset — it was set to a different non-empty value.
+
+**Conclusion on detachment: this run is NOT confirmed detached.** Based only on what this run directly
+observed, it looks like the same shape as Run 1 — `CLAUDE_CODE_CHILD_SESSION=1` plus a live messaging
+socket/token pair — with one env var (`CLAUDE_CODE_HOST_SESSION_ID`) removed and `CLAUDE_CODE_ENTRYPOINT`
+changed from `claude-desktop` to `sdk-cli`. Whatever launched this run, it is not evidently a bare
+`claude -p` subprocess with no parent session and no messaging channel; a live socket to a parent
+process is still present.
+
+### 3. status.json — before and after this run's own writes
+
+Read back **before** this run wrote anything (i.e. as Run 1 left it at its own `gates-passed`):
+
+```json
+{
+  "item": "1 - Verify L2 hook firing today",
+  "branch": "chore/verify-l2-hook-firing",
+  "state": "gates-passed",
+  "detail": "Findings file committed and pushed (0603306); evidence is partial/unverified per findings doc — see item-1-hook-firing-findings.md. Not opening PR per dispatch instructions.",
+  "commit": "0603306",
+  "updated": "2026-08-28T02:04:02Z"
+}
+```
+
+No `agent_id` field, no `terminal` field present at that point.
+
+Read back immediately **after** this run's own `grounding` write (`mv`-based, not a hook):
+
+```json
+{
+  "item": "1 - Verify L2 hook firing today",
+  "branch": "chore/verify-l2-hook-firing",
+  "state": "grounding",
+  "detail": "Run 2 (detached): read plan.md and Run 1 findings; checked own env vars for the specific strip list the orchestrator applied before invoking this run.",
+  "commit": "0603306",
+  "updated": "2026-08-28T02:10:00Z"
+}
+```
+
+Still no `agent_id`, still no `terminal` — this executor wrote every key present; nothing was added by
+a hook as of this read. As with Run 1, `terminal`/`agent_id` are SubagentStop-stamped, which fires
+after this agent's turn ends, so this run cannot observe its own SubagentStop from inside itself — only
+a post-hoc read by the orchestrator after this run returns can settle that half.
+
+### 4. Full listing of status/ — new agent-<id>.log?
+
+```
+$ ls -la /Users/jonathanstevenson/Source/claude-skills/docs/epics/16-l2-custom-loop-narration-fix/status/
+total 24
+drwxr-xr-x@ 6 jonathanstevenson  staff  192 Aug 27 21:06 .
+drwxr-xr-x@ 4 jonathanstevenson  staff  128 Aug 27 21:00 ..
+drwxr-xr-x@ 2 jonathanstevenson  staff   64 Aug 27 21:00 .agents
+-rw-r--r--@ 1 jonathanstevenson  staff  147 Aug 27 21:05 agent-a7a486cf814fe9c0a.log
+-rw-r--r--@ 1 jonathanstevenson  staff  147 Aug 27 21:00 agent-a7b0d0e00e1204251.log
+-rw-------@ 1 jonathanstevenson  staff  341 Aug 27 21:06 chore-verify-l2-hook-firing.json
+```
+
+**Yes — a new `agent-<id>.log` file appeared**: `agent-a7a486cf814fe9c0a.log`, timestamped
+`Aug 27 21:05` (`2026-08-28T02:05:53Z`), five minutes after Run 1's leftover
+`agent-a7b0d0e00e1204251.log` (`Aug 27 21:00`) and landing close to this run's own start. Content:
+
+```
+$ cat /Users/jonathanstevenson/Source/claude-skills/docs/epics/16-l2-custom-loop-narration-fix/status/agent-a7a486cf814fe9c0a.log
+2026-08-28T02:05:53Z | ── SUBAGENT STOP  (a7a486cf814fe9c0a) on branch main — no SubagentStart record for this agent; nothing stamped ──
+```
+
+Same pattern as Run 1's leftover log: a `SubagentStop` event, on **`branch main`** — not
+`chore/verify-l2-hook-firing`, the branch this run is actually on — with no matching `SubagentStart`
+record, so nothing was stamped. Since this run has never operated on `main`, this event is not
+attributable to this run's own dispatch. It most plausibly belongs to whatever session or agent the
+orchestrator ran on `main` to launch this run (e.g. the orchestrator's own dispatch turn), not to the
+detached `work-item-executor` process itself.
+
+`.agents/` remains **empty** — no new owner record file appeared:
+
+```
+$ ls -la /Users/jonathanstevenson/Source/claude-skills/docs/epics/16-l2-custom-loop-narration-fix/status/.agents
+total 0
+drwxr-xr-x@ 2 jonathanstevenson  staff   64 Aug 27 21:00 .
+drwxr-xr-x@ 2 jonathanstevenson  staff   64 Aug 27 21:00 .
+```
+
+### 5. Plain answer — is this run detached, and did hooks fire for it?
+
+- **Detached: no, not confirmed.** Eight of the nine variables the orchestrator says it unset are
+  still present in this run's own environment, including `CLAUDE_CODE_CHILD_SESSION=1` and a live
+  messaging socket/token pair to a parent process — the exact signals Run 1 flagged as inconsistent
+  with a standalone `claude -p` subprocess. Only `CLAUDE_CODE_HOST_SESSION_ID` is genuinely absent,
+  and `CLAUDE_CODE_ENTRYPOINT` changed value (`claude-desktop` → `sdk-cli`) without being unset.
+- **Hooks fired for this run's own dispatch: no evidence either way, partial at best — same as Run 1.**
+  A new `agent-<id>.log` did appear during this run's window, proving the `subagent-lifecycle.sh` hook
+  script executed again during this session — but that event is stamped `branch main`, not
+  `chore/verify-l2-hook-firing`, has no matching `SubagentStart` record, and stamped nothing. It is not
+  attributable to this run's own dispatch by the same reasoning Run 1 applied to its own leftover log.
+  This run's own `status.json` shows no `agent_id`/`terminal` as of its last self-read, and `.agents/`
+  is still empty.
+- **Overall: partial/unresolved, and the intended detachment fix did not take.** This run cannot
+  settle item 1's original question because it cannot confirm it is the invocation shape item 1 was
+  meant to test. The orchestrator's attempt to strip the specific env vars distinguishing a nested
+  child session from a genuine detached `claude -p` subprocess only removed one of nine named
+  variables (`CLAUDE_CODE_HOST_SESSION_ID`); the two strongest signals of a live parent channel
+  (`CLAUDE_CODE_CHILD_SESSION=1`, an active messaging socket/token) persisted unchanged in kind. A
+  conclusive answer still requires a run launched such that `CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION`,
+  and any `CLAUDE_CODE_MESSAGING_*` pair are actually absent from the process environment — not merely
+  reassigned to fresh values — before hook-firing evidence can be meaningfully checked.
