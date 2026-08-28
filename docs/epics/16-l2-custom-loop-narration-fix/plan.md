@@ -1,6 +1,6 @@
 # Epic: L2 custom executor loop — structural narration fix, opt-in for headless dispatch only
 
-**Status:** in flight (item 2 of 4)
+**Status:** in flight (item 3 of 4)
 **Source:** GH #75 (continues epics 12, 13, 15 — three prompt-only fixes all recurred; this is the
 structural-fix epic epic 15's closure pointed to)
 **Live branch:** main   **Integration branch:** main   **Pre-epic tag:** n/a — additive, opt-in path
@@ -102,6 +102,14 @@ re-entering context across turns.
 block appearing solely in the final turn.
 
 **Does not:** touch work-item-executor.md, dispatch.sh, or any real epic item execution.
+
+**DONE (PR #83).** Live 4-turn run against the real Messages API (`claude-haiku-4-5`, OAuth
+credential via `ant auth login`), system prompt deliberately encouraging narration rather than
+suppressing it. Turns 1 and 2's raw responses both contain real narration text; both are
+completely absent from the very next outgoing request's message history — only `tool_use`/
+`tool_result` blocks were resent. The final turn's answer text was correctly left untouched since
+nothing gets resent after it. Full evidence: `item-2-findings.md`, `item2-run.jsonl`,
+`item2_strip_probe.py`.
 
 ### 3. Reimplement enough of work-item-executor's tool surface and lifecycle
 
