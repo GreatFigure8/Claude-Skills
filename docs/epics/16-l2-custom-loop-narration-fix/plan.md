@@ -1,6 +1,6 @@
 # Epic: L2 custom executor loop — structural narration fix, opt-in for headless dispatch only
 
-**Status:** in flight (item 1 of 4)
+**Status:** in flight (item 2 of 4)
 **Source:** GH #75 (continues epics 12, 13, 15 — three prompt-only fixes all recurred; this is the
 structural-fix epic epic 15's closure pointed to)
 **Live branch:** main   **Integration branch:** main   **Pre-epic tag:** n/a — additive, opt-in path
@@ -31,10 +31,22 @@ transcript for text blocks between tool calls, not self-report.
 - Verified (`dispatch.sh:1189`, `l2-dispatch.md:48,188`): L2 already invokes work-item-executor
   headlessly via `claude -p --agent work-item-executor --model sonnet <brief>` — not the interactive
   Task/Agent tool.
-- **Assumed, NOT verified as of filing:** whether L2's headless `claude -p --agent` invocation fires
-  the `agent_id`-gated hooks (cancel gate, tool logger, lifecycle stamping) at all today. Neither
-  `dispatch.sh` nor `l2-dispatch.md` mentions `agent_id`/`SubagentStart`/`SubagentStop`. Resolving
-  this live is work item 1, dispatched in the same commit as this filing.
+- **Confirmed live (item 1, PR #82, merged):** L2-shaped headless dispatch does NOT get functioning
+  lifecycle/tool-call telemetry today. Two independent live runs of the exact `claude -p --agent
+  work-item-executor --model sonnet --allowed-tools <L2's list>` invocation shape (one with the
+  orchestrating session's env vars intact, one with the session-linking vars — `CLAUDE_CODE_CHILD_
+  SESSION`, `CLAUDE_CODE_MESSAGING_SOCKET`, etc. — explicitly stripped) converged: neither run's own
+  `status.json` ever received an `agent_id` or `terminal` field (hook-stamped only, never
+  self-written); both correlate in time with an orphaned `agent-<id>.log` entry reading "SUBAGENT
+  STOP ... no SubagentStart record for this agent; nothing stamped" — some hook activity fires in
+  the vicinity but never establishes a start/owner record for a plain `claude -p --agent`
+  invocation. Env-var stripping alone did not achieve confirmed process detachment (the child-session
+  marker persisted regardless), so full detachment (a real cron/launchd/plain-terminal launch,
+  outside any Claude Code process tree) was not achieved or tested — but both runs showed the same
+  broken pattern regardless, which is itself evidence the break isn't about detachment specifically.
+  **This means item 4's marginal telemetry cost is small: the cancel gate, tool logger, and
+  lifecycle stamping are not functioning for this path today, so a custom loop replacing it loses
+  little that currently works.** Full findings, raw command output: `item-1-hook-firing-findings.md`.
 - Verified (public docs, via research agent): Claude Code hooks are CLI-lifecycle events; a raw
   Messages API loop or the Messages-API Tool Runner gets none of them. The Agent SDK's own
   tooling/permission/hook-equivalent capabilities are not clearly documented — a real gap, not
