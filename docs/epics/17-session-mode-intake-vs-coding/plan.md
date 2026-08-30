@@ -1,6 +1,6 @@
 # Epic: Session mode — distinguish intake sessions from coding sessions
 
-**Status:** in flight (item 1 of 1)
+**Status:** closed
 **Live branch:** main   **Integration branch:** main   **Pre-epic tag:** n/a — prose/doc change only, no runtime behavior to reconstruct
 
 ## Outcome
@@ -78,3 +78,9 @@ Single item, no dependencies.
 - 2026-08-30 — Item 1 implemented directly in conversation, ahead of this plan being filed
   (process gap). Plan filed and item marked done in the same session, retroactively, per
   Jonathan's instruction after being asked whether the process had actually been followed.
+- 2026-08-30 — Item 1 merged via PR #84, verified: `git log --oneline -3` shows the merge
+  commit on `main`; work-item branch deleted remotely and locally. Single-item epic, closed
+  in the same session. Retro: the interesting lesson isn't in the diff — it's that the
+  workflow being changed was, in this instance, also the workflow not being followed while
+  changing it. No worktree/status-dir scaffolding existed to clean up, since this item ran
+  directly in the orchestrator's own session rather than through a dispatched executor.
