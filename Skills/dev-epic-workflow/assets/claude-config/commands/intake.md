@@ -1,5 +1,5 @@
 ---
-description: Turn a GitHub/Azure DevOps issue into a filed epic (or file the issue first from a description), link both ways, and hand to the orchestrator
+description: Turn a GitHub/Azure DevOps issue into a filed epic (or file the issue first from a description), link both ways, and stop — this is an intake session, it never dispatches
 allowed-tools: Bash(git:*), Bash(gh:*), Bash(az:*), Bash(ls:*), Bash(find:*), Bash(date:*), Read, Write, Edit, Glob, Grep
 argument-hint: [issue ref, URL, or a free-text problem description — e.g. "#123", "AB#4571", "bug: OIC retry loop double-applies receipts"]
 ---
@@ -7,6 +7,12 @@ argument-hint: [issue ref, URL, or a free-text problem description — e.g. "#12
 Run the intake process from the dev-epic-workflow skill (`references/issue-intake.md`).
 Execute every step yourself — do not describe steps for the user to run. The tracker is
 the system of record for what and why; the epic folder is the record of how.
+
+**This command declares an intake session** (dev-epic-workflow's Session mode). Scope is
+grounding and planning only — never touch code, never create a branch or worktree, never
+dispatch a work item, and never offer to. That holds across every issue this session
+intakes, not just the first; a session that runs `/intake` repeatedly stays in planning mode
+the whole way through.
 
 ## 1. Detect the tracker and verify access
 
@@ -56,12 +62,12 @@ the system of record for what and why; the epic folder is the record of how.
   - **Azure DevOps**: set the source item `Active` with a discussion comment carrying the
     plan link; create one child Task per work item, parent-related to the source item.
 
-## 6. Hand to the orchestrator (Phase 3)
+## 6. Stop — dispatch is a coding-session action, not this one
 
-- This session IS the orchestrator unless one is already running elsewhere. State the
-  dispatch order, then dispatch the first work item to the `work-item-executor` subagent
-  per Phase 3 — epic folder, item number, branch name, resolved decisions — and apply
-  the intake status mapping as boundaries are crossed (`epic:in-progress` / Task
-  `Active` on dispatch; checklist tick / Task `Closed` on merge).
-- Reply with: the source ref, the epic path, the work-item list with branches, and which
-  item was dispatched. Nothing narrative beyond that.
+- Intake ends at filing and linking. Do **not** dispatch the first work item, create a
+  worktree, or touch code — not even for a one-item epic that looks trivial. Phase 3
+  dispatch happens in a coding session: later in this same session only if Jonathan
+  explicitly says to switch modes ("go ahead and build it"), otherwise in a fresh session
+  that picks up the approved epic.
+- Reply with: the source ref, the epic path, and the work-item list with branches. Nothing
+  narrative beyond that, and no offer to start building.
