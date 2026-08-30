@@ -15,13 +15,45 @@ The failure modes this exists to prevent, in order of how much damage they do:
 4. **Long-lived branches drifting from the integration branch.** Cost: merge archaeology.
 5. **Conversational state outliving its context.** A compaction summary's — or an executor's return summary's — memory of file state is an unverified claim: the same failure class as #3, at a context boundary. State that matters gets written to disk before it's needed, not summarized after it's lost.
 
+## Session mode — intake or coding, declared once at the top
+
+Every session runs in exactly one of two modes, declared once and held for the rest of the
+session — Claude does not re-infer or drift between them on its own initiative mid-session.
+
+**Intake session** — triggered by `/intake` in any form, or Jonathan opening with a bug report,
+a feature idea, an issue reference, or the plain statement "this is an intake session." Scope is
+Phase 0 and Phase 1 **only**: ground, draft, present, get approval, file, link back to the
+tracker. Nothing past filing — no branch, no worktree, no code, no gates, no dispatch, not even a
+subagent dispatch, and not even for a change that looks trivial or obviously safe. Do not offer
+to implement and do not ask "want me to build this now?" — that standing offer is exactly what
+this mode exists to remove. The session's output is always a filed plan, or one presented and
+awaiting approval, never a diff. Jonathan intakes epic after epic in one sitting this way; the
+session stays in planning mode across every one of them, not just the first. If he explicitly
+instructs implementation mid-session ("go ahead and build it"), that *is* him switching modes —
+say so in one line, then proceed, rather than silently starting to code or continuing to hedge
+with offers he already answered.
+
+**Coding session** — triggered by a direct instruction to implement, fix, build, or ship
+something; by resuming or continuing an in-flight epic; or by Jonathan opening with "this is a
+coding session." Scope is Phase 2 onward, on the assumption that planning already happened
+somewhere: branch, implement, commit, verify, land, checkpoint. Do not open a planning
+conversation, re-litigate scope, or ask whether to plan first — Jonathan starting a coding
+session already made that call. If the requested work genuinely has no filed epic, file one per
+Phase 1 in the same breath and say so in one line, then keep going into Phase 2 rather than
+turning the rest of the session into intake.
+
+When the very first message gives no signal either way, default to intake — of the two failure
+modes, coding without an agreed plan (failure mode #1 above) is the expensive one to be wrong
+about; asking Jonathan to plan something he only meant to have fixed costs one clarifying
+question.
+
 ## Intake — issues in, epics out
 
 Work can enter this workflow from an issue tracker, in both directions, with the tracker as the system of record for *what and why* and the epic folder as the record of *how*. Full mechanics — tracker detection (GitHub via `gh`, Azure DevOps via `az boards`), the linking contract, status mapping, batch pickup — live in `references/issue-intake.md`; the `/intake` command automates the whole path.
 
-**Entry points are equivalent — the description always comes first, never the command.** Three ways in: (1) natural language mid-conversation ("bug: …", "file this as a work item", "pick up issue 123") — this triggers intake with no command at all and is the normal path; (2) `/intake <ref or description>` — the argument carries everything, and the classifier routes a ref to Pickup and free text to Report; (3) `/intake` with no argument — the only "command-first" case, and it doesn't precede a description: it lists the open backlog with a recommended pickup order and asks which item to take. There is never a step where `/intake` must be invoked before describing a problem; the command exists so the full ritual (tracker-first creation, linking, dispatch) runs deterministically, not as a gate in front of it.
+**Entry points are equivalent — the description always comes first, never the command.** Three ways in: (1) natural language mid-conversation ("bug: …", "file this as a work item", "pick up issue 123") — this triggers intake with no command at all and is the normal path; (2) `/intake <ref or description>` — the argument carries everything, and the classifier routes a ref to Pickup and free text to Report; (3) `/intake` with no argument — the only "command-first" case, and it doesn't precede a description: it lists the open backlog with a recommended pickup order and asks which item to take. There is never a step where `/intake` must be invoked before describing a problem; the command exists so the full ritual (tracker-first creation, linking, filing) runs deterministically, not as a gate in front of it. `/intake` is also, per Session mode above, the declaration that this is an intake session: it stops at filing and linking, and never dispatches.
 
-- **Pickup**: Jonathan names or reports a GitHub issue / ADO work item ("pick up issue 123", "AB#4571", a pasted URL). Fetch the full item including comments, then run Phase 0 and Phase 1 as normal with the item as the requirements source; on approval, file the plan with a `Source:` ref in its header, link the epic back to the tracker item (comment + label/state + work-item checklist or child Tasks), and hand to Phase 3 for dispatch.
+- **Pickup**: Jonathan names or reports a GitHub issue / ADO work item ("pick up issue 123", "AB#4571", a pasted URL). Fetch the full item including comments, then run Phase 0 and Phase 1 as normal with the item as the requirements source; on approval, file the plan with a `Source:` ref in its header, link the epic back to the tracker item (comment + label/state + work-item checklist or child Tasks), and stop — Phase 3's dispatch is a coding-session action, not this one (Session mode above).
 - **Report**: the problem arrives in conversation first ("bug: …", "file this as a work item"). Create the tracker item *first* — observed/expected/evidence, from stated facts only — confirm the ref in one line, then run Pickup with it.
 
 Every epic born from intake keeps the tracker updated at phase boundaries (planned → in-progress → item ticks → closed), one terse comment per boundary — the fine grain stays in the commit stream and `status/`. A problem reported mid-epic that belongs to the current epic is not intake; it's Phase 3's scope rule plus a checklist line or child Task on the existing source item.

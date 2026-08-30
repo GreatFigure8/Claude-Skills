@@ -121,8 +121,11 @@ issue/work-item URL, or the `/intake <ref>` command.
      then one `az boards work-item create --type Task --title "<item NN>: <name> (<branch>)"`
      per work item, each related to the source item
      (`az boards work-item relation add --id <task> --relation-type parent --target-id <n>`).
-5. **Hand to Phase 3** — the orchestrator dispatches the first executor. Intake ends here;
-   everything downstream is the existing workflow, plus the status-mapping touches above.
+5. **Stop.** Intake's job ends at filing and linking — an intake session never dispatches, not
+   even to a subagent (dev-epic-workflow's Session mode). State the source ref, the epic path,
+   and the work-item list with branches, then stop. Phase 3 dispatch happens in a coding
+   session: either Jonathan says so explicitly later in this same session (which switches the
+   mode) or a fresh coding session picks up the approved epic from there.
 
 **Scale to the issue.** A one-line bug whose fix is one work item still gets the full
 shape — plan, branch, PR — but the plan is proportionally small: outcome, one item, one
