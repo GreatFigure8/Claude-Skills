@@ -85,7 +85,12 @@ keep working:
   against a real environment before the PR, not just unit-tested.
 - Renaming or removing a tool is its own work item with its own approval.
 
-## Next.js / Shadcn / Tailwind
+## Next.js / Shadcn / Tailwind / any TypeScript work
+
+**Load first, no deviation:** **`nextjs-fullstack-standards`** — the mandatory standard for
+*all* TypeScript development in Jonathan's repos, not just Next.js/Shadcn/Tailwind work. Load
+it at Phase 0, before the plan is drafted, the same way `building-python-web-apps` gates Python
+service design. There is no TypeScript work item this skill doesn't apply to.
 
 ```
 npm run lint
