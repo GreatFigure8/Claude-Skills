@@ -17,7 +17,7 @@ The slim, fast sibling of `dev-epic-workflow`. Same bones — one branch and one
 6. **Maximum parallelism.** Decompose the story for independence, then dispatch **every** item whose dependencies are met in the **same message** — one `Agent` call per item. Waves, not a queue. The only serialisation is a real code dependency.
 7. **The orchestrator picks the model per item, always explicitly.** `model: "sonnet"` (Sonnet 5) is the default and is used whenever it can do the job. `model: "opus"` (Opus 5) only for items meeting the complexity bar below. Never leave `model` to inherit.
 8. **Every dispatch runs in its own worktree** — `isolation: "worktree"` on the `Agent` call, no exceptions, single-item flow included. The orchestrator keeps the main checkout; no executor ever switches its branch.
-9. **The orchestrator never passes 165k tokens. Ever.** At 150k it stops dispatching and drives to the nearest clean stopping point; the "prep for clear" prompt is posted before 165k, then the orchestrator says nothing more. Jonathan pastes the prompt into a fresh chat. This replaces the global 120k-announce / 150k-checkpoint rule for sprints.
+9. **The orchestrator never passes 165k tokens. Ever.** `.claude/hooks/context-budget-gate.sh` — a PreToolUse hook on the `Agent` tool — is the enforcement mechanism of record, not the orchestrator noticing its own count. At 150k (soft) a dispatch still goes through, but the hook injects a reminder to stop dispatching and land what's in flight; at 165k (hard) the `Agent` call is **denied** outright, so no new dispatch is possible until in-flight work lands and the "prep for clear" prompt is posted, after which the orchestrator says nothing more. Jonathan pastes the prompt into a fresh chat. Thresholds default to 150k soft / 165k hard and are configurable via env `CONTEXT_BUDGET_SOFT_TOKENS` / `CONTEXT_BUDGET_HARD_TOKENS` or a `.claude/context-budget` file. The gate fails open — a missing or stale sentinel means no enforcement, so the numbers still matter and the orchestrator still watches its own count. This replaces the global 120k-announce / 150k-checkpoint rule for sprints.
 10. **Have fun.** Terse is not grim. The four messages the orchestrator does send can have a pulse.
 
 ## Flow at a glance
@@ -143,7 +143,9 @@ When every item is verified and merged: run the gates once on the integration br
 
 ## The token budget: stop dispatching at 150k, never pass 165k
 
-The ceiling is on the **orchestrator's context**: **165k tokens, never passed.** It is a working limit, not the window. Finding a stopping point costs tokens — executor returns, verification, merges — so the work of stopping starts at **150k**, leaving ~15k to land what is in flight and post the prompt. Watch the count via the statusline's context readout (installed by dev-epic-workflow) or by counting: every executor return, every file read, every plan message.
+The ceiling is on the **orchestrator's context**: **165k tokens, never passed.** It is a working limit, not the window. Finding a stopping point costs tokens — executor returns, verification, merges — so the work of stopping starts at **150k**, leaving ~15k to land what is in flight and post the prompt.
+
+**`.claude/hooks/context-budget-gate.sh` is the enforcement mechanism of record**, not the orchestrator noticing its own count. It is a PreToolUse hook on the `Agent` tool: at 150k (soft) a dispatch still goes through, but the hook injects a reminder naming rule 9 and telling the orchestrator to land what's in flight; at 165k (hard) the `Agent` call is **denied**, so no new dispatch is possible until in-flight work lands and the prep-for-clear prompt is posted. The statusline's context readout (installed by dev-epic-workflow) is the human-visible signal only — it and the gate read the same sentinel file. Thresholds default to 150k soft / 165k hard and are configurable via env `CONTEXT_BUDGET_SOFT_TOKENS` / `CONTEXT_BUDGET_HARD_TOKENS` or a `.claude/context-budget` file. **The gate fails open** — a missing or stale sentinel means no enforcement at all, so the numbers still govern and the orchestrator still counts for itself: every executor return, every file read, every plan message.
 
 Habits that keep the orchestrator small:
 
@@ -204,7 +206,7 @@ Both live pieces are **symlinks into a pinned worktree of this repo**, not into 
 Stated explicitly so nobody has to reconcile it mid-story:
 
 - **Testing:** no TDD, no coverage target (rule 3). Gates still run.
-- **Context budget:** the global "announce at 120k, checkpoint at 150k, `/handoff` then `/clear`" rule is replaced by rule 9 — stop dispatching at 150k, post the prep-for-clear prompt before 165k, no `/handoff` skill involved.
+- **Context budget:** the global "announce at 120k, checkpoint at 150k, `/handoff` then `/clear`" rule is replaced by rule 9 — enforced by `context-budget-gate.sh`, not the orchestrator noticing its own count: stop dispatching at 150k, post the prep-for-clear prompt before 165k, no `/handoff` skill involved.
 - **Model table per spawn:** satisfied once by the plan message's table, for all waves (Step 1).
 - **Announcing what you're about to do / brief updates:** the orchestrator does not narrate (rule 5). The plan message is the announcement; the closing message is the recap.
 - **Commit at task end:** executors commit continuously and push on the first commit; the orchestrator's merges are the story's commits.
