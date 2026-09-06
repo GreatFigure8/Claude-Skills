@@ -188,12 +188,16 @@ An executor that stops on a permission prompt has broken the silence rule and st
 
 ## Install (once per machine)
 
-Both live pieces are **symlinks into this repo**, so edits here are live immediately and nothing needs re-running after a change:
+Both live pieces are **symlinks into a pinned worktree of this repo**, not into the dev checkout:
 
-- `~/.claude/skills/dev-story-sprint` → `<repo>/Skills/dev-story-sprint`
-- `~/.claude/agents/story-item-executor.md` → `<repo>/Skills/dev-story-sprint/assets/agents/story-item-executor.md`
+- `~/.claude/skills/dev-story-sprint` → `~/Source/claude-skills-main/Skills/dev-story-sprint`
+- `~/.claude/agents/story-item-executor.md` → `~/Source/claude-skills-main/Skills/dev-story-sprint/assets/agents/story-item-executor.md`
 
-`bash <skill-path>/assets/install.sh` creates both symlinks idempotently (a pre-existing plain copy is moved aside as `.bak`) and merges the executor permission allowlist into `~/.claude/settings.json`. The control plane (cancel gate, subagent lifecycle, statusline) comes from the `dev-epic-workflow` user-level install — run that first if `~/.claude/hooks/cancel-gate.sh` is missing. When Claude has shell access it checks and installs rather than describing the steps.
+`~/Source/claude-skills-main` is a `git worktree` held **detached at `origin/main`**. Nobody commits there and nothing switches it, so a `git switch` in the dev checkout (by any session) can never change what Claude Code loads — which is exactly what happened on 2026-09-05 when the symlinks pointed at the dev working tree. The `dev-epic-workflow` symlink lives in the same worktree for the same reason.
+
+- **Create once:** `git worktree add --detach ~/Source/claude-skills-main origin/main`
+- **Install once:** `bash ~/Source/claude-skills-main/Skills/dev-story-sprint/assets/install.sh` — creates both symlinks idempotently (a pre-existing plain copy is moved aside as `.bak`) and merges the executor permission allowlist into `~/.claude/settings.json`. Run it from the worktree path, since it links to wherever it lives.
+- **Go live after a merge to main:** `bash ~/Source/claude-skills-main/Skills/dev-story-sprint/assets/refresh-live.sh` (fetch + detach at `origin/main`). Edits are live after they are on `origin/main`, not on save — that is the trade. The control plane (cancel gate, subagent lifecycle, statusline) comes from the `dev-epic-workflow` user-level install — run that first if `~/.claude/hooks/cancel-gate.sh` is missing. When Claude has shell access it checks and installs rather than describing the steps.
 
 ## What this skill overrides from the global rules
 
