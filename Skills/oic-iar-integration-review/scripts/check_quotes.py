@@ -41,7 +41,7 @@ from pathlib import Path
 
 TEXT_SUFFIXES = {
     ".xml", ".xsl", ".xslt", ".wsdl", ".xsd", ".jca", ".properties", ".dvm",
-    ".json", ".txt", ".md", ".cfg", ".sql", ".csv",
+    ".json", ".txt", ".md", ".cfg", ".sql", ".csv", ".data",
 }
 MAX_FILE_BYTES = 8_000_000
 MIN_QUOTE_CHARS = 8
