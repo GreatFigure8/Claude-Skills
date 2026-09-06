@@ -38,6 +38,41 @@ data, the caller's own behavior — say so explicitly and mark it a verification
 a finding. This is the same discipline a functional architect owes a client: the report
 is worthless the first time someone catches a claim that doesn't hold up.
 
+### Copy, never retype
+
+Evidence quotes are byte-exact copies — produced by `sed -n '<a>,<b>p'`, `grep -F`, or a
+read of the file — never typed out from memory of what the file said. In this skill's
+first graded run every report failed the verbatim check, and never on a point of fact:
+`xml:id="id_53"` was dropped from inside a tag, `&quot;` was rendered as `'`, `AND` was
+lowercased to `and`, `concat (` was respaced, namespace prefixes were stripped, and a `…`
+was placed inside a quoted string. Each of those reads to a client as "that quote is not
+in the file", and one is enough to make a reader distrust the other fifty-eight. The
+mechanism isn't carelessness: reconstructing a line from your understanding of it feels
+exactly like copying it.
+
+- Copy the bytes. If you can't paste them from a tool result, re-read the exact range.
+- Never elide inside a quote. If a line is too long, quote a shorter *contiguous* span —
+  `…` or `...` breaks the string.
+- Don't normalise: keep the entity references, attribute order, casing, and spacing the
+  file has, including the `xml:id` attributes OIC writes into every element.
+- Inside an Evidence `<pre>`, an unmarked line is a verbatim quote. Every label, file
+  path, arrow, or `key = value` rendering you wrote yourself goes inside
+  `<span class="cm">…</span>`, so a reader can tell your summary from the file's text.
+- Verify before delivering: `python3 scripts/check_quotes.py <report.html> <file.iar>`
+  greps every unmarked Evidence line against the extracted archive and prints the ones it
+  can't find. Fix what it names.
+
+### Never claim a check you didn't run
+
+An Evidence block that says "`grep -rl` returns only the defining file" when no such grep
+ran is a fabrication even when the conclusion is right, and it's the one error a client
+can catch without knowing anything about OIC. Run the command, then quote what it
+printed. If you concluded something by reading rather than by grepping, write it as a
+reading ("only processor_97 references it, by inspection") — that is honest and still
+useful. Order matters as well: a check run after the report was written is not what the
+report was based on, so run your verification before you write the finding, not to
+retro-fit it.
+
 Oracle's REST APIs are release-versioned and do change shape (required fields, query
 parameters, response semantics, resource paths) across releases. Never answer from
 memory of what an endpoint "usually" looks like — web-search the current
@@ -102,6 +137,11 @@ declares `maxOccurs="unbounded"`), work out what happens on the untested cardina
 `false`, which silently passes validation rather than failing it. This is usually the
 single highest-value finding in one of these reviews.
 
+Enumerate *every* positional site before moving on — `grep -rn '\[1\]\|\[1\.0\]\|\[2\]'`
+across the XSLs and `expr.properties` — and say what happens at each one. Reasoning
+carefully about one indexed array while silently passing over a second one in the same
+mapping reads as thorough and leaves the same bug in place.
+
 For any REST invoke whose filter/query logic looks suspicious, check whether the value
 was mapped into a **template parameter** (path segment, declared `{like this}` in the
 resource URI) versus a **query parameter** (declared separately and mapped on its own).
@@ -134,6 +174,26 @@ inside a loop, or unnecessary extra round-trips; synchronous integrations doing 
 much; too many duplicate connections), and its fault-handling model (scope-per-invoke
 with handlers, a global fault handler as the last resort, Fault Return for a real HTTP
 status rather than the platform's generic 500).
+
+Two of those checks get skipped most often, and both belong in every report:
+
+- **Adapter choice.** Name the adapter each connection actually uses (read
+  `icspackage/appinstances/*.xml`) and, when the target is a Fusion application, state
+  whether Oracle ships a purpose-built adapter for it (Oracle HCM Cloud, ERP Cloud, and
+  so on). A generic REST adapter pointed at a Fusion pod is a finding in its own right —
+  hand-pasted samples rather than a discovered resource catalog define the schema, so the
+  integration silently keeps whatever shape the sample had — even when it currently works.
+- **Sample-payload hygiene.** Read the `RequestSample`/`ResponseSample` blocks in every
+  `.jca`. Dev/test hostnames, real e-mail addresses, plaintext passwords and live IDs left
+  in the samples ship inside the package and are a finding, severity set by what leaked.
+
+**Cite only what you actually fetched.** Every "judged against" reference must resolve to
+a URL that appeared in this session's search or fetch results. Recalled citations are the
+trap: a W3C spec section, an A-Team blog post, a plausible `docs.oracle.com` path that
+404s — all three look like diligence and none can be checked. If a fetch fails (403, 404,
+a redirect to a different release), search for the working page or drop the reference and
+argue from the IAR instead. A claim that rests on general knowledge should say so rather
+than borrow authority from a page you didn't read.
 
 ### 4. Classify findings
 
@@ -185,14 +245,43 @@ version doesn't need defending in a client meeting.
 brand — embed `assets/hackett_logo.svg` inline per the "Hackett logo (always)" rule in
 `references/design-system.md`.
 
-**Before you deliver:** every generated HTML file must render at real client viewport
-widths without horizontal overflow (a two-column CSS grid whose children are tables or
-`<pre>` blocks will overflow its card unless the grid columns are `minmax(0,1fr)` and the
-children have `min-width:0` — this is already baked into the reference CSS, but if you
-add a new component, check it). Confirm all body text is at least 13px. If Playwright or
-another browser tool is available, render each tab/section and screenshot it before
-presenting; if not, at minimum re-read the CSS for the overflow patterns called out in
-`design-system.md`.
+**Before you deliver — run the checker, don't eyeball it.**
+
+```bash
+uv run --with playwright scripts/check_report.py <report.html> <source.iar>
+```
+
+It mechanically checks what a hand review keeps missing: the six tabs, trace completeness
+against `project.xml`, cost-meter accuracy, horizontal overflow at **420, 820, 1000, 1280
+and 1440px** with every `<details>` forced open and every tab visible, a 13px minimum
+computed font size, neutral wording, and the Hackett logo. Every failure it prints gets
+fixed before the report is presented — fixed, not noted. In the first graded run the only
+runs that passed the trace, cost and overflow rules were the ones that ran this script;
+the ones that verified by hand all failed, including one that checked "narrow" at 445px
+and shipped a block that overflows at 420. Check the exact widths.
+
+Two definitions the checker enforces, so build the data to match:
+
+- **One trace node per orchestration activity.** `NODES` carries an entry for every
+  element inside `<ns2:orchestration>` that isn't a container or declaration
+  (`orchestration`, `integrationMetadata`, `globalVariable`, `globalTry`, `label`,
+  `route`, `try`) — assigns, transformers, routers, invokes, notifications, stage-file
+  actions, catches, activity-stream loggers, replies, stops, all of them, in execution
+  order. Rolling "13 assigns" up into one node under-counts the trace: the first graded
+  run shipped 49 nodes for 58 activities, 33 for 37, and 48 for 85.
+- **The cost meter counts every invoke.** `cost.c` summed across all nodes equals the
+  number of `<invoke>` activities in `project.xml` — *every* outbound call, not only the
+  Fusion-facing REST ones, because a local integration call, a BIP SOAP call and a
+  callback each cost a real round trip. `cost.l` summed equals the number of
+  `dvm:lookupValue` occurrences across `expr.properties`. Where the distinction between
+  call types matters to the narrative, draw it in the node's `kind`/`d` text — never by
+  leaving invokes out of the meter.
+
+The overflow rule is usually a layout bug, not a content one (a two-column CSS grid whose
+children are tables or `<pre>` blocks overflows its card unless the grid columns are
+`minmax(0,1fr)` and the children have `min-width:0` — baked into the reference CSS, but
+check any component you add). If Playwright or another browser tool is available, also
+screenshot each tab before presenting, so you have seen what the client will see.
 
 Save the finished file to `/mnt/user-data/outputs/` and present it — never just paste
 the HTML into chat.
@@ -215,3 +304,10 @@ the HTML into chat.
   trace stepper, findings register, and conformance tables in context.
 - **`assets/archrock_logo.png`** — trimmed, transparent Archrock wordmark for use per
   `archrock-brand.md`.
+- **`scripts/check_report.py`** — the mechanical report checker (tabs, trace
+  completeness, cost meter, overflow at five widths, minimum font size, wording, Hackett
+  logo). Run it on every report before delivery:
+  `uv run --with playwright scripts/check_report.py <report.html> <source.iar>`.
+- **`scripts/check_quotes.py`** — greps every unmarked Evidence line in a report against
+  the extracted IAR and lists what isn't there:
+  `python3 scripts/check_quotes.py <report.html> <file.iar>`.

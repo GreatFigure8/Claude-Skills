@@ -519,7 +519,11 @@ def build_expectations(report: Path, iar: Path | None, browser_ok: bool) -> tupl
         )
 
     # D3
-    meter_calls = _meter_value(meter, "fusion", "call")
+    meter_calls = _meter_value(meter, "outbound", "call")
+    if meter_calls is None:
+        meter_calls = _meter_value(meter, "fusion", "call")
+    if meter_calls is None:
+        meter_calls = _meter_value(meter, "call")
     meter_lookups = _meter_value(meter, "lookup")
     calls = meter_calls if meter_calls is not None else (static_totals or {}).get("c")
     lookups = meter_lookups if meter_lookups is not None else (static_totals or {}).get("l")
