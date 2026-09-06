@@ -32,3 +32,4 @@ Thumbs.db
 .claude/worktrees/
 docs/epics/*/status/
 docs/epics/*/CANCEL
+.claude/stories/
