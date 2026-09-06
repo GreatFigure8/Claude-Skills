@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>INT0830 AFM Employee OTL Request — OIC Integration Review · Archrock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Archrock palette — taken from archrock.com/css/base.css utility classes (.bg-brand, .text-dark-blue, .text-deep-navy, .text-yellow, .text-orange, .text-red, .text-teal, .text-light-aluminum) */
+  --ar-blue:#0c7eb0; --ar-sky:#00a9e0; --ar-light:#bfe9f7; --ar-darkblue:#004c66; --ar-navy:#00394d;
+  --ar-charcoal:#262626; --ar-char2:#404040; --ar-alum:#e6e6e6; --ar-gray:#7f7f7f;
+  --ar-yellow:#ffc600; --ar-orange:#ff8200; --ar-red:#da291c; --ar-teal:#00b398;
+  --ink:#1c1f22; --slate:#4a5259; --mist:#8b949c; --paper:#fff; --canvas:#f3f5f7; --line:#dfe4e8;
+  --brand:var(--ar-blue); --brand-soft:#e8f5fb;
+  --green:#0a8c78; --green-bg:#e3f6f2; --amber:#c25f00; --amber-bg:#fff0e1; --red:#c0261b; --red-bg:#fdeae8; --gray:#7f7f7f; --gray-bg:#eef1f4;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --disp:"Manrope",system-ui,sans-serif; --body:"Inter",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--canvas);color:var(--ink);font-family:var(--body);font-size:14.5px;line-height:1.58;-webkit-font-smoothing:antialiased}
+a{color:var(--ar-blue)}
+h1,h2,h3,h4{font-family:var(--disp);margin:0;color:var(--ink)}
+code,.mono{font-family:var(--mono);font-size:13px}
+code{overflow-wrap:anywhere;background:var(--brand-soft);color:var(--ar-darkblue);padding:1px 6px;border-radius:5px;font-weight:500}
+pre{font-family:var(--mono);font-size:13px;line-height:1.5;background:var(--ar-charcoal);color:#e9eef2;padding:14px 16px;border-radius:10px;overflow:auto;margin:10px 0 0;white-space:pre-wrap;word-break:break-word;max-width:100%}
+pre .hl{color:var(--ar-yellow)} pre .cm{color:#8fb7cc} pre .bad{color:#ff8a80} pre .ok{color:#7fe0c9}
+.topbar{height:8px;background:linear-gradient(90deg,var(--ar-navy) 0%,var(--ar-blue) 55%,var(--ar-sky) 85%,var(--ar-yellow) 85%)}
+.wrap{max-width:1180px;margin:0 auto;padding:26px 24px 70px}
+/* header */
+.rhead{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:8px}
+.brandline{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:-26px -24px 24px;padding:16px 28px;background:var(--ar-navy)}
+.brandline .logo small{color:var(--ar-light);letter-spacing:.16em}
+.hackett-mast{display:flex;align-items:center;gap:14px}
+#hackett-logo{height:30px;width:auto;display:block;color:#fff}
+@media(max-width:420px){
+  .brandline{flex-wrap:wrap;row-gap:10px}
+  .hackett-mast .logo{display:none}
+  #hackett-logo{height:22px}
+}
+.logo{font-family:var(--disp);font-weight:800;font-size:20px;letter-spacing:-.02em;color:var(--ar-navy)}
+.logo b{color:var(--ar-blue)}
+.logo small{display:block;font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ar-gray)}
+.rhead .ttl{font-size:31px;font-weight:800;letter-spacing:-.6px;line-height:1.12;color:var(--ar-navy)}
+.rhead .sub{color:var(--slate);font-size:15px;margin-top:8px;font-weight:500;max-width:820px}
+.rhead .meta{text-align:right;color:var(--mist);font-size:13px;font-family:var(--mono);line-height:1.7}
+.scopenote{background:var(--brand-soft);border-left:4px solid var(--ar-blue);color:var(--ar-darkblue);font-size:13.5px;padding:12px 16px;border-radius:0 10px 10px 0;margin:16px 0 22px;font-weight:500}
+.scopenote b{color:var(--ar-navy)}
+/* thesis */
+.card{overflow:hidden;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:26px 28px;margin-bottom:22px;box-shadow:0 1px 3px rgba(0,57,77,.05),0 8px 24px rgba(0,57,77,.04)}
+.eyebrow{font-family:var(--disp);text-transform:uppercase;letter-spacing:.14em;font-size:13px;font-weight:700;color:var(--ar-blue);margin-bottom:6px}
+.card>h2{font-size:21px;font-weight:800;margin-bottom:6px;color:var(--ar-navy)}
+.card>.lead{color:var(--slate);font-size:14.5px;margin-bottom:18px;max-width:900px}
+.thesis{background:linear-gradient(135deg,var(--ar-navy) 0%,var(--ar-darkblue) 45%,var(--ar-blue) 100%);color:#fff;border:none;position:relative;overflow:hidden}
+.thesis:before{content:"";position:absolute;right:-60px;top:-60px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(255,198,0,.28),rgba(255,198,0,0) 70%)}
+.thesis .eyebrow{color:var(--ar-light)} .thesis h2{color:#fff;font-size:24px}
+.thesis p{color:#d9edf6;font-size:14.5px;max-width:880px;margin:6px 0 0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:14px;margin-top:20px;position:relative}
+.stat{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:16px 18px}
+.stat .v{font-family:var(--disp);font-size:32px;font-weight:800;line-height:1}
+.stat .l{font-size:13px;color:#cfe6f2;margin-top:8px;font-weight:500}
+.stat.g .v{color:#7fe0c9} .stat.a .v{color:var(--ar-yellow)} .stat.r .v{color:#ff9d93}
+.verdict-big{display:flex;align-items:center;gap:14px;margin-top:22px;flex-wrap:wrap;position:relative}
+.verdict-big .label{font-size:13px;color:#cfe6f2;font-weight:600;text-transform:uppercase;letter-spacing:.12em}
+.bigpill{font-family:var(--disp);font-weight:800;font-size:15px;padding:8px 20px;border-radius:999px;background:#fff;color:var(--red)}
+.bigpill.amber{color:var(--amber)} .bigpill.green{color:var(--green)}
+/* nav tabs */
+.tabs{position:sticky;top:0;z-index:20;background:rgba(243,245,247,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);margin:0 -24px 22px;padding:10px 24px;display:flex;gap:6px;flex-wrap:wrap}
+.tab{font-family:var(--disp);font-weight:700;font-size:13.5px;color:var(--slate);background:transparent;border:1px solid transparent;padding:8px 14px;border-radius:999px;cursor:pointer}
+.tab:hover{background:#fff;border-color:var(--line)}
+.tab.active{background:var(--ar-navy);color:#fff;border-color:var(--ar-navy)}
+.tab:focus-visible,button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:3px solid var(--ar-yellow);outline-offset:2px}
+.panel{display:none} .panel.active{display:block;animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+/* pills, dots, tables */
+.pill{display:inline-block;font-family:var(--disp);font-weight:700;font-size:13px;padding:3px 11px;border-radius:999px;white-space:nowrap}
+.pill.green{background:var(--green-bg);color:var(--green)} .pill.amber{background:var(--amber-bg);color:var(--amber)} .pill.red{background:var(--red-bg);color:var(--red)} .pill.gray{background:var(--gray-bg);color:var(--gray)} .pill.blue{background:var(--brand-soft);color:var(--ar-darkblue)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:7px;vertical-align:middle}
+.dot.green{background:var(--green)} .dot.amber{background:var(--amber)} .dot.red{background:var(--red)} .dot.gray{background:var(--gray)}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px;border:1px solid var(--line);max-width:100%}
+.subgrid thead th,.two thead th{white-space:normal}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+thead th{background:var(--ar-navy);color:#fff;font-family:var(--disp);font-weight:700;text-align:left;padding:11px 13px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+tbody td{padding:11px 13px;border-top:1px solid var(--line);vertical-align:top}
+tbody tr:hover{background:#f8fbfd}
+td.el{font-weight:600;color:var(--ink);min-width:150px}
+td.vc{white-space:nowrap;text-align:right}
+.v-green td:first-child{box-shadow:inset 4px 0 0 var(--green)} .v-amber td:first-child{box-shadow:inset 4px 0 0 var(--amber)} .v-red td:first-child{box-shadow:inset 4px 0 0 var(--red)} .v-gray td:first-child{box-shadow:inset 4px 0 0 var(--gray)}
+.subgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;margin-top:8px}
+.subgrid>*,.two>*,.trace>*,.opt,.detail{min-width:0;max-width:100%}
+.subgrid h3{font-size:15px;margin-bottom:10px;color:var(--ar-navy)}
+/* findings */
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px;align-items:center}
+.chip{font-family:var(--disp);font-weight:700;font-size:13px;padding:6px 13px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--slate);cursor:pointer}
+.chip.on{border-color:var(--ar-navy);background:var(--ar-navy);color:#fff}
+.chip .n{font-family:var(--mono);font-weight:500;margin-left:6px;opacity:.75}
+.find{border:1px solid var(--line);border-left-width:6px;border-radius:0 12px 12px 0;background:#fff;margin-bottom:14px;overflow:hidden}
+.find.sev-critical{border-left-color:var(--red)} .find.sev-high{border-left-color:var(--ar-orange)} .find.sev-medium{border-left-color:var(--ar-yellow)} .find.sev-low{border-left-color:var(--gray)} .find.sev-good{border-left-color:var(--green)}
+.find summary{min-width:0;list-style:none;cursor:pointer;padding:16px 20px;display:flex;gap:14px;align-items:flex-start}
+.find summary::-webkit-details-marker{display:none}
+.find summary .id{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--mist);min-width:36px;padding-top:3px}
+.find summary span[style]{min-width:0}
+.find summary h3{overflow-wrap:anywhere;font-size:16.5px;font-weight:800;color:var(--ar-navy);line-height:1.3}
+.find summary .oneline{color:var(--slate);font-size:14px;margin-top:4px}
+.find summary .tags{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:flex-start;min-width:150px}
+.find summary .caret{width:22px;height:22px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;color:var(--slate);flex:none;transition:transform .2s;margin-top:2px}
+.find[open] summary .caret{transform:rotate(180deg)}
+.find .body{min-width:0;padding:0 20px 20px 70px;color:var(--slate);font-size:14px}
+.find .body h4{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--ar-blue);margin:16px 0 6px}
+.find .body p{margin:0 0 6px} .find .body ul{margin:4px 0 0 18px;padding:0} .find .body li{margin-bottom:4px}
+.find .body .ref{font-size:13px;color:var(--mist)} .find .body .ref a{color:var(--ar-blue)}
+/* flow trace (signature) */
+.trace{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:26px;margin-top:6px}
+.flow{position:relative;padding-left:26px}
+.flow:before{content:"";position:absolute;left:11px;top:14px;bottom:14px;width:4px;background:linear-gradient(var(--ar-blue),var(--ar-navy));border-radius:4px}
+.node{position:relative;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:8px;cursor:pointer;display:flex;gap:12px;align-items:center;transition:border-color .15s,transform .15s}
+.node:hover{border-color:var(--ar-sky);transform:translateX(2px)}
+.node.cur{border-color:var(--ar-navy);box-shadow:0 0 0 3px var(--ar-light)}
+.node:before{content:"";position:absolute;left:-21px;top:50%;width:14px;height:14px;margin-top:-7px;border-radius:50%;background:#fff;border:3px solid var(--ar-blue)}
+.node.k-invoke:before{background:var(--ar-yellow);border-color:var(--ar-navy)}
+.node.k-dead:before{background:var(--ar-alum);border-color:var(--ar-gray)}
+.node.k-fault:before{background:var(--red);border-color:var(--red)}
+.node .idx{font-family:var(--mono);font-size:13px;color:var(--mist);min-width:26px}
+.node .nm{font-family:var(--disp);font-weight:700;font-size:14px;color:var(--ar-navy)}
+.node .kind{font-size:13px;color:var(--slate);overflow-wrap:anywhere}
+.node>span:nth-child(2){min-width:0;flex:1}
+.node .st{margin-left:auto}
+.node.indent{margin-left:22px}
+.node.indent2{margin-left:44px}
+.grp{font-family:var(--disp);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ar-gray);margin:14px 0 8px 2px;font-weight:700}
+.detail{position:sticky;top:64px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 22px}
+.detail h3{font-size:18px;color:var(--ar-navy);margin-bottom:4px}
+.detail .k{font-size:13px;color:var(--mist);font-family:var(--mono);margin-bottom:10px}
+.detail p{color:var(--slate);font-size:14px;margin:0 0 8px}
+.meter{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0 6px}
+.meter div{background:var(--canvas);border-radius:10px;padding:10px 8px;text-align:center}
+.meter .v{font-family:var(--disp);font-weight:800;font-size:24px;color:var(--ar-navy);line-height:1}
+.meter .v.warn{color:var(--amber)} .meter .v.bad{color:var(--red)}
+.meter .l{font-size:13px;color:var(--slate);margin-top:4px}
+.navbtns{display:flex;gap:8px;margin-top:14px}
+.btn{font-family:var(--disp);font-weight:700;font-size:13.5px;padding:8px 14px;border-radius:9px;border:1px solid var(--ar-navy);background:var(--ar-navy);color:#fff;cursor:pointer}
+.btn.ghost{background:#fff;color:var(--ar-navy)}
+.btn:disabled{opacity:.4;cursor:default}
+/* misc blocks */
+.sblock{border:1px solid var(--line);border-left-width:5px;border-radius:0 10px 10px 0;padding:14px 18px;margin-bottom:12px;background:#fcfdfe}
+.sblock.v-red{border-left-color:var(--red)} .sblock.v-amber{border-left-color:var(--amber)} .sblock.v-green{border-left-color:var(--green)} .sblock.v-blue{border-left-color:var(--ar-blue)}
+.sblock h4{font-size:15.5px;margin:2px 0 6px;color:var(--ar-navy)} .sblock p{color:var(--slate);font-size:14px;margin:0 0 6px}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+.opt{border:1px solid var(--line);border-radius:12px;padding:18px 20px;background:#fff}
+.opt h3{font-size:17px;color:var(--ar-navy);margin-bottom:4px}
+.opt .tag{font-size:13px;font-family:var(--mono);color:var(--mist);margin-bottom:10px}
+.opt ol{margin:8px 0 0 18px;padding:0;color:var(--slate);font-size:14px} .opt li{margin-bottom:7px}
+.opt ul{margin:6px 0 0 18px;padding:0;color:var(--slate);font-size:14px}
+.kv{display:grid;grid-template-columns:minmax(140px,200px) minmax(0,1fr);gap:6px 14px;font-size:13.5px;margin-top:10px}
+.kv dt{color:var(--mist);font-family:var(--mono);font-size:13px} .kv dd{margin:0;color:var(--ink);min-width:0;overflow-wrap:anywhere}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--slate);align-items:center;font-weight:500}
+.legend .item{display:flex;align-items:center}
+.foot{color:var(--mist);font-size:13px;margin-top:14px;border-top:1px solid var(--line);padding-top:14px;line-height:1.7}
+.srcs{list-style:none;margin:0;padding:0} .srcs li{padding:9px 0;border-top:1px solid var(--line);font-size:13.5px} .srcs li:first-child{border-top:none}
+.srcs .t{font-weight:600;color:var(--ink)} .srcs a{font-family:var(--mono);font-size:13px;word-break:break-all}
+.copybtn{float:right;font-family:var(--disp);font-size:13px;font-weight:700;background:var(--ar-yellow);color:var(--ar-charcoal);border:none;border-radius:6px;padding:3px 9px;cursor:pointer;margin:-4px 0 0 8px}
+@media(max-width:820px){.trace{grid-template-columns:1fr}.detail{position:static}.two{grid-template-columns:1fr}.subgrid{grid-template-columns:1fr}.rhead .ttl{font-size:25px}.find .body{padding-left:20px}.meter{grid-template-columns:repeat(2,1fr)}.kv{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}html{scroll-behavior:auto}}
+@media print{body{background:#fff}.card{box-shadow:none;break-inside:avoid}.wrap{max-width:none}.thesis{-webkit-print-color-adjust:exact;print-color-adjust:exact}.tabs{display:none}.panel{display:block!important}tbody tr{break-inside:avoid}.find{break-inside:avoid}details{open:true}.detail{position:static}}
+</style>
+</head>
+<body>
+<div class="topbar"></div>
+<div class="wrap">
+
+<div class="brandline">
+  <img src="data:image/png;base64,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" alt="Archrock" style="height:44px;width:auto;display:block"><div class="hackett-mast"><div class="logo"><small style="margin-top:0">Oracle Integration Review</small></div><svg id="hackett-logo" role="img" aria-label="The Hackett Group" viewBox="0 0 1548.8 178.4" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="m335.9 67.1h-5.2c-.5-1.8-1.3-4-2.5-6.4s-2.5-4.8-4-7c-1.5-2.3-3.2-4.3-4.9-6.1-1.8-1.7-3.5-2.7-5.2-3-1.6-.2-3.5-.3-5.9-.5-2.4 0-4.6-.2-6.6-.2h-4.4v85.4c0 1.7.4 3.2 1.1 4.6s1.9 2.4 3.7 3.2c.9.4 2.8.8 5.7 1.4s5.1.9 6.7 1v5.3h-50.4v-5.3c1.4 0 3.5-.3 6.4-.6s4.9-.7 6-1.1c1.7-.7 2.9-1.6 3.6-2.8.8-1.2 1.2-2.9 1.2-4.9v-86.1h-4.4c-1.6 0-3.5 0-5.8.1-2.3 0-4.5.2-6.6.5-1.7.2-3.4 1.2-5.2 3s-3.4 3.8-4.9 6.1-2.8 4.7-4 7.2-2 4.6-2.4 6.3h-5.3v-29h93.1v29z"/><path d="m421.7 145h-36.5v-5c1.2-.1 2.4-.2 3.8-.3s2.6-.3 3.5-.6c1.4-.5 2.4-1.2 3.1-2.4.7-1.1 1-2.6 1-4.4v-38.2c0-5.3-1.2-9.3-3.7-12.2s-5.5-4.3-9.1-4.3-5 .4-7.3 1.2c-2.2.8-4.2 1.8-6 3-1.7 1.3-3 2.5-3.9 3.8s-1.6 2.3-2.1 3.2v42.7c0 1.7.3 3.1 1 4.2s1.7 2 3.1 2.6c1.1.5 2.2.9 3.4 1.1s2.5.4 3.9.5v5h-36.4v-5c1.1-.1 2.3-.2 3.6-.3 1.2-.1 2.3-.3 3.1-.6 1.4-.4 2.4-1.2 3.1-2.4.7-1.1 1-2.6 1-4.4v-86.4c0-1.7-.4-3.4-1.2-5.1s-1.8-3-3-3.8c-.9-.7-2.5-1.1-4.8-1.4s-4.1-.5-5.5-.6v-4.8l27.5-1.7 1.1 1.1v51.8h.3c1.7-1.7 3.2-3.1 4.5-4.4s3.1-2.6 5.4-4c1.9-1.2 4.2-2.2 6.7-3 2.6-.8 5.5-1.2 8.7-1.2 6.6 0 11.7 2.1 15.3 6.3s5.4 10.2 5.4 18.1v38.6c0 1.8.3 3.2.9 4.3s1.7 1.9 3.1 2.5c1.2.5 2.2.8 3.1 1s2.2.4 3.7.5v5z"/><path d="m495 127.5c-3.1 5.9-7.3 10.6-12.5 14.1s-11.2 5.3-18 5.3-11.2-1.1-15.7-3.2-8.2-5-11.1-8.6-5.1-7.8-6.5-12.6-2.1-9.9-2.1-15.3.8-9.5 2.3-14.2c1.5-4.6 3.8-8.8 6.7-12.5 2.9-3.6 6.4-6.4 10.7-8.6 4.2-2.2 9-3.3 14.3-3.3s10.1.9 13.9 2.6 7 4 9.4 7c2.3 2.8 4 6.1 5.2 9.9 1.1 3.8 1.7 8 1.7 12.4v5h-49.1c0 4.9.5 9.3 1.4 13.3s2.4 7.5 4.4 10.5c2 2.9 4.5 5.2 7.7 6.9s6.9 2.5 11.3 2.5 8.3-1 11.6-3.1c3.2-2.1 6.4-5.9 9.4-11.3l5.3 3.2zm-16.6-28.3c0-2.8-.2-5.8-.7-9s-1.2-5.9-2.3-8c-1.2-2.3-2.7-4.2-4.7-5.6s-4.6-2.2-7.8-2.2c-5.3 0-9.6 2.2-13.1 6.6s-5.4 10.5-5.7 18.3h34.3z"/><path d="m650.2 145h-44.3v-5.3c1.2 0 2.9-.2 5.2-.5 2.3-.2 3.9-.5 4.7-.9 1.5-.6 2.6-1.5 3.3-2.7s1.1-2.8 1.1-4.8v-38h-50.2v37.2c0 1.8.3 3.2.9 4.4s1.7 2.3 3.4 3.2c.9.5 2.4.9 4.6 1.4s3.9.7 5.2.8v5.3h-44.3v-5.3c1.2 0 2.9-.2 5.2-.5 2.3-.2 3.9-.5 4.7-.9 1.5-.6 2.6-1.5 3.3-2.7s1.1-2.8 1.1-4.8v-77.2c0-1.6-.3-3.1-1-4.4s-1.8-2.4-3.4-3.1c-1.4-.7-3-1.2-4.9-1.7s-3.6-.8-5-.9v-5.3h44.3v5.3c-1.4 0-3.1.3-5.2.7s-3.6.8-4.6 1.1c-1.7.6-2.8 1.6-3.4 3s-.9 2.9-.9 4.6v33.1h50.2v-32.4c0-1.6-.3-3.1-1-4.4s-1.8-2.4-3.4-3.1c-1.4-.7-3-1.2-4.9-1.7s-3.6-.8-5-.9v-5.3h44.3v5.3c-1.4 0-3.1.3-5.2.7-2 .4-3.6.8-4.6 1.1-1.7.6-2.8 1.6-3.4 3s-.9 2.9-.9 4.6v77c0 1.8.3 3.2.9 4.4s1.7 2.3 3.4 3.2c.9.5 2.4.9 4.6 1.4s3.9.7 5.2.8v5.3z"/><path d="m732.1 143.6c-2.4.9-4.4 1.5-6.2 2.1-1.8.5-3.8.8-6.1.8-3.9 0-7-.9-9.4-2.7-2.3-1.8-3.8-4.5-4.5-8h-.5c-3.3 3.6-6.8 6.4-10.5 8.3s-8.2 2.9-13.5 2.9-10.2-1.7-13.7-5.1c-3.6-3.4-5.4-7.9-5.4-13.4s.4-5.4 1.2-7.7 2-4.3 3.6-6.1c1.3-1.5 2.9-2.8 5-4s4-2.1 5.8-2.8c2.3-.9 6.8-2.4 13.7-4.7s11.6-4.1 14-5.4v-7.5c0-.7-.1-1.9-.4-3.8s-.9-3.6-1.8-5.3c-1-1.9-2.4-3.5-4.3-4.9-1.8-1.4-4.4-2.1-7.8-2.1s-4.5.4-6.4 1.2c-2 .8-3.4 1.6-4.2 2.4 0 1 .2 2.5.7 4.4.5 2 .7 3.8.7 5.4s-.8 3.4-2.4 4.8c-1.6 1.5-3.8 2.2-6.6 2.2s-4.4-.9-5.5-2.7c-1.2-1.8-1.8-3.8-1.8-6s.8-4.5 2.4-6.6 3.7-4 6.4-5.6c2.3-1.4 5-2.6 8.2-3.6s6.3-1.5 9.4-1.5 7.9.3 11 .9 6 1.8 8.5 3.7c2.6 1.9 4.5 4.4 5.8 7.6s2 7.3 2 12.3c0 7.2 0 13.5-.2 19.1-.2 5.5-.2 11.6-.2 18.2s.3 3.5 1 4.7 1.7 2.1 3.1 2.9c.8.5 1.9.7 3.6.8h5v4.8zm-26.3-39.7c-4.3 1.3-8 2.5-11.2 3.7s-6.2 2.7-9 4.5c-2.5 1.7-4.5 3.7-5.9 6.1s-2.2 5.1-2.2 8.3 1.1 7.2 3.3 9.2 5 2.9 8.3 2.9 6.7-.9 9.4-2.6 5-3.8 6.8-6.1z"/><path d="m772.2 146.9c-10.7 0-19.1-3.6-25.2-10.7s-9.1-16.7-9.1-28.7.8-10.1 2.4-14.6 4-8.7 7.1-12.4c3-3.6 6.7-6.4 11.1-8.6 4.5-2.2 9.3-3.3 14.6-3.3s13.2 1.7 17.8 5.2 6.9 8.2 6.9 14.3-.6 4.7-1.8 6.7c-1.2 1.9-3.2 2.9-5.9 2.9s-5.3-.8-6.9-2.3-2.4-3.2-2.4-5 .3-4.6.9-6.9c.6-2.4 1-4.1 1.1-5.2-.9-1.6-2.2-2.6-4-3.1s-3.7-.8-5.7-.8-4.7.5-6.9 1.5-4.3 2.9-6.3 5.7c-1.9 2.5-3.4 5.9-4.5 10.2-1.2 4.3-1.7 9.4-1.7 15.3 0 9.3 2.1 16.9 6.2 22.8s9.6 8.8 16.3 8.8 8.9-1.2 12.2-3.6 6.3-5.9 9.1-10.7l4.8 3.2c-3.3 5.9-7.7 10.6-13.1 14.1s-11 5.2-16.8 5.2z"/><path d="m885 145h-22.4c-3.9-5.7-8.1-11.7-12.6-18.2s-9.1-12.8-13.9-18.9l-6.2 5.8v17.6c0 1.8.3 3.3 1 4.5s1.7 2 3.2 2.6c1.2.5 2.4.9 3.5 1.1s2.4.4 3.8.5v5h-36.4v-5c1.1-.1 2.3-.2 3.6-.3 1.2-.1 2.3-.3 3.1-.6 1.4-.4 2.4-1.2 3.1-2.4.7-1.1 1-2.6 1-4.4v-86.3c0-1.9-.4-3.6-1.2-5.2s-1.8-2.9-3-3.7c-1.1-.8-2.7-1.3-4.9-1.6s-4-.4-5.4-.5v-4.8l27.5-1.7 1.1 1.1v78.5c3.9-3.9 8.1-8.1 12.7-12.6 4.5-4.5 8.4-8.5 11.5-12 .4-.5.8-1 1.3-1.8.5-.7.7-1.3.7-1.8 0-1.4-1.1-2.4-3.3-3-2.2-.7-4.3-1.1-6.3-1.4v-4.8h32.6v4.7c-4.2 1.3-7.9 2.8-11.2 4.7-3.2 1.9-5.7 3.6-7.4 5.1-1.2 1-2.9 2.6-5.1 4.9s-5.3 5.2-9.3 8.9c4.1 5.1 8.7 11.1 13.9 18.2 5.1 7.1 8.9 12.2 11.3 15.4 2.2 3 4.2 4.9 5.9 5.8 1.8.9 4.3 1.5 7.7 1.7v5z"/><path d="m953.3 127.5c-3.1 5.9-7.3 10.6-12.5 14.1s-11.2 5.3-18 5.3-11.2-1.1-15.7-3.2-8.2-5-11.1-8.6-5.1-7.8-6.5-12.6-2.1-9.9-2.1-15.3.8-9.5 2.3-14.2c1.5-4.6 3.8-8.8 6.7-12.5 2.9-3.6 6.4-6.4 10.7-8.6 4.2-2.2 9-3.3 14.3-3.3s10.1.9 13.9 2.6c3.9 1.7 7 4 9.4 7 2.3 2.8 4 6.1 5.2 9.9 1.1 3.8 1.7 8 1.7 12.4v5h-49.1c0 4.9.5 9.3 1.4 13.3s2.4 7.5 4.4 10.5c2 2.9 4.5 5.2 7.7 6.9s6.9 2.5 11.3 2.5 8.3-1 11.6-3.1c3.2-2.1 6.4-5.9 9.4-11.3l5.3 3.2zm-16.6-28.3c0-2.8-.2-5.8-.7-9s-1.2-5.9-2.3-8c-1.2-2.3-2.7-4.2-4.7-5.6s-4.6-2.2-7.8-2.2c-5.3 0-9.6 2.2-13.1 6.6s-5.4 10.5-5.7 18.3h34.3z"/><path d="m1006.2 141.7c-3.3 1.4-6.3 2.5-9.3 3.4-2.9.9-6.5 1.4-10.7 1.4-6.2 0-10.6-1.6-13.1-4.7s-3.8-7.6-3.8-13.3v-50.3h-13.4v-7.2h13.7v-23.1h13.7v23.1h21.3v7.2h-21.1v41.5c0 3.1.1 5.7.3 7.8s.8 3.9 1.6 5.5c.8 1.5 2 2.6 3.6 3.3s3.8 1.1 6.5 1.1 3.1-.1 5.5-.3 4.2-.5 5.2-.9z"/><path d="m1057.9 141.7c-3.3 1.4-6.3 2.5-9.3 3.4-2.9.9-6.5 1.4-10.7 1.4-6.2 0-10.6-1.6-13.1-4.7s-3.8-7.6-3.8-13.3v-50.3h-13.4v-7.2h13.7v-23.1h13.7v23.1h21.3v7.2h-21.1v41.5c0 3.1.1 5.7.3 7.8s.8 3.9 1.6 5.5c.8 1.5 2 2.6 3.6 3.3s3.8 1.1 6.5 1.1 3.1-.1 5.5-.3 4.2-.5 5.2-.9z"/><path d="m1204.6 102.4c-1.2.2-2.8.4-4.9.7-2 .3-3.7.8-4.9 1.4-1.5.8-2.6 1.8-3.2 3.2s-.9 3-.9 4.9v8.3c0 6 0 10.1.1 12.2 0 2.1.2 3.8.3 5.2-6.7 3-13.3 5.3-19.9 6.9s-13.1 2.4-19.5 2.4-13.4-1.3-19.7-3.8-11.8-6.2-16.6-10.9c-4.8-4.8-8.6-10.6-11.4-17.4s-4.2-14.5-4.2-22.9 1.3-15.7 4-22.6c2.7-7 6.5-13 11.4-18.1 4.8-5 10.4-8.9 17-11.7s13.7-4.2 21.2-4.2 11.3.7 15.7 2.2c4.5 1.5 8.4 3.2 11.8 5.3l3.1-5.1h6l.7 37.3h-6.2c-1.1-4.1-2.4-8.2-3.9-12.2-1.6-4-3.6-7.6-6-10.7-2.5-3.2-5.5-5.7-9-7.6s-7.8-2.8-12.7-2.8-10.2 1.1-14.4 3.3-7.9 5.4-11 9.8c-3.1 4.2-5.4 9.4-7.1 15.6s-2.5 13.2-2.5 20.9.8 13.2 2.4 19.2 4 11.2 7.1 15.6c3.1 4.5 7 8 11.7 10.5 4.7 2.6 10 3.8 15.9 3.8s8.5-.7 12.1-2c3.6-1.4 6.2-2.8 7.7-4.3.4-2.6.6-5.2.6-7.9s0-4.9 0-6.8v-5.9c0-2.1-.3-4-.9-5.6s-1.8-2.8-3.6-3.6c-1.7-.8-3.9-1.3-6.7-1.7s-5.1-.6-6.7-.7v-5.5h46.8v5.5z"/><path d="m1266.4 80.3c0 2.6-.6 4.8-1.9 6.8s-3.2 3-5.8 3-5-.7-6.4-2.2c-1.5-1.5-2.2-3.1-2.2-4.8s0-2.1.3-3c.2-.9.3-1.8.5-2.7-2.4 0-5.1 1-8.3 2.9s-5.8 4.6-8.1 8.1v43.2c0 1.8.3 3.2 1 4.3s1.7 1.9 3.2 2.5c1.3.5 2.9.9 4.9 1.1s3.7.4 5.2.5v5h-39.1v-5c1.2-.1 2.3-.2 3.6-.3 1.2-.1 2.3-.3 3.2-.6 1.4-.4 2.4-1.2 3.1-2.4.7-1.1 1-2.6 1-4.4v-45.8c0-1.6-.4-3.1-1.1-4.6s-1.7-2.7-3.1-3.6c-1-.6-2.1-1-3.4-1.3s-2.7-.5-4.2-.6v-5l24.7-1.7 1.1 1.1v10.5h.4c3.1-4.1 6.6-7.1 10.4-9.3 3.8-2.1 7.3-3.2 10.5-3.2s5.7 1 7.7 3.1 3 4.8 3 8.3z"/><path d="m1343.6 107.1c0 5.2-.8 10.3-2.5 15.4-1.7 5-4 9.3-7.1 12.8-3.5 4-7.5 7-12.1 9s-9.7 2.9-15.4 2.9-9.2-.9-13.5-2.7-8.1-4.4-11.4-7.8-5.9-7.5-7.8-12.3-2.9-10.3-2.9-16.3c0-11.6 3.4-21.1 10.1-28.4 6.8-7.4 15.6-11.1 26.6-11.1s19 3.5 25.7 10.5c6.8 7 10.1 16.3 10.1 28zm-15.6.1c0-3.8-.4-7.7-1.1-11.9-.8-4.2-1.9-7.7-3.4-10.6-1.6-3.1-3.7-5.6-6.3-7.5s-5.8-2.8-9.6-2.8-7.2 1-9.9 2.9-5 4.5-6.7 7.8c-1.6 3.1-2.7 6.5-3.4 10.5-.7 3.9-1 7.7-1 11.4s.4 9.3 1.2 13.4 2 7.7 3.7 11c1.7 3.2 3.9 5.7 6.4 7.6 2.6 1.8 5.8 2.7 9.6 2.7 6.3 0 11.3-3 14.9-9.1 3.7-6.1 5.5-14.5 5.5-25.1z"/><path d="m1432.3 143.6-24.2 1.7-1.1-1.1v-9.4h-.4c-1.2 1.3-2.6 2.6-4.1 4s-3.2 2.7-5.2 3.9c-2.3 1.4-4.4 2.4-6.5 3.1s-5.1 1.1-8.9 1.1c-6.6 0-11.6-2.1-15-6.4s-5.1-10.5-5.1-18.7v-35.5c0-1.8-.3-3.3-1-4.5s-1.7-2.3-3-3.2c-.9-.6-2-1-3.4-1.3s-2.8-.5-4.3-.6v-5l24.8-1.8 1.1 1.1v51.6c0 5.4 1.2 9.4 3.6 12.1s5.3 4.1 8.7 4.1 5.2-.4 7.4-1.3 4-1.9 5.4-3 2.5-2.2 3.6-3.3c1-1.2 1.8-2.3 2.4-3.3v-42c0-1.7-.4-3.1-1.1-4.4s-1.7-2.4-2.9-3.3c-.9-.6-2.2-1-4-1.1s-3.8-.2-6-.3v-5l27-1.8 1.1 1.1v58.9c0 1.7.3 3.2 1.1 4.4.7 1.2 1.7 2.2 2.9 3.1.9.6 2 .9 3.2 1.1 1.3.2 2.6.3 4.1.3v5z"/><path d="m1507.6 79.5c3 3.5 5.3 7.6 6.9 12.2s2.4 9.9 2.4 15.9-1 11.2-2.9 16.1c-2 4.8-4.5 9-7.8 12.4-3.4 3.5-7.1 6.1-11.2 8s-8.5 2.8-13.1 2.8-8.1-.5-11-1.5-5.2-2.2-7-3.5h-.6v22.3c0 1.8.4 3.3 1.1 4.5s1.8 2.1 3.2 2.6c1.2.4 2.9.9 5.2 1.3 2.2.4 4.1.7 5.5.7v5h-41.5v-5c1.6-.1 3.1-.2 4.5-.4 1.5-.1 2.8-.4 3.9-.7 1.5-.5 2.6-1.4 3.2-2.6s.9-2.7.9-4.4v-79c0-1.5-.4-3-1.1-4.4-.8-1.4-1.7-2.5-2.9-3.4-.9-.6-2.2-1.1-3.8-1.4s-3.2-.5-4.7-.6v-5l25.3-1.7 1.1.9v8.4l.6.2c2.6-3 5.8-5.5 9.7-7.5s7.7-3 11.5-3 8.8 1 12.7 2.9c3.8 2 7.1 4.6 9.9 7.9zm-12.2 53.4c2-3.1 3.5-6.7 4.4-10.8 1-4.1 1.4-8.7 1.4-13.8s-.4-7.5-1.2-11.4-2.1-7.2-3.8-10.1-3.9-5.3-6.7-7.1-6.1-2.7-9.9-2.7-6.9.8-9.5 2.4-4.9 3.6-6.8 5.8v43.9c.5 1.4 1.2 2.8 2.2 4.2 1 1.5 2.2 2.7 3.4 3.8 1.6 1.3 3.2 2.3 5 3 1.8.8 4 1.2 6.6 1.2s5.5-.7 8.1-2.2 4.8-3.6 6.5-6.3z"/><path d="m1548.8 56.3c0 3.7-1.3 6.8-3.9 9.4s-5.7 3.9-9.4 3.9-6.8-1.3-9.4-3.9-3.9-5.7-3.9-9.4 1.3-6.8 3.9-9.4 5.7-3.9 9.4-3.9 6.8 1.3 9.4 3.9 3.9 5.7 3.9 9.4zm-1.5 0c0-3.3-1.1-6.1-3.4-8.4s-5.1-3.5-8.4-3.5-6.1 1.2-8.4 3.5c-2.3 2.4-3.4 5.2-3.4 8.4s1.1 6.1 3.4 8.4c2.3 2.4 5.1 3.5 8.4 3.5s6.1-1.2 8.4-3.5c2.3-2.4 3.4-5.2 3.4-8.4zm-3.2 6.8h-4.3c-1-1.3-1.8-2.5-2.5-3.4s-1.4-1.8-2.1-2.7h-1.6v3.9c0 .2 0 .4.1.6 0 .2.3.3.5.4.1 0 .3 0 .7.1s.6 0 .8 0v.9h-6.6v-.9h.7c.3 0 .5 0 .7-.2.2 0 .4-.2.5-.4s.1-.4.1-.6v-9.7c0-.2 0-.4-.1-.6 0-.2-.2-.3-.5-.4-.2 0-.5-.1-.7-.2-.3 0-.5 0-.7-.1v-.9h7.4c.6 0 1.1 0 1.7.2s1 .3 1.5.6c.4.3.8.6 1.1 1s.4.9.4 1.5c0 1.1-.3 2-.9 2.6s-1.5 1.1-2.6 1.4c.8 1 1.5 1.8 2.1 2.5s1.1 1.3 1.5 1.9c.3.4.6.6.8.8s.5.3.8.4c.2 0 .4.1.7.2s.5 0 .7 0v.9zm-5.8-10.3c0-.8-.3-1.5-.8-1.9s-1.2-.6-2.2-.6h-1.7v5.7h1.3c1 0 1.9-.3 2.5-.8s.9-1.3.9-2.3z"/><g fill="#4b99f7"><path d="m72.3 40.3-58.2 52.6h28.4l29.8-33.5z"/><path d="m72.3 20.8h-72.1v72.1h13.5l58.6-71.4z"/><path d="m72.3 74.9-21.2 18h21.2z"/></g><path d="m72.1 133.7v-28.1l-44.6 39.3 40.5-45.4h-24.7l-27.8 23.7 21.1-23.7h-36.6v72.1h72.1v-32.4l-21.7 18.9z" fill="#80bcf9"/><path d="m117.9 99.5-38.3 33.2v29.6l56-62.8z" fill="#00a6fb"/><path d="m79.6 125.2 23-25.7h-23z" fill="#00a6fb"/><path d="m79.6 171.6h72.1v-70.6l-72.1 61.4z" fill="#00a6fb"/><path d="m79.3 162.7.3-.3v-.1z" fill="#80bcf9"/><path d="m88.6 0h85.2v85.2h-85.2z" fill="#245ce8"/><path d="m77.7 158 .3-.3v-.1z" fill="#80bcf9"/></svg></div>
+</div>
+
+<div class="rhead">
+  <div>
+    <div class="ttl">INT0830 — AFM Employee OTL Request<br>Integration Design &amp; Oracle API Conformance Review</div>
+    <div class="sub">Package <code>xx.oic.afm.uat.sprint4</code> · Integration <code>AFM_EMPLOYEE_TIME_REQUEST 01.00.0001</code> · IFS ➜ OIC ➜ Oracle Fusion HCM Time &amp; Labor (<code>timeEventRequests</code>) · Reviewed from the exported IAR against Oracle's published REST API and OIC design guidance.</div>
+  </div>
+  <div class="meta">Prepared by Jonathan Stevenson<br>The Hackett Group<br>26 Aug 2026</div>
+</div>
+
+<div class="scopenote"><b>What was reviewed.</b> Every artifact inside the IAR: <code>project.xml</code> orchestration (24 activities), 30 assignment expressions, 5 XSLT maps, 3 REST adapter endpoint definitions (JCA + WSDL), 3 DVM lookups, 2 connection definitions. Every claim below is traceable to a file in the archive or to an Oracle documentation page listed under <b>Sources</b>. <b>Not reviewed:</b> runtime instance data, the Fusion tenant's Time &amp; Labor configuration (event mappings, device processing profiles, scheduled processes), or the IFS caller. Where a conclusion depends on that, it is flagged as a verification step, not stated as fact.</div>
+
+<section class="card thesis">
+  <div class="eyebrow">At a glance</div>
+  <h2>The Fusion write works by conformance; everything around it is either broken or unused code.</h2>
+  <p>The <code style="background:rgba(255,255,255,.14);color:#fff">POST /timeEventRequests</code> payload matches Oracle's schema and will create time events. But the employee validation call can never fail (the filter is put in the wrong part of the URL, so Fusion returns an unfiltered page of workers on every request), it runs even after validation already failed, nine of ten lookups feed variables nothing reads, and a "Success" reply is sent before Fusion has actually decided whether the punch becomes a time entry.</p>
+  <div class="stats">
+    <div class="stat r"><div class="v">2</div><div class="l">Fusion HTTP calls per request — one of them wasted</div></div>
+    <div class="stat r"><div class="v">≤25</div><div class="l">full worker records pulled per call instead of 1 (or 0)</div></div>
+    <div class="stat a"><div class="v">9 / 10</div><div class="l">DVM lookups whose result is never used</div></div>
+    <div class="stat a"><div class="v">11</div><div class="l">variables assigned and never read</div></div>
+    <div class="stat a"><div class="v">4 + 1</div><div class="l">validations: four inspect only positions [1]/[2]; the fifth can never fire</div></div>
+    <div class="stat g"><div class="v">201</div><div class="l">outbound payload conforms to Oracle's documented schema</div></div>
+  </div>
+  <div class="verdict-big"><span class="label">Overall verdict</span><span class="bigpill">Redesign the validation &amp; lookup layer</span><span class="bigpill amber">Keep the Fusion write, add a closed loop</span></div>
+</section>
+
+<nav class="tabs" role="tablist" aria-label="Report sections">
+  <button class="tab active" data-tab="overview" role="tab">What it does</button>
+  <button class="tab" data-tab="trace" role="tab">Trace a request</button>
+  <button class="tab" data-tab="findings" role="tab">Findings</button>
+  <button class="tab" data-tab="api" role="tab">Oracle API conformance</button>
+  <button class="tab" data-tab="target" role="tab">Path forward</button>
+  <button class="tab" data-tab="sources" role="tab">Evidence &amp; sources</button>
+</nav>
+
+<!-- ================= OVERVIEW ================= -->
+<section class="panel active" id="overview" role="tabpanel">
+<div class="card">
+  <div class="eyebrow">Architecture as built</div>
+  <h2>A synchronous pass-through with a pre-check in front of it</h2>
+  <p class="lead">IFS calls an OIC REST endpoint whose request contract is a copy of Fusion's <code>timeEventRequests</code> resource. OIC validates the first two time events, looks the employee up in Fusion, then forwards the caller's payload unchanged to Fusion and echoes Fusion's reply.</p>
+  <div class="subgrid">
+    <div>
+      <h3>Connections &amp; endpoints</h3>
+      <div class="tw"><table>
+        <thead><tr><th>Role</th><th>Connection</th><th>Endpoint</th></tr></thead>
+        <tbody>
+          <tr><td class="el">Trigger</td><td><code>CON061 OIC REST TRN</code><br><span class="mono" style="color:var(--mist)">BASIC_AUTH · shared trigger connection</span></td><td><code>POST /timeEventRequests</code> (relative to the OIC flow URL)</td></tr>
+          <tr><td class="el">Invoke 1</td><td><code>CON071 ORACLE HCM OTL REST TRN</code><br><span class="mono" style="color:var(--mist)">Generic REST adapter · BASIC_AUTH · TLS 1.2</span></td><td><code>GET /hcmRestApi/resources/11.13.18.05/workers/{QueryParam}</code></td></tr>
+          <tr><td class="el">Invoke 2</td><td><code>CON071 ORACLE HCM OTL REST TRN</code></td><td><code>POST /hcmRestApi/resources/11.13.18.05/timeEventRequests</code></td></tr>
+        </tbody></table></div>
+    </div>
+    <div>
+      <h3>Activity inventory (from <code>analysis.json</code>)</h3>
+      <div class="tw"><table>
+        <thead><tr><th>Activity type</th><th>Count</th><th>Note</th></tr></thead>
+        <tbody>
+          <tr><td class="el">Assign</td><td class="mono">30</td><td>17 in InitializeVariable, 13 in switch branches / handlers</td></tr>
+          <tr><td class="el">Map</td><td class="mono">5</td><td>worker lookup request, Fusion request, success / fault / validation responses</td></tr>
+          <tr><td class="el">Switch</td><td class="mono">3</td><td>validation (5 branches), employee count, IsError gate</td></tr>
+          <tr><td class="el">Scope</td><td class="mono">2</td><td><code>ValidationScope</code> (no fault handler), <code>TimeRequestScope</code> (1 catch)</td></tr>
+          <tr><td class="el">Invoke</td><td class="mono">2</td><td>GetEmpDetails, SentTimeEventRequest</td></tr>
+          <tr><td class="el">Lookups (DVM)</td><td class="mono">3</td><td><code>XX_OTL_CONFIG_LOOKUP</code>, <code>XX_AFM_OTL_PAYROLL_TIME_TYPE</code>, <code>XX_EMAIL_SETUP_LOOKUP</code></td></tr>
+          <tr><td class="el">Global fault handler</td><td class="mono">0</td><td>none defined</td></tr>
+        </tbody></table></div>
+    </div>
+  </div>
+
+  <h3 style="font-size:15px;color:var(--ar-navy);margin:22px 0 10px">Business rules actually enforced on every request</h3>
+  <div class="tw"><table>
+    <thead><tr><th>#</th><th>Rule (as coded)</th><th>XPath / expression in the IAR</th><th>Scope of what it checks</th><th class="vc">Status</th></tr></thead>
+    <tbody>
+      <tr class="v-amber"><td class="mono">V1</td><td class="el">Event date/time present</td><td><code>timeEvents[1]/eventDateTime = "" or timeEvents[2]/eventDateTime = ""</code></td><td>Events 1 and 2 only. A missing 2nd event does not trip it (empty node-set ≠ "").</td><td class="vc"><span class="pill amber">Partial</span></td></tr>
+      <tr class="v-amber"><td class="mono">V2</td><td class="el">Same payroll time type on In &amp; Out</td><td><code>timeEvents[1]/timeEventAttributes[1]/value != timeEvents[2]/timeEventAttributes[1]/value</code></td><td>First attribute of events 1 and 2 only.</td><td class="vc"><span class="pill amber">Partial</span></td></tr>
+      <tr class="v-amber"><td class="mono">V3</td><td class="el">Same person on In &amp; Out</td><td><code>timeEvents[1]/reporterId != timeEvents[2]/reporterId</code></td><td>Events 1 and 2 only.</td><td class="vc"><span class="pill amber">Partial</span></td></tr>
+      <tr class="v-amber"><td class="mono">V4</td><td class="el">Payroll time type is in the allow-list</td><td><code>dvm:lookupValue('XX_AFM_OTL_PAYROLL_TIME_TYPE','PAYROLL_TIME_NAME', timeEvents[1]/timeEventAttributes[1]/value,'IS_VALID','N')</code></td><td>Event 1, attribute 1 only. 27 hard-coded names, all <code>Y</code>.</td><td class="vc"><span class="pill amber">Partial</span></td></tr>
+      <tr class="v-red"><td class="mono">V5</td><td class="el">Employee exists in Fusion</td><td><code>GET /workers/{QueryParam}</code> with <code>QueryParam = concat("?q=PersonNumber=", $PersonNumber)</code> then <code>count = 0.0</code></td><td>Intended: reporterId of event 1. Actual: filter is not applied; <code>count</code> is never 0.</td><td class="vc"><span class="pill red">Never fires</span></td></tr>
+    </tbody></table></div>
+
+  <h3 style="font-size:15px;color:var(--ar-navy);margin:22px 0 10px">What the caller gets back</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Path</th><th>HTTP status to IFS</th><th>Body</th><th class="vc">Assessment</th></tr></thead>
+    <tbody>
+      <tr class="v-green"><td class="el">Fusion accepted the request</td><td class="mono">200</td><td><code>result.status = "Success"</code> + echoed <code>timeEventRequestId</code>, <code>timeEventId</code>s</td><td class="vc"><span class="pill green">Correct shape</span></td></tr>
+      <tr class="v-amber"><td class="el">Validation V1–V5 failed</td><td class="mono">200</td><td><code>result.status = "Error"</code>, single <code>errorDetails.instance</code> message</td><td class="vc"><span class="pill amber">Error as 200</span></td></tr>
+      <tr class="v-amber"><td class="el">Fusion rejected <code>timeEventRequests</code></td><td class="mono">200</td><td><code>result.status = "Error"</code> + Fusion <code>errorDetails</code>; <code>instance</code> only parsed when the text contains <code>A 400</code></td><td class="vc"><span class="pill amber">Fragile</span></td></tr>
+      <tr class="v-red"><td class="el">Fusion <code>workers</code> call faulted (401/5xx/timeout)</td><td class="mono">500 (OIC default)</td><td>OIC platform fault — no <code>result</code> element, not the contract IFS expects</td><td class="vc"><span class="pill red">Unhandled</span></td></tr>
+    </tbody></table></div>
+</div>
+
+<div class="card">
+  <div class="eyebrow">What works well</div>
+  <h2>Keep these</h2>
+  <div class="two">
+    <div class="sblock v-green"><h4>The outbound payload conforms to Oracle's schema</h4><p>All three required header fields (<code>requestNumber</code>, <code>requestTimestamp</code>, <code>sourceId</code>) and all three required event fields (<code>eventDateTime</code>, <code>reporterId</code>, <code>reporterIdType</code>) are mapped. <code>timeEventAttributes[]</code> carries <code>name</code>/<code>value</code> pairs exactly as the doc example shows. Resource path, verb and <code>application/json</code> media type are correct.</p></div>
+    <div class="sblock v-green"><h4>Shared, custodian-managed connections</h4><p><code>CON061</code> is a common trigger connection and <code>CON071</code> a single HCM connection with a parameterised URL — this is precisely what Oracle's "Too Many Connections" anti-pattern guidance asks for. TLS 1.2 is pinned.</p></div>
+    <div class="sblock v-green"><h4>The Fusion write is scoped with a fault handler</h4><p><code>TimeRequestScope</code> catches <code>APIInvocationError</code>, logs the error details to the activity stream, updates tracking variables and maps Fusion's <code>errorDetails[]</code> into the response instead of letting the instance die.</p></div>
+    <div class="sblock v-green"><h4>Sensible business intent</h4><p>Pairing In/Out, requiring the same person and payroll time type on both punches, and allow-listing payroll time types are reasonable controls for a clock feed. The intent is right; the implementation is what needs work.</p></div>
+    <div class="sblock v-green"><h4>Primary tracking variable on the request number</h4><p>Instances are searchable in Monitoring by IFS's <code>requestNumber</code>, which is the natural correlation key between the two systems.</p></div>
+    <div class="sblock v-green"><h4>Configuration was meant to be externalised</h4><p><code>XX_OTL_CONFIG_LOOKUP</code> holds source id, reporter id type, supplier device events, device id and default attribute per source system. The design intent — keep OTL constants out of the flow — is the right one; it just isn't wired in.</p></div>
+  </div>
+</div>
+</section>
+
+<!-- ================= TRACE ================= -->
+<section class="panel" id="trace" role="tabpanel">
+<div class="card">
+  <div class="eyebrow">Signature view · click any node</div>
+  <h2>Trace one IFS request through the flow</h2>
+  <p class="lead">This is the real orchestration from <code>project.xml</code>, in execution order. Step through it and watch the cost meter: every Fusion HTTP call, every DVM lookup, and every activity whose output is never read. The scenario is a normal two-event (In/Out) request.</p><div class="legend" style="margin:-6px 0 16px"><span class="item"><span class="pill gray" style="margin-right:8px">unused code</span>activity runs on every request but nothing downstream reads what it produces</span><span class="item"><span class="pill amber" style="margin-right:8px">Fusion call</span>HTTP round-trip to Oracle Fusion</span><span class="item"><span class="pill red" style="margin-right:8px">catch</span>fault handler</span></div>
+  <div class="trace">
+    <div class="flow" id="flow"></div>
+    <div class="detail" id="detail"></div>
+  </div>
+</div>
+</section>
+
+<!-- ================= FINDINGS ================= -->
+<section class="panel" id="findings" role="tabpanel">
+<div class="card">
+  <div class="eyebrow">Findings register</div>
+  <h2>Everything found, ranked by consequence</h2>
+  <p class="lead">Filter by severity. Each finding opens to show the exact expression or configuration from the IAR, why it matters, the Oracle reference it is judged against, and the fix. Critical = the integration does something other than what it claims. High = wrong result or wasted Fusion capacity under normal load. Medium = maintainability, operability, security posture. Good = behaviour to preserve.</p>
+  <div class="filters" id="filters"></div>
+  <div id="findlist"></div>
+</div>
+</section>
+
+<!-- ================= API CONFORMANCE ================= -->
+<section class="panel" id="api" role="tabpanel">
+<div class="card">
+  <div class="eyebrow">Oracle REST API for Fusion Cloud HCM · timeEventRequests (POST)</div>
+  <h2>Field-by-field conformance of the outbound time event request</h2>
+  <p class="lead">Compared against the current Oracle reference page for <em>Create a time event request</em>. "Integration" describes what the XSLT in <code>processor_784</code> actually sends; "Validated in OIC" describes what the flow checks before sending.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Oracle field</th><th>Oracle rule</th><th>Integration sends</th><th>Validated in OIC?</th><th class="vc">Verdict</th></tr></thead>
+    <tbody>
+      <tr class="v-green"><td class="el">requestNumber</td><td>required · ≤ 80 chars · "unique identifier for the time event request sent by the supplier"</td><td>Caller's value, pass-through</td><td>No length or uniqueness check. A <code>generate-guid()</code> alternative is computed into <code>requestNumberVar</code> but never used.</td><td class="vc"><span class="pill green">Conforms</span></td></tr>
+      <tr class="v-green"><td class="el">requestTimestamp</td><td>required · ≤ 80</td><td>Caller's value</td><td>No</td><td class="vc"><span class="pill green">Conforms</span></td></tr>
+      <tr class="v-amber"><td class="el">sourceId</td><td>required · ≤ 40 · supplier / facility identifier</td><td>Caller's value</td><td>No. <code>XX_OTL_CONFIG_LOOKUP.SOURCE_ID = HWM_PXM</code> is looked up into <code>sourceIdVar</code> and discarded — the DVM cannot enforce which source id Fusion sees.</td><td class="vc"><span class="pill amber">Conforms by luck</span></td></tr>
+      <tr class="v-amber"><td class="el">timeEvents[].eventDateTime</td><td>required · ≤ 150 · ISO 8601 <b>with time-zone offset</b></td><td>Caller's value</td><td>Non-empty check on events [1] and [2] only; no format / offset check.</td><td class="vc"><span class="pill amber">Partially validated</span></td></tr>
+      <tr class="v-green"><td class="el">timeEvents[].reporterId</td><td>required · ≤ 80</td><td>Caller's value</td><td>Event [1] vs [2] equality only.</td><td class="vc"><span class="pill green">Conforms</span></td></tr>
+      <tr class="v-amber"><td class="el">timeEvents[].reporterIdType</td><td>required · one of <code>BADGE</code>, <code>PERSON</code>, <code>PERSONID</code>, <code>ASSIGNMENT</code></td><td>Caller's value</td><td>No. DVM <code>REPORT_ID_TYPE = PERSON</code> is read into <code>reporterIdTypeVar</code> and discarded.</td><td class="vc"><span class="pill amber">Not enforced</span></td></tr>
+      <tr class="v-amber"><td class="el">timeEvents[].supplierDeviceEvent</td><td>optional · ≤ 40 · must be a code in lookup <code>ORA_HWM_TCD_SUPPLIER_EVENTS</code>; codes must start with the supplier code</td><td>Caller's value</td><td>No. DVM <code>HWM_PXM_IN</code> / <code>HWM_PXM_OUT</code> are read and discarded. An unmapped event is not rejected by the POST; it becomes an exception later in Time Management.</td><td class="vc"><span class="pill amber">Not enforced</span></td></tr>
+      <tr class="v-green"><td class="el">timeEvents[].deviceId</td><td>optional · nullable · ≤ 40</td><td>Caller's value (sample sends <code>null</code>)</td><td>No — acceptable, field is nullable.</td><td class="vc"><span class="pill green">Conforms</span></td></tr>
+      <tr class="v-amber"><td class="el">timeEventAttributes[].name / value</td><td>optional · name ≤ 240 (e.g. <code>PayrollTimeType</code>) · value ≤ 150 · optional <code>facet</code></td><td>Caller's values, all attributes</td><td>Only <code>[1]/[1]/value</code> is allow-listed. The sample payloads in the JCA send the same attribute twice per event.</td><td class="vc"><span class="pill amber">Partially validated</span></td></tr>
+      <tr class="v-green"><td class="el">Response: timeEventRequestId, timeEvents[].timeEventId</td><td>Returned on <code>201 Created</code></td><td>Mapped back to IFS in <code>processor_853</code></td><td>—</td><td class="vc"><span class="pill green">Conforms</span></td></tr>
+    </tbody></table></div>
+
+  <div class="sblock v-amber" style="margin-top:20px"><h4>What a 201 actually means (Oracle OTL processing model)</h4><p>Per Oracle's Time &amp; Labor guides, the REST import "verifies the imported time events" and either returns inaccurately-formed resources in error, or "saves accurately formed resources to the time repository for further functional validations". Time entries are then created or completed by the scheduled <b>Generate Time Cards from Time Collection Device</b> process, which validates events against the <b>Time Device Event Mappings</b> and, for invalid events, creates time-entry exceptions for time and labor managers. A <code>201</code> therefore means <em>accepted into the repository</em> — not <em>time entry created</em>. The integration reports <code>Success</code> at the 201 and nothing ever reports the downstream outcome to IFS.</p></div>
+</div>
+
+<div class="card">
+  <div class="eyebrow">Oracle REST API for Fusion Cloud HCM · workers (GET)</div>
+  <h2>Why the employee lookup returns everyone</h2>
+  <p class="lead">Oracle documents two ways to find a worker on the collection: the <code>q</code> query parameter (<code>PersonNumber</code> is listed as a queryable attribute) or a finder. Both live in the query string. The integration instead declares a <b>template</b> (path) parameter and stuffs the whole query string into it.</p>
+  <div class="two">
+    <div>
+      <h3 style="font-size:15px;color:var(--ar-navy);margin-bottom:6px">As built (from <code>GetEmpDetails_REQUEST.jca</code> + map <code>processor_1697</code>)</h3>
+<pre><span class="cm">// JCA endpoint definition</span>
+ResourceURI = <span class="bad">/hcmRestApi/resources/11.13.18.05/workers/{QueryParam}</span>
+HttpVerb    = GET
+<span class="cm">// XSLT request map</span>
+&lt;ns29:QueryParam&gt;
+  &lt;xsl:value-of select="<span class="bad">concat('?q=PersonNumber=', $PersonNumber)</span>"/&gt;
+&lt;/ns29:QueryParam&gt;
+<span class="cm">// Switch after the call</span>
+$GetEmpDetails/.../response-wrapper/<span class="bad">count = 0.0</span>   → "Employee Number not found"</pre>
+    </div>
+    <div>
+      <h3 style="font-size:15px;color:var(--ar-navy);margin-bottom:6px">As Oracle documents it</h3>
+<pre><span class="cm">// Retrieve Past or Future Worker Details (Oracle example)</span>
+GET /hcmRestApi/resources/11.13.18.05/workers<span class="ok">?q=PersonNumber='955160008191542'</span>
+<span class="cm">// Querying a Collection (Oracle example)</span>
+GET /resources/11.13.18.05/workers<span class="ok">?q=PersonNumber=1000</span>
+<span class="cm">// Other documented query parameters</span>
+<span class="ok">fields</span>=PersonId,PersonNumber   <span class="cm">// project only what you need</span>
+<span class="ok">onlyData</span>=true                  <span class="cm">// drop link sections</span>
+<span class="ok">limit</span>=1                        <span class="cm">// default page size otherwise applies</span>
+<span class="cm">// Response semantics: "count" = items in the current range, not total</span></pre>
+    </div>
+  </div>
+  <div class="sblock v-red" style="margin-top:18px"><h4>Consequence chain</h4><p>1) OIC's REST adapter treats <code>{QueryParam}</code> as a path segment, not a query string — Oracle's adapter documentation keeps template parameters and query parameters as separate, separately-mapped constructs. 2) Fusion therefore never receives a recognised <code>q</code> filter, and the behaviour you observe — the default first page of the whole <code>workers</code> collection coming back — is the expected outcome of an unfiltered collection GET. 3) With no <code>fields</code>/<code>onlyData</code>/<code>limit</code>, each of those records is the full default worker representation. 4) <code>count</code> equals the number of items in the page, so <code>count = 0.0</code> is never true on a populated tenant and the "Employee Number not found" branch is unreachable. 5) The response schema OIC generated from a hand-pasted sample only knows the top-level person fields, so the extra volume is parsed and thrown away.</p><p><b>Verify in one step:</b> open any instance's activity stream and read <code>ConnectivityProperties/RestAPI/http.target.endpoint.uri</code> on the GetEmpDetails response (the adapter exposes it in <code>RESTOUTRES</code>). That is the literal URL Fusion received.</p></div>
+</div>
+</section>
+
+<!-- ================= PATH FORWARD ================= -->
+<section class="panel" id="target" role="tabpanel">
+<div class="card">
+  <div class="eyebrow">Decision first</div>
+  <h2>One decision drives the design: who validates the punch?</h2>
+  <p class="lead">Oracle already validates reporter identity, supplier event mapping and payroll time type when it processes time device events, and surfaces failures as exceptions in Time Management. The integration duplicates part of that in OIC (badly) and then throws away Oracle's answer. Pick one of the two models below; do not keep straddling them.</p>
+  <div class="two">
+    <div class="opt">
+      <h3>Model A — Fire-and-track (keep <code>timeEventRequests</code>)</h3>
+      <div class="tag">Recommended when IFS is a real-time clock feed and Archrock relies on OTL time-device rules and event mappings</div>
+      <ol>
+        <li><b>Delete the worker lookup.</b> Oracle's TCD import already "finds the person linked to the event" and raises badge/time-entry exceptions. A correct pre-check adds a second Fusion round-trip for no additional guarantee.</li>
+        <li><b>Validate the whole payload in one JavaScript function</b> (payload-in-JS): every <code>timeEvents[]</code> element, every attribute, ISO-8601 offset present, <code>reporterIdType</code> in Oracle's four values, <code>supplierDeviceEvent</code> in the configured set, payroll time type in the allow-list. Return one verdict code. This removes 30 Assigns and 3 Switches.</li>
+        <li><b>Apply the DVM, or delete it.</b> If <code>XX_OTL_CONFIG_LOOKUP</code> is meant to stamp <code>sourceId</code>, <code>reporterIdType</code>, <code>supplierDeviceEvent</code> and <code>deviceId</code> for the PXM source, map those values into the Fusion request. If IFS owns them, remove the seven lookups.</li>
+        <li><b>Close the loop.</b> Schedule <em>Generate Time Cards from Time Collection Device</em> at the agreed cadence and add a scheduled OIC job (BIP over the time-event exception data, or the Time Events REST resources) that reports rejected events back to IFS or to payroll. Change the IFS-facing status vocabulary to <code>ACCEPTED</code> rather than <code>Success</code>.</li>
+        <li><b>Fault model:</b> one scope per Fusion invoke with a handler; a global fault handler; return HTTP 4xx/5xx to IFS via Fault Return rather than 200 + "Error".</li>
+      </ol>
+    </div>
+    <div class="opt">
+      <h3>Model B — Synchronous time record (switch to <code>timeRecordEventRequests</code>)</h3>
+      <div class="tag">Consider when IFS always sends a completed In/Out pair and payroll wants an immediate, authoritative yes/no</div>
+      <ol>
+        <li>Because the integration already insists on a paired In/Out for the same person and payroll time type, each request is really a <b>time record</b> (start, stop, attributes). Oracle's <code>timeRecordEventRequests</code> takes <code>startTime</code>/<code>stopTime</code>, <code>reporterId</code>/<code>reporterIdType</code>, <code>timeRecordEventAttribute[]</code> and a <code>processMode</code> (<code>TIME_SAVE</code> / <code>TIME_SUBMIT</code>).</li>
+        <li>With <code>processInline = "Y"</code> Oracle processes the record in the call and returns <code>eventStatus</code> plus <code>timeRecordEventMessage[]</code> — validation outcomes come back in the same response IFS is waiting on. With <code>"N"</code> you must run <em>Process Imported Time Entries</em>.</li>
+        <li><b>Trade-off (documented):</b> this path bypasses time-device event mappings and time-device rules; it uses time-entry / submission rules instead. If Archrock's OTL configuration depends on TCD profiles, auto-generated Out events, or supplier-event exceptions, Model A is the correct one.</li>
+        <li>Community reports (Customer Connect) show inline processing can return <code>null</code> <code>timeRecordId</code> and JBO errors on some records — prototype against Archrock's DEV pod before committing.</li>
+        <li>Same JS validation, scope/fault and status-code discipline as Model A.</li>
+      </ol>
+    </div>
+  </div>
+
+  <h3 style="font-size:15px;color:var(--ar-navy);margin:24px 0 8px">If the worker pre-check must stay (interim hot-fix, ≈ ½ day)</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Change</th><th>Where</th><th>Exact setting</th></tr></thead>
+    <tbody>
+      <tr><td class="el">Fix the resource URI</td><td>GetEmpDetails invoke · Basic Info</td><td><code>/hcmRestApi/resources/11.13.18.05/workers</code> — no template parameter</td></tr>
+      <tr><td class="el">Declare query parameters</td><td>Request Parameters page</td><td><code>q</code>, <code>fields</code>, <code>onlyData</code>, <code>limit</code> (all string)</td></tr>
+      <tr><td class="el">Map them</td><td>Map to GetEmpDetails</td><td><code>q</code> = <code>concat("PersonNumber='", $PersonNumber, "'")</code> · <code>fields</code> = <code>PersonId,PersonNumber</code> · <code>onlyData</code> = <code>true</code> · <code>limit</code> = <code>1</code></td></tr>
+      <tr><td class="el">Gate the call</td><td>ValidationScope</td><td>Wrap Map + Invoke + Switch in a Switch on <code>$IsError != "Y"</code> so a failed V1–V4 never reaches Fusion</td></tr>
+      <tr><td class="el">Handle faults</td><td>ValidationScope</td><td>Add a fault handler for <code>APIInvocationError</code> mirroring the one in TimeRequestScope; add a global fault handler</td></tr>
+      <tr><td class="el">Remove unused code</td><td>InitializeVariable</td><td>Delete the 11 unused-code Assigns (see finding H1); keep <code>Error</code>, <code>IsError</code>, <code>PayrollTimeTypeValid</code>, <code>PersonNumber</code></td></tr>
+    </tbody></table></div>
+
+  <h3 style="font-size:15px;color:var(--ar-navy);margin:24px 0 8px">Target flow (Model A) — activity recipe</h3>
+  <div class="flow" style="margin-top:8px">
+    <div class="node"><span class="idx">1</span><span class="nm">REST trigger</span><span class="kind">POST /timeEventRequests · same contract IFS uses today</span></div>
+    <div class="node"><span class="idx">2</span><span class="nm">Lookup ×1</span><span class="kind">only if the DVM values are going to be applied; otherwise none</span></div>
+    <div class="node"><span class="idx">3</span><span class="nm">Call JavaScript Function</span><span class="kind">input <code>getContentAsString($request)</code> → validates all events, returns verdict code + normalised JSON</span></div>
+    <div class="node indent"><span class="idx">4</span><span class="nm">Switch on verdict</span><span class="kind">≠ OK → Fault Return 400 with structured <code>errorDetails[]</code></span></div>
+    <div class="node k-invoke"><span class="idx">5</span><span class="nm">Scope · Invoke timeEventRequests</span><span class="kind">one Fusion call · fault handler maps <code>errorDetails[]</code> · Fault Return 502/400</span></div>
+    <div class="node"><span class="idx">6</span><span class="nm">Map response → reply 201</span><span class="kind"><code>status = ACCEPTED</code>, echo <code>timeEventRequestId</code></span></div>
+    <div class="node indent"><span class="idx">7</span><span class="nm">Separate scheduled integration</span><span class="kind">runs after <em>Generate Time Cards from TCD</em>; reports exceptions to IFS / payroll — closes the loop</span></div>
+  </div>
+  <p style="color:var(--slate);font-size:14px;margin-top:12px">Per-request cost after redesign: <b>1 Fusion call, 0–1 lookups, 0 unused-code activities</b> (today: 2 calls, 10 lookups, 11 unused-code assigns, one unfiltered worker page).</p>
+</div>
+</section>
+
+<!-- ================= SOURCES ================= -->
+<section class="panel" id="sources" role="tabpanel">
+<div class="card">
+  <div class="eyebrow">IAR artifacts examined</div>
+  <h2>Evidence inventory</h2>
+  <dl class="kv">
+    <dt>PROJECT-INF/project.xml</dt><dd>Orchestration: receive → InitializeVariable (17 assigns) → ValidationScope [switch(5) → map → invoke GetEmpDetails → switch(2)] → switch IsError [TimeRequestScope: map → invoke → map → assign; catch: log, 2 assigns, map | else: map] → reply</dd>
+    <dt>PROJECT-INF/analysis.json</dt><dd>processorCount ASSIGNMENT 30, TRANSFORMER 5, CONTENT_BASED_ROUTER 3, CATCH 1, ACTIVITY_STREAM_LOGGER 1, SOURCE 1, TARGET 2</dd>
+    <dt>ics_project_attributes.properties</dt><dd>originalICSVersion 23.3.1 · lastUpdatedICSVersion 24.10.1 · package xx.oic.afm.uat.sprint4 · state ACTIVATED</dd>
+    <dt>GetEmpDetails_REQUEST.jca</dt><dd>GET <code>/hcmRestApi/resources/11.13.18.05/workers/{QueryParam}</code>; response sample pasted from DEV (<code>edva-dev1</code>, PersonNumber 121646, <code>"limit": 25</code>)</dd>
+    <dt>SentTimeEventRequest_REQUEST.jca</dt><dd>POST <code>/hcmRestApi/resources/11.13.18.05/timeEventRequests</code>, application/json, plugin 19.2.3</dd>
+    <dt>getTimeRequestData_REQUEST.jca</dt><dd>Trigger POST <code>/timeEventRequests</code>, BASIC_AUTH, plugin 19.4.3</dd>
+    <dt>processor_1697 (.xsl)</dt><dd><code>QueryParam = concat("?q=PersonNumber=", $PersonNumber)</code></dd>
+    <dt>processor_784 (.xsl)</dt><dd>Straight copy of trigger request-wrapper → Fusion request-wrapper (all fields, both for-each loops)</dd>
+    <dt>processor_853 / 940 / 1151 (.xsl)</dt><dd>Success / fault / validation-error response maps; fault map uses <code>substring-before(instance,'A 400')</code></dd>
+    <dt>processor_1162 expr.properties</dt><dd>Validation switch conditions V1–V4 (positional <code>[1]</code>/<code>[2]</code>)</dd>
+    <dt>processor_1299 expr.properties</dt><dd><code>count = 0.0</code> employee check</dd>
+    <dt>processor_78…168, 326, 341 expr.properties</dt><dd>Nine <code>dvm:lookupValue</code> assigns whose target variables are unreferenced</dd>
+    <dt>dvms/XX_OTL_CONFIG_LOOKUP.dvm</dt><dd>1 row: PXM · HWM_PXM · PERSON · HWM_PXM_IN · HWM_PXM_OUT · 2002 · PayrollTimeType · Regular Pay · absence list incl. "Worker's Comp Unpaid"</dd>
+    <dt>dvms/XX_AFM_OTL_PAYROLL_TIME_TYPE.dvm</dt><dd>27 names, all IS_VALID = Y; includes "Workers Comp Unpaid" (no apostrophe), FMLA, STD, LTD, Jury Duty, Paid Time Off</dd>
+    <dt>dvms/XX_EMAIL_SETUP_LOOKUP.dvm</dt><dd>~80 rows of distribution lists for unrelated integrations; read into two variables that nothing uses; no notification activity exists</dd>
+    <dt>appinstances/*.xml</dt><dd>CON071 role SOURCE_AND_TARGET, generic <code>rest</code> adapter, BASIC_AUTH, TLS 1.2; last updated 29 Jun 2026</dd>
+  </dl>
+</div>
+<div class="card">
+  <div class="eyebrow">Oracle documentation relied on</div>
+  <h2>Sources</h2>
+  <ul class="srcs">
+    <li><span class="t">REST API for Oracle Fusion Cloud HCM — Create a time event request (schema, required fields, reporterIdType values, supplierDeviceEvent lookup, 201 example)</span><br><a href="https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-timeeventrequests-post.html">docs.oracle.com/en/cloud/saas/human-resources/farws/op-timeeventrequests-post.html</a></li>
+    <li><span class="t">REST API for Oracle Fusion Cloud HCM — Get all workers (q, fields, onlyData, limit, finders, PersonNumber queryable, count semantics)</span><br><a href="https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-publicworkers-get.html">docs.oracle.com/en/cloud/saas/human-resources/farws/op-publicworkers-get.html</a></li>
+    <li><span class="t">REST API for Oracle Fusion Cloud HCM — Retrieve Past or Future Worker Details (<code>?q=PersonNumber='…'</code> example)</span><br><a href="https://docs.oracle.com/en/cloud/saas/human-resources/25a/farws/Retrieve_Past_or_Future_Worker_Details.html">docs.oracle.com/en/cloud/saas/human-resources/25a/farws/Retrieve_Past_or_Future_Worker_Details.html</a></li>
+    <li><span class="t">REST API for Oracle HCM Cloud — Querying a Collection (<code>?q=PersonNumber=1000</code> example)</span><br><a href="https://docs.oracle.com/en/cloud/saas/human-resources/20b/farws/Querying_a_Collection.html">docs.oracle.com/en/cloud/saas/human-resources/20b/farws/Querying_a_Collection.html</a></li>
+    <li><span class="t">REST API for Oracle Fusion Cloud HCM — Create a time record event request (<code>timeRecordEventRequests</code>, processInline, processMode, eventStatus, messages)</span><br><a href="https://docs.oracle.com/en/cloud/saas/human-resources/farws/op-timerecordeventrequests-post.html">docs.oracle.com/en/cloud/saas/human-resources/farws/op-timerecordeventrequests-post.html</a></li>
+    <li><span class="t">REST API for Oracle Fusion Cloud HCM — Manage Time Events / Manage In and Out Time Events (verification &amp; processing model)</span><br><a href="https://docs.oracle.com/en/cloud/saas/human-resources/24a/farws/Managing_Time_Events.html">docs.oracle.com/en/cloud/saas/human-resources/24a/farws/Managing_Time_Events.html</a> · <a href="https://docs.oracle.com/en/cloud/saas/human-resources/farws/Managing_In_and_Out_Time_Events.html">…/farws/Managing_In_and_Out_Time_Events.html</a></li>
+    <li><span class="t">Using Time and Labor — Generate Time Cards from Time Collection Device Process; Load Time Record Events in the Time Repository</span><br><a href="https://docs.oracle.com/en/cloud/saas/human-resources/fautl/generate-time-cards-from-time-collection-device-process.html">docs.oracle.com/en/cloud/saas/human-resources/fautl/generate-time-cards-from-time-collection-device-process.html</a> · <a href="https://docs.oracle.com/en/cloud/saas/human-resources/24d/fautl/load-time-record-events-in-the-time-repository.html">…/fautl/load-time-record-events-in-the-time-repository.html</a></li>
+    <li><span class="t">Implementing Time and Labor — Time Device Event Mappings; Supplier-Related Choice Lists (ORA_HWM_TCD_SUPPLIERS / ORA_HWM_TCD_SUPPLIER_EVENTS); Overview of TCD and Web Clock Event Processing</span><br><a href="https://docs.oracle.com/en/cloud/saas/human-resources/faitl/time-device-event-mappings.html">docs.oracle.com/en/cloud/saas/human-resources/faitl/time-device-event-mappings.html</a> · <a href="https://docs.oracle.com/en/cloud/saas/human-resources/25b/faitl/supplier-related-choice-lists-for-time-device-event-mappings.html">…/faitl/supplier-related-choice-lists-for-time-device-event-mappings.html</a> · <a href="https://docs.oracle.com/en/cloud/saas/human-resources/faitl/overview-of-time-collection-device-and-web-clock-event.html">…/faitl/overview-of-time-collection-device-and-web-clock-event.html</a></li>
+    <li><span class="t">Using Integrations in Oracle Integration — Common Integration Style Pitfalls and Design Best Practices (chatty integrations, synchronous integration doing too much, too many connections)</span><br><a href="https://docs.oracle.com/en/cloud/paas/integration-cloud/integrations-user/common-integration-style-pitfalls-and-design-best-practices.html">docs.oracle.com/en/cloud/paas/integration-cloud/integrations-user/common-integration-style-pitfalls-and-design-best-practices.html</a></li>
+    <li><span class="t">Using the REST Adapter with Oracle Integration — Request Parameters page (template vs query parameters); RFC 3986 encoding of query parameters</span><br><a href="https://docs.oracle.com/en/cloud/paas/integration-cloud/rest-adapter/rest-adapter-trigger-request-parameters-page.html">docs.oracle.com/en/cloud/paas/integration-cloud/rest-adapter/rest-adapter-trigger-request-parameters-page.html</a> · <a href="https://docs.oracle.com/en/cloud/paas/application-integration/rest-adapter/rfc-3986-support-encoding-query-parameters.html">…/rest-adapter/rfc-3986-support-encoding-query-parameters.html</a></li>
+    <li><span class="t">Using the Oracle HCM Cloud Adapter — Capabilities (consumes HCM REST resources, handles security policies); Oracle ERP Cloud Adapter capabilities ("use the Oracle HCM Cloud Adapter for any HCM integrations")</span><br><a href="https://docs.oracle.com/en/cloud/paas/application-integration/hcm-adapter/oracle-hcm-cloud-adapter-capabilities.html">docs.oracle.com/en/cloud/paas/application-integration/hcm-adapter/oracle-hcm-cloud-adapter-capabilities.html</a> · <a href="https://docs.oracle.com/en/cloud/paas/integration-cloud/erp-adapter/oracle-erp-cloud-adapter-capabilities.html">…/erp-adapter/oracle-erp-cloud-adapter-capabilities.html</a></li>
+    <li><span class="t">Oracle A-Team — Error Handling Guide for Oracle Integration Cloud; Fault Actions Behavior in OIC (scope-per-invoke, Fault Return vs 500)</span><br><a href="https://www.ateam-oracle.com/error-handling-guide-oracle-integration-cloud">ateam-oracle.com/error-handling-guide-oracle-integration-cloud</a> · <a href="https://www.ateam-oracle.com/fault-actions-behavior-in-oic">ateam-oracle.com/fault-actions-behavior-in-oic</a></li>
+  </ul>
+  <div class="legend" style="margin-top:22px"><span class="item"><span class="dot green"></span>Conforms / keep</span><span class="item"><span class="dot amber"></span>Partial / needs attention</span><span class="item"><span class="dot red"></span>Broken / unreachable / critical</span><span class="item"><span class="dot gray"></span>Not assessable from the IAR</span></div>
+  <div class="foot"><b>Prepared by The Hackett Group.</b> Confidential — prepared for Archrock. Findings are derived from the static IAR export <code>AFM_EMPLOYEE_TIME_REQUEST_01_00_0001.iar</code> and Oracle documentation current as of 26 Aug 2026; runtime behaviour should be confirmed in the OIC activity stream before change. Palette follows archrock.com's published stylesheet; Archrock's licensed typefaces (Metric / Factoria) are substituted with Manrope / Inter.</div>
+</div>
+</section>
+
+</div><!-- /wrap -->
+
+<script>
+/* ---------- Tabs ---------- */
+const tabs=[...document.querySelectorAll('.tab')], panels=[...document.querySelectorAll('.panel')];
+function showTab(id){tabs.forEach(t=>t.classList.toggle('active',t.dataset.tab===id));panels.forEach(p=>p.classList.toggle('active',p.id===id));history.replaceState(null,'','#'+id);}
+tabs.forEach(t=>t.addEventListener('click',()=>showTab(t.dataset.tab)));
+if(location.hash&&document.getElementById(location.hash.slice(1)))showTab(location.hash.slice(1));
+document.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(a){e.preventDefault();showTab(a.dataset.tab);const f=a.dataset.find;if(f){setTimeout(()=>{const d=document.getElementById('f-'+f);if(d){d.open=true;d.scrollIntoView({block:'center'});}},60);}}});
+
+/* ---------- Trace nodes (execution order from project.xml) ---------- */
+const NODES=[
+ {g:'Trigger',id:'r0',nm:'Receive · getTimeRequestData',kind:'REST trigger · POST /timeEventRequests',k:'',d:'IFS posts a JSON body identical in shape to Fusion\'s <code>timeEventRequests</code>: header (sourceId, requestNumber, requestTimestamp) + <code>timeEvents[]</code> each with <code>timeEventAttributes[]</code>. Three tracking variables are captured: requestNumber (primary), and — oddly — <code>reporterId</code> into a variable named "Error Message" and <code>eventDateTime</code> into one named "Status".',cost:{c:0,l:0,x:0}},
+ {g:'InitializeVariable (17 assigns)',id:'a0',nm:'sourceVar = "AFM"',kind:'Assign',k:'k-dead',d:'Only purpose is to key the seven lookups that follow — all of which produce unused values. Note the DVM row key is <code>PXM</code>, not <code>AFM</code>, so every lookup returns the default "No Value Found" anyway.',cost:{c:0,l:0,x:1}},
+ {id:'a1',nm:'sourceIdVar ← DVM SOURCE_ID',kind:'Assign + lookup',k:'k-dead',d:'<code>lookupValue("XX_OTL_CONFIG_LOOKUP","SOURCE",$sourceVar,"SOURCE_ID","No Value Found")</code>. Variable is never referenced by any map, switch or assign.',cost:{c:0,l:1,x:1}},
+ {id:'a2',nm:'reporterIdTypeVar ← DVM REPORT_ID_TYPE',kind:'Assign + lookup',k:'k-dead',d:'Never referenced. Oracle requires <code>reporterIdType</code> ∈ {BADGE, PERSON, PERSONID, ASSIGNMENT}; the flow neither stamps nor checks it.',cost:{c:0,l:1,x:1}},
+ {id:'a3',nm:'supplierDeviceEventInVar ← DVM',kind:'Assign + lookup',k:'k-dead',d:'Never referenced. The intended value <code>HWM_PXM_IN</code> would be the lookup code Fusion needs in <code>ORA_HWM_TCD_SUPPLIER_EVENTS</code>; the flow forwards whatever IFS sends.',cost:{c:0,l:1,x:1}},
+ {id:'a4',nm:'supplierDeviceEventOutVar ← DVM',kind:'Assign + lookup',k:'k-dead',d:'Never referenced.',cost:{c:0,l:1,x:1}},
+ {id:'a5',nm:'deviceIdVar ← DVM DEVICE_ID',kind:'Assign + lookup',k:'k-dead',d:'Never referenced. Sample payloads send <code>deviceId: null</code>.',cost:{c:0,l:1,x:1}},
+ {id:'a6',nm:'timeEventAttributesNameVar ← DVM',kind:'Assign + lookup',k:'k-dead',d:'Never referenced.',cost:{c:0,l:1,x:1}},
+ {id:'a7',nm:'timeEventAttributesValueVar ← DVM',kind:'Assign + lookup',k:'k-dead',d:'Never referenced. Would default the payroll time type to "Regular Pay".',cost:{c:0,l:1,x:1}},
+ {id:'a8',nm:'requestNumberVar = generate-guid()',kind:'Assign',k:'k-dead',d:'A GUID is generated on every request and never used; the caller\'s <code>requestNumber</code> is forwarded instead.',cost:{c:0,l:0,x:1}},
+ {id:'a9',nm:'timeInVar = ""',kind:'Assign',k:'k-dead',d:'Never referenced.',cost:{c:0,l:0,x:1}},
+ {id:'a11',nm:'IntegrationNameVar = "Time and Labor Entries"',kind:'Assign',k:'k-dead',d:'Keys the two email lookups below; nothing sends an email.',cost:{c:0,l:0,x:1}},
+ {id:'a12',nm:'Transaction_Name ← XX_EMAIL_SETUP_LOOKUP',kind:'Assign + lookup',k:'k-dead',d:'Never referenced. This shared DVM (~80 rows of distribution lists for unrelated integrations) is bundled into the IAR because of this one lookup.',cost:{c:0,l:1,x:1}},
+ {id:'a13',nm:'Email_Body ← XX_EMAIL_SETUP_LOOKUP',kind:'Assign + lookup',k:'k-dead',d:'Never referenced. There is no Notification activity anywhere in the flow.',cost:{c:0,l:1,x:1}},
+ {id:'a14',nm:'Error = ""',kind:'Assign',k:'',d:'Live. Holds the single validation message returned to IFS.',cost:{c:0,l:0,x:0}},
+ {id:'a16',nm:'IsError = "N"',kind:'Assign',k:'',d:'Live. String flag that gates the Fusion write.',cost:{c:0,l:0,x:0}},
+ {id:'a19',nm:'PayrollTimeTypeValid ← XX_AFM_OTL_PAYROLL_TIME_TYPE',kind:'Assign + lookup',k:'',d:'The one lookup that is used: <code>lookupValue(…,"PAYROLL_TIME_NAME", timeEvents[1]/timeEventAttributes[1]/value, "IS_VALID","N")</code>. Only the first attribute of the first event is checked.',cost:{c:0,l:1,x:0}},
+ {id:'a25',nm:'PersonNumber = timeEvents[1]/reporterId',kind:'Assign',k:'',d:'Live. Feeds the worker lookup. Only event 1 is considered.',cost:{c:0,l:0,x:0}},
+ {g:'ValidationScope (no fault handler)',id:'s1',nm:'Switch · 4 validations',kind:'Content-based router · 5 branches',k:'',d:'Evaluated in order, first match wins: V1 eventDateTime blank on [1] or [2] → V2 payroll value [1]≠[2] → V3 reporterId [1]≠[2] → V4 <code>$PayrollTimeTypeValid != "Y"</code> → else. A matching branch sets <code>Error</code> and <code>IsError="Y"</code> — and then the flow <b>continues</b> to the next node.',cost:{c:0,l:0,x:0}},
+ {id:'m5',nm:'Map → GetEmpDetails',kind:'XSLT',k:'',d:'<code>QueryParam = concat("?q=PersonNumber=", $PersonNumber)</code>. The whole query string is written into a path template variable. Runs even when IsError is already "Y".',cost:{c:0,l:0,x:0}},
+ {id:'i2',nm:'Invoke · GET workers/{QueryParam}',kind:'Fusion HTTP call #1',k:'k-invoke',d:'Fusion receives a path-style request, not a <code>q</code> filter, and answers with the default page of the whole <code>workers</code> collection (default representation, no <code>fields</code>, no <code>onlyData</code>). This is the "returns every employee on every call" you are seeing. No fault handler in this scope: a 401/5xx/timeout here escapes to an OIC 500.',cost:{c:1,l:0,x:1}},
+ {id:'s2',nm:'Switch · count = 0.0',kind:'Content-based router',k:'',d:'<code>count</code> is the number of items in the returned page. Because the page is never empty on a populated tenant, the "Employee Number not found in Oracle FUSION" branch is unreachable. If it ever did fire it would overwrite whatever V1–V4 had put in <code>Error</code>.',cost:{c:0,l:0,x:0}},
+ {g:'Gate',id:'s0',nm:'Switch · IsError != "Y"',kind:'Content-based router',k:'',d:'Routes to the Fusion write, or to the validation-error response map. This is the only place validation actually stops anything.',cost:{c:0,l:0,x:0}},
+ {g:'TimeRequestScope (1 catch)',id:'m0',nm:'Map → SentTimeEventRequest',kind:'XSLT',k:'',d:'Field-for-field copy of the inbound body. Nothing from the DVMs is applied; whatever IFS sent for <code>sourceId</code>, <code>reporterIdType</code>, <code>supplierDeviceEvent</code>, <code>deviceId</code> and every attribute is forwarded as-is.',cost:{c:0,l:0,x:0}},
+ {id:'i0',nm:'Invoke · POST timeEventRequests',kind:'Fusion HTTP call #2',k:'k-invoke',d:'Correct resource, verb and media type; payload conforms to Oracle\'s documented schema. A <code>201</code> means Fusion stored the events in the time repository for later processing by <em>Generate Time Cards from Time Collection Device</em> — it is not confirmation that a time entry exists.',cost:{c:1,l:0,x:0}},
+ {id:'m1',nm:'Map → response (Success)',kind:'XSLT',k:'',d:'Echoes <code>timeEventRequestId</code>, each <code>timeEventId</code> and hard-codes <code>status = "Success"</code>.',cost:{c:0,l:0,x:0}},
+ {id:'a17',nm:'tracking_var_3 = "Success"',kind:'Assign',k:'',d:'Overwrites the tracking variable that was initialised from <code>eventDateTime</code>.',cost:{c:0,l:0,x:0}},
+ {id:'tc0',nm:'catch APIInvocationError',kind:'Fault handler (only on this scope)',k:'k-fault',d:'Logs <code>errorDetails</code>, sets tracking vars, and maps Fusion\'s error into the response. <code>instance</code> is parsed with <code>substring-before(…, "A 400")</code>, so only HTTP 400 messages survive; the reply to IFS is still HTTP 200 with <code>status = "Error"</code>.',cost:{c:0,l:0,x:0}},
+ {g:'Reply',id:'y0',nm:'Reply to IFS',kind:'HTTP 200 on every handled path',k:'',d:'One response contract (<code>result.status</code> + optional <code>errorDetails[]</code>) regardless of outcome. Unhandled faults from the worker call bypass this and surface as an OIC platform 500.',cost:{c:0,l:0,x:0}}
+];
+const flow=document.getElementById('flow'), detail=document.getElementById('detail');
+let cur=0;
+NODES.forEach((n,i)=>{
+  if(n.g){const g=document.createElement('div');g.className='grp';g.textContent=n.g;flow.appendChild(g);}
+  const el=document.createElement('div');el.className='node '+(n.k||'');el.tabIndex=0;el.setAttribute('role','button');
+  const st=n.k==='k-dead'?'<span class="pill gray" title="Unused code: executes on every request, but no map, switch or assign ever reads its result">unused code</span>':n.k==='k-invoke'?'<span class="pill amber">Fusion call</span>':n.k==='k-fault'?'<span class="pill red">catch</span>':'';
+  el.innerHTML='<span class="idx">'+String(i+1).padStart(2,'0')+'</span><span><div class="nm">'+n.nm+'</div><div class="kind">'+n.kind+'</div></span><span class="st">'+st+'</span>';
+  el.addEventListener('click',()=>setNode(i));el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setNode(i);}});
+  n.el=el;flow.appendChild(el);
+});
+function setNode(i){cur=i;NODES.forEach((n,j)=>n.el.classList.toggle('cur',j===i));
+  let c=0,l=0,x=0;for(let j=0;j<=i;j++){c+=NODES[j].cost.c;l+=NODES[j].cost.l;x+=NODES[j].cost.x;}
+  const n=NODES[i];
+  detail.innerHTML='<div class="eyebrow">Step '+(i+1)+' of '+NODES.length+'</div><h3>'+n.nm+'</h3><div class="k">'+n.kind+'</div><p>'+n.d+'</p>'
+   +'<div class="meter"><div><div class="v '+(c>1?'bad':c?'warn':'')+'">'+c+'</div><div class="l">Fusion calls so far</div></div><div><div class="v '+(l>1?'warn':'')+'">'+l+'</div><div class="l">DVM lookups</div></div><div><div class="v '+(x?'bad':'')+'">'+x+'</div><div class="l">unused-code activities</div></div><div><div class="v">'+(i+1)+'</div><div class="l">activities executed</div></div></div>'
+   +'<div class="navbtns"><button class="btn ghost" id="prev" '+(i===0?'disabled':'')+'>← Previous</button><button class="btn" id="next" '+(i===NODES.length-1?'disabled':'')+'>Next step →</button></div>';
+  document.getElementById('prev').onclick=()=>setNode(i-1);document.getElementById('next').onclick=()=>setNode(i+1);
+  if(window.innerWidth<820)detail.scrollIntoView({block:'nearest'});else n.el.scrollIntoView({block:'nearest'});
+}
+setNode(0);
+
+/* ---------- Findings ---------- */
+const F=[
+ {id:'C1',sev:'critical',t:'Employee lookup filter is inside a path template parameter, so Fusion returns an unfiltered page of workers',one:'The "Employee Number not found" validation can never fire, and each request drags up to a full page of complete worker records across the wire.',
+  ev:'<pre>GetEmpDetails_REQUEST.jca\n  ResourceURI = <span class="bad">/hcmRestApi/resources/11.13.18.05/workers/{QueryParam}</span>\n  HttpVerb    = GET\n\nprocessor_1697 (map)\n  &lt;ns29:QueryParam&gt; <span class="bad">concat("?q=PersonNumber=", $PersonNumber)</span> &lt;/ns29:QueryParam&gt;\n\nprocessor_1299 (switch)\n  $GetEmpDetails/…/response-wrapper/<span class="bad">count = 0.0</span></pre>',
+  why:'<p>Oracle\'s REST adapter documents template parameters as path segments declared in curly braces and query parameters as a separate list configured on the Request Parameters page and mapped individually. The <code>q</code> expression here never becomes a query parameter. Oracle\'s <code>workers</code> reference lists <code>q</code>, <code>finder</code>, <code>fields</code>, <code>onlyData</code> and <code>limit</code> as the query-string controls and documents <code>count</code> as "the number of resource instances returned in the current range". With no recognised filter, every call returns the first page of the whole collection in its default (full) representation, <code>count</code> is the page size, and the <code>= 0.0</code> branch is unreachable. The response schema OIC generated from the pasted sample knows only 14 top-level fields, so the rest of every record is parsed and discarded.</p>',
+  ref:'Workers GET reference (q / fields / onlyData / limit / count) · Retrieve Past or Future Worker Details (<code>?q=PersonNumber=\'…\'</code>) · REST Adapter Request Parameters page.',
+  fix:'<p>Either remove the call (Model A — Fusion validates the reporter during TCD processing) or rebuild it as <code>GET /workers</code> with query parameters <code>q = PersonNumber=\'{n}\'</code>, <code>fields = PersonId,PersonNumber</code>, <code>onlyData = true</code>, <code>limit = 1</code>, then test <code>count = 0</code>. Confirm the fix by reading <code>http.target.endpoint.uri</code> from the invoke\'s response connectivity properties in the activity stream.</p>'},
+ {id:'C2',sev:'critical',t:'Validation does not short-circuit — the worker lookup runs even after V1–V4 already failed, and can overwrite the error',one:'Orchestration order: switch (sets IsError) → map → invoke → switch(count). Nothing gates the invoke on IsError.',
+  ev:'<pre>project.xml &lt;ns2:orchestration&gt;\n  &lt;try id="t1" name="ValidationScope"&gt;\n    &lt;router id="s1"&gt; … sets $Error, $IsError="Y" … &lt;/router&gt;\n    <span class="bad">&lt;transformer id="m5"/&gt;      ← always runs\n    &lt;invoke id="i2"/&gt;           ← always runs (Fusion call)\n    &lt;router id="s2"&gt; count=0.0 → $Error="Employee Number not found…" &lt;/router&gt;</span>\n  &lt;/try&gt;\n  &lt;router id="s0"&gt; $IsError != "Y" … &lt;/router&gt;   ← first real gate</pre>',
+  why:'<p>A request with a blank <code>eventDateTime</code> still costs a Fusion round-trip. Should C1 ever be fixed so that <code>count = 0</code> can occur, the employee message would replace the earlier validation message and IFS would receive the wrong reason. Oracle\'s "Synchronous Integration Doing Too Much" guidance is explicit about not accumulating invokes on a blocking path.</p>',
+  ref:'Oracle Integration — Common Integration Style Pitfalls (Synchronous integration doing too much; chatty integrations).',
+  fix:'<p>Wrap m5 → i2 → s2 in a branch on <code>$IsError != "Y"</code>, or (preferred) collapse V1–V5 into one JavaScript verdict and a single Switch that returns immediately on failure.</p>'},
+ {id:'C3',sev:'critical',t:'All four business validations are positional — they only look at timeEvents[1], timeEvents[2] and timeEventAttributes[1]',one:'The contract allows unbounded events and attributes; a 1-event or 3-event request passes silently.',
+  ev:'<pre>processor_1162 (validation switch)\n  V1  timeEvents<span class="bad">[1.0]</span>/eventDateTime = "" or timeEvents<span class="bad">[2.0]</span>/eventDateTime = ""\n  V2  timeEvents<span class="bad">[1]</span>/timeEventAttributes<span class="bad">[1]</span>/value != timeEvents<span class="bad">[2]</span>/timeEventAttributes<span class="bad">[1]</span>/value\n  V3  timeEvents<span class="bad">[1]</span>/reporterId != timeEvents<span class="bad">[2]</span>/reporterId\n  V4  lookupValue(…, timeEvents<span class="bad">[1]</span>/timeEventAttributes<span class="bad">[1]</span>/value, "IS_VALID","N")\n\ngetTimeRequestData_REQUEST.wsdl\n  &lt;xsd:element name="timeEvents" <span class="hl">maxOccurs="unbounded"</span>/&gt;\n  &lt;xsd:element name="timeEventAttributes" <span class="hl">maxOccurs="unbounded"</span>/&gt;</pre>',
+  why:'<p>XPath compares an absent node-set as <em>false</em>, so when IFS sends a single event, V1 (blank check on [2]), V2 and V3 all evaluate to false and the request passes. Three or more events: the third is never inspected. Two attributes on an event (which the JCA sample payloads actually show): the second is never allow-listed. Every one of these reaches Fusion, where a bad payroll time type or an unpaired punch becomes a manager exception rather than an IFS error.</p>',
+  ref:'Oracle timeEventRequests schema — <code>timeEvents</code> and <code>timeEventAttributes</code> are arrays; OIC For-Each / JavaScript patterns.',
+  fix:'<p>Validate every element. In OIC-native terms that is a For-Each over <code>timeEvents</code> with counters; in the payload-in-JS pattern it is a single function that parses the body, checks count/parity, per-event required fields, ISO-8601 offset, reporterIdType domain, supplier event set and payroll time type allow-list, and returns a verdict plus the first failing path.</p>'},
+ {id:'C4',sev:'critical',t:'No fault handler on ValidationScope and no global fault handler — a Fusion error on the worker call escapes as an OIC 500',one:'Only TimeRequestScope has a catch. Auth failures, 5xx and timeouts on GetEmpDetails break the response contract.',
+  ev:'<pre>project.xml\n  &lt;try id="t1" name="ValidationScope"&gt; … &lt;/try&gt;      <span class="bad">← no &lt;catch&gt;</span>\n  &lt;try id="t0" name="TimeRequestScope"&gt; … &lt;catch id="tc0" refUri="processor_604"/&gt; &lt;/try&gt;\n  (no global fault handler element in the orchestration)</pre>',
+  why:'<p>Oracle\'s A-Team guidance and the OIC fault model both put every invoke inside a scope with its own handler, with a global handler as the last resort. As built, IFS gets two different error shapes: a JSON <code>result.status="Error"</code> for some failures and an opaque platform fault for others.</p>',
+  ref:'Oracle A-Team — Error Handling Guide for OIC; Fault Actions Behavior in OIC.',
+  fix:'<p>Add an <code>APIInvocationError</code> handler to ValidationScope (or remove the invoke per Model A); add a global fault handler that maps to the same response contract; use Fault Return to send a real HTTP status.</p>'},
+ {id:'H1',sev:'high',t:'Nine of ten DVM lookups and eleven variables are unused code executed on every request',one:'The configuration the flow reads is never applied; IFS values are forwarded verbatim.',
+  ev:'<pre>Variables assigned in InitializeVariable and referenced nowhere else (grep of all .xsl + expr.properties):\n  sourceIdVar, reporterIdTypeVar, supplierDeviceEventInVar, supplierDeviceEventOutVar,\n  deviceIdVar, timeEventAttributesNameVar, timeEventAttributesValueVar,\n  requestNumberVar (generate-guid), timeInVar, Transaction_Name, Email_Body\n\nLookups per request: 7 × XX_OTL_CONFIG_LOOKUP + 2 × XX_EMAIL_SETUP_LOOKUP (unused)\n                      1 × XX_AFM_OTL_PAYROLL_TIME_TYPE (used)\n\nprocessor_784 (request map) — pure pass-through, e.g.\n  &lt;nsmpr0:sourceId&gt;&lt;xsl:value-of select="…/nsmpr1:sourceId"/&gt;&lt;/nsmpr0:sourceId&gt;\n\nXX_OTL_CONFIG_LOOKUP.dvm row key = <span class="hl">PXM</span>;  $sourceVar = <span class="bad">"AFM"</span>  → every lookup returns "No Value Found"</pre>',
+  why:'<p>Beyond the wasted lookups, the design intent is inverted: the DVM says the PXM source should send <code>sourceId=HWM_PXM</code>, <code>reporterIdType=PERSON</code>, <code>supplierDeviceEvent=HWM_PXM_IN/OUT</code>, <code>deviceId=2002</code> and default <code>PayrollTimeType=Regular Pay</code>, but Fusion only ever sees what IFS put in the body. Oracle requires <code>supplierDeviceEvent</code> codes to exist in <code>ORA_HWM_TCD_SUPPLIER_EVENTS</code> and to start with the supplier code; nothing here enforces that. Note also the key mismatch: the row is keyed <code>PXM</code> while the flow looks up <code>AFM</code>.</p>',
+  ref:'Oracle — Supplier-Related Choice Lists for Time Device Event Mappings; timeEventRequests schema (supplierDeviceEvent, reporterIdType).',
+  fix:'<p>Decide who owns the OTL constants. If OIC: map the DVM values into the Fusion request and validate the inbound values against them. If IFS: delete the seven OTL lookups, the two email lookups and the eleven assigns. Either way remove <code>XX_EMAIL_SETUP_LOOKUP</code> from this integration\'s dependencies.</p>'},
+ {id:'H2',sev:'high',t:'"Success" is returned before Oracle has decided anything — there is no closed loop for rejected punches',one:'A 201 from timeEventRequests means "stored for processing", not "time entry created".',
+  ev:'<pre>processor_853 (success map)\n  &lt;nsmpr3:status&gt;<span class="hl">Success</span>&lt;/nsmpr3:status&gt;   ← hard-coded on any 2xx from Fusion\n\nOracle (Manage Time Events): the import "verifies the imported time events" and\n  "saves accurately formed resources to the time repository <span class="hl">for further functional validations</span>"\nOracle (Generate Time Cards from TCD process):\n  Valid → creates / completes time entries;  Invalid → <span class="hl">creates time entry exceptions</span></pre>',
+  why:'<p>Reporter-not-found, unmapped supplier event, ineligible payroll time type and missing-Out conditions are all detected by Oracle <em>after</em> the 201, by the scheduled <em>Generate Time Cards from Time Collection Device</em> process, and are parked as exceptions for time and labor managers. IFS is told "Success" for all of them. Combined with C1 (the only pre-check that could have caught a bad person number is unreachable), an invalid employee number is currently invisible to the caller.</p>',
+  ref:'Oracle — Manage Time Events; Generate Time Cards from Time Collection Device Process; Overview of TCD and Web Clock Event Processing.',
+  fix:'<p>Rename the status to <code>ACCEPTED</code>; confirm the TCD process is scheduled; add a scheduled OIC job that reports time-event exceptions back to IFS/payroll (BIP over the time repository exception data, or the Time Events REST resources). Or move to <code>timeRecordEventRequests</code> with <code>processInline=Y</code> if Model B fits (see Path forward).</p>'},
+ {id:'H3',sev:'high',t:'The payroll-time-type allow-list is a hand-maintained copy of Fusion configuration and is already inconsistent',one:'27 hard-coded names, all Y; spelling differs between the two DVMs; absence types are listed as clock-event payroll time types.',
+  ev:'<pre>XX_AFM_OTL_PAYROLL_TIME_TYPE.dvm      XX_OTL_CONFIG_LOOKUP.dvm (ABSENCE_TYPE column)\n  "Workers Comp Unpaid"                 "Worker\'s Comp Unpaid"      <span class="bad">← apostrophe mismatch</span>\n  "Regular Pay"                         TIME_EVENT_ATTRIBUTE_VALUE = "Regular Pay"\n  FMLA, STD, LTD, Jury Duty,            (also listed as absence types)\n  Paid Time Off, Military Leave …\nJCA request sample: "PayrollTimeType" : "<span class="bad">Regular Hours</span>"   ← not in the allow-list</pre>',
+  why:'<p>Oracle\'s TCD model expects the Payroll Time Type attribute value to resolve to a payroll time type the worker is eligible for via the event mapping set. A DVM cannot know eligibility, is a second source of truth that drifts (the samples in the IAR already use a value the list rejects), and the presence of absence names suggests either that absences are being punched through a clock API or that the list was copied from an absence configuration. Both need a functional decision, not a code fix.</p>',
+  ref:'Oracle — Time Device Event Mappings; timeEventRequests schema (timeEventAttributes).',
+  fix:'<p>Confirm with the OTL configuration which payroll time types are eligible via HWM_PXM event mappings; either drop the OIC allow-list and let Fusion reject, or generate the list from Fusion (a scheduled refresh of the lookup) rather than hand-maintaining it. Fix the apostrophe now.</p>'},
+ {id:'H4',sev:'high',t:'Fault mapping only understands HTTP 400 text, and every handled error is returned to IFS as HTTP 200',one:'substring-before(instance, "A 400") yields an empty message for 401/403/404/5xx; callers must parse the body to learn a call failed.',
+  ev:'<pre>processor_940 (fault response map)\n  &lt;nsmpr1:instance&gt;\n    substring(substring-after(substring-before(nsmpr0:instance, <span class="bad">\'A 400\'</span>), \'[CDATA[\'), 1)\n  &lt;/nsmpr1:instance&gt;\n\nprocessor_1058 (tracking var)\n  substring-after(substring-before($CurrentFaultObject/…/instance, \']]&gt;\'), \'&lt;![CDATA[\')\n\nOrchestration: catch → map response → continues to &lt;reply/&gt;  (HTTP 200)</pre>',
+  why:'<p>Oracle\'s REST adapter wraps the target\'s body in the <code>instance</code> element inside CDATA; the string surgery here is coupled to one phrasing. The OIC-generated 500 for unhandled faults versus a 200-with-Error for handled ones gives IFS two incompatible signals for "it failed". Oracle A-Team documents Fault Return as the way to surface a real status code from a handler.</p>',
+  ref:'Oracle A-Team — Fault Actions Behavior in OIC.',
+  fix:'<p>Map <code>errorCode</code>, <code>title</code>, <code>detail</code> and the raw <code>instance</code> without status-specific parsing; return 4xx/5xx via Fault Return with the same JSON contract; keep the 200 for the accepted path only.</p>'},
+ {id:'M1',sev:'medium',t:'Tracking variables are mislabelled and then overwritten',one:'"Error Message" is seeded with reporterId and "Status" with eventDateTime.',
+  ev:'<pre>processor_1 (messageTracker)\n  tracking_var_2  name="Error Message"  xpath=/execute/request-wrapper/timeEvents/reporterId\n  tracking_var_3  name="Status"         xpath=/execute/request-wrapper/timeEvents/eventDateTime\n  → later overwritten with "Success"/"Error"/stripped fault text</pre>',
+  why:'<p>Monitoring shows a person number under "Error Message" for every successful instance until the overwrite lands; with several events the XPath silently takes the first. Tracking fields are the operations team\'s first line of triage and should mean what they say.</p>',ref:'OIC tracking variables (Business Identifiers) guidance.',fix:'<p>Track requestNumber (primary), reporterId of the first event (named as such) and sourceId; set status via Assign only.</p>'},
+ {id:'M2',sev:'medium',t:'Generic REST adapter + Basic Auth for Oracle HCM',one:'Oracle recommends the Oracle HCM Cloud Adapter for HCM integrations; it consumes HCM REST resources and manages the security policy.',
+  ev:'<pre>appinstances/CON_ORA_HCM_OTL_REST_TRN.xml\n  applicationTypeRef = rest      securityPolicy = BASIC_AUTH      tlsVersion = TLSv1.2</pre>',
+  why:'<p>The generic adapter works, but every HCM resource has to be hand-defined from pasted samples (which is exactly how C1 and the truncated <code>workers</code> schema happened). Oracle\'s ERP adapter documentation states it "is recommended that you use the Oracle HCM Cloud Adapter for any HCM integrations"; the HCM adapter discovers REST resources and their parameters from the catalog and "automatically handles security policy details". Basic Auth against Fusion is a standing credential for a service user; OAuth policies are available on the HCM adapter.</p>',ref:'Oracle HCM Cloud Adapter Capabilities; Oracle ERP Cloud Adapter Capabilities (note on HCM).',fix:'<p>When rebuilding, define the Fusion invokes on an Oracle HCM Cloud Adapter connection and pick an OAuth-based policy; keep CON071 for any resource the adapter cannot discover.</p>'},
+ {id:'M3',sev:'medium',t:'IAR ships a shared email lookup with ~80 rows of personal addresses that the flow never uses',one:'XX_EMAIL_SETUP_LOOKUP is exported because of two unused lookups; no Notification activity exists.',
+  ev:'<pre>dvms/XX_EMAIL_SETUP_LOOKUP.dvm — 7 columns × ~80 rows (Ratelinx, GAINS, SFDC, RMCS, Lockbox …)\nproject.xml: 0 notification / email activities</pre>',
+  why:'<p>Every export, import and code review of this integration now carries and exposes distribution lists for unrelated processes. It also creates a false dependency: changing the shared lookup forces re-validation of this flow.</p>',ref:'Oracle — Too Many Connections / reuse guidance (applies equally to lookups).',fix:'<p>Remove the two lookups (H1). If notifications are wanted, add a real Notification action inside the fault handlers and read only this integration\'s row.</p>'},
+ {id:'M4',sev:'medium',t:'Inbound contract is a verbatim copy of Fusion\'s — OIC adds no abstraction between IFS and Oracle',one:'Any Fusion schema change is a breaking change for IFS; the DVM that was meant to decouple sources is unused.',
+  ev:'<pre>getTimeRequestData_REQUEST.wsdl (trigger)  ≡  SentTimeEventRequest_REQUEST.wsdl (invoke)\n  same element names, same nesting, same optionality; processor_784 copies 1:1</pre>',
+  why:'<p>The single legitimate reason to route a clock feed through OIC rather than pointing IFS at Fusion directly is to validate, enrich and decouple. As built, the flow validates partially, enriches nothing, and couples completely.</p>',ref:'Oracle — Common Integration Style Pitfalls (integrations running unchanged despite changing business needs).',fix:'<p>Define an IFS-facing contract in IFS terms (employee number, punch type, timestamp, pay code) and let OIC map it — that is where the DVM earns its keep.</p>'},
+ {id:'M5',sev:'medium',t:'Maintainability: 30 assigns and 3 switches for five rules; typos in activity names; stale description',one:'"AssingDiffPayrollValueErrMsg", "Replace EMPS adapteDevelopment", 17 assigns in InitializeVariable.',
+  ev:'<pre>project.xml labels: AssingDiffPayrollValueErrMsg · AssignEventDateTimeErrMsg · AssignDiffEmpErrMsg · AssignPayrollTypeErrMsg\nprojectDescription = "Replace EMPS adapteDevelopment - To create  time event request in Oracle from the IFS"\nanalysis.json: ASSIGNMENT 30</pre>',
+  why:'<p>Each validation branch is two Assigns (message + flag); each unused variable is another. A JavaScript verdict function reduces the flow to a handful of activities and puts the rules where they can be unit-tested with <code>node --check</code> / Nashorn before activation.</p>',ref:'OIC JavaScript libraries; payload-in-JS pattern.',fix:'<p>Consolidate during the rebuild; fix names and description in the same change.</p>'},
+ {id:'L1',sev:'low',t:'Adapter samples contain DEV tenant data and duplicate attributes',one:'ResponseSample in GetEmpDetails carries a real PersonNumber, creator user and edva-dev1 host; request samples send PayrollTimeType twice per event.',
+  ev:'<pre>GetEmpDetails_REQUEST.jca ResponseSample: "PersonNumber": "121646", "CreatedBy": "jcampos01", href …edva-dev1.fa.us2.oraclecloud.com…\nSentTimeEventRequest_REQUEST.jca RequestSample: timeEventAttributes = [ {PayrollTimeType…}, {PayrollTimeType…} ]</pre>',
+  why:'<p>Samples define the generated schema, so they shape what the mapper can see; they also travel with every export. Use synthetic values and the smallest complete shape.</p>',ref:'REST Adapter — sample JSON documents define the data definition.',fix:'<p>Replace samples with scrubbed, minimal documents when the endpoints are rebuilt.</p>'},
+ {id:'L2',sev:'low',t:'Synchronous request/response is an acceptable style here — provided it stays to one Fusion call',one:'Oracle: model as asynchronous only if the flow can exceed ~2 minutes; two sequential Fusion calls are within limits but "chatty".',
+  ev:'<pre>MEP = push-sync (MEP04); trigger REST → invoke → invoke → reply</pre>',
+  why:'<p>Oracle\'s synchronous guidance allows this shape; the improvement is removing the second call, not changing the pattern. If IFS batches punches (many events per request) the payload-in-JS validation keeps the sync path cheap.</p>',ref:'Oracle — Synchronous Integration Best Practices; Design Long-Running Integrations as Asynchronous Flows.',fix:'<p>No pattern change; reduce to one invoke.</p>'},
+ {id:'G1',sev:'good',t:'Outbound timeEventRequests payload conforms to Oracle\'s documented schema',one:'All required header and event fields mapped; attributes sent as name/value pairs; correct path, verb and media type.',ev:'<pre>SentTimeEventRequest_REQUEST.jca: POST /hcmRestApi/resources/11.13.18.05/timeEventRequests · application/json\nprocessor_784: sourceId, requestNumber, requestTimestamp, timeEvents[] { reporterIdType, supplierDeviceEvent, eventDateTime, reporterId, deviceId, timeEventAttributes[] {name, value} }</pre>',why:'<p>This is why the integration "works" in production: Fusion accepts the events. Keep the map; change what surrounds it.</p>',ref:'Oracle — Create a time event request.',fix:'<p>Keep.</p>'},
+ {id:'G2',sev:'good',t:'Shared connections, TLS 1.2, tracking on requestNumber, scoped Fusion write with a handler',one:'These align with Oracle\'s connection-custodian, fault-handling and observability guidance.',ev:'<pre>CON061 (common trigger) · CON071 (single HCM connection, parameterised URL) · tlsVersion TLSv1.2\nTimeRequestScope catch: activityStreamLogger + tracking update + fault map</pre>',why:'<p>Reuse them in the rebuild; extend the same handler pattern to every scope.</p>',ref:'Oracle — Too Many Connections; A-Team error handling guide.',fix:'<p>Keep.</p>'}
+];
+const SEV={critical:['Critical','red'],high:['High','amber'],medium:['Medium','blue'],low:['Low','gray'],good:['Keep','green']};
+const filters=document.getElementById('filters'), list=document.getElementById('findlist');
+let active='all';
+function renderFilters(){const counts={};F.forEach(f=>counts[f.sev]=(counts[f.sev]||0)+1);
+  filters.innerHTML='<button class="chip '+(active==='all'?'on':'')+'" data-s="all">All<span class="n">'+F.length+'</span></button>'+Object.keys(SEV).map(s=>'<button class="chip '+(active===s?'on':'')+'" data-s="'+s+'">'+SEV[s][0]+'<span class="n">'+(counts[s]||0)+'</span></button>').join('');
+  filters.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{active=c.dataset.s;renderFilters();renderList();});}
+function renderList(){list.innerHTML=F.filter(f=>active==='all'||f.sev===active).map(f=>'<details class="find sev-'+f.sev+'" id="f-'+f.id+'"><summary><span class="id">'+f.id+'</span><span style="flex:1"><h3>'+f.t+'</h3><div class="oneline">'+f.one+'</div></span><span class="tags"><span class="pill '+SEV[f.sev][1]+'">'+SEV[f.sev][0]+'</span><span class="caret">▾</span></span></summary><div class="body"><h4>Evidence from the IAR</h4>'+f.ev+'<h4>Why it matters</h4>'+f.why+'<h4>Judged against</h4><p class="ref">'+f.ref+'</p><h4>Fix</h4>'+f.fix+'</div></details>').join('');}
+renderFilters();renderList();
+</script>
+</body>
+</html>
