@@ -1,6 +1,6 @@
 ---
 name: dev-story-sprint
-description: Jonathan's fast lane for shipping ONE user story — plan in the chat where the story is written, then go straight to code via silent, parallel dispatched executors. No TDD, no epic docs, no planning session, Sonnet 5 by default with Opus 5 only for the hard items, orchestrator capped at 150k tokens with an automatic handoff prompt near the cap. Use whenever Jonathan writes or pastes a user story, says "sprint", "story", "just build it", "fast lane", "slim workflow", "no epic", "let's ship this one", "quiet mode", "get it done", or wants a code change in his repos (FastAPI/FastMCP, Oracle Fusion MCP tooling, OIC, Next.js, OCI, Supabase) WITHOUT the full dev-epic-workflow ceremony. Also trigger when resuming a story from a handoff prompt ("resume story", "continue the sprint", a pasted `dev-story-sprint handoff` block), or when asked whether the orchestrator is near its token budget. Do NOT use for multi-story epics, issue-tracker intake, or when Jonathan explicitly asks for an epic plan — that is dev-epic-workflow.
+description: Jonathan's fast lane for shipping ONE user story — plan in the chat where the story is written, then go straight to code via silent, parallel dispatched executors. No TDD, no epic docs, no planning session, Sonnet 5 by default with Opus 5 only for the hard items, orchestrator that never passes 165k tokens — it stops at a clean point and posts a "prep for clear" prompt to paste into the next orchestrator. Use whenever Jonathan writes or pastes a user story, says "sprint", "story", "just build it", "fast lane", "slim workflow", "no epic", "let's ship this one", "quiet mode", "get it done", or wants a code change in his repos (FastAPI/FastMCP, Oracle Fusion MCP tooling, OIC, Next.js, OCI, Supabase) WITHOUT the full dev-epic-workflow ceremony. Also trigger when resuming a story from a prep-for-clear prompt ("resume story", "continue the sprint", "prep for clear", a pasted `dev-story-sprint prep-for-clear` block), or when asked whether the orchestrator is near its token budget. Do NOT use for multi-story epics, issue-tracker intake, or when Jonathan explicitly asks for an epic plan — that is dev-epic-workflow.
 ---
 
 # Dev Story Sprint
@@ -13,11 +13,11 @@ The slim, fast sibling of `dev-epic-workflow`. Same bones — one branch and one
 2. **No epic, no documents.** No `plan.md`, no epic folder, no PR template chore, no retro, no tracker linking. The plan is one chat message and lives in the dispatches.
 3. **No TDD.** This skill **overrides** the global testing rules (tests-first, 80% coverage). Executors do not write tests first and do not chase a coverage number. Existing suites must still pass as a gate. New tests are written only when the dispatch says so, or when the item changes a tested contract and the old test is now wrong.
 4. **Executors are silent.** No text between tool calls. No "now I'll…", no progress, no plan, no questions. Their only output is one return summary to the orchestrator, ≤ 20 lines. They never address Jonathan. A question is a `blocked` state, not a sentence.
-5. **The orchestrator is silent.** It speaks exactly four times: the plan message, a decision it genuinely cannot make, the closing message, and the handoff. No progress narration, no "dispatching wave 2", no recaps, no restating the plan, no verification chatter. Silence is consent; Jonathan interrupts if he wants to.
+5. **The orchestrator is silent.** It speaks exactly four times: the plan message, a decision it genuinely cannot make, the closing message, and the prep-for-clear prompt. No progress narration, no "dispatching wave 2", no recaps, no restating the plan, no verification chatter. Silence is consent; Jonathan interrupts if he wants to.
 6. **Maximum parallelism.** Decompose the story for independence, then dispatch **every** item whose dependencies are met in the **same message** — one `Agent` call per item. Waves, not a queue. The only serialisation is a real code dependency.
 7. **The orchestrator picks the model per item, always explicitly.** `model: "sonnet"` (Sonnet 5) is the default and is used whenever it can do the job. `model: "opus"` (Opus 5) only for items meeting the complexity bar below. Never leave `model` to inherit.
 8. **Every dispatch runs in its own worktree** — `isolation: "worktree"` on the `Agent` call, no exceptions, single-item flow included. The orchestrator keeps the main checkout; no executor ever switches its branch.
-9. **The orchestrator never exceeds 150k tokens.** Hard cap. Approaching it → clean stopping point → handoff prompt → alert Jonathan → stop.
+9. **The orchestrator never passes 165k tokens. Ever.** At 150k it stops dispatching and drives to the nearest clean stopping point; the "prep for clear" prompt is posted before 165k, then the orchestrator says nothing more. Jonathan pastes the prompt into a fresh chat. This replaces the global 120k-announce / 150k-checkpoint rule for sprints.
 10. **Have fun.** Terse is not grim. The four messages the orchestrator does send can have a pulse.
 
 ## Flow at a glance
@@ -28,7 +28,7 @@ story in chat ──► ground (targeted reads) ──► ONE plan message ─�
       ┌──── each executor returns ──► cold verify ──► merge ──► reset ──► dispatch anything now unblocked
       │                                                                     │
       └──────────── story done: ONE closing message ◄───────────────────────┘
-                    (or: ~120k → stopping point → handoff prompt → alert)
+                    (or: 150k → stopping point → prep-for-clear prompt, posted before 165k)
 ```
 
 ## Step 1 — Ground, then plan in one message
@@ -73,7 +73,7 @@ grep -qx '.claude/signals/' .gitignore || printf '.claude/signals/\n' >> .gitign
 printf '.claude/stories/<slug>\n' > .claude/signals/active-epic
 ```
 
-The last line matters in repos that also run `dev-epic-workflow`: its subagent-lifecycle hook routes executor telemetry to the "active epic", and with no pointer it falls back to the newest in-flight epic plan — a sprint would silently write into someone else's `status/` tree. The hook honours a pointer to any existing directory without a closed `plan.md`, so pointing it at the story dir keeps the sprint's telemetry in the sprint.
+The last line matters in repos that also run `dev-epic-workflow`: its subagent-lifecycle hook routes executor telemetry to the "active epic", and with no pointer it falls back to the newest in-flight epic plan — a sprint would silently write into someone else's `status/` tree. The hook honours any repo-relative pointer (a path containing `/`) to an existing directory without a closed `plan.md`, so pointing it at the story dir keeps the sprint's telemetry in the sprint. Verified by dry-run 2026-09-05: owner records and agent logs landed under `.claude/stories/<slug>/status/`, nothing under `docs/epics/`.
 
 **One `Agent` call per item, all of a wave's items in one message.** Each call:
 
@@ -95,6 +95,7 @@ Not: <explicit exclusions>
 Decisions: <resolved since the plan, or none>
 Files you own: <paths — nothing outside these without reporting follow-on>
 Gates: <the one or two commands that decide it, or "stack default">
+PR: no   ← "yes" only when <integration> is branch-protected and cannot take a direct merge
 No TDD. No narration. Return the summary and end.
 ```
 
@@ -102,13 +103,13 @@ If the dispatch and the repo disagree, the executor reports `blocked` — not a 
 
 **Control plane (reused from the dev-epic install — no new hooks).**
 
-- Telemetry, truest first: the **commit stream** (`git fetch -q && git log --oneline origin/<branch>`); then `.claude/stories/<slug>/status/<branch-slug>.json`, overwritten atomically by the executor at each milestone `grounding → branched → first-push → implementing → gates-running → gates-passed → pr-opened` (`blocked` / `cancelled` terminal). The orchestrator does not poll these — it reads them only when an executor's return needs checking or when a background task is suspiciously quiet.
+- Telemetry, truest first: the **commit stream** (`git fetch -q && git log --oneline origin/<branch>`); then `.claude/stories/<slug>/status/<branch-slug>.json`, overwritten atomically by the executor at each milestone `grounding → branched → first-push → implementing → gates-running → gates-passed → pushed` (`blocked` / `cancelled` terminal). `pushed` is sprint vocabulary: the branch is rebased, gated, and on origin, with no PR — the orchestrator merges it directly. (`pr-opened` replaces it only when the dispatch said `PR: yes`.) The orchestrator does not poll these — it reads them only when an executor's return needs checking or when a background task is suspiciously quiet.
 - Kill switch: `touch .claude/signals/cancel` denies every further tool call from any active executor via the PreToolUse cancel gate; one branch name per line cancels only matching executors. Remove the sentinel afterward or the next dispatch dies on its first tool call. Cancellation is loss-free because executors push on their first commit.
-- **The repo decides, not the task list.** If `status.json` says `pr-opened` and the PR exists on origin, the item is ready regardless of what the agent sidebar claims.
+- **The repo decides, not the task list.** If `status.json` says `pushed` and `origin/<branch>` carries the commits, the item is ready regardless of what the agent sidebar claims.
 
 ## Step 3 — An executor returns: verify cold, merge, reset, dispatch what's unblocked
 
-The orchestrator never shared the executor's context, so it checks the summary the way it would check a stranger's PR — in one or two Bash calls, silently:
+The orchestrator never shared the executor's context, so it checks the summary the way it would check a stranger's branch — in one or two Bash calls, silently:
 
 - `git fetch -q && git log --oneline origin/<integration>..origin/<branch>` and `git diff --stat origin/<integration>...origin/<branch>` — does the diff match the scope and the "Files you own" line, nothing more, nothing less?
 - Grep for the specific symbols/paths the item promised to add, change, or delete. Deleted-scaffolding items are the easiest to fake and the most important to check.
@@ -117,14 +118,16 @@ The orchestrator never shared the executor's context, so it checks the summary t
 **If it holds, merge with a merge commit** (keeps merge-revert as rollback) and land-and-reset. From the main checkout, never switching branches:
 
 ```bash
-gh pr merge <pr> --merge --delete-branch          # or: git merge --no-ff origin/<branch> && git push
-git pull --ff-only && git log --oneline -3
-git branch -d <branch> 2>/dev/null; git fetch --prune
+git fetch -q origin && git pull --ff-only                          # main checkout is on <integration>; verify with git branch --show-current
+git merge --no-ff -m "merge(<slug>): item <n> <branch>" origin/<branch> && git push origin <integration>
+git push origin --delete <branch>; git branch -d <branch> 2>/dev/null; git fetch --prune
 git worktree prune                                 # Agent-created worktrees are removed by the tool; this clears stale entries
 rm -f .claude/stories/<slug>/status/<branch-slug>.json
 ```
 
-**Concurrent PRs land in return order.** Executors rebase onto integration before opening their PR, but a sibling may have merged since. A stale, conflict-free branch still merges cleanly with a merge commit — proceed. If GitHub or `git merge` reports a conflict, do **not** resolve it in the main checkout: dispatch a one-line Sonnet item — "rebase `<branch>` onto `origin/<integration>`, resolve, re-run gates, `push --force-with-lease`" — with `isolation: "worktree"`, and merge when it returns.
+No pull request by default — the merge commit is the record, and skipping `gh pr create` / `gh pr merge` saves a round trip per item. When the dispatch said `PR: yes`, `gh pr merge <pr> --merge --delete-branch` replaces the first two lines.
+
+**Concurrent branches land in return order.** Executors rebase onto integration before their final push, but a sibling may have merged since. A stale, conflict-free branch still merges cleanly with a merge commit — proceed. If `git merge` reports a conflict, `git merge --abort` and do **not** resolve it in the main checkout: dispatch a one-line Sonnet item — "rebase `<branch>` onto `origin/<integration>`, resolve, re-run gates, `push --force-with-lease`" — with `isolation: "worktree"`, and merge when it returns.
 
 **Then dispatch every not-yet-dispatched item whose dependencies are now all merged**, in one message. Do not wait for the rest of the wave if a next-wave item only needed this one.
 
@@ -136,11 +139,11 @@ rm -f .claude/stories/<slug>/status/<branch-slug>.json
 
 ## Step 4 — Story done
 
-When every item is verified and merged: run the gates once on the integration branch as a whole, merge to live as a drop-in replacement, tag if the story warranted a `pre-` tag. Then **one** closing message: what shipped (PR links, tag), anything deferred, anything claimed-but-unverified. Then `rm -rf .claude/stories/<slug> .claude/signals/active-epic`. That's the whole retro.
+When every item is verified and merged: run the gates once on the integration branch as a whole, merge to live as a drop-in replacement, tag if the story warranted a `pre-` tag. Then **one** closing message: what shipped (merge commits or PR links, tag), anything deferred, anything claimed-but-unverified. Then `rm -rf .claude/stories/<slug> .claude/signals/active-epic`. That's the whole retro.
 
-## The 150k token budget
+## The token budget: stop dispatching at 150k, never pass 165k
 
-The cap is on the **orchestrator's context**, and it is a working limit, not the window. Watch it via the statusline's context readout (installed by dev-epic-workflow) or by counting: every executor return, every file read, every plan message.
+The ceiling is on the **orchestrator's context**: **165k tokens, never passed.** It is a working limit, not the window. Finding a stopping point costs tokens — executor returns, verification, merges — so the work of stopping starts at **150k**, leaving ~15k to land what is in flight and post the prompt. Watch the count via the statusline's context readout (installed by dev-epic-workflow) or by counting: every executor return, every file read, every plan message.
 
 Habits that keep the orchestrator small:
 
@@ -149,18 +152,20 @@ Habits that keep the orchestrator small:
 - Verification is `--stat` and `grep`, never a full diff in context — link the PR.
 - Background executors return once; do not poll them.
 
-**Trigger:** ~120k tokens (80% of cap), or any sign of degradation (re-reading a file already read, forgetting a resolved decision, drifting from the plan). At the trigger, do **not** start a new dispatch. Find the nearest **valid stopping point**, in order of preference:
+**Trigger: 150k tokens**, or earlier on any sign of degradation (re-reading a file already read, forgetting a resolved decision, drifting from the plan). At the trigger, **no new dispatch, no exceptions** — not even a one-line rebase item. Find the nearest **valid stopping point**, in order of preference:
 
 1. Between waves — everything dispatched so far merged and reset.
 2. Executors have returned and been verified but not merged → merge, reset, stop.
-3. Executors are running → let each reach `pr-opened` or `blocked`, merge what verifies, stop. Their branches are pushed either way.
+3. Executors are running → let each reach its terminal state, merge what verifies, stop. Their branches are pushed either way; anything unmerged is listed under *In flight*.
 
-At the stopping point, write the handoff prompt (template below) to `.claude/stories/<slug>/handoff.md` **and** post it in chat as a single fenced block, preceded by one line: *"Orchestrator at ~<N>k — clean stopping point reached. Paste this into a fresh chat to continue:"*. Then say nothing more.
+**Budget guard while stopping:** if the count reaches 160k with executors still running, stop waiting. Post the prompt now with those items under *In flight* as "running, branch pushed, not merged" — the next orchestrator picks them up. 165k is not passed to finish a merge.
 
-**Handoff prompt template** (fill every line; omit nothing that lives only in this conversation):
+At the stopping point, write the prep-for-clear prompt (template below) to `.claude/stories/<slug>/prep-for-clear.md` **and** post it in chat as a single fenced block, preceded by one line: *"Orchestrator at ~<N>k — clean stopping point. Prep for clear — paste this into a fresh chat to continue:"*. Then say nothing more.
+
+**Prep-for-clear prompt template** (fill every line; omit nothing that lives only in this conversation):
 
 ```
-dev-story-sprint handoff — <story-slug>
+dev-story-sprint prep-for-clear — <story-slug>
 Repo: <path or remote>   Live: <branch>   Integration: <branch> @ <short-hash>
 Story: <the one-line story, verbatim>
 Items:
@@ -171,11 +176,15 @@ Items:
 Decisions made since the plan: <bullet list, or none>
 Verified: <facts checked against the repo>
 Claimed but NOT verified: <anything believed but unchecked — the new orchestrator checks these first>
-In flight / environment: <open PRs, running executors' branches, worktrees, env vars — or none>
+In flight / environment: <unmerged pushed branches, running executors' branches, worktrees, env vars — or none>
 Exact next action: <one imperative sentence>
 ```
 
-**Resuming from a handoff:** the new orchestrator treats the block as a story plus a plan already made. It re-grounds from the repo (`git log`, `git status`, `git worktree list`, `gh pr list`, a grep for whatever "Claimed but NOT verified" names), verifies before building, and dispatches every unblocked item without re-posting a plan — the handoff *is* the plan message and its model table. If the repo disagrees with the handoff, the repo wins and the orchestrator says so in one line.
+**Resuming from a prep-for-clear prompt:** the new orchestrator treats the block as a story plus a plan already made. It re-grounds from the repo (`git log`, `git status`, `git worktree list`, `git branch -r`, a grep for whatever "Claimed but NOT verified" names), verifies before building, merges anything listed *In flight* that now verifies, and dispatches every unblocked item without re-posting a plan — the prompt *is* the plan message and its model table. If the repo disagrees with the prompt, the repo wins and the orchestrator says so in one line. The new orchestrator starts its own count at zero and lives by the same 150k / 165k rule.
+
+## Permissions — a prompt is talking
+
+An executor that stops on a permission prompt has broken the silence rule and stalled the wave. Sprints run under `permissions.defaultMode: "auto"` (or bypass), **and** the executor toolchain is pre-allowed at user level so the classifier never has to think: `assets/permissions-allow.json` holds the `Bash(...)` prefixes the executor uses (git, gh, uv, pnpm, and the read-only shell basics), and `install.sh` merges them into `~/.claude/settings.json` idempotently. If an executor is ever prompted anyway, the fix is one line in that JSON plus a re-run of `install.sh` — not a sentence to Jonathan mid-story. The allowlist is prefix-based, so it also admits `git push --force` and `git branch -D`; the executor is prompt-bound to `--force-with-lease` and `-d`, and that is the accepted trade for speed.
 
 ## Install (once per machine)
 
@@ -184,13 +193,14 @@ Both live pieces are **symlinks into this repo**, so edits here are live immedia
 - `~/.claude/skills/dev-story-sprint` → `<repo>/Skills/dev-story-sprint`
 - `~/.claude/agents/story-item-executor.md` → `<repo>/Skills/dev-story-sprint/assets/agents/story-item-executor.md`
 
-`bash <skill-path>/assets/install.sh` creates both symlinks idempotently (a pre-existing plain copy is moved aside as `.bak`). The control plane (cancel gate, subagent lifecycle, statusline) comes from the `dev-epic-workflow` user-level install — run that first if `~/.claude/hooks/cancel-gate.sh` is missing. When Claude has shell access it checks and installs rather than describing the steps.
+`bash <skill-path>/assets/install.sh` creates both symlinks idempotently (a pre-existing plain copy is moved aside as `.bak`) and merges the executor permission allowlist into `~/.claude/settings.json`. The control plane (cancel gate, subagent lifecycle, statusline) comes from the `dev-epic-workflow` user-level install — run that first if `~/.claude/hooks/cancel-gate.sh` is missing. When Claude has shell access it checks and installs rather than describing the steps.
 
 ## What this skill overrides from the global rules
 
 Stated explicitly so nobody has to reconcile it mid-story:
 
 - **Testing:** no TDD, no coverage target (rule 3). Gates still run.
+- **Context budget:** the global "announce at 120k, checkpoint at 150k, `/handoff` then `/clear`" rule is replaced by rule 9 — stop dispatching at 150k, post the prep-for-clear prompt before 165k, no `/handoff` skill involved.
 - **Model table per spawn:** satisfied once by the plan message's table, for all waves (Step 1).
 - **Announcing what you're about to do / brief updates:** the orchestrator does not narrate (rule 5). The plan message is the announcement; the closing message is the recap.
 - **Commit at task end:** executors commit continuously and push on the first commit; the orchestrator's merges are the story's commits.
@@ -199,11 +209,11 @@ Everything else — immutability, error handling, secrets, code review severity 
 
 ## What this skill deliberately does not have
 
-No epic folder, no `plan.md`, no `/handoff` or `/intake` commands, no PR-template chore, no retro, no tracker linking, no status-log tailing by the orchestrator, no tests-first. If a story needs any of those, it isn't a sprint — use `dev-epic-workflow`.
+No epic folder, no `plan.md`, no `/handoff` or `/intake` commands, no pull requests by default, no retro, no tracker linking, no status-log tailing by the orchestrator, no tests-first. If a story needs any of those, it isn't a sprint — use `dev-epic-workflow`.
 
 ## Working-style notes (kept from the parent)
 
 - Don't assert that something works, exists, or landed without having looked. "Not verified" is a complete sentence.
 - Prefer doing the mechanical step over describing it.
-- The handoff block is always complete — never a fragment to merge by hand.
+- The prep-for-clear block is always complete — never a fragment to merge by hand.
 - At land-and-reset the orchestrator proactively dispatches whatever is unblocked; at the story's end it closes; at the budget trigger it hands off. It never idles and never asks "shall I continue?".
