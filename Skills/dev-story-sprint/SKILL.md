@@ -47,7 +47,7 @@ Then post **one** plan message and nothing after it until there is something Jon
 ```
 Story: <one line>
 Issue: #<n>
-Branch line: live=<branch>  integration=<branch>  tag-first: yes/no
+Branch line: live=<branch>  integration=<branch, or none when the repo works against live>  tag-first: yes/no
 Grounded: <what was read>   Assumed: <what wasn't, if anything>
 
 | # | Branch | Scope / Done when / Not | Wave | Model |
@@ -64,7 +64,7 @@ Going.
 
 If **Open questions** is empty, dispatch wave 1 immediately in the very next tool message. If not, end with the question(s) and wait.
 
-Branch line: integration branch named explicitly; live/cutover untouched until the story closes; `pre-<story-slug>` tag before anything painful to reconstruct (restructures, migrations, platform moves).
+Branch line: integration branch named explicitly; live/cutover untouched until the story closes; `pre-<story-slug>` tag before anything painful to reconstruct (restructures, migrations, platform moves). Some repos work directly against their live branch by convention — their `CLAUDE.md` says so, and this repo is one of them. There the integration branch is **none**: items branch from live, merge back to live one at a time, and the story closes on the last item's merge instead of a separate cutover.
 
 ## Step 2 — Dispatch a wave
 
