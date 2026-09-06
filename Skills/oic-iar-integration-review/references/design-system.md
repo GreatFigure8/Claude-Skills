@@ -59,10 +59,12 @@ is the real thing.
 
 1. **Topbar** — a 6–8px gradient rule, `--brand-dark` → `--brand` → `--brand-2`, with
    one accent stop from the brand's secondary color if it has one.
-2. **Brand band** (only when a client logo exists) — full-width `--brand-dark`
-   background directly under the topbar, logo left, a small caps label right ("Oracle
-   Integration Review"). See "Logo handling" below for why a dark band is usually
-   necessary.
+2. **Brand band** — full-width `--brand-dark` background directly under the topbar,
+   always rendered (the Hackett logo lives here — see "Hackett logo (always)" below):
+   client logo left when one exists, Hackett logo + a small caps label right ("Oracle
+   Integration Review"). With no client brand layer, the band still renders — Hackett
+   logo right-aligned, left side empty. See "Logo handling" below for why a dark band
+   is usually necessary for the client mark.
 3. **Report header** — title (Manrope 800, ~30px), a one-line subtitle giving package
    name, integration code/version, the source→OIC→target path, and what the review was
    checked against; a mono "prepared by / date" block right-aligned.
@@ -92,6 +94,48 @@ shipping whatever margin the source file had. Check the logo's actual colors bef
 placing it: a wordmark built white-on-transparent (common for dark-theme site headers)
 will vanish on a light card background — put it on a `--brand-dark` band instead of
 trying to recolor or outline it. Never fabricate a logo or brand mark that doesn't exist.
+
+## Hackett logo (always)
+
+The Hackett Group is the authoring firm of every report this skill produces; the client
+brand (`--brand*` tokens, client logo) is the accent layer, not the author, so The
+Hackett Group's mark must appear on every report regardless of which client brand layer
+is applied — Archrock, DigiKey, neutral, or none.
+
+- **Masthead** — right-aligned in the brand band (`.brandline`), alongside the small
+  caps label; the client logo (when one exists) stays left, unchanged. With no client
+  brand layer the band still renders, Hackett logo right-aligned, left side empty.
+- **Asset** — `assets/hackett_logo.svg` (fetched from
+  `thehackettgroup.com`'s own site assets). Reports are single-file HTML: embed it
+  inline (the raw `<svg>` markup, or a `data:image/svg+xml` URI) — never a remote
+  `<img src="https://...logo.svg">` reference, which breaks the moment the file leaves
+  a machine with network access.
+- **Fill fix** — the fetched SVG's wordmark paths carry no `fill` attribute of their
+  own (SVG's inherited default is black), so on the brand band's dark background they
+  render invisibly. The four accent-blue mark paths (`#4b99f7`, `#80bcf9`, `#00a6fb`,
+  `#245ce8`) already carry explicit `fill` attributes and are unaffected either way.
+  Fix: add `fill="currentColor"` to the root `<svg>` element (an inherited property,
+  so it only reaches descendants that don't set their own `fill`) and set
+  `color:#fff` in the CSS rule for `#hackett-logo` — this recolors just the wordmark
+  to white on the dark band without touching the mark's own colors or fabricating a
+  separate white variant.
+- **Size** — height ~28–32px on desktop, ~22px at the 420px breakpoint; width auto
+  (viewBox `0 0 1548.8 178.4`, so it stays wide and short — check it doesn't crowd the
+  caps label at 420px).
+- **Accessibility** — `alt="The Hackett Group"` on an `<img>` instance, or
+  `role="img" aria-label="The Hackett Group"` on an inline `<svg>` instance.
+- **Hook** — `id="hackett-logo"` on the masthead instance (the `<svg>` or `<img>`
+  element itself), stable across engagements, so the eval's D7 check can find it.
+- **Overflow** — must not overflow or wrap the brand band at 420px; if the client logo
+  and caps label are already present, drop the caps label at 420px before touching the
+  Hackett logo's size.
+- **Footer mark** — a small text line, "Prepared by The Hackett Group", in the report
+  footer (alongside or folded into the existing confidentiality line) — a second,
+  low-emphasis reminder of authorship that survives even if someone screenshots past
+  the masthead.
+- **Why** — the report is a Hackett deliverable presented under a client's visual
+  accent, not a client-authored document; the mark that says who stands behind the
+  findings must survive every brand layer this skill supports.
 
 ## Component: the request trace (signature element)
 

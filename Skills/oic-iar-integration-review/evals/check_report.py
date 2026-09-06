@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mechanical checker for D1-D6 of the oic-iar-integration-review eval rubric.
+"""Mechanical checker for D1-D7 of the oic-iar-integration-review eval rubric.
 
 Usage:
     ./check_report.py <report.html> [<source.iar>] [--json grading-D.json]
@@ -69,6 +69,7 @@ FALLBACK_TEXT = {
     "D4": "D4 — No horizontal overflow at 420/820/1000/1280/1440px.",
     "D5": "D5 — Minimum text size: no computed font-size below 13px.",
     "D6": "D6 — Neutral wording: no loaded one-word labels.",
+    "D7": "D7 — Hackett logo present.",
 }
 
 
@@ -236,6 +237,39 @@ def check_tabs(html: str) -> tuple[bool, str]:
 
     note = f"; additional non-rubric tabs present: {extra}" if extra else ""
     return True, f"all six tab ids paired as button[data-tab] + section.panel#id: {TAB_IDS}{note}"
+
+
+REMOTE_LOGO_RE = re.compile(r'<img\b[^>]*\bsrc=["\']https?://[^"\']*logo\.svg["\'][^>]*>', re.IGNORECASE)
+HIDDEN_RE = re.compile(r'display\s*:\s*none|visibility\s*:\s*hidden', re.IGNORECASE)
+
+
+def check_hackett_logo(html: str) -> tuple[bool, str]:
+    """D7 — id="hackett-logo" element with inline SVG or a data:image/svg+xml image,
+    visible, in the masthead (before the tab nav), and no remote logo.svg <img>."""
+    remote = REMOTE_LOGO_RE.findall(html)
+    if remote:
+        return False, f"remote logo <img> reference present (reports must embed inline): {remote[0][:120]}"
+
+    svg_match = re.search(r'<svg\b[^>]*\bid=["\']hackett-logo["\'][^>]*>.*?</svg>', html, re.DOTALL)
+    img_match = re.search(
+        r'<img\b(?=[^>]*\bid=["\']hackett-logo["\'])(?=[^>]*\bsrc=["\']data:image/svg\+xml)[^>]*>', html
+    )
+    match = svg_match or img_match
+    if not match:
+        return False, 'no element with id="hackett-logo" containing inline SVG or a data:image/svg+xml image was found'
+
+    snippet = match.group(0)
+    kind = "inline <svg>" if svg_match else "data:image/svg+xml <img>"
+    if HIDDEN_RE.search(snippet):
+        return False, f'#hackett-logo ({kind}) found but hidden via inline style: {snippet[:160]}'
+
+    tabs_pos = html.find('<nav class="tabs"')
+    if tabs_pos == -1:
+        tabs_pos = html.find('data-tab=')
+    if tabs_pos != -1 and match.start() > tabs_pos:
+        return False, f'#hackett-logo ({kind}) found, but after the tab navigation rather than in the masthead'
+
+    return True, f'#hackett-logo present as {kind}, before the tab navigation, no remote logo.svg reference found'
 
 
 # ---------------------------------------------------------------------------
@@ -433,6 +467,10 @@ def build_expectations(report: Path, iar: Path | None, browser_ok: bool) -> tupl
     passed, evidence = check_tabs(html)
     out.append({"text": text["D1"], "passed": passed, "evidence": evidence})
 
+    # D7 (static; independent of browser/IAR availability)
+    passed, evidence = check_hackett_logo(html)
+    out.append({"text": text["D7"], "passed": passed, "evidence": evidence})
+
     # NODES
     array_src = extract_nodes_array(html)
     node_count = count_nodes(array_src) if array_src else None
@@ -586,7 +624,7 @@ def summarize(expectations: list[dict]) -> dict:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Check D1-D6 of an oic-iar-integration-review report.")
+    parser = argparse.ArgumentParser(description="Check D1-D7 of an oic-iar-integration-review report.")
     parser.add_argument("report", type=Path, help="the generated single-file HTML report")
     parser.add_argument("iar", type=Path, nargs="?", help="the source .iar (required for D2 and D3)")
     parser.add_argument("--json", type=Path, help="write the grading.json fragment here")
