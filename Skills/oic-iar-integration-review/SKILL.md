@@ -83,6 +83,41 @@ rather than relying on general REST/iPaaS intuition. `references/oracle-hcm-otl-
 is a dated starting point for search terms from one prior review, not a citable source —
 re-verify anything from it live.
 
+### Hedge runtime claims one sentence at a time
+
+An IAR tells you what the integration *would* do. It never tells you what it *has* done.
+Unless this session actually opened the activity stream or called the tenant, there is no
+instance data behind any sentence about current behaviour — and "this works today", "Fusion
+has been consistent about that", "with one record it is correct, which is why nobody has
+noticed" all read as analysis and land as fact. A handover framing ("I inherited this, is it
+OK?") pulls hardest toward exactly this reassurance; the honest answer to "does it work" is
+what the artifact does, plus the fact that what it *has done* is not in the artifact.
+
+- Every behavioural claim is one of two things: **quoted** from the IAR or a fetched doc, or
+  explicitly marked **inference / needs verification in that same sentence**.
+- A blanket disclaimer at the top of the report hedges nothing below it. Readers — and
+  graders — read the sentence, not the preamble, so the hedge travels with the claim.
+- Banned constructions, whatever the surrounding argument: "this/it works (today | fine |
+  still)", "runs fine", "which is why it has not been noticed", "nobody has hit this",
+  "Fusion has been consistent", "in practice it always …". Conceding an assumption in the
+  same breath ("so this works — but it is an assumption") does not rescue the claim; it
+  still asserts the behaviour. No reassurance prose either ("nothing to worry about").
+- Rewrite in the conditional, deriving from the artifact rather than from the field: not
+  "with one record it is correct, which is why it has not been noticed", but "with exactly
+  one record the PATCH targets the intended row; with two or more it targets whichever
+  record Fusion returns first — verify on the pod". Same finding, no claim about what has
+  been observed, and the verification step is now visible to the client.
+- Check it mechanically before delivering, alongside the quote check:
+
+```bash
+python3 scripts/check_claims.py <report.html>
+```
+
+  It flags the banned constructions and any sentence asserting runtime state with no
+  verification language in that same sentence. It errs toward flagging; dismiss a note in a
+  second, but fix every FAIL — in iteration-2 grading four such sentences in one report
+  failed the whole runtime-claims assertion.
+
 ## Workflow
 
 ### 1. Extract and inventory every artifact
@@ -311,3 +346,6 @@ the HTML into chat.
 - **`scripts/check_quotes.py`** — greps every unmarked Evidence line in a report against
   the extracted IAR and lists what isn't there:
   `python3 scripts/check_quotes.py <report.html> <file.iar>`.
+- **`scripts/check_claims.py`** — flags unhedged runtime claims and reassurance prose in a
+  finished report (the "this works today" family), skipping `<pre>` evidence blocks:
+  `python3 scripts/check_claims.py <report.html>`.
