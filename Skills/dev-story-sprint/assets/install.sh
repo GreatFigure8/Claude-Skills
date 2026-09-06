@@ -43,48 +43,7 @@ link "$HERE/assets/agents/story-item-executor.md" "$AGENTS_DEST/story-item-execu
 if ! command -v python3 >/dev/null 2>&1; then
   echo "warning: python3 not found — skipped settings.json merge (allowlist, hook)" >&2
 else
-  python3 - "$SETTINGS" "$ALLOW_SRC" "$HOOK_CMD" <<'PY'
-import json, os, sys, tempfile
-settings_path, allow_path, hook_cmd = sys.argv[1], sys.argv[2], sys.argv[3]
-with open(allow_path) as f:
-    wanted = json.load(f)["allow"]
-settings = {}
-if os.path.exists(settings_path):
-    with open(settings_path) as f:
-        settings = json.load(f)
-changed = []
-
-# permissions.allow — set union
-perms = dict(settings.get("permissions", {}))
-current = list(perms.get("allow", []))
-missing = [e for e in wanted if e not in current]
-if missing:
-    perms = {**perms, "allow": current + missing}
-    changed.append(f"{len(missing)} allow entries")
-else:
-    print(f"ok:        permissions.allow has all {len(wanted)} sprint entries")
-
-# hooks.PostToolUse — one Bash-matcher entry for the refresh hook, keyed on its command path
-hooks = dict(settings.get("hooks", {}))
-post = list(hooks.get("PostToolUse", []))
-present = any(h.get("command") == hook_cmd for e in post for h in e.get("hooks", []))
-if not present:
-    post = post + [{"matcher": "Bash", "hooks": [{"type": "command", "command": hook_cmd}]}]
-    hooks = {**hooks, "PostToolUse": post}
-    changed.append("PostToolUse refresh-live hook")
-else:
-    print(f"ok:        PostToolUse hook registered: {hook_cmd}")
-
-if not changed:
-    sys.exit(0)
-new_settings = {**settings, "permissions": perms, "hooks": hooks}
-fd, tmp = tempfile.mkstemp(dir=os.path.dirname(settings_path) or ".", suffix=".json")
-with os.fdopen(fd, "w") as f:
-    json.dump(new_settings, f, indent=2)
-    f.write("\n")
-os.replace(tmp, settings_path)
-print(f"merged:    {', '.join(changed)} into {settings_path}")
-PY
+  "$HERE/assets/merge-settings.sh" "$SETTINGS" "$ALLOW_SRC" "$HOOK_CMD"
 fi
 
 if [ ! -f "${HOME}/.claude/hooks/cancel-gate.sh" ]; then
