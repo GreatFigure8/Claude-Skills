@@ -53,6 +53,18 @@ else
   exit 0
 fi
 
+# A payload that does not parse as JSON at all must fail open, decided BEFORE
+# any sentinel is consulted — never inferred from a string heuristic, always
+# from the JSON engine itself. Covers empty stdin too (neither engine parses
+# an empty document).
+case "$JSON_ENGINE" in
+  jq)
+    printf '%s' "$INPUT" | jq -e . > /dev/null 2>&1 || exit 0 ;;
+  python3)
+    printf '%s' "$INPUT" | python3 -c 'import json,sys
+json.load(sys.stdin)' > /dev/null 2>&1 || exit 0 ;;
+esac
+
 json_field() {
   case "$JSON_ENGINE" in
     jq)
@@ -164,7 +176,7 @@ if [ "$MODE" = sprint ]; then
 else
   DEF_SOFT=120000; DEF_HARD=150000
   RULE="dev-epic-workflow context budget"
-  HANDOFF="the dev-epic-workflow handoff at docs/epics/<n>/handoff.md"
+  HANDOFF="the dev-epic-workflow handoff at docs/epics/handoff.md"
 fi
 
 # --- Thresholds: env, then .claude/context-budget, then mode defaults. --------
