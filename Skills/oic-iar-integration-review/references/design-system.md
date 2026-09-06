@@ -14,7 +14,7 @@ block go-live, and compare two remediation paths side by side. Three components 
 that weight and are the signature of this format:
 
 1. **The request trace** — the real orchestration, in execution order, stepped through
-   one activity at a time with a running cost meter (Fusion calls so far, lookups so
+   one activity at a time with a running cost meter (outbound calls so far, lookups so
    far, wasted activities so far). This is what makes "this integration calls Fusion
    twice and validates positionally" land as demonstrated fact rather than assertion.
 2. **The findings register** — severity-filterable, evidence-first, collapsed by
@@ -143,7 +143,12 @@ A vertical timeline (`.flow`) of every real orchestration activity, in execution
 each one a clickable node; a sticky detail pane (`.detail`) beside it shows the selected
 node's explanation and a running cost meter. Build the node list directly from the
 orchestration file — don't summarize steps together, and don't invent steps that aren't
-there. Each node carries:
+there. "Every real activity" is countable: every element inside `<ns2:orchestration>`
+except the containers and declarations (`orchestration`, `integrationMetadata`,
+`globalVariable`, `globalTry`, `label`, `route`, `try`) gets exactly one node — assigns,
+transformers, routers, invokes, notifications, stage-file actions, catches, activity-
+stream loggers, replies, stops. Node count equals that activity count; if it doesn't, the
+trace is telling the reader a shorter story than the integration runs. Each node carries:
 
 - `nm` — short activity name as it appears in the flow
 - `kind` — activity type + one contextual detail (e.g. "Fusion HTTP call #1")
@@ -152,9 +157,16 @@ there. Each node carries:
   category for unused-code activities (gray marker, gray pill in the node)
 - `d` — the explanation, written for a reader who cannot see the IAR: what this step
   does, and if relevant, why it's a problem, in a sentence or two
-- `cost` — `{c, l, x}` = Fusion calls / lookups / unused-code activities *this step
+- `cost` — `{c, l, x}` = outbound calls / lookups / unused-code activities *this step
   contributes*, so the running meter can sum everything up to and including the current
-  step
+  step. `c` counts **every** `<invoke>`, not just the Fusion-facing REST ones: a call to
+  another local integration, a BIP SOAP call and a callback each cost a real round trip,
+  and a meter that quietly excludes them understates the integration's cost (one graded
+  report showed 4 calls against 16 invokes). Summed over all nodes, `c` equals the
+  `<invoke>` count in `project.xml` and `l` equals the `dvm:lookupValue` count across
+  `expr.properties`. Distinguish call types in `kind`/`d`, never by omission. Label the
+  meter cell "Outbound calls so far" unless every invoke really is Fusion-facing, so the
+  number and the caption agree.
 
 ```js
 const NODES=[
