@@ -227,7 +227,7 @@ if [ "$USED" -lt "$HARD" ]; then
       '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$t}}' 2> /dev/null || exit 0
   else
     T="$TEXT" python3 -c 'import json,os
-print(json.dumps({"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":os.environ["T"]}},separators=(",",":")))' 2> /dev/null || exit 0
+print(json.dumps({"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":os.environ["T"]}},separators=(",",":"),ensure_ascii=False))' 2> /dev/null || exit 0
   fi
   exit 0
 fi
