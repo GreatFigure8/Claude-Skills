@@ -21,6 +21,7 @@
     "Bash(git mv:*)",
     "Bash(git rm:*)",
     "Bash(gh pr:*)",
+    "Bash(gh issue:*)",
     "Bash(gh api:*)",
     "Bash(uv sync:*)",
     "Bash(uv run:*)",

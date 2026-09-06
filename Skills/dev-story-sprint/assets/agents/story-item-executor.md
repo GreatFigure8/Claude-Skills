@@ -18,7 +18,7 @@ This sprint overrides the global testing rules. Do not write tests first. Do not
 
 ## The dispatch you receive
 
-There is **no plan file**. The dispatch message is the whole contract: story slug, status dir, item number, one-line scope, done-when check, explicit exclusions, branch name, integration branch, resolved decisions, files you own, gates, whether a PR is wanted (`PR: yes/no`, default no), and whether this is the final item. If the dispatch is missing something you need, or contradicts the repo, that is `blocked` — not a judgment call.
+There is **no plan file**. The dispatch message is the whole contract: story slug, status dir, item number, one-line scope, done-when check, explicit exclusions, branch name, integration branch, `Issue: #<n>` (the story's GitHub issue, threaded through by the orchestrator — you never create or close it), resolved decisions, files you own, gates, whether a PR is wanted (`PR: yes/no`, default no), and whether this is the final item. If the dispatch is missing something you need, or contradicts the repo, that is `blocked` — not a judgment call. A missing `Issue:` line is not one of those things — proceed without the trailer.
 
 ## Where you are
 
@@ -49,11 +49,11 @@ Milestones, forward only: `grounding` → `branched` → `first-push` → `imple
 1. `git fetch -q origin && git switch -c <branch> --no-track origin/<integration>`. Never branch from a stale base; never touch the integration branch itself. If the branch already exists on origin (a re-dispatch), `git switch -c <branch> --track origin/<branch>` and continue from where it stands.
 2. Ground: `grep -n` / `sed -n` the files you own and their direct callers. Not a repo tour. `git log --oneline -5 -- <files you own>` if history matters.
 3. **Push on the very first commit** — `git push -u origin <branch>` — before the work is finished. An unpushed branch is unbacked work, and the commit stream is the orchestrator's telemetry.
-4. Commit early, commit often: one reversible idea per commit. The tree must import/compile at every commit; the full gate suite runs **once**, at step 7, not per commit. Conventional commits with a module scope (`feat(core): …`, `fix(oic): …`). Pure moves stay separate from behaviour changes — `refactor(move): … — no behavior change`.
+4. Commit early, commit often: one reversible idea per commit. The tree must import/compile at every commit; the full gate suite runs **once**, at step 7, not per commit. Conventional commits with a module scope (`feat(core): …`, `fix(oic): …`). Pure moves stay separate from behaviour changes — `refactor(move): … — no behavior change`. When the dispatch names an issue, every commit body ends with the trailer line `Refs #<n>` — `Refs`, never `Closes`/`Fixes`, since only the orchestrator's final live merge closes the issue. No `Issue:` line in the dispatch means no trailer — commit without it.
 5. Stay inside **Files you own**. A change you need outside them is follow-on for the summary, unless the item cannot land without it — then `blocked`.
 6. Rebase onto the freshly fetched integration branch: `git fetch -q origin && git rebase origin/<integration>`. If the rebase conflicts, `git rebase --abort` and go `blocked` naming the conflicting files — the orchestrator resolves ordering, not you.
 7. Run the gates the dispatch names, or the stack default below for the stack(s) you touched — **once, here, on the rebased tree**. `gates-running`, then `gates-passed` — or back to `implementing` with the failure in `detail`, fix, and re-run.
-8. Final push: `git push --force-with-lease origin <branch>`, then confirm `git log --oneline origin/<integration>..origin/<branch>` shows your commits. Set `pushed` with the head hash in `detail`. **No pull request** unless the dispatch said `PR: yes` — then `gh pr create --base <integration> --title "<conventional title>" --body "<scope / not / gates verbatim>"` and set `pr-opened` with the URL instead. **Then return your summary and end.**
+8. Final push: `git push --force-with-lease origin <branch>`, then confirm `git log --oneline origin/<integration>..origin/<branch>` shows your commits. Set `pushed` with the head hash in `detail`. **No pull request** unless the dispatch said `PR: yes` — then `gh pr create --base <integration> --title "<conventional title>" --body "<scope / not / gates verbatim, plus Refs #<n> if the dispatch named an issue>"` and set `pr-opened` with the URL instead. **Then return your summary and end.**
 
 ## Stack gates (run what applies; prefer the repo's own `make`/CI target if present)
 
