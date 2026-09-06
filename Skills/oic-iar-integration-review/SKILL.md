@@ -210,7 +210,10 @@ much; too many duplicate connections), and its fault-handling model (scope-per-i
 with handlers, a global fault handler as the last resort, Fault Return for a real HTTP
 status rather than the platform's generic 500).
 
-Two of those checks get skipped most often, and both belong in every report:
+Three of those checks get skipped most often, and all three belong in every report. Write
+each as an explicit **present/absent** sentence: a check you silently dropped is
+indistinguishable, to a reader, from a check that came back clean, so state the negative
+result too — "absent" is a finding-grade answer, silence is not.
 
 - **Adapter choice.** Name the adapter each connection actually uses (read
   `icspackage/appinstances/*.xml`) and, when the target is a Fusion application, state
@@ -221,6 +224,26 @@ Two of those checks get skipped most often, and both belong in every report:
 - **Sample-payload hygiene.** Read the `RequestSample`/`ResponseSample` blocks in every
   `.jca`. Dev/test hostnames, real e-mail addresses, plaintext passwords and live IDs left
   in the samples ship inside the package and are a finding, severity set by what leaked.
+- **Global fault handler: present or absent.** One line, with the element as evidence,
+  every time — "Global fault handler: present — `<ns2:globalTry id="gt0">` with
+  `<ns2:catchAll id="ta0">` as its own child" or "Global fault handler: absent —
+  `project.xml` declares no `<ns2:globalTry>`; the only handlers sit inside scope
+  `<ns2:try name="…">`, so a fault raised outside that scope reaches only the platform
+  default". Absence is the more common answer and the more consequential one.
+
+  Read the element names, not the ids — `project.xml` distinguishes them structurally and
+  the two have different blast radii:
+
+  ```bash
+  grep -n 'ns2:globalTry\|<ns2:try \|<ns2:catchAll\|<ns2:catch ' PROJECT-INF/project.xml
+  ```
+
+  `<ns2:globalTry>` is a direct child of `<ns2:orchestration>` and wraps the whole flow; a
+  `<ns2:catch>`/`<ns2:catchAll>` **whose parent is the globalTry** is the integration's
+  Global Fault Handler. A `<ns2:catch>`/`<ns2:catchAll>` nested inside a named
+  `<ns2:try id="t0" name="…">` is that scope's handler and covers only that scope's
+  activities. Check the parent before naming it: labelling a scope catch-all "Global catch"
+  asserts a handler the integration does not have, which is worse than omitting the line.
 
 **Cite only what you actually fetched.** Every "judged against" reference must resolve to
 a URL that appeared in this session's search or fetch results. Recalled citations are the
