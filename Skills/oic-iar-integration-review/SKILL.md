@@ -181,6 +181,10 @@ palette. Otherwise use the neutral tokens already in `design-system.md`.
 "unreachable branch," not "dead" — the same fact reads as objective either way, but one
 version doesn't need defending in a client meeting.
 
+**Hackett logo.** Every report carries The Hackett Group's mark regardless of client
+brand — embed `assets/hackett_logo.svg` inline per the "Hackett logo (always)" rule in
+`references/design-system.md`.
+
 **Before you deliver:** every generated HTML file must render at real client viewport
 widths without horizontal overflow (a two-column CSS grid whose children are tables or
 `<pre>` blocks will overflow its card unless the grid columns are `minmax(0,1fr)` and the
