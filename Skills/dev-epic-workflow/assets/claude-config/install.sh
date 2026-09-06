@@ -56,13 +56,14 @@ cp "$SRC_DIR"/hooks/session-start-context.sh \
    "$SRC_DIR"/hooks/session-end-guard.sh \
    "$SRC_DIR"/hooks/statusline.sh \
    "$SRC_DIR"/hooks/cancel-gate.sh \
+   "$SRC_DIR"/hooks/context-budget-gate.sh \
    "$SRC_DIR"/hooks/subagent-lifecycle.sh \
    "$SRC_DIR"/hooks/subagent-tool-logger.sh \
    "$TARGET_DIR/hooks/"
 cp "$SRC_DIR"/commands/handoff.md "$SRC_DIR"/commands/intake.md "$TARGET_DIR/commands/"
 cp "$SRC_DIR"/agents/work-item-executor.md "$TARGET_DIR/agents/"
 chmod +x "$TARGET_DIR"/hooks/*.sh
-echo "  ✓ hooks → $TARGET_DIR/hooks/ (7 scripts, executable)"
+echo "  ✓ hooks → $TARGET_DIR/hooks/ (8 scripts, executable)"
 echo "  ✓ /handoff + /intake commands → $TARGET_DIR/commands/"
 echo "  ✓ work-item-executor agent → $TARGET_DIR/agents/work-item-executor.md"
 
