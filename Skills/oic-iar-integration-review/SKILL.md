@@ -83,6 +83,41 @@ rather than relying on general REST/iPaaS intuition. `references/oracle-hcm-otl-
 is a dated starting point for search terms from one prior review, not a citable source —
 re-verify anything from it live.
 
+### Hedge runtime claims one sentence at a time
+
+An IAR tells you what the integration *would* do. It never tells you what it *has* done.
+Unless this session actually opened the activity stream or called the tenant, there is no
+instance data behind any sentence about current behaviour — and "this works today", "Fusion
+has been consistent about that", "with one record it is correct, which is why nobody has
+noticed" all read as analysis and land as fact. A handover framing ("I inherited this, is it
+OK?") pulls hardest toward exactly this reassurance; the honest answer to "does it work" is
+what the artifact does, plus the fact that what it *has done* is not in the artifact.
+
+- Every behavioural claim is one of two things: **quoted** from the IAR or a fetched doc, or
+  explicitly marked **inference / needs verification in that same sentence**.
+- A blanket disclaimer at the top of the report hedges nothing below it. Readers — and
+  graders — read the sentence, not the preamble, so the hedge travels with the claim.
+- Banned constructions, whatever the surrounding argument: "this/it works (today | fine |
+  still)", "runs fine", "which is why it has not been noticed", "nobody has hit this",
+  "Fusion has been consistent", "in practice it always …". Conceding an assumption in the
+  same breath ("so this works — but it is an assumption") does not rescue the claim; it
+  still asserts the behaviour. No reassurance prose either ("nothing to worry about").
+- Rewrite in the conditional, deriving from the artifact rather than from the field: not
+  "with one record it is correct, which is why it has not been noticed", but "with exactly
+  one record the PATCH targets the intended row; with two or more it targets whichever
+  record Fusion returns first — verify on the pod". Same finding, no claim about what has
+  been observed, and the verification step is now visible to the client.
+- Check it mechanically before delivering, alongside the quote check:
+
+```bash
+python3 scripts/check_claims.py <report.html>
+```
+
+  It flags the banned constructions and any sentence asserting runtime state with no
+  verification language in that same sentence. It errs toward flagging; dismiss a note in a
+  second, but fix every FAIL — in iteration-2 grading four such sentences in one report
+  failed the whole runtime-claims assertion.
+
 ## Workflow
 
 ### 1. Extract and inventory every artifact
@@ -175,7 +210,10 @@ much; too many duplicate connections), and its fault-handling model (scope-per-i
 with handlers, a global fault handler as the last resort, Fault Return for a real HTTP
 status rather than the platform's generic 500).
 
-Two of those checks get skipped most often, and both belong in every report:
+Three of those checks get skipped most often, and all three belong in every report. Write
+each as an explicit **present/absent** sentence: a check you silently dropped is
+indistinguishable, to a reader, from a check that came back clean, so state the negative
+result too — "absent" is a finding-grade answer, silence is not.
 
 - **Adapter choice.** Name the adapter each connection actually uses (read
   `icspackage/appinstances/*.xml`) and, when the target is a Fusion application, state
@@ -186,6 +224,26 @@ Two of those checks get skipped most often, and both belong in every report:
 - **Sample-payload hygiene.** Read the `RequestSample`/`ResponseSample` blocks in every
   `.jca`. Dev/test hostnames, real e-mail addresses, plaintext passwords and live IDs left
   in the samples ship inside the package and are a finding, severity set by what leaked.
+- **Global fault handler: present or absent.** One line, with the element as evidence,
+  every time — "Global fault handler: present — `<ns2:globalTry id="gt0">` with
+  `<ns2:catchAll id="ta0">` as its own child" or "Global fault handler: absent —
+  `project.xml` declares no `<ns2:globalTry>`; the only handlers sit inside scope
+  `<ns2:try name="…">`, so a fault raised outside that scope reaches only the platform
+  default". Absence is the more common answer and the more consequential one.
+
+  Read the element names, not the ids — `project.xml` distinguishes them structurally and
+  the two have different blast radii:
+
+  ```bash
+  grep -n 'ns2:globalTry\|<ns2:try \|<ns2:catchAll\|<ns2:catch ' PROJECT-INF/project.xml
+  ```
+
+  `<ns2:globalTry>` is a direct child of `<ns2:orchestration>` and wraps the whole flow; a
+  `<ns2:catch>`/`<ns2:catchAll>` **whose parent is the globalTry** is the integration's
+  Global Fault Handler. A `<ns2:catch>`/`<ns2:catchAll>` nested inside a named
+  `<ns2:try id="t0" name="…">` is that scope's handler and covers only that scope's
+  activities. Check the parent before naming it: labelling a scope catch-all "Global catch"
+  asserts a handler the integration does not have, which is worse than omitting the line.
 
 **Cite only what you actually fetched.** Every "judged against" reference must resolve to
 a URL that appeared in this session's search or fetch results. Recalled citations are the
@@ -194,6 +252,37 @@ trap: a W3C spec section, an A-Team blog post, a plausible `docs.oracle.com` pat
 a redirect to a different release), search for the working page or drop the reference and
 argue from the IAR instead. A claim that rests on general knowledge should say so rather
 than borrow authority from a page you didn't read.
+
+**When the operation's own page won't load, walk the ladder — then say which rung you
+reached.** Some operations genuinely have no fetchable per-operation page: SOAP service
+operations (`ErpIntegrationService.downloadESSJobExecutionDetails`) and child-resource verbs
+(`PATCH .../workers/{id}/child/photos/{PhotoId}`) both failed to resolve in iteration-2
+grading, after four and three attempts respectively. A guessed URL comes back as a release
+landing page, a "Get Started" page or a 404 — every one of those is a non-fetch, never a
+citation. Work down these rungs in order and stop at the first that returns the resource's
+actual documentation body:
+
+1. **Current-release operation page** — the OIC3 / current doc URL for that exact operation
+   (`op-<resource>-<child>-<verb>.html` under the current release segment).
+2. **Prior-release operation page** — the same path with the release segment swapped back
+   (`25c` → `25a` → `24d`, or the Gen 2 documentation host for a Gen 2 feature). Oracle
+   frequently drops a page from the current release that an older one still serves.
+3. **Site-scoped web search** — `"<operation or resource name> site:docs.oracle.com"`. Take
+   the URL out of the results and fetch it; never compose one from the pattern.
+4. **The resource's reference index page** — `api-<resource>.html`, the SOAP service's
+   operations list, or the release's "All REST Endpoints" page. Cite it for exactly what it
+   documents (that the operation exists, its verb and path, the parent resource's fields)
+   and name, in the same breath, the part of your finding it does not cover.
+5. **Only then, "not cited"** — argue the point from the IAR and mark the doc-dependent half
+   a verification step.
+
+Whichever rung you land on, **the report lists the attempts**: each URL tried, in order,
+with what came back (landing page / 404 / redirect / body), in the sources tab next to the
+resource. Three lines let a reader tell "Oracle publishes no such page" from "nobody
+looked", and they are the only evidence that the ladder was walked rather than skipped.
+Skipping down the ladder to a remembered URL is the failure the previous rule exists to
+prevent: a recalled citation that happens to resolve is indistinguishable from diligence
+and cannot be checked.
 
 ### 4. Classify findings
 
@@ -311,3 +400,6 @@ the HTML into chat.
 - **`scripts/check_quotes.py`** — greps every unmarked Evidence line in a report against
   the extracted IAR and lists what isn't there:
   `python3 scripts/check_quotes.py <report.html> <file.iar>`.
+- **`scripts/check_claims.py`** — flags unhedged runtime claims and reassurance prose in a
+  finished report (the "this works today" family), skipping `<pre>` evidence blocks:
+  `python3 scripts/check_claims.py <report.html>`.
