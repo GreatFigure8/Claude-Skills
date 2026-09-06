@@ -167,7 +167,7 @@ Habits that keep the orchestrator small:
 
 **Budget guard while stopping:** if the count reaches 160k with executors still running, stop waiting. Post the prompt now with those items under *In flight* as "running, branch pushed, not merged" — the next orchestrator picks them up. 165k is not passed to finish a merge.
 
-At the stopping point, write the prep-for-clear prompt (template below) to `.claude/stories/<slug>/prep-for-clear.md` **and** post it in chat as a single fenced block, preceded by one line: *"Orchestrator at ~<N>k — clean stopping point. Prep for clear — paste this into a fresh chat to continue:"*. Then say nothing more.
+At the stopping point, write the prep-for-clear prompt (template below) and post it in chat as a single fenced block, preceded by one line: *"Orchestrator at ~<N>k — clean stopping point. Prep for clear — paste this into a fresh chat to continue:"*. Then say nothing more.
 
 **Prep-for-clear prompt template** (fill every line; omit nothing that lives only in this conversation):
 
