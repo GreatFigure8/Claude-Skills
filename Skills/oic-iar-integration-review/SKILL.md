@@ -230,6 +230,37 @@ a redirect to a different release), search for the working page or drop the refe
 argue from the IAR instead. A claim that rests on general knowledge should say so rather
 than borrow authority from a page you didn't read.
 
+**When the operation's own page won't load, walk the ladder — then say which rung you
+reached.** Some operations genuinely have no fetchable per-operation page: SOAP service
+operations (`ErpIntegrationService.downloadESSJobExecutionDetails`) and child-resource verbs
+(`PATCH .../workers/{id}/child/photos/{PhotoId}`) both failed to resolve in iteration-2
+grading, after four and three attempts respectively. A guessed URL comes back as a release
+landing page, a "Get Started" page or a 404 — every one of those is a non-fetch, never a
+citation. Work down these rungs in order and stop at the first that returns the resource's
+actual documentation body:
+
+1. **Current-release operation page** — the OIC3 / current doc URL for that exact operation
+   (`op-<resource>-<child>-<verb>.html` under the current release segment).
+2. **Prior-release operation page** — the same path with the release segment swapped back
+   (`25c` → `25a` → `24d`, or the Gen 2 documentation host for a Gen 2 feature). Oracle
+   frequently drops a page from the current release that an older one still serves.
+3. **Site-scoped web search** — `"<operation or resource name> site:docs.oracle.com"`. Take
+   the URL out of the results and fetch it; never compose one from the pattern.
+4. **The resource's reference index page** — `api-<resource>.html`, the SOAP service's
+   operations list, or the release's "All REST Endpoints" page. Cite it for exactly what it
+   documents (that the operation exists, its verb and path, the parent resource's fields)
+   and name, in the same breath, the part of your finding it does not cover.
+5. **Only then, "not cited"** — argue the point from the IAR and mark the doc-dependent half
+   a verification step.
+
+Whichever rung you land on, **the report lists the attempts**: each URL tried, in order,
+with what came back (landing page / 404 / redirect / body), in the sources tab next to the
+resource. Three lines let a reader tell "Oracle publishes no such page" from "nobody
+looked", and they are the only evidence that the ladder was walked rather than skipped.
+Skipping down the ladder to a remembered URL is the failure the previous rule exists to
+prevent: a recalled citation that happens to resolve is indistinguishable from diligence
+and cannot be checked.
+
 ### 4. Classify findings
 
 Use this severity taxonomy — it's what the report's filter chips and color-coding are
