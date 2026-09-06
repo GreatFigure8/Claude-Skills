@@ -31,6 +31,19 @@ CWD_COMMON="$(git -C "$CWD" rev-parse --path-format=absolute --git-common-dir 2>
 
 if git -C "$LIVE" fetch -q origin 2>/dev/null && git -C "$LIVE" checkout -q --detach origin/main 2>/dev/null; then
   echo "live skills refreshed: $(git -C "$LIVE" log --oneline -1 2>/dev/null)"
+
+  # Merge the freshly-refreshed allowlist into the running session's settings, so a
+  # new Bash(...) prefix goes live the same way skill file edits already do. Claude
+  # Code watches settings.json and reloads `permissions` live, without a restart —
+  # see https://code.claude.com/docs/en/settings.md. Read the allow file from LIVE
+  # AFTER the re-detach above, so this merges what just went live.
+  MERGE_SCRIPT="$LIVE/Skills/dev-story-sprint/assets/merge-settings.sh"
+  ALLOW_JSON="$LIVE/Skills/dev-story-sprint/assets/permissions-allow.json"
+  if [ -e "$MERGE_SCRIPT" ] && [ -e "$ALLOW_JSON" ]; then
+    "$MERGE_SCRIPT" --quiet "$HOME/.claude/settings.json" "$ALLOW_JSON" \
+      "$LIVE/Skills/dev-story-sprint/assets/hooks/refresh-live-post-push.sh" \
+      2>/dev/null || echo "settings allowlist merge FAILED for $LIVE" >&2
+  fi
 else
   echo "live skills refresh FAILED for $LIVE — run Skills/dev-story-sprint/assets/refresh-live.sh" >&2
 fi
