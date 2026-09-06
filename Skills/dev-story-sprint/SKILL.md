@@ -10,7 +10,7 @@ The slim, fast sibling of `dev-epic-workflow`. Same bones — one branch and one
 ## The rules (Jonathan's spec)
 
 1. **One story per orchestrator.** A second story is a new chat. Never two stories in flight in one context.
-2. **No epic, no documents.** No `plan.md`, no epic folder, no PR template chore, no retro, no tracker linking. The plan is one chat message and lives in the dispatches.
+2. **No epic, no documents.** No `plan.md`, no epic folder, no PR template chore, no retro, no tracker linking beyond the single per-story GitHub issue (rule 11). The plan is one chat message and lives in the dispatches.
 3. **No TDD.** This skill **overrides** the global testing rules (tests-first, 80% coverage). Executors do not write tests first and do not chase a coverage number. Existing suites must still pass as a gate. New tests are written only when the dispatch says so, or when the item changes a tested contract and the old test is now wrong.
 4. **Executors are silent.** No text between tool calls. No "now I'll…", no progress, no plan, no questions. Their only output is one return summary to the orchestrator, ≤ 20 lines. They never address Jonathan. A question is a `blocked` state, not a sentence.
 5. **The orchestrator is silent.** It speaks exactly four times: the plan message, a decision it genuinely cannot make, the closing message, and the prep-for-clear prompt. No progress narration, no "dispatching wave 2", no recaps, no restating the plan, no verification chatter. Silence is consent; Jonathan interrupts if he wants to.
@@ -19,6 +19,7 @@ The slim, fast sibling of `dev-epic-workflow`. Same bones — one branch and one
 8. **Every dispatch runs in its own worktree** — `isolation: "worktree"` on the `Agent` call, no exceptions, single-item flow included. The orchestrator keeps the main checkout; no executor ever switches its branch.
 9. **The orchestrator never passes 165k tokens. Ever.** At 150k it stops dispatching and drives to the nearest clean stopping point; the "prep for clear" prompt is posted before 165k, then the orchestrator says nothing more. Jonathan pastes the prompt into a fresh chat. This replaces the global 120k-announce / 150k-checkpoint rule for sprints.
 10. **Have fun.** Terse is not grim. The four messages the orchestrator does send can have a pulse.
+11. **One GitHub issue per story, opened once — never per item.** Step 1 opens it right before the plan message; every dispatch and merge references it by number. No GitHub remote, or no `gh`? Say so in one line in the plan message and run the story without an issue — nothing else changes.
 
 ## Flow at a glance
 
@@ -39,10 +40,13 @@ Never plan from recall. Read the tree, the modules the story touches, `git log -
 
 **Pick the model per item.** Sonnet 5 unless the item meets the Opus bar: a cross-module refactor with unclear blast radius; debugging where the cause is genuinely unknown; concurrency, data migrations, or auth/security-sensitive changes; anything where a wrong-but-plausible answer would be expensive to detect. "It's big" is not the bar — big-and-mechanical is Sonnet.
 
+**Open the story's GitHub issue right before posting the plan.** One issue per story, never per item: `gh issue create --repo <origin repo> --title "<the story line>" --body "<the story text>\n\n<the item table>"`. The item table is only final once decomposition is done, so this is the last grounding step, immediately before the plan message. Carry the resulting `#<n>` into the plan message and every dispatch.
+
 Then post **one** plan message and nothing after it until there is something Jonathan must hear:
 
 ```
 Story: <one line>
+Issue: #<n>
 Branch line: live=<branch>  integration=<branch>  tag-first: yes/no
 Grounded: <what was read>   Assumed: <what wasn't, if anything>
 
@@ -89,6 +93,7 @@ The last line matters in repos that also run `dev-epic-workflow`: its subagent-l
 dev-story-sprint dispatch — <story-slug> item <n>
 Status dir (repo root, not your worktree): .claude/stories/<slug>/status/
 Branch: <type>/<slug>-<item>   Integration: <branch>   Final item: yes/no
+Issue: #<n> — every commit body ends with the trailer line `Refs #<n>`
 Scope: <one line>
 Done when: <check the orchestrator will run>
 Not: <explicit exclusions>
@@ -119,7 +124,7 @@ The orchestrator never shared the executor's context, so it checks the summary t
 
 ```bash
 git fetch -q origin && git pull --ff-only                          # main checkout is on <integration>; verify with git branch --show-current
-git merge --no-ff -m "merge(<slug>): item <n> <branch>" origin/<branch> && git push origin <integration>
+git merge --no-ff -m "merge(<slug>): item <n> <branch> (#<n>)" origin/<branch> && git push origin <integration>
 git push origin --delete <branch>; git branch -d <branch> 2>/dev/null; git fetch --prune
 git worktree prune                                 # Agent-created worktrees are removed by the tool; this clears stale entries
 rm -f .claude/stories/<slug>/status/<branch-slug>.json
@@ -139,7 +144,7 @@ No pull request by default — the merge commit is the record, and skipping `gh 
 
 ## Step 4 — Story done
 
-When every item is verified and merged: run the gates once on the integration branch as a whole, merge to live as a drop-in replacement, tag if the story warranted a `pre-` tag. Then **one** closing message: what shipped (merge commits or PR links, tag), anything deferred, anything claimed-but-unverified. Then `rm -rf .claude/stories/<slug> .claude/signals/active-epic`. That's the whole retro.
+When every item is verified and merged: run the gates once on the integration branch as a whole, merge to live as a drop-in replacement — the merge commit message includes `Closes #<n>` — and tag if the story warranted a `pre-` tag. Then close the issue explicitly: `gh issue close <n> --comment "<what shipped: merge hashes/tag>"`. GitHub's auto-close on `Closes #<n>` only fires for merges to the repo's default branch, so this explicit close is the reliable half, not a redundant extra. Then **one** closing message: what shipped (merge commits or PR links, tag), anything deferred, anything claimed-but-unverified. Then `rm -rf .claude/stories/<slug> .claude/signals/active-epic`. That's the whole retro.
 
 ## The token budget: stop dispatching at 150k, never pass 165k
 
@@ -168,6 +173,7 @@ At the stopping point, write the prep-for-clear prompt (template below) to `.cla
 dev-story-sprint prep-for-clear — <story-slug>
 Repo: <path or remote>   Live: <branch>   Integration: <branch> @ <short-hash>
 Story: <the one-line story, verbatim>
+Issue: #<n> (open)
 Items:
   1. <branch> — DONE (merged <hash>)                       Sonnet 5
   2. <branch> — DONE (merged <hash>)                       Sonnet 5
@@ -180,7 +186,7 @@ In flight / environment: <unmerged pushed branches, running executors' branches,
 Exact next action: <one imperative sentence>
 ```
 
-**Resuming from a prep-for-clear prompt:** the new orchestrator treats the block as a story plus a plan already made. It re-grounds from the repo (`git log`, `git status`, `git worktree list`, `git branch -r`, a grep for whatever "Claimed but NOT verified" names), verifies before building, merges anything listed *In flight* that now verifies, and dispatches every unblocked item without re-posting a plan — the prompt *is* the plan message and its model table. If the repo disagrees with the prompt, the repo wins and the orchestrator says so in one line. The new orchestrator starts its own count at zero and lives by the same 150k / 165k rule.
+**Resuming from a prep-for-clear prompt:** the new orchestrator treats the block as a story plus a plan already made. It re-grounds from the repo (`git log`, `git status`, `git worktree list`, `git branch -r`, a grep for whatever "Claimed but NOT verified" names), verifies before building, merges anything listed *In flight* that now verifies, and dispatches every unblocked item without re-posting a plan — the prompt *is* the plan message and its model table. It reuses the issue named in the prompt for every remaining dispatch and the final close — it never opens a second issue for the same story. If the repo disagrees with the prompt, the repo wins and the orchestrator says so in one line. The new orchestrator starts its own count at zero and lives by the same 150k / 165k rule.
 
 ## Permissions — a prompt is talking
 
@@ -213,7 +219,7 @@ Everything else — immutability, error handling, secrets, code review severity 
 
 ## What this skill deliberately does not have
 
-No epic folder, no `plan.md`, no `/handoff` or `/intake` commands, no pull requests by default, no retro, no tracker linking, no status-log tailing by the orchestrator, no tests-first. If a story needs any of those, it isn't a sprint — use `dev-epic-workflow`.
+No epic folder, no `plan.md`, no `/handoff` or `/intake` commands, no pull requests by default, no retro, no tracker linking beyond the single per-story GitHub issue (Step 1) that every commit references, no status-log tailing by the orchestrator, no tests-first. If a story needs any of those, it isn't a sprint — use `dev-epic-workflow`.
 
 ## Working-style notes (kept from the parent)
 
