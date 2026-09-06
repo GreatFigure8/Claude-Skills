@@ -330,6 +330,22 @@ palette. Otherwise use the neutral tokens already in `design-system.md`.
 "unreachable branch," not "dead" — the same fact reads as objective either way, but one
 version doesn't need defending in a client meeting.
 
+**Never name the process.** The report is a deliverable, not a work log: it never
+mentions this skill, its scripts (`check_quotes.py`, `check_claims.py`,
+`check_report.py`), its working files (`checks.txt`, anything under `work/`), or
+`SKILL.md` itself, and it never narrates the review process ("per the skill's
+checklist", "the tooling flagged this"). State the finding and its evidence; how it was
+produced stays out of client-facing prose. Checker output belongs in `work/`, not in the
+report. Checked mechanically alongside the other prose rules:
+
+```bash
+python3 scripts/check_claims.py <report.html>
+```
+
+  the same run that hedges runtime claims also flags any mention of the skill's own
+  tooling — iteration-3 grading failed a report that named `check_quotes.py` and
+  `work/checks.txt` nine times in client-facing prose.
+
 **Hackett logo.** Every report carries The Hackett Group's mark regardless of client
 brand — embed `assets/hackett_logo.svg` inline per the "Hackett logo (always)" rule in
 `references/design-system.md`.
@@ -401,5 +417,6 @@ the HTML into chat.
   the extracted IAR and lists what isn't there:
   `python3 scripts/check_quotes.py <report.html> <file.iar>`.
 - **`scripts/check_claims.py`** — flags unhedged runtime claims and reassurance prose in a
-  finished report (the "this works today" family), skipping `<pre>` evidence blocks:
-  `python3 scripts/check_claims.py <report.html>`.
+  finished report (the "this works today" family), and mentions of the skill's own
+  tooling or process (`check_quotes.py`, `checks.txt`, `work/`, `SKILL.md`, "skill"),
+  skipping `<pre>` evidence blocks: `python3 scripts/check_claims.py <report.html>`.
