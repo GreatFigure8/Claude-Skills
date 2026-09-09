@@ -1,6 +1,6 @@
 ---
 name: dev-story-sprint
-description: Jonathan's fast lane for shipping ONE user story — plan in the chat where the story is written, then go straight to code via silent, parallel dispatched executors. No TDD, no epic docs, no planning session, Sonnet 5 by default with Opus 5 only for the hard items, orchestrator that never passes 165k tokens — it stops at a clean point and posts a "prep for clear" prompt to paste into the next orchestrator. Use whenever Jonathan writes or pastes a user story, says "sprint", "story", "just build it", "fast lane", "slim workflow", "no epic", "let's ship this one", "quiet mode", "get it done", or wants a code change in his repos (FastAPI/FastMCP, Oracle Fusion MCP tooling, OIC, Next.js, OCI, Supabase) WITHOUT the full dev-epic-workflow ceremony. Also trigger when resuming a story from a prep-for-clear prompt ("resume story", "continue the sprint", "prep for clear", a pasted `dev-story-sprint prep-for-clear` block), or when asked whether the orchestrator is near its token budget. Do NOT use for multi-story epics, issue-tracker intake, or when Jonathan explicitly asks for an epic plan — that is dev-epic-workflow.
+description: Jonathan's fast lane for shipping ONE user story — plan in the chat where the story is written, stop and wait for an explicit go-ahead, then dispatch code via silent, parallel executors. No TDD, no epic docs, no planning session, Sonnet 5 by default with Opus 5 only for the hard items, orchestrator that never passes 165k tokens — it stops at a clean point and posts a "prep for clear" prompt to paste into the next orchestrator. Use whenever Jonathan writes or pastes a user story, says "sprint", "story", "just build it", "fast lane", "slim workflow", "no epic", "let's ship this one", "quiet mode", "get it done", or wants a code change in his repos (FastAPI/FastMCP, Oracle Fusion MCP tooling, OIC, Next.js, OCI, Supabase) WITHOUT the full dev-epic-workflow ceremony. Also trigger when resuming a story from a prep-for-clear prompt ("resume story", "continue the sprint", "prep for clear", a pasted `dev-story-sprint prep-for-clear` block), or when asked whether the orchestrator is near its token budget. Do NOT use for multi-story epics, issue-tracker intake, or when Jonathan explicitly asks for an epic plan — that is dev-epic-workflow.
 ---
 
 # Dev Story Sprint
@@ -13,7 +13,7 @@ The slim, fast sibling of `dev-epic-workflow`. Same bones — one branch and one
 2. **No epic, no documents.** No `plan.md`, no epic folder, no PR template chore, no retro, no tracker linking beyond the single per-story GitHub issue (rule 11). The plan is one chat message and lives in the dispatches.
 3. **No TDD.** This skill **overrides** the global testing rules (tests-first, 80% coverage). Executors do not write tests first and do not chase a coverage number. Existing suites must still pass as a gate. New tests are written only when the dispatch says so, or when the item changes a tested contract and the old test is now wrong.
 4. **Executors are silent.** No text between tool calls. No "now I'll…", no progress, no plan, no questions. Their only output is one return summary to the orchestrator, ≤ 20 lines. They never address Jonathan. A question is a `blocked` state, not a sentence.
-5. **The orchestrator is silent.** It speaks exactly four times: the plan message, a decision it genuinely cannot make, the closing message, and the prep-for-clear prompt. No progress narration, no "dispatching wave 2", no recaps, no restating the plan, no verification chatter. Silence is consent; Jonathan interrupts if he wants to.
+5. **The orchestrator is silent.** It speaks exactly four times: the plan message, a decision it genuinely cannot make, the closing message, and the prep-for-clear prompt. No progress narration, no "dispatching wave 2", no recaps, no restating the plan, no verification chatter. Silence is consent for everything **after** wave 1 dispatches — but the plan message itself is never silence-is-consent. It always ends by waiting for Jonathan's explicit go-ahead before the first `Agent` call; that pause is unconditional, not just when there's an open question.
 6. **Maximum parallelism.** Decompose the story for independence, then dispatch **every** item whose dependencies are met in the **same message** — one `Agent` call per item. Waves, not a queue. The only serialisation is a real code dependency.
 7. **The orchestrator picks the model per item, always explicitly.** `model: "sonnet"` (Sonnet 5) is the default and is used whenever it can do the job. `model: "opus"` (Opus 5) only for items meeting the complexity bar below. Never leave `model` to inherit.
 8. **Every dispatch runs in its own worktree** — `isolation: "worktree"` on the `Agent` call, no exceptions, single-item flow included. The orchestrator keeps the main checkout; no executor ever switches its branch.
@@ -24,7 +24,7 @@ The slim, fast sibling of `dev-epic-workflow`. Same bones — one branch and one
 ## Flow at a glance
 
 ```
-story in chat ──► ground (targeted reads) ──► ONE plan message ──► dispatch wave 1 (all items, one message)
+story in chat ──► ground (targeted reads) ──► ONE plan message ──► wait for go-ahead ──► dispatch wave 1 (all items, one message)
                                                                             │
       ┌──── each executor returns ──► cold verify ──► merge ──► reset ──► dispatch anything now unblocked
       │                                                                     │
@@ -56,13 +56,13 @@ Grounded: <what was read>   Assumed: <what wasn't, if anything>
 | 2 | feat/<story>-<item> | ... | 1 | Sonnet 5 |
 | 3 | fix/<story>-<item>  | ... (depends on 1) | 2 | Opus 5 |
 
-Open questions: none   ← if not none, STOP here and ask; that is the one legitimate pause
-Going.
+Open questions: none   ← state them if any; they don't change what happens next
+Ready to dispatch wave 1 — say go.
 ```
 
 **This table is the model-announcement table the global rules require** for every agent spawn. It covers every wave of the story; later waves are not re-announced. If a re-dispatch changes an item's model, one line says so.
 
-If **Open questions** is empty, dispatch wave 1 immediately in the very next tool message. If not, end with the question(s) and wait.
+**Then stop and wait.** This is unconditional — with or without open questions, the plan message is always the end of the turn. The orchestrator does not dispatch wave 1 in the same tool message, does not treat silence as consent, and does not infer a go-ahead from context. It waits for Jonathan to actually say to proceed (any clear affirmative — "go", "yes", "dispatch" — works; it doesn't have to be the literal word "go"). If there were open questions, his reply may answer them and approve in the same message; either way, wave 1 does not dispatch until he has responded to this specific plan message.
 
 Branch line: integration branch named explicitly; live/cutover untouched until the story closes; `pre-<story-slug>` tag before anything painful to reconstruct (restructures, migrations, platform moves). Some repos work directly against their live branch by convention — their `CLAUDE.md` says so, and this repo is one of them. There the integration branch is **none**: items branch from live, merge back to live one at a time, and the story closes on the last item's merge instead of a separate cutover.
 
