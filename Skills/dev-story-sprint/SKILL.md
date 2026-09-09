@@ -13,23 +13,24 @@ The slim, fast sibling of `dev-epic-workflow`. Same bones — one branch and one
 2. **No epic, no documents.** No `plan.md`, no epic folder, no PR template chore, no retro, no tracker linking beyond the single per-story GitHub issue (rule 11). The plan is one chat message and lives in the dispatches.
 3. **No TDD.** This skill **overrides** the global testing rules (tests-first, 80% coverage). Executors do not write tests first and do not chase a coverage number. Existing suites must still pass as a gate. New tests are written only when the dispatch says so, or when the item changes a tested contract and the old test is now wrong.
 4. **Executors are silent.** No text between tool calls. No "now I'll…", no progress, no plan, no questions. Their only output is one return summary to the orchestrator, ≤ 20 lines. They never address Jonathan. A question is a `blocked` state, not a sentence.
-5. **The orchestrator is silent.** It speaks exactly four times: the plan message, a decision it genuinely cannot make, the closing message, and the prep-for-clear prompt. No progress narration, no "dispatching wave 2", no recaps, no restating the plan, no verification chatter. Silence is consent; Jonathan interrupts if he wants to.
+5. **The orchestrator is silent.** It speaks exactly four times: the plan message — which always ends by asking Jonathan to clear before coding or go now, and waits for that answer before the first `Agent` call — a decision it genuinely cannot make, the closing message, and the prep-for-clear prompt. No progress narration, no "dispatching wave 2", no recaps, no restating the plan, no verification chatter. Silence is consent on everything else; the clear-or-go question is the one point where Jonathan must answer before work continues.
 6. **Maximum parallelism.** Decompose the story for independence, then dispatch **every** item whose dependencies are met in the **same message** — one `Agent` call per item. Waves, not a queue. The only serialisation is a real code dependency.
 7. **The orchestrator picks the model per item, always explicitly.** `model: "sonnet"` (Sonnet 5) is the default and is used whenever it can do the job. `model: "opus"` (Opus 5) only for items meeting the complexity bar below. Never leave `model` to inherit.
 8. **Every dispatch runs in its own worktree** — `isolation: "worktree"` on the `Agent` call, no exceptions, single-item flow included. The orchestrator keeps the main checkout; no executor ever switches its branch.
-9. **The orchestrator never passes 165k tokens. Ever.** `.claude/hooks/context-budget-gate.sh` — a PreToolUse hook on the `Agent` tool — is the enforcement mechanism of record, not the orchestrator noticing its own count. At 150k (soft) a dispatch still goes through, but the hook injects a reminder to stop dispatching and land what's in flight; at 165k (hard) the `Agent` call is **denied** outright, so no new dispatch is possible until in-flight work lands and the "prep for clear" prompt is posted, after which the orchestrator says nothing more. Jonathan pastes the prompt into a fresh chat. Thresholds default to 150k soft / 165k hard and are configurable via env `CONTEXT_BUDGET_SOFT_TOKENS` / `CONTEXT_BUDGET_HARD_TOKENS` or a `.claude/context-budget` file. The gate fails open — a missing or stale sentinel means no enforcement, so the numbers still matter and the orchestrator still watches its own count. This replaces the global 120k-announce / 150k-checkpoint rule for sprints.
+9. **The orchestrator never passes 165k tokens. Ever.** `.claude/hooks/context-budget-gate.sh` — a PreToolUse hook on the `Agent` tool — is the enforcement mechanism of record, not the orchestrator noticing its own count. At 150k (soft) a dispatch still goes through, but the hook injects a reminder to stop dispatching and land what's in flight; at 165k (hard) the `Agent` call is **denied** outright, so no new dispatch is possible until in-flight work lands and the "prep for clear" prompt is posted, after which the orchestrator says nothing more. Jonathan pastes the prompt into a fresh chat. Thresholds default to 150k soft / 165k hard and are configurable via env `CONTEXT_BUDGET_SOFT_TOKENS` / `CONTEXT_BUDGET_HARD_TOKENS` or a `.claude/context-budget` file. The gate fails open — a missing or stale sentinel means no enforcement, so the numbers still matter and the orchestrator still watches its own count: concretely, by reading the sentinel itself and treating 160k as its own trigger (see "The token budget" below), not by waiting for the hook to notice. This replaces the global 120k-announce / 150k-checkpoint rule for sprints.
 10. **Have fun.** Terse is not grim. The four messages the orchestrator does send can have a pulse.
 11. **One GitHub issue per story, opened once — never per item.** Step 1 opens it right before the plan message; every dispatch and merge references it by number. No GitHub remote, or no `gh`? Say so in one line in the plan message and run the story without an issue — nothing else changes.
 
 ## Flow at a glance
 
 ```
-story in chat ──► ground (targeted reads) ──► ONE plan message ──► dispatch wave 1 (all items, one message)
+story in chat ──► ground (targeted reads) ──► ONE plan message + "clear or go?" ──► Jonathan: go ──► dispatch wave 1 (all items, one message)
                                                                             │
       ┌──── each executor returns ──► cold verify ──► merge ──► reset ──► dispatch anything now unblocked
       │                                                                     │
       └──────────── story done: ONE closing message ◄───────────────────────┘
-                    (or: 150k → stopping point → prep-for-clear prompt, posted before 165k)
+                    (or: self-check hits 160k → stopping point → prep-for-clear prompt, posted before 165k)
+                    (or: Jonathan says "clear" at the plan checkpoint → prep-for-clear prompt posted immediately, nothing dispatched)
 ```
 
 ## Step 1 — Ground, then plan in one message
@@ -56,13 +57,21 @@ Grounded: <what was read>   Assumed: <what wasn't, if anything>
 | 2 | feat/<story>-<item> | ... | 1 | Sonnet 5 |
 | 3 | fix/<story>-<item>  | ... (depends on 1) | 2 | Opus 5 |
 
-Open questions: none   ← if not none, STOP here and ask; that is the one legitimate pause
-Going.
+Open questions: none   ← if not none, ask these instead of the line below, and wait
+
+Clear context before we start coding, or go now?
 ```
 
 **This table is the model-announcement table the global rules require** for every agent spawn. It covers every wave of the story; later waves are not re-announced. If a re-dispatch changes an item's model, one line says so.
 
-If **Open questions** is empty, dispatch wave 1 immediately in the very next tool message. If not, end with the question(s) and wait.
+The plan message never ends with an unconditional "Going." — it always ends with a question, and the orchestrator always waits for Jonathan's reply before touching the `Agent` tool:
+
+- **Open questions non-empty** → ask those instead of the clear-or-go line, and wait. This is the one pause the table itself calls out.
+- **Open questions empty** → end with **"Clear context before we start coding, or go now?"** and wait.
+  - **Go now** (or any clear affirmative) → dispatch wave 1 immediately in the very next tool message.
+  - **Clear** → this is the earliest possible prep-for-clear point (see "The token budget" below): every item is still `NEXT`, nothing has been dispatched yet. Write and post that prompt, then say nothing more — the next orchestrator's first act is dispatching wave 1, no re-planning needed.
+
+This checkpoint runs once per story, right after grounding and before the first `Agent` call — not before every wave. Waves 2+ dispatch on land-and-reset (Step 3) without asking again.
 
 Branch line: integration branch named explicitly; live/cutover untouched until the story closes; `pre-<story-slug>` tag before anything painful to reconstruct (restructures, migrations, platform moves). Some repos work directly against their live branch by convention — their `CLAUDE.md` says so, and this repo is one of them. There the integration branch is **none**: items branch from live, merge back to live one at a time, and the story closes on the last item's merge instead of a separate cutover.
 
@@ -146,9 +155,9 @@ No pull request by default — the merge commit is the record, and skipping `gh 
 
 When every item is verified and merged: run the gates once on the integration branch as a whole, merge to live as a drop-in replacement — the merge commit message includes `Closes #<n>` — and tag if the story warranted a `pre-` tag. Then finish the issue — **comment first, then close**: `gh issue comment <n> --body "<what shipped: merge hashes/tag>"`, then `gh issue close <n>`. GitHub's auto-close on `Closes #<n>` fires only for merges to the repo's default branch, so the explicit close is the reliable half when live is not default; and when live *is* default, the issue is already closed by the time you get here and `gh issue close --comment` refuses with "already closed" and silently drops the comment. Commenting first is correct in both cases, and `gh issue close` on an already-closed issue is a harmless no-op. Then **one** closing message: what shipped (merge commits or PR links, tag), anything deferred, anything claimed-but-unverified. Then `rm -rf .claude/stories/<slug> .claude/signals/active-epic`. That's the whole retro.
 
-## The token budget: stop dispatching at 150k, never pass 165k
+## The token budget: self-check stops dispatching at 160k, never pass 165k
 
-The ceiling is on the **orchestrator's context**: **165k tokens, never passed.** It is a working limit, not the window. Finding a stopping point costs tokens — executor returns, verification, merges — so the work of stopping starts at **150k**, leaving ~15k to land what is in flight and post the prompt.
+The ceiling is on the **orchestrator's context**: **165k tokens, never passed.** It is a working limit, not the window. Finding a stopping point costs tokens — executor returns, verification, merges — so the work of stopping starts at **160k** (the orchestrator's own checked trigger, below), leaving ~5k to land what is in flight and post the prompt. That sits inside the hook's separate 150k-soft/165k-hard band — the hook's 150k nudge is an earlier, passive FYI; it does not by itself force stopping.
 
 **`.claude/hooks/context-budget-gate.sh` is the enforcement mechanism of record**, not the orchestrator noticing its own count. It is a PreToolUse hook on the `Agent` tool: at 150k (soft) a dispatch still goes through, but the hook injects a reminder naming rule 9 and telling the orchestrator to land what's in flight; at 165k (hard) the `Agent` call is **denied**, so no new dispatch is possible until in-flight work lands and the prep-for-clear prompt is posted. The statusline's context readout (installed by dev-epic-workflow) is the human-visible signal only — it and the gate read the same sentinel file. Thresholds default to 150k soft / 165k hard and are configurable via env `CONTEXT_BUDGET_SOFT_TOKENS` / `CONTEXT_BUDGET_HARD_TOKENS` or a `.claude/context-budget` file. **The gate fails open** — a missing or stale sentinel means no enforcement at all, so the numbers still govern and the orchestrator still counts for itself: every executor return, every file read, every plan message.
 
@@ -159,13 +168,21 @@ Habits that keep the orchestrator small:
 - Verification is `--stat` and `grep`, never a full diff in context — link the PR.
 - Background executors return once; do not poll them.
 
-**Trigger: 150k tokens**, or earlier on any sign of degradation (re-reading a file already read, forgetting a resolved decision, drifting from the plan). At the trigger, **no new dispatch, no exceptions** — not even a one-line rebase item. Find the nearest **valid stopping point**, in order of preference:
+**Actually check — read the sentinel yourself, don't just wait for the hook.** The hook's soft band (150k) only fires *inside* an `Agent` call and only if its sentinel is fresh; it is a backstop, not the orchestrator's own awareness. At every dispatch decision — the plan-message checkpoint (Step 1) and every land-and-reset (Step 3) — read the same file the hook and the statusline read:
+
+```bash
+cat .claude/signals/context-usage-* 2>/dev/null || cat .claude/signals/context-usage 2>/dev/null
+```
+
+Compare `used_tokens` (or, if only `used_percentage` is present, `used_percentage × max_tokens`) against **160,000**. No sentinel, or a stale/unparseable one? Fall back to your own judgment per the "sign of degradation" language below — a missing check is not permission to skip checking.
+
+**Trigger: the self-check reads 160k+ tokens**, or earlier on any sign of degradation (re-reading a file already read, forgetting a resolved decision, drifting from the plan). 160k sits inside the hook's 150k-soft/165k-hard band on purpose — the orchestrator's own check acts before the hook would ever have to deny a dispatch. At the trigger, **no new dispatch, no exceptions** — not even a one-line rebase item. Find the nearest **valid stopping point**, in order of preference:
 
 1. Between waves — everything dispatched so far merged and reset.
 2. Executors have returned and been verified but not merged → merge, reset, stop.
 3. Executors are running → let each reach its terminal state, merge what verifies, stop. Their branches are pushed either way; anything unmerged is listed under *In flight*.
 
-**Budget guard while stopping:** if the count reaches 160k with executors still running, stop waiting. Post the prompt now with those items under *In flight* as "running, branch pushed, not merged" — the next orchestrator picks them up. 165k is not passed to finish a merge.
+**Budget guard while stopping:** if the count reaches 163k with executors still running, stop waiting. Post the prompt now with those items under *In flight* as "running, branch pushed, not merged" — the next orchestrator picks them up. 165k is not passed to finish a merge.
 
 At the stopping point, write the prep-for-clear prompt (template below) and post it in chat as a single fenced block, preceded by one line: *"Orchestrator at ~<N>k — clean stopping point. Prep for clear — paste this into a fresh chat to continue:"*. Then say nothing more.
 
@@ -188,7 +205,7 @@ In flight / environment: <unmerged pushed branches, running executors' branches,
 Exact next action: <one imperative sentence>
 ```
 
-**Resuming from a prep-for-clear prompt:** the new orchestrator treats the block as a story plus a plan already made. It re-grounds from the repo (`git log`, `git status`, `git worktree list`, `git branch -r`, a grep for whatever "Claimed but NOT verified" names), verifies before building, merges anything listed *In flight* that now verifies, and dispatches every unblocked item without re-posting a plan — the prompt *is* the plan message and its model table. It reuses the issue named in the prompt for every remaining dispatch and the final close — it never opens a second issue for the same story. If the repo disagrees with the prompt, the repo wins and the orchestrator says so in one line. The new orchestrator starts its own count at zero and lives by the same 150k / 165k rule.
+**Resuming from a prep-for-clear prompt:** the new orchestrator treats the block as a story plus a plan already made. It re-grounds from the repo (`git log`, `git status`, `git worktree list`, `git branch -r`, a grep for whatever "Claimed but NOT verified" names), verifies before building, merges anything listed *In flight* that now verifies, and dispatches every unblocked item without re-posting a plan — the prompt *is* the plan message and its model table. It reuses the issue named in the prompt for every remaining dispatch and the final close — it never opens a second issue for the same story. If the repo disagrees with the prompt, the repo wins and the orchestrator says so in one line. The new orchestrator starts its own count at zero and lives by the same rule: self-check at 160k, hook backstop at 150k soft / 165k hard.
 
 ## Permissions — a prompt is talking
 
@@ -212,7 +229,7 @@ Both live pieces are **symlinks into a pinned worktree of this repo**, not into 
 Stated explicitly so nobody has to reconcile it mid-story:
 
 - **Testing:** no TDD, no coverage target (rule 3). Gates still run.
-- **Context budget:** the global "announce at 120k, checkpoint at 150k, `/handoff` then `/clear`" rule is replaced by rule 9 — enforced by `context-budget-gate.sh`, not the orchestrator noticing its own count: stop dispatching at 150k, post the prep-for-clear prompt before 165k, no `/handoff` skill involved.
+- **Context budget:** the global "announce at 120k, checkpoint at 150k, `/handoff` then `/clear`" rule is replaced by rule 9 — the orchestrator self-checks the sentinel and stops dispatching at 160k, with `context-budget-gate.sh` as a 150k-soft/165k-hard backstop; the prep-for-clear prompt posts before 165k either way, no `/handoff` skill involved.
 - **Model table per spawn:** satisfied once by the plan message's table, for all waves (Step 1).
 - **Announcing what you're about to do / brief updates:** the orchestrator does not narrate (rule 5). The plan message is the announcement; the closing message is the recap.
 - **Commit at task end:** executors commit continuously and push on the first commit; the orchestrator's merges are the story's commits.
