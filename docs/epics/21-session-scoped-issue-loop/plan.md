@@ -1,6 +1,6 @@
 # Epic: session-scoped autonomous issue loop
 
-**Status:** in flight (item 5 of 6)
+**Status:** in flight (item 6 of 6)
 **Live branch:** main
 **Integration branch:** main
 **Pre-epic tag:** pre-loop-redesign
@@ -164,7 +164,7 @@ integration and live branch. Completed at filing time, 2026-09-10.
 - **Rollback:** drop the branch; the loop falls back to surfacing failures in its own
   run log only.
 
-### 5. Per-issue integration testing
+### 5. Per-issue integration testing — DONE (PR #110, merged f2b581b)
 - **Branch:** `feat/per-issue-integration-test`
 - **Depends on:** items 1, 4
 - **Scope:** After all of an issue's items are merged and before it's closed, run one
@@ -219,6 +219,12 @@ driver or filing logic assumes the previous item's primitive already exists.
   closes somehow; needs a decision before Item 6's live-proof run treats it as closed-loop.
 - `run-all-fixtures.sh` hangs indefinitely on `active-epic-fixtures.sh` (observed during
   Item 4's verification, unrelated to that item's diff) — flagged, not diagnosed or fixed.
+- A repo that declares neither `integration-test` nor any `gates.<type>` gets no per-issue
+  integration check at all (Item 5) — the loop notes the gap at runtime but nothing closes
+  it short of the repo owner declaring one.
+- `worktree-provision-fixtures.sh` carries 2 pre-existing failures on `main`, independently
+  reconfirmed unchanged (178→192 cases, still 2 failures) across Item 5 — same finding as
+  Item 3's cold-verification note; still not filed as a tracked follow-on.
 
 ## Log
 - 2026-09-10 — plan approved and filed as epic 21. Step 0 (branch reconciliation)
