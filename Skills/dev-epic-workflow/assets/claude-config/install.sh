@@ -2,7 +2,13 @@
 # install.sh — dev-epic-workflow session automation + executor control plane.
 # Installs the SessionStart/PreCompact/SessionEnd hooks, the executor control
 # plane (cancel gate, subagent lifecycle, tool logger), the work-item-executor
-# agent, the /handoff command, and the statusline. Two modes:
+# agent, the /handoff, /intake and /loop commands, and the statusline.
+#
+# `bin/` is deliberately NOT installed: those scripts are invoked from the
+# skill directory by absolute path (`session-loop.sh`, `declared-paths-gate.sh`
+# and friends), so there is one copy per machine and no second one to drift.
+#
+# Two modes:
 #
 #   --user            install ONCE per machine into ~/.claude/ — applies to
 #                     EVERY repo and worktree automatically (recommended
@@ -60,11 +66,12 @@ cp "$SRC_DIR"/hooks/session-start-context.sh \
    "$SRC_DIR"/hooks/subagent-lifecycle.sh \
    "$SRC_DIR"/hooks/subagent-tool-logger.sh \
    "$TARGET_DIR/hooks/"
-cp "$SRC_DIR"/commands/handoff.md "$SRC_DIR"/commands/intake.md "$TARGET_DIR/commands/"
+cp "$SRC_DIR"/commands/handoff.md "$SRC_DIR"/commands/intake.md "$SRC_DIR"/commands/loop.md \
+   "$TARGET_DIR/commands/"
 cp "$SRC_DIR"/agents/work-item-executor.md "$TARGET_DIR/agents/"
 chmod +x "$TARGET_DIR"/hooks/*.sh
 echo "  ✓ hooks → $TARGET_DIR/hooks/ (8 scripts, executable)"
-echo "  ✓ /handoff + /intake commands → $TARGET_DIR/commands/"
+echo "  ✓ /handoff + /intake + /loop commands → $TARGET_DIR/commands/"
 echo "  ✓ work-item-executor agent → $TARGET_DIR/agents/work-item-executor.md"
 
 # 2. Merge hook wiring into settings.json without clobbering.
