@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 # epic-loop.sh — the driver skeleton for epic 19 (epic-loop), item 1.
 #
+# RETIRED AS A DAEMON ENTRY POINT (epic 21 item 1, 2026-09-10). Epic 19 is
+# closed with a retro pointing here: epic 21's session-scoped loop (item 3)
+# replaces this file's job, running inside a live interactive session instead
+# of a single-pass cron-triggered state machine. The state-machine SHAPE below
+# — states, per-issue records, the ledger — is left in place as source
+# material for item 3 to consult, but it no longer runs unattended: the three
+# ladder "may I approve / merge / chain" predicates it depended on no longer
+# exist in bin/autonomy.sh, so every phase that used to ask one of them now
+# always parks for a human instead, and `dispatch_repo` (bin/dispatch.sh, item
+# 1) always refuses. Nothing below can approve, merge or chain unattended any
+# more; that is not a bug in this file, it is the point of retiring it.
+#
 # THE SHAPE THIS ITEM BUILDS, AND NOTHING MORE. An admitted GitHub issue is
 # carried through dev-epic-workflow as a chain of fresh headless sessions — but
 # every session that does that work (drafting, dispatching, verifying, merging,
@@ -32,8 +44,10 @@
 #   | blocked | refused
 #
 # `merged(item N)` either advances to `dispatching(item N+1)` — the next
-# undispatched item of the SAME epic, and only when `autonomy_may_chain` is
-# granted (item 6) — or to `closing` when there is none. `refused` is still
+# undispatched item of the SAME epic, and (before epic 21 item 1) only when
+# the ladder granted may-chain — or to `closing` when there is none. Chaining
+# is now always parked for a human; see the retirement note above. `refused`
+# is still
 # not reachable by this build. `blocked` is reachable two ways: a cold
 # verifier `fail` verdict at `awaiting-verify` (item 5), and an executor that
 # reports `blocked` from inside `dispatching` (item 6, via `dispatch_repo`'s
@@ -95,9 +109,9 @@
 set -u
 
 # --------------------------------------------------------------- this build
-# The machine-readable contract marker, the sibling of DISPATCH_ENFORCED and
-# AUTONOMY_ENFORCED. A fixture greps for it; flipping it to `no` while real
-# phase logic exists elsewhere would be a lie a fixture catches.
+# The machine-readable contract marker. Left `1` for any fixture that still
+# checks it; the approve/merge/chain phases it once gated are retired (see
+# the header note above), so the marker no longer implies unattended action.
 EPIC_LOOP_CONTRACT=1
 EPIC_LOOP_INVOKES_CLAUDE=no
 
@@ -470,16 +484,14 @@ epic_loop_approval_gate() {
   fi
   REC="$(printf '%s' "$PLAN_TEXT" | epic_loop_parse_recommendation)"
 
-  # THE ORDER MATTERS: the recommendation is checked BEFORE `may-approve`, so
-  # a `needs-decision` proposal parks at every level including L4 — "never
-  # no-work or needs-decision" is unconditional, not something a high enough
-  # rung overrides. Only once the recommendation itself is `plan` does the
-  # repo's granted level get asked at all.
+  # "never no-work or needs-decision" is unconditional. Automatic approval
+  # itself is retired (epic 21 item 1) regardless of recommendation — a human
+  # approves and merges every plan PR now.
   local REASON=""
   if [ "$REC" != plan ]; then
-    REASON="recommendation is $REC, never auto-approved regardless of level"
-  elif ! autonomy_may_approve; then
-    REASON="level ${AUTONOMY_LEVEL:-L0} does not grant may-approve"
+    REASON="recommendation is $REC, never auto-approved"
+  else
+    REASON="automatic approval is retired (epic 21 item 1) — a human approves and merges the plan PR"
   fi
   if [ -n "$REASON" ]; then
     EPIC_LOOP_GATE_RESULT=parked
@@ -719,13 +731,11 @@ epic_loop_verify_gate() {
 # for itself (the next undispatched item of the epic at `in flight`/`approved`
 # — the plumbing item 1-4 already built), so this gate passes it no item id.
 #
-# The ONE thing this caller decides that dispatch_repo does not: whether the
-# PR it opens carries a closing keyword. `yes` only when BOTH hold — this repo
-# has been granted `autonomy_may_merge` (an item that cannot itself be merged
-# unattended has no business closing an issue when it lands) AND this is the
-# epic's LAST undispatched item (`epic_loop_next_item` on the CURRENT item
-# returns empty). Never inferred inside dispatch.sh — see its own header
-# comment on DISPATCH_CLOSING_KEYWORD, which only carries the flag through.
+# The ONE thing this caller used to decide that dispatch_repo did not: whether
+# the PR it opens carries a closing keyword. That required an item that could
+# itself be merged unattended, which is retired (epic 21 item 1) along with
+# every other automatic-merge path — so this always carries `Part of #<n>`
+# now, never `Closes #<n>`.
 #
 # Sets, for the caller:
 #   EPIC_LOOP_DISPATCH_RESULT   pr-opened | blocked | refused | error
@@ -743,11 +753,8 @@ epic_loop_dispatch_gate() {
     return 0
   fi
 
-  local CLOSING=no NEXT_AFTER
-  if autonomy_may_merge; then
-    NEXT_AFTER="$(epic_loop_next_item "$ROOT" "$PLAN_REL" "$ITEM")"
-    [ -z "$NEXT_AFTER" ] && CLOSING=yes
-  fi
+  # CLOSING is always "no" now — see the comment above this function.
+  local CLOSING=no
 
   dispatch_repo "$REPO" "$SLUG" "$EPICS_DIR" "$BASE" "$WORKTREE_ROOT" no "$SKILL_DIR" "$CLOSING" || true
 
@@ -789,8 +796,8 @@ epic_loop_tick_checklist() {
 # the integration branch, pull, delete the item branch remote and local,
 # prune, tick the tracker checklist.
 #
-# Gated on `autonomy_may_merge` — below L3 this parks exactly as
-# `awaiting-verify` parks on a missing PR, and a human merges by hand.
+# Automatic merging is retired (epic 21 item 1) — this always parks exactly
+# as `awaiting-verify` parks on a missing PR, and a human merges by hand.
 #
 # Sets, for the caller:
 #   EPIC_LOOP_MERGE_RESULT   merged | parked | error
@@ -803,11 +810,9 @@ epic_loop_merge_gate() {
   EPIC_LOOP_MERGE_RESULT=error
   EPIC_LOOP_MERGE_DETAIL="no attempt made"
 
-  if ! autonomy_may_merge; then
-    EPIC_LOOP_MERGE_RESULT=parked
-    EPIC_LOOP_MERGE_DETAIL="may-merge not granted at ${AUTONOMY_LEVEL:-L0} — waiting for a human to merge item $ITEM's pull request"
-    return 0
-  fi
+  EPIC_LOOP_MERGE_RESULT=parked
+  EPIC_LOOP_MERGE_DETAIL="automatic merge is retired (epic 21 item 1) — waiting for a human to merge item $ITEM's pull request"
+  return 0
 
   if [ -z "$PLAN_REL" ] || [ -z "$ITEM" ]; then
     EPIC_LOOP_MERGE_DETAIL="no epic/item recorded for issue #$ISSUE — cannot know which PR to merge"
@@ -1118,39 +1123,13 @@ epic_loop_process_issue() { # $1=issue $2=repo-checkout $3=slug $4=state-dir $5=
       return 0
     fi
 
-    # Level and budget both come from autonomy.sh's config, so it is resolved
-    # (which loads that config) BEFORE either is consulted — the reverse order
-    # reads AUTONOMY_BUDGET_MAX_ITEMS/_SECONDS before autonomy_load has ever
-    # set them. `may-approve` (item 4, below) reads AUTONOMY_LEVEL set here;
-    # every other state still only logs the level — `--dry-run` previews the
-    # happy path regardless of level and says so in its own output.
+    # Resolved for its remaining, non-ladder policy (denylist/size-ceiling
+    # additions) and for the log line below. The per-cycle budgets that used
+    # to be checked here (wall-clock, items dispatched, merges) were part of
+    # the retired autonomy ladder (epic 21 item 1) and are gone with it —
+    # nothing replaces them yet; a future item may reintroduce a budget
+    # concept scoped to the session loop instead of a cron cycle.
     autonomy_resolve "$REPO" "$SLUG" || true
-
-    # Wall-clock budget, checked every phase: a cycle running long is a cycle
-    # running long whatever phase it is in.
-    if ! autonomy_budget_allows_time "$(epic_loop_elapsed)"; then
-      printf 'epic-loop: issue #%s — no further phase this cycle: %s\n' "$ISSUE" "${AUTONOMY_REFUSAL:-budget}"
-      return 0
-    fi
-    # The per-cycle ITEM budget (epic 11's "one item at a time" invariant) is
-    # about work items actually DISPATCHED, not about every bookkeeping phase
-    # of this loop — so it is asked only where a phase corresponds to that:
-    # `dispatching`. Counted across every issue this invocation touches
-    # (EPIC_LOOP_DISPATCHED_THIS_CYCLE is a script-global, not `local`),
-    # exactly as dispatch.sh's own DISPATCH_ITEMS_DONE is cycle-wide rather
-    # than per repo.
-    if [ "$CUR_STATE" = dispatching ] && ! autonomy_budget_allows_item "$EPIC_LOOP_DISPATCHED_THIS_CYCLE"; then
-      printf 'epic-loop: issue #%s — no further dispatch this cycle: %s\n' "$ISSUE" "${AUTONOMY_REFUSAL:-budget}"
-      return 0
-    fi
-    # ITEM 6's own budget: item PRs actually MERGED this cycle, the same
-    # cycle-wide shape as the dispatch budget just above (and for the same
-    # reason — `autonomy_budget_allows_merge` is asked only at the one phase
-    # a merge could happen, never at every bookkeeping phase).
-    if [ "$CUR_STATE" = awaiting-merge ] && ! autonomy_budget_allows_merge "$EPIC_LOOP_MERGED_THIS_CYCLE"; then
-      printf 'epic-loop: issue #%s — no further merge this cycle: %s\n' "$ISSUE" "${AUTONOMY_REFUSAL:-budget}"
-      return 0
-    fi
 
     CMD="$(epic_loop_phase_command "$CUR_STATE" "$ISSUE" "$CUR_ITEM" "$SLUG" "$CUR_EPIC")"
 
@@ -1280,10 +1259,9 @@ epic_loop_process_issue() { # $1=issue $2=repo-checkout $3=slug $4=state-dir $5=
       # advances to `closing` (item 7's own close gate handles it from there;
       # closing the ISSUE on GH is usually the merge's own closing keyword,
       # not this state — item 7's gate only calls `gh issue close` when that
-      # keyword was absent). Another item exists: only `autonomy_may_chain` (L4) advances
-      # to `dispatching` for it; below L4 this PARKS AT `merged` — the plan's
-      # own words, "parks at the item PR and waits for a human to merge" — and
-      # a later cycle (or a promoted level) picks the chain up from here.
+      # keyword was absent). Another item exists: automatic chaining is
+      # retired (epic 21 item 1), so this always PARKS AT `merged` — a human
+      # dispatches the next item, exactly like every other parked gate above.
       if [ "$CUR_STATE" = merged ]; then
         NEXT_ITEM="$(epic_loop_next_item "$ROOT" "$CUR_EPIC" "$CUR_ITEM")"
         if [ -z "$NEXT_ITEM" ]; then
@@ -1292,15 +1270,9 @@ epic_loop_process_issue() { # $1=issue $2=repo-checkout $3=slug $4=state-dir $5=
           epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" merged closing "epic's last item merged"
           continue
         fi
-        if autonomy_may_chain; then
-          printf 'epic-loop: issue #%s — merged, chaining to item %s\n' "$ISSUE" "$NEXT_ITEM"
-          epic_loop_state_write "$TARGET" "$ISSUE" "$SLUG" "$CUR_EPIC" dispatching "$NEXT_ITEM" "chained from item $CUR_ITEM" || true
-          epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" merged dispatching "chained from item $CUR_ITEM"
-          continue
-        fi
-        printf 'epic-loop: issue #%s — merged, item %s next but may-chain not granted at %s: parked\n' \
-          "$ISSUE" "$NEXT_ITEM" "${AUTONOMY_LEVEL:-L0}"
-        epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" merged merged "may-chain not granted at ${AUTONOMY_LEVEL:-L0}"
+        printf 'epic-loop: issue #%s — merged, item %s next but automatic chaining is retired: parked\n' \
+          "$ISSUE" "$NEXT_ITEM"
+        epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" merged merged "automatic chaining is retired (epic 21 item 1) — a human dispatches item $NEXT_ITEM"
         return 0
       fi
       # ITEM 7's real phase — the close gate. Always advances to `closed`

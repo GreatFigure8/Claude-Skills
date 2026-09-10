@@ -1,6 +1,6 @@
 # Epic: epic-loop — an issue becomes a closed epic without a human in the middle
 
-**Status:** in flight (item 8 of 8)
+**Status:** closed — superseded by epic 21 (session-scoped issue loop), 2026-09-10
 **Source:** GH #93 — report-first intake; issue created at filing
 **Live branch:** `main`   **Integration branch:** `dev` (pushed from `main`'s tip 2026-09-10, scoped to this epic's testing — this repo's own convention per `CLAUDE.md` otherwise has no per-epic integration branch; `dev` is not a repo-wide policy change, promotion `dev` → `main` stays human, see Deferred)   **Pre-epic tag:** `pre-epic-loop` — required; this epic changes what the machine may do unsupervised
 
@@ -241,3 +241,18 @@ it becomes the third. Epic 16 proceeds independently behind `dispatch.sh`'s inte
     dev → main promotion stays human and undecided (Deferred).
 - 2026-09-10: items 2 and 3 verified and merged — PR #100 (`c763da5`) and PR #99 (`c4593a3`).
   Item 4 (approval gate) is next.
+- 2026-09-10 — **closed, superseded by epic 21 (retro).** Item 8 (the launchd/cron
+  re-triggering wiring) was never built, confirmed by epic 21's own grounding — no
+  `com.jonathanstevenson.epic-loop.plist` was ever created, and `epic-loop.sh` remained
+  single-pass with no self-pacing mechanism. The seven items that did merge (the L1/L3/L4
+  ladder extension in `autonomy.sh`, the `phase-session.sh` harness, `verify-item.sh`, and
+  the approval/merge/close gates in `epic-loop.sh`) depended on a human-authored promotion
+  record that has never existed on this machine, so none of this epic's automation ever ran
+  live — L1 and L3 both defaulted to wait, by this epic's own design (see the Risks table).
+  Epic 21 item 1 retired the promotion-record mechanism and the three ladder predicates
+  (`autonomy_may_approve`/`_merge`/`_chain`) this epic's gates called, parking every one of
+  `epic-loop.sh`'s automatic approve/merge/chain phases for a human permanently. The
+  state-machine shape (states, per-issue records, the ledger) is left in place as source
+  material for epic 21 item 3's session-scoped driver, which replaces the "chain of fresh
+  headless sessions" model this epic built with a single live interactive session that
+  dispatches through the existing orchestrated `work-item-executor` path instead.
