@@ -17,6 +17,17 @@
 #   - the STOP and AUTONOMY-OFF presence signals
 #     (autonomy_stop_requested, autonomy_override_active)
 #
+# THE HARM FLOOR ITSELF (epic 21 item 2, wired up here). `autonomy_harm_check`
+# combines the four survivors above with two new deterministic guards —
+# `autonomy_deny_irreversible_op` (refuses a force-push/hard-reset against any
+# branch known to exist on origin) and `autonomy_deny_cross_epic_collision`
+# (refuses acting on a branch another in-flight epic's own status/ directory
+# already claims) — behind ONE well-known entry point: `autonomy.sh
+# --harm-check`, so the CLI mode is a real call site today rather than dead
+# code waiting on item 3's loop driver. This is the deterministic floor only —
+# no "does this look risky" judgment lives here; that is the cold verifier's
+# job (item 3/5).
+#
 # WHAT IS GONE: every level (L0..L4) and the ceiling concept itself, the
 # human-authored grant-record file format and its read/write functions, the
 # require-labels/forbid-labels admission policy, the per-cycle budget
@@ -29,7 +40,12 @@
 #             Sourcing NEVER exits the caller and never mutates anything
 #             outside its own variables.
 #   executed  `autonomy.sh --check [...]` — print the resolved policy for a
-#             human or a fixture. Read-only, always.
+#             human or a fixture. Read-only, always. `autonomy.sh --harm-check
+#             --repo PATH [--branch NAME] [--git-op STRING] [--files N]
+#             [--lines N] [--epics-root PATH] [--epic-dir NAME] < diff-paths`
+#             runs the full harm floor (epic 21 item 2) — the single
+#             well-known entry point every caller reaches, until item 3's
+#             loop driver exists to call `autonomy_harm_check` directly.
 #
 # ---------------------------------------------------------------------------
 # CONFIG FORMAT (repo policy only — no level, no labels, no budget)
@@ -82,6 +98,11 @@
 AUTONOMY_CONFIG_FILE="${INTAKE_AUTONOMY_FILE:-$HOME/.config/claude-intake/autonomy}"
 AUTONOMY_OVERRIDE_FILE="${INTAKE_AUTONOMY_OVERRIDE:-$HOME/.config/claude-intake/AUTONOMY-OFF}"
 AUTONOMY_STOP_FILE="${INTAKE_STOP_FILE:-$HOME/.config/claude-intake/STOP}"
+# Injectable the same way every other script in this control plane injects
+# `git` (see verify-item.sh's GIT_BIN) — this file gains its first `git`
+# invocation with the harm floor's irreversible-op guard, and a fixture stubs
+# this rather than touching a real remote.
+AUTONOMY_GIT_BIN="${INTAKE_GIT:-git}"
 
 # ------------------------------------------------------- the denylist FLOOR
 # Always in force, and there is NO config key that shrinks it — `deny-paths`
@@ -471,6 +492,191 @@ autonomy_check_size() { # $1 = files, $2 = lines
   return 0
 }
 
+# ------------------------------------------------------- irreversible git ops
+# Epic 21 item 2. Refuses a force-push or a hard-reset when the TARGET branch
+# is shared — known to exist on origin, i.e. `refs/remotes/origin/<branch>`
+# resolves in the caller's own checkout. A branch nobody has pushed yet is not
+# shared and this guard has nothing to say about it; that is deliberate, not a
+# gap — rewriting history nobody else can see is not a harm this floor exists
+# to prevent.
+#
+# $1 = repo checkout path   $2 = the branch the operation targets
+# $3 = the git subcommand and its arguments, as ONE string, exactly as it
+#      would be invoked (e.g. "push --force origin main", "reset --hard
+#      HEAD~3") — never executed, only pattern-matched, so building this
+#      string from trusted arguments (never raw user text) is the CALLER's
+#      job, the same discipline autonomy_pattern_ok already states for a
+#      config value reaching a `case` pattern.
+# rc 0 = allowed (either not irreversible, or the target isn't shared).
+# rc 1 = refused, AUTONOMY_REFUSAL names why.
+autonomy_deny_irreversible_op() {
+  local REPO="${1:-}" BRANCH="${2:-}" OP=" ${3:-} " IRREVERSIBLE=no
+  AUTONOMY_REFUSAL=""
+  case "$OP" in
+    *' push '*)
+      case "$OP" in *' --force '*|*' -f '*|*' --force-with-lease'*) IRREVERSIBLE=yes ;; esac ;;
+  esac
+  case "$OP" in
+    *' reset '*)
+      case "$OP" in *' --hard '*|*' --hard') IRREVERSIBLE=yes ;; esac ;;
+  esac
+  [ "$IRREVERSIBLE" = yes ] || return 0
+
+  if [ -z "$BRANCH" ]; then
+    AUTONOMY_REFUSAL="irreversible git operation ($3) attempted with no target branch declared to the harm check — refused rather than guessed"
+    return 1
+  fi
+  if "$AUTONOMY_GIT_BIN" -C "$REPO" show-ref --verify --quiet "refs/remotes/origin/$BRANCH" 2>/dev/null; then
+    AUTONOMY_REFUSAL="irreversible git operation ($3) refused: '$BRANCH' exists on origin — shared history, not a local scratch branch"
+    return 1
+  fi
+  return 0
+}
+
+# --------------------------------------------------------- cross-epic collision
+# Epic 21 item 2. A worktree in this control plane is identified by the branch
+# checked out in it (one branch, one worktree, per the dispatch convention
+# `isolation: "worktree"` uses) — so a branch-name collision IS a worktree
+# collision here; there is no separate worktree registry to check against.
+# Refuses acting on a branch another epic's own status/ directory already
+# claims, as long as that OTHER epic is still in flight (its plan.md does not
+# say `**Status:** closed`) — a closed epic's old status files are history,
+# not a live claim.
+#
+# $1 = epics root (e.g. <repo>/docs/epics)   $2 = THIS epic's own directory
+# name (excluded from the scan, so an item never collides with its own epic's
+# sibling items)   $3 = branch being acted on.
+# rc 0 = no collision. rc 1 = collision, AUTONOMY_REFUSAL names the epic and
+# the status file that claims it.
+autonomy_deny_cross_epic_collision() {
+  local ROOT="${1:-}" MINE="${2:-}" BRANCH="${3:-}" D E PLAN SF B
+  AUTONOMY_REFUSAL=""
+  [ -n "$BRANCH" ] || return 0
+  [ -d "$ROOT" ] || return 0
+  for D in "$ROOT"/*/; do
+    [ -d "$D" ] || continue
+    E="$(basename "$D")"
+    [ "$E" = "$MINE" ] && continue
+    PLAN="${D}plan.md"
+    [ -r "$PLAN" ] || continue
+    grep -qE '^\*\*Status:\*\*[[:space:]]*closed' "$PLAN" 2>/dev/null && continue
+    [ -d "${D}status" ] || continue
+    for SF in "${D}status/"*.json; do
+      [ -r "$SF" ] || continue
+      B="$(grep -o '"branch"[[:space:]]*:[[:space:]]*"[^"]*"' "$SF" 2>/dev/null \
+             | head -1 | sed -E -e 's/.*:[[:space:]]*"//' -e 's/"$//')"
+      if [ -n "$B" ] && [ "$B" = "$BRANCH" ]; then
+        AUTONOMY_REFUSAL="branch '$BRANCH' is already claimed by in-flight epic '$E' at $SF"
+        return 1
+      fi
+    done
+  done
+  return 0
+}
+
+# ------------------------------------------------------------- the harm floor
+# Epic 21 item 2. ONE callable combining every deterministic brake this
+# control plane has, reached through ONE well-known entry point:
+# `autonomy.sh --harm-check` (wired in _autonomy_cli below) for a human, a
+# fixture, or item 3's loop driver once it exists; a sourced caller may call
+# this function directly instead. The CLI mode exists so the harm floor has a
+# real, exercised call site today rather than sitting wired to nothing until
+# item 3 lands.
+#
+# NOT judgment. Every guard here is a deterministic yes/no with no LLM in the
+# loop — "does this look risky" is the cold verifier's job (item 3/5), never
+# this function's.
+#
+# Flags (all optional; an omitted guard's inputs mean that guard has nothing
+# to check and passes silently):
+#   --repo PATH            checkout path (irreversible-op guard; also the
+#                           default base for --epics-root). The CALLER must
+#                           have already run `autonomy_resolve` for this
+#                           repo/slug before calling — this function never
+#                           calls it itself, so a repo's own deny-paths
+#                           additions are the caller's to apply first, the
+#                           same contract verify_item_deterministic_gates
+#                           already follows for the denylist alone.
+#   --branch NAME           the branch this action targets (irreversible-op
+#                           and cross-epic collision guards)
+#   --git-op "STRING"       the literal git subcommand + args about to run,
+#                           one string (irreversible-op guard only)
+#   --files N --lines N     diff size (size-ceiling guard)
+#   --epics-root PATH       default: <repo>/docs/epics (cross-epic guard)
+#   --epic-dir NAME         this epic's own directory name, excluded from the
+#                           collision scan (cross-epic guard)
+# stdin = `git diff --name-only` paths, one per line (denylist guard). Empty
+# or absent stdin is zero paths, which trivially clears the denylist.
+#
+# STDIN CAVEAT, worth stating rather than discovering: feed stdin with a
+# here-string (`autonomy_harm_check ... <<<"$DIFF"`) or a file redirection
+# (`... < file`), never a trailing pipe (`cmd | autonomy_harm_check ...`).
+# bash runs the right-hand side of a pipe in a SUBSHELL, so AUTONOMY_HARM_REASON
+# set inside would vanish the instant the pipe finishes — which is exactly why
+# this function ALSO prints its refusal to stdout on failure (see below),
+# so a piped caller that only wants the exit code and the printed line still
+# gets a real answer.
+#
+# Checked cheapest/most-decisive first, the same ordering discipline
+# verify_item_deterministic_gates states for its own four gates. rc 0 = every
+# guard cleared, nothing printed. rc 1 = the FIRST guard that fired,
+# AUTONOMY_HARM_REASON names which guard and why, and the same text is printed
+# to stdout as one line (`harm-check refused: ...`) so the reason survives
+# even a pipe.
+_autonomy_harm_refuse() { # $1 = reason -> sets AUTONOMY_HARM_REASON, prints, rc 1
+  AUTONOMY_HARM_REASON="$1"
+  printf 'harm-check refused: %s\n' "$AUTONOMY_HARM_REASON"
+  return 1
+}
+
+autonomy_harm_check() {
+  local REPO="" BRANCH="" GIT_OP="" FILES="" LINES="" EPICS_ROOT="" EPIC_DIR=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --repo)       REPO="${2:-}"; shift ;;
+      --branch)     BRANCH="${2:-}"; shift ;;
+      --git-op)     GIT_OP="${2:-}"; shift ;;
+      --files)      FILES="${2:-}"; shift ;;
+      --lines)      LINES="${2:-}"; shift ;;
+      --epics-root) EPICS_ROOT="${2:-}"; shift ;;
+      --epic-dir)   EPIC_DIR="${2:-}"; shift ;;
+      *) : ;;
+    esac
+    shift
+  done
+  [ -n "$EPICS_ROOT" ] || EPICS_ROOT="$REPO/docs/epics"
+  AUTONOMY_HARM_REASON=""
+
+  if autonomy_stop_requested; then
+    _autonomy_harm_refuse "STOP present at $AUTONOMY_STOP_FILE — no action proceeds"
+    return 1
+  fi
+
+  if [ -n "$GIT_OP" ] && ! autonomy_deny_irreversible_op "$REPO" "$BRANCH" "$GIT_OP"; then
+    _autonomy_harm_refuse "irreversible-op guard: $AUTONOMY_REFUSAL"
+    return 1
+  fi
+
+  if [ -n "$BRANCH" ] && ! autonomy_deny_cross_epic_collision "$EPICS_ROOT" "$EPIC_DIR" "$BRANCH"; then
+    _autonomy_harm_refuse "cross-epic collision guard: $AUTONOMY_REFUSAL"
+    return 1
+  fi
+
+  local DENY_HITS
+  DENY_HITS="$(autonomy_deny_diff_paths)"
+  if [ $? -ne 0 ]; then
+    _autonomy_harm_refuse "denylist guard: $(printf '%s\n' "$DENY_HITS" | head -1 | tr '\t' ' ')"
+    return 1
+  fi
+
+  if ! autonomy_check_size "${FILES:-0}" "${LINES:-0}"; then
+    _autonomy_harm_refuse "size-ceiling guard: $AUTONOMY_REFUSAL"
+    return 1
+  fi
+
+  return 0
+}
+
 AUTONOMY_DENY_FLOOR_COUNT="$(printf '%s\n' "$AUTONOMY_DENY_FLOOR" | grep -c .)"
 
 # ---------------------------------------------------------------------- CLI
@@ -478,6 +684,7 @@ AUTONOMY_DENY_FLOOR_COUNT="$(printf '%s\n' "$AUTONOMY_DENY_FLOOR" | grep -c .)"
 # human — and a fixture — can see the whole resolved policy without a session.
 _autonomy_cli() {
   local MODE=check REPO_PATH="" REPO_SLUG="" REPOS_FILE="" RC=0
+  local HARM_BRANCH="" HARM_GIT_OP="" HARM_FILES="" HARM_LINES="" HARM_EPICS_ROOT="" HARM_EPIC_DIR=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --check)  MODE=check ;;
@@ -485,6 +692,13 @@ _autonomy_cli() {
       --slug)   REPO_SLUG="${2:-}"; shift ;;
       --repos)  REPOS_FILE="${2:-}"; shift ;;
       --deny-paths)  MODE=deny ;;
+      --harm-check)  MODE=harm ;;
+      --branch)      HARM_BRANCH="${2:-}"; shift ;;
+      --git-op)      HARM_GIT_OP="${2:-}"; shift ;;
+      --files)       HARM_FILES="${2:-}"; shift ;;
+      --lines)       HARM_LINES="${2:-}"; shift ;;
+      --epics-root)  HARM_EPICS_ROOT="${2:-}"; shift ;;
+      --epic-dir)    HARM_EPIC_DIR="${2:-}"; shift ;;
       -h|--help) sed -n '1,10p' "$0"; return 0 ;;
       *) printf 'unknown argument: %s\n' "$1" >&2; return 1 ;;
     esac
@@ -508,6 +722,16 @@ _autonomy_cli() {
     autonomy_resolve "$REPO_PATH" "$REPO_SLUG"
     autonomy_deny_diff_paths || RC=1
     return "$RC"
+  fi
+
+  if [ "$MODE" = harm ]; then
+    autonomy_resolve "$REPO_PATH" "$REPO_SLUG"
+    if autonomy_harm_check --repo "$REPO_PATH" --branch "$HARM_BRANCH" --git-op "$HARM_GIT_OP" \
+         --files "$HARM_FILES" --lines "$HARM_LINES" --epics-root "$HARM_EPICS_ROOT" --epic-dir "$HARM_EPIC_DIR"; then
+      printf 'harm-check      PASS\n'
+      return 0
+    fi
+    return 1
   fi
 
   if [ -n "$REPOS_FILE" ]; then
