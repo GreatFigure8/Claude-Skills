@@ -69,5 +69,6 @@ the whole way through.
   dispatch happens in a coding session: later in this same session only if Jonathan
   explicitly says to switch modes ("go ahead and build it"), otherwise in a fresh session
   that picks up the approved epic.
-- Reply with: the source ref, the epic path, and the work-item list with branches. Nothing
-  narrative beyond that, and no offer to start building.
+- Run `clear-prompt` with caller `dev-epic-workflow`, post the block, then stop. Nothing
+  narrative beyond that block, and no offer to start building — the block already carries the
+  source ref, the epic path, and the work-item list with branches.

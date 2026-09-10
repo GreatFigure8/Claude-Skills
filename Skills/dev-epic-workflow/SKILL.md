@@ -26,16 +26,17 @@ Phase 0 and Phase 1 **only**: ground, draft, present, get approval, file, link b
 tracker. Nothing past filing — no branch, no worktree, no code, no gates, no dispatch, not even a
 subagent dispatch, and not even for a change that looks trivial or obviously safe. Do not offer
 to implement and do not ask "want me to build this now?" — that standing offer is exactly what
-this mode exists to remove. The session's output is always a filed plan, or one presented and
-awaiting approval, never a diff. Jonathan intakes epic after epic in one sitting this way; the
-session stays in planning mode across every one of them, not just the first. If he explicitly
+this mode exists to remove. The session's output is always a filed plan plus the paste block, or
+a plan presented and awaiting approval, never a diff. Jonathan intakes epic after epic in one
+sitting this way; the session stays in planning mode across every one of them, not just the first. If he explicitly
 instructs implementation mid-session ("go ahead and build it"), that *is* him switching modes —
 say so in one line, then proceed, rather than silently starting to code or continuing to hedge
 with offers he already answered.
 
 **Coding session** — triggered by a direct instruction to implement, fix, build, or ship
-something; by resuming or continuing an in-flight epic; or by Jonathan opening with "this is a
-coding session." Scope is Phase 2 onward, on the assumption that planning already happened
+something; by resuming or continuing an in-flight epic; by a pasted `dev-epic-workflow
+prep-for-clear` block; or by Jonathan opening with "this is a coding session." Scope is Phase 2
+onward, on the assumption that planning already happened
 somewhere: branch, implement, commit, verify, land, checkpoint. Do not open a planning
 conversation, re-litigate scope, or ask whether to plan first — Jonathan starting a coding
 session already made that call. If the requested work genuinely has no filed epic, file one per
@@ -102,9 +103,15 @@ One epic = one coherent outcome, decomposed into work items that each land indep
 
 Then stop and get explicit approval before touching code. Approval is per-epic; if the shape changes, re-present the whole updated plan — never hand over a fragment to merge mentally. When it's an edit to an existing plan, apply the change and re-present the full revised plan document.
 
-**On approval, file the plan.** Move the approved plan into the repo under `docs/epics/`, in a numbered folder ordered by implementation sequence, starting at `01`: `docs/epics/01-<epic-slug>/plan.md`, `docs/epics/02-<epic-slug>/plan.md`, and so on. The number is assigned when the plan is approved (next available number), not when it's drafted. This folder is the epic's home for the life of the epic — status updates, the Deferred parking lot, the runtime control-plane state (`status/`, `CANCEL`) and the closing retro all land in this folder, and any supporting artifacts for the epic live beside it. The **session handoff is the one thing that does not live here**: it is a single file per repo at `docs/epics/handoff.md` (Phase 3.5), never one per epic, so a resuming session opens one known path instead of hunting. Committing the filed plan is the first commit of the epic. **When filing, also ensure the repo's `.gitignore` covers the runtime state**: `.claude/signals/`, `docs/epics/*/status/`, `docs/epics/*/CANCEL` (repo-mode installs of the automation add these automatically). Those three lines are the whole list — the dispatch-time `active-epic` pointer lives *under* `.claude/signals/`, so it is already covered and needs no rule of its own.
+**On approval, file the plan.** Move the approved plan into the repo under `docs/epics/`, in a numbered folder ordered by implementation sequence, starting at `01`: `docs/epics/01-<epic-slug>/plan.md`, `docs/epics/02-<epic-slug>/plan.md`, and so on. The number is assigned when the plan is approved (next available number), not when it's drafted. This folder is the epic's home for the life of the epic — status updates, the Deferred parking lot, the runtime control-plane state (`status/`, `CANCEL`) and the closing retro all land in this folder, and any supporting artifacts for the epic live beside it. The **session handoff is the one thing that does not live here**: it is a single file per repo at `docs/epics/handoff.md` (Phase 3.5), never one per epic, so a resuming session opens one known path instead of hunting. Committing the filed plan is the first commit of the epic. **If `docs/epics/handoff.md` currently describes this epic's own pre-filing draft, delete it in the same filing commit** — no handoff is written at filing; the SessionStart injection plus the `clear-prompt` block below now cover that state, so a stale draft-handoff is deleted rather than left describing a session that has already moved past it. **When filing, also ensure the repo's `.gitignore` covers the runtime state**: `.claude/signals/`, `docs/epics/*/status/`, `docs/epics/*/CANCEL` (repo-mode installs of the automation add these automatically). Those three lines are the whole list — the dispatch-time `active-epic` pointer lives *under* `.claude/signals/`, so it is already covered and needs no rule of its own.
 
 **Filing is not finished until the tracker says so.** When the plan carries a `Source:` ref, the same commit-and-comment turn applies the status mapping in `references/issue-intake.md`: comment the plan path and permalink on the source item, add the work-item checklist, and **label it `epic:planned`** (ADO: state → `Active`). This is one command, and it is not bookkeeping — it is the only machine-readable statement that this issue is spoken for. Unattended intake reads that label as the **highest-authority** signal in its work-in-progress check and refuses to draft a competing proposal over a filed epic; with the label absent it falls back to inferring the same fact from pull requests and branch names, which is slower, and which cannot see an epic filed by direct commit at all. The failure mode is not hypothetical: GH #39 went through six merged work items of its own epic carrying no label, while the other configured repo was 8 of 8 correct. The SessionStart injection now names any in-flight epic whose source issue is unlabelled, so a missed label surfaces at the next session start rather than at the next collision.
+
+Filing has one more step after that, in the same turn: run `clear-prompt` with caller
+`dev-epic-workflow` and post the resulting block in chat. Emitting the block is the last thing
+the intake session does — after filing and after the tracker link-back, never before — and it
+is what a fresh session recognises as a coding-session declaration (Session mode above) and
+dispatches item 1 straight from, no re-planning and no re-stating of the ref, path or items.
 
 Sizing heuristic: a work item that can't be described in a few sentences, or whose diff would exceed a few hundred meaningful lines, is two work items. **An item whose execution regularly exhausts one executor's context is also two work items** — context exhaustion mid-item is a sizing signal, not a fact of life. Splitting is cheap; unsplitting is not.
 
