@@ -1,6 +1,6 @@
 ---
 name: clear-prompt
-description: Compose and post a "prep-for-clear" prompt — a single chat-posted, fenced block that lets a coding session hand off cleanly to a fresh context window without losing state. Use this whenever an orchestrating session (dev-story-sprint is the primary caller today, via its rule 9 token-budget gate; any other long-running orchestrator can call it too) has decided it needs to stop and move to a new chat — approaching its token budget, finishing a clean unit of work mid-story, or Jonathan asking to "clear", "prep for clear", "wrap this context", "move to a new window", or "what do I paste into the next session". This is NOT the on-disk /handoff used by dev-epic-workflow (docs/epics/handoff.md, committed to the repo) — clear-prompt never touches disk or git; it produces a copy-paste resumption prompt Jonathan pastes straight into a fresh chat. Always reach for this instead of improvising an ad hoc summary — the Verified / Claimed-but-NOT-verified split is what makes the next session trustworthy instead of guessing.
+description: Compose and post a "prep-for-clear" prompt — a single chat-posted, fenced block that lets a coding session hand off cleanly to a fresh context window without losing state. Use this whenever an orchestrating session (dev-story-sprint calls it via its rule 9 token-budget gate; dev-epic-workflow calls it right after filing an approved plan and linking the tracker, before anything is dispatched, to post the "epic filed" block Jonathan pastes to start the coding session; any other long-running orchestrator can call it too) has decided it needs to stop and move to a new chat — approaching its token budget, finishing a clean unit of work mid-story, or Jonathan asking to "clear", "prep for clear", "wrap this context", "move to a new window", or "what do I paste into the next session". This is NOT the on-disk /handoff used by dev-epic-workflow mid-epic (docs/epics/handoff.md, committed to the repo) — clear-prompt never touches disk or git; it produces a copy-paste resumption prompt Jonathan pastes straight into a fresh chat. Always reach for this instead of improvising an ad hoc summary — the Verified / Claimed-but-NOT-verified split is what makes the next session trustworthy instead of guessing.
 ---
 
 # Clear Prompt
@@ -21,10 +21,10 @@ It is deliberately **not** the same mechanism as `/handoff`:
 |---|---|---|
 | Medium | Posted in chat, one fenced block | Written to `docs/epics/handoff.md`, committed |
 | Persists how | Jonathan pastes it into a new chat himself | Lives in the repo; next session's SessionStart hook auto-injects it |
-| Owns | Any orchestrator that needs a mid-work resume prompt | `dev-epic-workflow` epics specifically |
+| Owns | Any orchestrator that needs a resume prompt — `dev-story-sprint` mid-sprint, `dev-epic-workflow` right after filing, before anything is dispatched | `dev-epic-workflow` epics mid-flight, once items are already dispatched |
 | Touches git/disk | Never | Yes — commits and pushes as part of checkpointing |
 
-If the session is running `dev-epic-workflow`, use `/handoff`, not this. If it's a sprint, an ad hoc coding session, or anything else that needs to move to a new context window mid-work without an epic folder to write into, use this.
+For `dev-epic-workflow`, which one to use is a distinction, not a refusal. **Mid-epic, with items already dispatched and in flight**, use `/handoff` — the epic folder exists and the next session needs the committed, hook-injected record. **End of intake, with a plan just filed and the tracker linked but nothing dispatched yet**, use `clear-prompt` — there's no in-flight dispatch state to checkpoint, only a fresh plan to hand into a coding session; see the "epic filed, nothing dispatched" shape below. For anything else — a sprint, an ad hoc coding session, or any orchestrator without an epic folder to write into — always use `clear-prompt`.
 
 ## When to call it
 
@@ -73,6 +73,44 @@ Exact next action: <one imperative sentence>
 `<caller>` is the name of the invoking skill or workflow (`dev-story-sprint`, or whatever session context is handing off — e.g. a plain ad hoc session can use its own short description). `<work-slug>` matches whatever the caller already uses to name branches, status directories, or issues, so the next session can grep for it and land on the same state immediately.
 
 The `Items:` block is written as a flat numbered list, not a table — it copy-pastes cleanly and survives being re-read as plain text by the next session. Keep each line to what fits in one line; if a scope needs more explanation than that, the plan itself was under-decomposed and that's worth a line under "Decisions," not a wrapped `Items` entry.
+
+### The "epic filed, nothing dispatched" shape
+
+`dev-epic-workflow` calls this skill from the filing step — after the plan is written and
+the tracker issue is linked, before anything has been dispatched. The template above still
+applies; this is the same shape, filled for that specific moment, with these differences:
+
+- The Task line becomes `Epic: <path to plan.md>` rather than a verbatim outcome sentence —
+  the plan file itself is what the next session needs to open, and the header's `<caller>`
+  is `dev-epic-workflow`.
+- Every line in `Items:` is `NEXT` (or blocked on an earlier item) — nothing is `DONE`,
+  because filing happens before dispatch, not after it.
+- `Verified` stays narrow and mechanical: the filing commit hash, and that the tracker issue
+  is linked and labeled. `Claimed but NOT verified` carries forward anything the intake
+  session asserted in the plan's Grounding section without checking it against the repo —
+  that's what the next session checks first.
+- `In flight / environment` is `none` — by definition, nothing has been dispatched yet.
+- `Exact next action` is always: `This is a coding session. Dispatch item 1 per Phase 2–3.`
+  That sentence is what a fresh session recognizes as a coding-session declaration (see
+  `Skills/dev-epic-workflow/SKILL.md` Session mode).
+
+One worked example, from this epic's own filing:
+
+```
+dev-epic-workflow prep-for-clear — intake-filing-emits-clear-prompt
+Repo: claude-skills   Live: main   Integration: none @ d34139c
+Epic: docs/epics/20-intake-filing-emits-clear-prompt/plan.md
+Source: GH #94
+Items:
+  1. feat/intake-filing-emits-clear-prompt — NEXT: Phase 1's filing paragraph names clear-prompt as the last step, on all three surfaces. Done when: all three surfaces name clear-prompt at the filing step and agree on what the block replaces. Not: Phase 3.5, the SessionStart hook, executor text.
+  2. feat/clear-prompt-epic-filed-shape — NEXT: add dev-epic-workflow as a second caller with the "epic filed" shape. Done when: the skill description and caller table name dev-epic-workflow, and the example block validates against the template fields. Not: the dev-story-sprint shape, the template's field set. (parallel with 1)
+  3. test/clear-prompt-filing-drift-fixture — NEXT: grep-based fixture asserting all three filing surfaces and clear-prompt/SKILL.md carry the contract. Done when: passes on the merged tree, fails under a deliberate mutation. Not: hook behaviour, running any skill. (depends on 1 and 2)
+Decisions made since the plan: no docs/epics/handoff.md written at filing; a stale draft-handoff is deleted in the filing commit instead
+Verified: filing commit d34139c on main; GH #94 linked and labeled
+Claimed but NOT verified: the hook fixture scripts run individually via `bash <file>`, with no aggregating runner to register item 3's fixture in — item 3 checks this first
+In flight / environment: none
+Exact next action: This is a coding session. Dispatch item 1 per Phase 2–3.
+```
 
 ## Posting it
 
