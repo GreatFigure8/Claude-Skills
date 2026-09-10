@@ -345,11 +345,25 @@ worth remembering:
 
 ## What this rung deliberately does not do
 
-- **L1 — approve and file a plan.** Still measured NO-GO. A `planning` plan is never
-  dispatchable, which is the mechanical form of that.
+- **L1 — approve and file a plan.** Still measured NO-GO (epic 08/09, never re-measured).
+  A `planning` plan is never dispatchable, which is the mechanical form of that. The
+  *mechanism* to grant L1 now exists (`autonomy_may_approve`, epic 19 item 2, see
+  `references/autonomy-control-surface.md`), but nothing wires it to a granted repo here —
+  `dispatch.sh` itself still refuses unless a repo resolves **exactly** `L2`, unchanged by
+  that item, and no repo is granted L1 by epic 19 either (its own invariant).
 - **L3 — merge on green.** L3 without L2's track record is an accelerator before brakes.
+  `autonomy_may_merge` exists for the same reason as above; this file does not call it.
 - **L4 — chain to the next item.** One item per cycle, and the cycle ends at the pull
-  request.
+  request. `autonomy_may_chain` exists for the same reason; this file does not call it.
 - **Touch the tracker at all.** No label, no comment, no close. The `Part of #<n>` in the
   pull request body is what puts a cross-reference on the issue timeline, and GitHub does
   that without this runner writing anything.
+
+**Why this file is unchanged by epic 19 item 2.** That item raises `autonomy.sh`'s ceiling
+from L2 to L4 and adds `autonomy_may_approve` / `_merge` / `_chain` — the *permission*
+surface. Whether *this* file, `dispatch.sh`, ever consults them is a separate decision the
+epic 19 invariant reserves for later items (4–6): "`dispatch.sh`... contracts stay
+stable — this epic wraps them, it does not edit their internals." So `DISPATCH_LEVEL=L2`
+above is still an **exact** match, not a floor — a repo resolving L3 or L4 is, as far as
+this file is concerned, indistinguishable from one resolving L1 or L0: dispatch still
+silently returns.

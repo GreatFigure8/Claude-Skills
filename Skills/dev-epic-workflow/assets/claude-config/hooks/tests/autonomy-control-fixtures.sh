@@ -609,8 +609,32 @@ check "D2: and without it, the malformed config is what is reported" "yes" \
       "$(contains "$(libsh "$D2" "$D2/repo" fixture/repo 'autonomy_resolve "$RP" "$RS"; printf "%s" "$AUTONOMY_REASON"')" "autonomy config is invalid")"
 
 echo
-echo "=== E. a level above the ceiling is refused, never clamped =============="
-for LV in L3 L4; do
+echo "=== E. epic 19 item 2: the ceiling raised to L4, and what each rung permits =="
+# UNTIL THIS ITEM this section proved L3/L4 refused as above-ceiling — that was
+# epic 11's whole claim for those two rungs. It is now FALSE by design, so the
+# case is restated rather than left passing on a claim the code stopped making
+# (same discipline section O and M2 already state for their own superseded
+# claims): the ceiling constant itself, in exactly one place —
+check "E: the ceiling constant is L4, and only stated once" "1" \
+      "$(grep -c '^AUTONOMY_CEILING=L4$' "$LIB" | tr -d ' ')"
+
+# A closed-cycle ledger line, matching `bin/epic-loop.sh`'s own
+# `epic_loop_ledger` format field for field (ts, issue, repo, from, to,
+# detail). The promotion record's `ledger` field points AT a file shaped like
+# this; it is never the record's own path.
+ledger_with_cycles() { # $1 = path  $2 = repo slug  $3 = closed-cycle count
+  sandboxed "$1"; : > "$1"
+  local N=1
+  while [ "$N" -le "${3:-0}" ]; do
+    printf '{"ts":"2026-09-0%dT10:00:00Z","issue":%d,"repo":"%s","from":"closing","to":"closed","detail":"fixture cycle %d"}\n' \
+      "$N" "$((90 + N))" "$2" "$N" >> "$1"
+    N=$((N + 1))
+  done
+}
+
+# E1. With a valid record (self-attested cycles AND, above L2, a ledger that
+# backs them), every rung the ceiling used to refuse now resolves.
+for LV in L1 L3 L4; do
   E="$(mkcase "E-$LV")"
   cat > "$E/autonomy" <<CFG
 [$E/repo]
@@ -618,12 +642,169 @@ level = $LV
 max-files = 40
 max-diff-lines = 800
 CFG
-  grant "$E" fixture/repo "$LV" >/dev/null
-  check "E: $LV resolves to L0 even WITH a promotion record" "L0" \
+  ELEDGER="$E/ledger.jsonl"; ledger_with_cycles "$ELEDGER" fixture/repo 3
+  grant "$E" fixture/repo "$LV" "ledger: $ELEDGER" >/dev/null
+  check "E1: $LV now resolves with a valid record — the raised ceiling admits it" "$LV" \
         "$(libsh "$E" "$E/repo" fixture/repo 'autonomy_resolve "$RP" "$RS"; printf "%s" "$AUTONOMY_LEVEL"')"
-  check "E: $LV names the ceiling in the refusal" "yes" \
-        "$(contains "$(libsh "$E" "$E/repo" fixture/repo 'autonomy_resolve "$RP" "$RS"; printf "%s" "$AUTONOMY_REASON"')" "this build implements no rung above L2")"
 done
+
+# E2. The three predicates, at every resolved level. L2 is the one deliberate
+# exception the header comment names: numerically above L1, but NOT
+# may-approve — the epic's own DoD fixture is an L2 record refusing
+# may-approve and an L1 record granting it, both asserted below.
+predicates() { # $1 = case dir -> "approve:merge:chain" as yes/no
+  libsh "$1" "$1/repo" fixture/repo \
+    'autonomy_resolve "$RP" "$RS"; printf "%s:%s:%s" \
+       "$(autonomy_may_approve && echo yes || echo no)" \
+       "$(autonomy_may_merge   && echo yes || echo no)" \
+       "$(autonomy_may_chain   && echo yes || echo no)"'
+}
+check "E2: L0 (unconfigured) — none of the three"    "no:no:no"  "$(predicates "$C")"
+E2A="$(mkcase E2-L1)"; cat > "$E2A/autonomy" <<CFG
+[$E2A/repo]
+level = L1
+max-files = 40
+max-diff-lines = 800
+CFG
+grant "$E2A" fixture/repo L1 >/dev/null
+check "E2: an L1 record — approve only, may-approve true (the DoD fixture, verbatim)" "yes:no:no" "$(predicates "$E2A")"
+E2B="$(mkcase E2-L2)"; cat > "$E2B/autonomy" <<CFG
+[$E2B/repo]
+level = L2
+max-files = 40
+max-diff-lines = 800
+CFG
+grant "$E2B" fixture/repo L2 >/dev/null
+check "E2: an L2 record — none of the three, may-approve false (the DoD fixture, verbatim)" "no:no:no" "$(predicates "$E2B")"
+E2C="$(mkcase E2-L3)"; cat > "$E2C/autonomy" <<CFG
+[$E2C/repo]
+level = L3
+max-files = 40
+max-diff-lines = 800
+CFG
+E2CLEDGER="$E2C/ledger.jsonl"; ledger_with_cycles "$E2CLEDGER" fixture/repo 3
+grant "$E2C" fixture/repo L3 "ledger: $E2CLEDGER" >/dev/null
+check "E2: L3 — approve AND merge, not chain (the DoD fixture: may-merge true)" "yes:yes:no" "$(predicates "$E2C")"
+E2D="$(mkcase E2-L4)"; cat > "$E2D/autonomy" <<CFG
+[$E2D/repo]
+level = L4
+max-files = 40
+max-diff-lines = 800
+CFG
+E2DLEDGER="$E2D/ledger.jsonl"; ledger_with_cycles "$E2DLEDGER" fixture/repo 3
+grant "$E2D" fixture/repo L4 "ledger: $E2DLEDGER" >/dev/null
+check "E2: L4 — all three, 'runs end to end' per the epic's Outcome" "yes:yes:yes" "$(predicates "$E2D")"
+
+# E3. AUTONOMY-OFF pins all three to false regardless of a VALID L4 record —
+# the epic's fourth DoD fixture, verbatim.
+touch "$E2D/AUTONOMY-OFF"
+check "E3: AUTONOMY-OFF pins may-approve/merge/chain to false, even at L4" "no:no:no" \
+      "$(predicates "$E2D")"
+rm -f "$E2D/AUTONOMY-OFF"
+check "E3: ...and without it, the same L4 record grants all three again" "yes:yes:yes" \
+      "$(predicates "$E2D")"
+
+# E4. A forged `granted-by` is refused above L2 exactly as it is at L2 — the
+# epic's own DoD fixture, and section F below already covers L2; this is the
+# same mechanism exercised at a NEW rung to prove it generalises rather than
+# being re-implemented per level.
+E4="$(mkcase E4-forged)"
+cat > "$E4/autonomy" <<CFG
+[$E4/repo]
+level = L3
+max-files = 40
+max-diff-lines = 800
+CFG
+E4LEDGER="$E4/ledger.jsonl"; ledger_with_cycles "$E4LEDGER" fixture/repo 3
+grant "$E4" fixture/repo L3 "ledger: $E4LEDGER" "granted-by: runner" >/dev/null
+check "E4: an L3 record forged 'granted-by: runner' is refused" "yes" \
+      "$(contains "$(libsh "$E4" "$E4/repo" fixture/repo 'autonomy_resolve "$RP" "$RS"; printf "%s" "$AUTONOMY_REASON"')" "which names the automation")"
+check "E4: ...and so may-merge is false, not just the level"       "no" \
+      "$(libsh "$E4" "$E4/repo" fixture/repo 'autonomy_resolve "$RP" "$RS"; if autonomy_may_merge; then printf yes; else printf no; fi')"
+
+# E5. Cycles ABOVE L2 are counted from the ledger, not the record's own say-so
+# — the plan's Scope, verbatim. A record that OVER-states its cycles against
+# what the ledger it points at actually contains is refused, even though the
+# self-attested number alone would have passed.
+E5="$(mkcase E5-ledger-shortfall)"
+cat > "$E5/autonomy" <<CFG
+[$E5/repo]
+level = L3
+max-files = 40
+max-diff-lines = 800
+CFG
+E5LEDGER="$E5/ledger.jsonl"; ledger_with_cycles "$E5LEDGER" fixture/repo 0
+grant "$E5" fixture/repo L3 "ledger: $E5LEDGER" "cycles: 3" >/dev/null
+check "E5: self-attested 3 cycles, but the ledger it points at shows 0 -> refused" "yes" \
+      "$(contains "$(libsh "$E5" "$E5/repo" fixture/repo 'autonomy_resolve "$RP" "$RS"; printf "%s" "$AUTONOMY_REASON"')" "shows only 0 closed cycle(s) for fixture/repo")"
+E5B="$(mkcase E5-ledger-satisfied)"
+cat > "$E5B/autonomy" <<CFG
+[$E5B/repo]
+level = L3
+max-files = 40
+max-diff-lines = 800
+CFG
+E5BLEDGER="$E5B/ledger.jsonl"; ledger_with_cycles "$E5BLEDGER" fixture/repo 1
+grant "$E5B" fixture/repo L3 "ledger: $E5BLEDGER" "cycles: 3" >/dev/null
+check "E5: and once the ledger backs even the minimum, it resolves" "L3" \
+      "$(libsh "$E5B" "$E5B/repo" fixture/repo 'autonomy_resolve "$RP" "$RS"; printf "%s" "$AUTONOMY_LEVEL"')"
+E5C="$(mkcase E5-raised-bar)"
+cat > "$E5C/autonomy" <<CFG
+[global]
+promotion.min-cycles.L3 = 5
+[$E5C/repo]
+level = L3
+max-files = 40
+max-diff-lines = 800
+CFG
+E5CLEDGER="$E5C/ledger.jsonl"; ledger_with_cycles "$E5CLEDGER" fixture/repo 3
+grant "$E5C" fixture/repo L3 "ledger: $E5CLEDGER" "cycles: 5" >/dev/null
+check "E5: raising the bar to 5 refuses a ledger with only 3, even at cycles:5 self-attested" "yes" \
+      "$(contains "$(libsh "$E5C" "$E5C/repo" fixture/repo 'autonomy_resolve "$RP" "$RS"; printf "%s" "$AUTONOMY_REASON"')" "shows only 3 closed cycle(s) for fixture/repo; L3 requires 5")"
+# The ledger check does NOT apply below L3 — L1 and L2 stay self-attestation
+# only, exactly as epic 11 shipped it, proven by pointing at a ledger that
+# would refuse L3 and showing L1 does not care.
+E5D="$(mkcase E5-below-l3-unaffected)"
+cat > "$E5D/autonomy" <<CFG
+[$E5D/repo]
+level = L1
+max-files = 40
+max-diff-lines = 800
+CFG
+grant "$E5D" fixture/repo L1 "ledger: $E5D/nonexistent-ledger.jsonl" >/dev/null
+check "E5: L1 does not consult the ledger at all — self-attestation still suffices" "L1" \
+      "$(libsh "$E5D" "$E5D/repo" fixture/repo 'autonomy_resolve "$RP" "$RS"; printf "%s" "$AUTONOMY_LEVEL"')"
+
+# E6. The new budget keys: config round trip, defaults, validation, and the
+# allow/refuse pair each mirrors `autonomy_budget_allows_item`/`_time` with.
+E6="$(mkcase E6-budget)"
+cat > "$E6/autonomy" <<CFG
+[global]
+budget.max-issues = 2
+budget.max-merges = 3
+CFG
+check "E6: budget.max-issues round trips"  "2" \
+      "$(libsh "$E6" "$E6/repo" fixture/repo 'autonomy_load; printf "%s" "$AUTONOMY_BUDGET_MAX_ISSUES"')"
+check "E6: budget.max-merges round trips"  "3" \
+      "$(libsh "$E6" "$E6/repo" fixture/repo 'autonomy_load; printf "%s" "$AUTONOMY_BUDGET_MAX_MERGES"')"
+check "E6: default max-issues is 1"        "1" \
+      "$(libsh "$C" "$C/repo" fixture/repo 'autonomy_load; printf "%s" "$AUTONOMY_BUDGET_MAX_ISSUES"')"
+check "E6: default max-merges is 1"        "1" \
+      "$(libsh "$C" "$C/repo" fixture/repo 'autonomy_load; printf "%s" "$AUTONOMY_BUDGET_MAX_MERGES"')"
+check "E6: the first issue is allowed"     "yes" \
+      "$(libsh "$C" "$C/repo" fixture/repo 'autonomy_load; if autonomy_budget_allows_issue 0; then printf yes; else printf no; fi')"
+check "E6: the second is not, and says why" "per-cycle issue budget reached (1)" \
+      "$(libsh "$C" "$C/repo" fixture/repo 'autonomy_load; autonomy_budget_allows_issue 1; printf "%s" "$AUTONOMY_REFUSAL"')"
+check "E6: the first merge is allowed"     "yes" \
+      "$(libsh "$C" "$C/repo" fixture/repo 'autonomy_load; if autonomy_budget_allows_merge 0; then printf yes; else printf no; fi')"
+check "E6: the second is not, and says why" "per-cycle merge budget reached (1)" \
+      "$(libsh "$C" "$C/repo" fixture/repo 'autonomy_load; autonomy_budget_allows_merge 1; printf "%s" "$AUTONOMY_REFUSAL"')"
+D="$(bad_case issues '[global]
+budget.max-issues = zero')"
+bad_check "an invalid budget.max-issues" "$D" "budget.max-issues must be an integer >= 1, got 'zero'"
+D="$(bad_case merges '[global]
+budget.max-merges = 0')"
+bad_check "an invalid budget.max-merges" "$D" "budget.max-merges must be an integer >= 1, got '0'"
 
 echo
 echo "=== F. the promotion record: every refusal names what is missing ======="
@@ -1078,9 +1259,10 @@ cli() { INTAKE_AUTONOMY_FILE="$P/autonomy" INTAKE_AUTONOMY_OVERRIDE="$P/AUTONOMY
         /bin/bash "$LIB_UNDER_TEST" "$@" 2>&1; }
 BEFORE="$(find "$P" -type f | sort | xargs cksum 2>/dev/null | cksum)"
 OUT="$(cli --check --repo "$P/repo" --slug fixture/repo)"
-check "P: --check reports the ceiling and that it IS enforced" "yes" "$(contains "$OUT" "ceiling         L2     enforced=yes")"
+check "P: --check reports the ceiling and that it IS enforced" "yes" "$(contains "$OUT" "ceiling         L4     enforced=yes")"
 check "P: reports the resolved level"                        "yes" "$(contains "$OUT" "level         L2")"
 check "P: reports the budget"                                "yes" "$(contains "$OUT" "max-items=2 max-wall-clock=2700s")"
+check "P: and the new epic 19 budget keys, at their default"  "yes" "$(contains "$OUT" "max-issues=1 max-merges=1")"
 check "P: names the config file even when it is absent"      "yes" \
       "$(contains "$(INTAKE_AUTONOMY_FILE="$P/none" INTAKE_AUTONOMY_OVERRIDE="$P/AUTONOMY-OFF" INTAKE_STOP_FILE="$P/STOP" INTAKE_PROMOTIONS_DIR="$P/promotions" HOME="$P/home" /bin/bash "$LIB_UNDER_TEST" --check)" "absent — every repo is L0 and today is unchanged")"
 check "P: says so when the stop file is present" "yes" \
