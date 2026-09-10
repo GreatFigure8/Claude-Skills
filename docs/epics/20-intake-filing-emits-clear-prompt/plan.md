@@ -1,6 +1,6 @@
 # Epic: intake-filing-emits-clear-prompt — end every intake session with a paste-able coding-session prompt
 
-**Status:** approved
+**Status:** in flight (item 1 of 3)
 **Source:** GH #94
 **Live branch:** main   **Integration branch:** none (per repo `CLAUDE.md`, items merge straight to `main`)
 **Approved:** 2026-09-10
