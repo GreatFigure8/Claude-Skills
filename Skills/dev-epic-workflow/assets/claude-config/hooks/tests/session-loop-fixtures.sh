@@ -280,6 +280,70 @@ check "G7 the state tree is git-invisible" "" \
   "$("$REAL_GIT" -C "$REPO" status --porcelain -- docs/epics 2>/dev/null | grep -c intake | sed 's/^0$//')"
 
 echo
+echo "=== H. the merge harm check fails CLOSED when its input is missing ==="
+
+# The denylist half of the harm floor is only as strong as the path list fed
+# to it, and an empty list clears it trivially. The merge gate builds that list
+# with `git diff --name-only <integration>...<branch>`, and this driver never
+# fetches — so the diff can fail outright. A failed diff and an empty diff both
+# arrive as "", and neither may be read as "nothing harmful to find".
+rm -rf "$REPO/docs/epics/.intake"
+loop --start --repo "$REPO" >/dev/null 2>&1
+INTEGRATION="$("$REAL_GIT" -C "$REPO" symbolic-ref --short HEAD 2>/dev/null)"
+
+# The epic the merge gate needs: related to issue #7 by the `Source:` line the
+# whole workflow already uses, never by a name convention.
+mkdir -p "$REPO/docs/epics/07-fixture-epic"
+cat > "$REPO/docs/epics/07-fixture-epic/plan.md" <<PLAN_EOF
+# Fixture epic
+
+**Source:** GH #7
+**Integration branch:** \`$INTEGRATION\`
+**Status:** approved
+PLAN_EOF
+
+# H1/H2 — the diff COMMAND FAILS: feat/ghost does not exist, so the range does
+# not resolve and git exits non-zero.
+loop --record --repo "$REPO" --issue 7 --state verified --item 1 --branch feat/ghost >/dev/null 2>&1
+loop --next --repo "$REPO" > "$SANDBOX/h-ghost.out" 2>&1
+check "H1 an unresolvable merge diff refuses (exit 3)" "3" "$?"
+check "H2 and the action is blocked, not merge" "blocked" \
+  "$(awk '$1=="action"{print $2; exit}' "$SANDBOX/h-ghost.out")"
+check_contains "H3 the refusal names the missing input" 1 \
+  "$(cat "$SANDBOX/h-ghost.out")" "merge harm check has no input"
+
+# H4/H5 — the diff SUCCEEDS and names ZERO paths: a real branch at the same
+# commit as the integration branch. rc 0, empty output — the case that used to
+# clear the floor vacuously.
+"$REAL_GIT" -C "$REPO" branch feat/no-op "$INTEGRATION" >/dev/null 2>&1
+loop --record --repo "$REPO" --issue 7 --state verified --item 1 --branch feat/no-op >/dev/null 2>&1
+loop --next --repo "$REPO" > "$SANDBOX/h-noop.out" 2>&1
+check "H4 a zero-path merge diff refuses (exit 3)" "3" "$?"
+check "H5 and the action is blocked, not merge" "blocked" \
+  "$(awk '$1=="action"{print $2; exit}' "$SANDBOX/h-noop.out")"
+check_contains "H6 the refusal says the diff named zero files" 1 \
+  "$(cat "$SANDBOX/h-noop.out")" "zero changed files"
+
+# H7 — THE CONTROL. A branch with a real, non-denylisted change still merges:
+# the gate above must fail closed on missing input WITHOUT refusing real work.
+"$REAL_GIT" -C "$REPO" checkout -q -b feat/real "$INTEGRATION" >/dev/null 2>&1
+mkdir -p "$REPO/docs"
+printf 'a real change\n' > "$REPO/docs/notes.md"
+# Only the one file: `add -A` would sweep the untracked fixture plan.md into
+# this branch, and checking back out would then delete the very epic the merge
+# gate has to find.
+"$REAL_GIT" -C "$REPO" add docs/notes.md >/dev/null 2>&1
+"$REAL_GIT" -C "$REPO" commit -qm "fixture change" >/dev/null 2>&1
+"$REAL_GIT" -C "$REPO" checkout -q "$INTEGRATION" >/dev/null 2>&1
+loop --record --repo "$REPO" --issue 7 --state verified --item 1 --branch feat/real >/dev/null 2>&1
+loop --next --repo "$REPO" > "$SANDBOX/h-real.out" 2>&1
+check "H7 a real diff still reaches the merge action (exit 0)" "0" "$?"
+check "H8 and the action is merge" "merge" \
+  "$(awk '$1=="action"{print $2; exit}' "$SANDBOX/h-real.out")"
+check_contains "H9 the merge action reports the harm check passing" 1 \
+  "$(cat "$SANDBOX/h-real.out")" "harm-check     pass (merge)"
+
+echo
 printf '%s case(s), %s failure(s)\n' "$CASES" "$FAILURES"
 [ "$FAILURES" -eq 0 ] || exit 1
 exit 0

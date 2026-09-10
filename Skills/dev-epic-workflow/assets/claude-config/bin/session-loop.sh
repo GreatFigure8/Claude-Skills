@@ -101,7 +101,10 @@
 #
 # Exit codes: 0 ok · 1 usage/setup error · 2 refused (not started, wrong repo,
 #             unreadable state) · 3 the harm floor refused the action that was
-#             asked for (`--next` prints `action blocked|halt` and the reason)
+#             asked for (`--next` prints `action blocked|halt` and the reason).
+#             A harm check whose INPUT could not be established refuses the
+#             same way and with the same code — an empty or failed diff is a
+#             missing check, never a passed one.
 #
 # The per-issue state vocabulary, in order. `blocked`, `parked` and `closed`
 # are terminal for an issue; the loop steps to the next admitted issue.
@@ -576,9 +579,31 @@ CAND_EOF
   if [ "$PHASE" = verified ] && [ -n "$BRANCH" ]; then
     session_loop_emit item "$ITEM"
     session_loop_emit branch "$BRANCH"
-    local PATHS
+    local PATHS DIFF_RC=0 PATH_COUNT=0
     PATHS="$("$SESSION_LOOP_GIT" -c core.quotepath=false -C "$SESSION_LOOP_ROOT" \
-               diff --name-only -M "${SESSION_LOOP_R_INTEGRATION}...${BRANCH}" 2>/dev/null)"
+               diff --name-only -M "${SESSION_LOOP_R_INTEGRATION}...${BRANCH}" 2>/dev/null)" || DIFF_RC=$?
+    [ -n "$PATHS" ] && PATH_COUNT="$(printf '%s\n' "$PATHS" | grep -c . 2>/dev/null || printf '0')"
+    case "${PATH_COUNT:-}" in ''|*[!0-9]*) PATH_COUNT=0 ;; esac
+    # FAIL CLOSED ON THE INPUT, NOT JUST ON THE VERDICT. The denylist half of
+    # the harm floor is only as good as the path list it is fed, and an empty
+    # list clears it trivially (autonomy_harm_check's own header says so). This
+    # driver never fetches, so `$BRANCH` may simply not resolve here — and a
+    # diff that FAILED and a diff that found nothing both arrive as "" and
+    # would clear the exact check that exists to catch a bad merge. Neither is
+    # evidence of a safe merge, so neither is allowed to pass for one: an
+    # unresolvable range is a broken precondition, and a verified item whose
+    # merge would change no file is not a merge worth making unattended. Both
+    # refuse, through the same emission the harm floor's own refusals use.
+    if [ "$DIFF_RC" -ne 0 ] || [ "$PATH_COUNT" -eq 0 ]; then
+      if [ "$DIFF_RC" -ne 0 ]; then
+        SESSION_LOOP_HARM_REASON="merge harm check has no input: \`git diff --name-only ${SESSION_LOOP_R_INTEGRATION}...${BRANCH}\` exited $DIFF_RC (the range does not resolve in $SESSION_LOOP_ROOT — the branch may be unfetched, renamed or gone). Refused rather than harm-checked against an empty diff."
+      else
+        SESSION_LOOP_HARM_REASON="merge harm check has no input: \`git diff --name-only ${SESSION_LOOP_R_INTEGRATION}...${BRANCH}\` resolved but names zero changed files. A verified item that changes nothing is not merged unattended."
+      fi
+      session_loop_emit_action "$(session_loop_harm_is_stop && printf halt || printf blocked)" \
+        "$SESSION_LOOP_HARM_REASON" 0
+      return 3
+    fi
     if ! session_loop_harm_check "$BRANCH" "merge --no-ff $BRANCH" "$EPIC" "$PATHS"; then
       session_loop_emit_action "$(session_loop_harm_is_stop && printf halt || printf blocked)" \
         "$SESSION_LOOP_HARM_REASON" 0
