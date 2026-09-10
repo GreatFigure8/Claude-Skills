@@ -5,8 +5,31 @@
 # parses, validates, resolves and reports the controls; `bin/dispatch.sh` is the
 # one file that acts on them, and `AUTONOMY_ENFORCED` below says so in a form a
 # fixture can assert. Nothing in THIS file ever acts: it answers questions about
-# permission and writes nothing but its own variables. What it now grants is one
-# rung — L2 — whose ceiling is an open pull request.
+# permission and writes nothing but its own variables. Epic 11 shipped one rung
+# — L2, whose ceiling is an open pull request. Epic 19 item 2 raises the ceiling
+# to L4 and adds the three predicates a caller asks to go further:
+# `autonomy_may_approve`, `autonomy_may_merge`, `autonomy_may_chain`.
+#
+# WHAT EACH RUNG UNLOCKS, AND THE ONE DELIBERATE EXCEPTION. L1, L3 and L4 are
+# cumulative with each other — L3 grants what L1 grants, plus merge; L4 grants
+# everything. L2 is NOT part of that ladder: it shipped in epic 11 with a fixed,
+# narrower meaning ("execute only, nothing beyond") that predates this item and
+# is not widened by it — a repo configured `level = L2` does not also gain
+# approve just because 2 is greater than 1. That is a real asymmetry, not a
+# typo: it exists because L2 was built and documented before L1, L3 or L4 had
+# any mechanism at all, and this item extends the ladder around that shipped
+# fact rather than rewrite it out from under the one rung already in use.
+#   L1  may-approve                        (this item)
+#   L2  execute/dispatch — UNCHANGED, and NOT also may-approve
+#   L3  may-approve AND may-merge
+#   L4  may-approve AND may-merge AND may-chain — "runs end to end" per the
+#       epic's Outcome
+# `autonomy_resolve` still returns exactly ONE level per repo (the configured
+# `level` key, one promotion record) — there is no mechanism here for a repo to
+# hold several rungs' promotion records at once. Whether dispatch/execute
+# itself becomes reachable above L2 is `bin/dispatch.sh`'s own exact-level gate
+# to change, per epic 19's invariant that this epic wraps `dispatch.sh`, it
+# does not edit its internals.
 #
 # Used two ways:
 #   sourced   `. autonomy.sh` — the runner and (later) the dispatcher call the
@@ -76,6 +99,8 @@
 #   [global]
 #   budget.max-items      = 1
 #   budget.max-wall-clock = 60m
+#   budget.max-issues     = 1
+#   budget.max-merges     = 1
 #   promotion.min-cycles.L2 = 1
 #
 #   [/Users/jonathanstevenson/Source/LODE]     # a PATH section (starts with / or ~)
@@ -115,11 +140,23 @@
 # field was missing. THE AUTOMATION NEVER WRITES THIS DIRECTORY — a system that
 # can write its own promotion evidence has widened its own permissions by
 # another route, so the only writes in this file are to variables.
+#
+# ABOVE L2, `cycles` IS CHECKED TWICE (epic 19 item 2). Every level still
+# requires the human-typed `cycles:` field to be >= promotion.min-cycles.<LEVEL>
+# — that check is unchanged and applies at every level. For L3 and L4 there is
+# a SECOND, independent check: the record's own `ledger` field is opened and
+# the closed cycles it actually contains for this repo are counted — see
+# `autonomy_ledger_cycles` — and THAT count must also meet the bar. A human can
+# mistype a number; the ledger `bin/epic-loop.sh` (item 1) appends to is not
+# something a promotion record's author gets to also author. L1 and L2 are
+# unchanged: self-attestation only, exactly as epic 11 shipped it.
 
 # --------------------------------------------------------------- this build
-# The highest rung this control surface RECOGNISES. L3/L4 are out of scope for
-# epic 11 and are refused rather than silently clamped.
-AUTONOMY_CEILING=L2
+# The highest rung this control surface RECOGNISES. Epic 11 shipped L2 only,
+# refusing L3/L4 rather than clamping. Epic 19 item 2 raises the ceiling to
+# L4 — every level in the vocabulary is now reachable given a valid promotion
+# record; nothing above L4 exists to be refused.
+AUTONOMY_CEILING=L4
 
 # Whether anything ACTS on a resolved level. `no` for the whole of item 1, and
 # `yes` since item 3 wired bin/dispatch.sh to it. This is the machine-readable
@@ -180,10 +217,15 @@ id_rsa*|credential material
 # revised against ledger data once item 2 exists, not a measurement.
 AUTONOMY_DEFAULT_MAX_ITEMS=1
 AUTONOMY_DEFAULT_MAX_WALL_CLOCK=60m
+# Distinct GitHub issues / item PR merges a cycle may advance (epic 19 item 2).
+# Both default to 1 for the same reason max-items does: one at a time is the
+# brake, not a preference to be discovered later.
+AUTONOMY_DEFAULT_MAX_ISSUES=1
+AUTONOMY_DEFAULT_MAX_MERGES=1
 # Minimum clean cycles a promotion record must attest to, per level. 1 means
-# "a record citing no cycle at all is refused". Epic 11 leaves the real number
-# for L3 as an open question, and L3 is refused as above-ceiling here anyway,
-# so no number is invented for it.
+# "a record citing no cycle at all is refused". Above L2 this number is also
+# checked against the epic-loop ledger, not just the record's own say-so — see
+# the promotion-record contract note above `autonomy_promotion_check`.
 AUTONOMY_DEFAULT_MIN_CYCLES=1
 
 # Identities a promotion record may NOT be granted by. A record is a human act;
@@ -198,6 +240,8 @@ AUTONOMY_CONFIG_ERRORS=""
 AUTONOMY_PARSED=""
 AUTONOMY_BUDGET_MAX_ITEMS=""
 AUTONOMY_BUDGET_MAX_SECONDS=""
+AUTONOMY_BUDGET_MAX_ISSUES=""
+AUTONOMY_BUDGET_MAX_MERGES=""
 AUTONOMY_LEVEL=L0
 AUTONOMY_REASON=""
 AUTONOMY_LOG=""
@@ -327,7 +371,7 @@ EXISTS_EOF
 # that quietly does nothing.
 _autonomy_global_key_ok() {
   case "${1-}" in
-    budget.max-items|budget.max-wall-clock) return 0 ;;
+    budget.max-items|budget.max-wall-clock|budget.max-issues|budget.max-merges) return 0 ;;
     promotion.min-cycles.L1|promotion.min-cycles.L2|promotion.min-cycles.L3|promotion.min-cycles.L4) return 0 ;;
     *) return 1 ;;
   esac
@@ -351,6 +395,8 @@ autonomy_load() {
   AUTONOMY_PARSED=""
   AUTONOMY_BUDGET_MAX_ITEMS="$AUTONOMY_DEFAULT_MAX_ITEMS"
   AUTONOMY_BUDGET_MAX_SECONDS="$(autonomy_parse_duration "$AUTONOMY_DEFAULT_MAX_WALL_CLOCK")"
+  AUTONOMY_BUDGET_MAX_ISSUES="$AUTONOMY_DEFAULT_MAX_ISSUES"
+  AUTONOMY_BUDGET_MAX_MERGES="$AUTONOMY_DEFAULT_MAX_MERGES"
 
   if [ ! -e "$AUTONOMY_CONFIG_FILE" ]; then
     AUTONOMY_CONFIG_PRESENT=no
@@ -455,6 +501,16 @@ _autonomy_validate_values() {
       && AUTONOMY_BUDGET_MAX_SECONDS="$SECS" \
       || _autonomy_err "[global]" "budget.max-wall-clock must be a positive duration like 90s, 45m or 2h, got '$V'"
   fi
+  V="$(_autonomy_get global budget.max-issues)"
+  if [ -n "$V" ]; then
+    if autonomy_is_uint "$V" && [ "$V" -ge 1 ]; then AUTONOMY_BUDGET_MAX_ISSUES="$V"
+    else _autonomy_err "[global]" "budget.max-issues must be an integer >= 1, got '$V'"; fi
+  fi
+  V="$(_autonomy_get global budget.max-merges)"
+  if [ -n "$V" ]; then
+    if autonomy_is_uint "$V" && [ "$V" -ge 1 ]; then AUTONOMY_BUDGET_MAX_MERGES="$V"
+    else _autonomy_err "[global]" "budget.max-merges must be an integer >= 1, got '$V'"; fi
+  fi
   for LVL in L1 L2 L3 L4; do
     V="$(_autonomy_get global "promotion.min-cycles.$LVL")"
     [ -n "$V" ] || continue
@@ -521,6 +577,27 @@ autonomy_min_cycles() { # $1 = level
   V="$(_autonomy_get global "promotion.min-cycles.$1")"
   [ -n "$V" ] || V="$AUTONOMY_DEFAULT_MIN_CYCLES"
   printf '%s' "$V"
+}
+
+# Cycles counted from the epic-loop ledger (item 1's `bin/epic-loop.sh`), not
+# self-attested. $1 = ledger file (taken from the promotion record's own
+# `ledger` field) $2 = repo slug -> stdout a non-negative integer.
+#
+# A missing or unreadable ledger counts as ZERO rather than refusing outright
+# here — the caller (`autonomy_promotion_check`) is the one place that turns
+# "zero" into a refusal, so the reason a level is denied is always about the
+# LEVEL's bar, never a second, differently-worded failure mode for "the file
+# is not there". One line format, matching `epic_loop_ledger` exactly:
+#   {"ts":"...","issue":N,"repo":"owner/name","from":"...","to":"...","detail":"..."}
+# A CLOSED cycle is one line naming this repo with `"to":"closed"`; every other
+# transition of the same issue (drafting, dispatching, merged(item N), …) is
+# real ledger traffic but not a completed cycle, so it is not counted.
+autonomy_ledger_cycles() {
+  local F="${1:-}" SLUG="${2:-}" N
+  if [ -z "$F" ] || [ ! -r "$F" ]; then printf '0'; return 0; fi
+  N="$(grep -F "\"repo\":\"$SLUG\"" "$F" 2>/dev/null | grep -c '"to":"closed"')"
+  autonomy_is_uint "$N" && printf '%s' "$N" || printf '0'
+  return 0
 }
 
 # rc 0 = a valid record grants $2 to $1. rc 1 = refused, and
@@ -595,6 +672,20 @@ autonomy_promotion_check() { # $1 = repo slug, $2 = level
   if [ "$R_cycles" -lt "$NEED" ]; then
     AUTONOMY_PROMOTION_DETAIL="promotion record $F attests $R_cycles clean cycle(s); $LVL requires $NEED"
     return 1
+  fi
+  # ABOVE L2, self-attestation is necessary but not sufficient: the record's
+  # own `ledger` field is opened and the CLOSED cycles it actually contains for
+  # this repo must also meet the bar. Additive, never a substitute — a human
+  # still types an honest `cycles:` line (checked above), and now that line
+  # has to survive being checked against the file it points at. L1 and L2 are
+  # unchanged: self-attestation only, exactly as epic 11 shipped it.
+  if [ "$(autonomy_level_num "$LVL")" -gt "$(autonomy_level_num L2)" ]; then
+    local LEDGER_CYCLES
+    LEDGER_CYCLES="$(autonomy_ledger_cycles "$R_ledger" "$SLUG")"
+    if [ "$LEDGER_CYCLES" -lt "$NEED" ]; then
+      AUTONOMY_PROMOTION_DETAIL="promotion record $F attests $R_cycles cycle(s), but its ledger $R_ledger shows only $LEDGER_CYCLES closed cycle(s) for $SLUG; $LVL requires $NEED counted from the ledger"
+      return 1
+    fi
   fi
   AUTONOMY_PROMOTION_DETAIL="promotion record $F: $R_cycles clean cycle(s), granted $R_granted by $R_by"
   return 0
@@ -691,9 +782,43 @@ autonomy_resolve() { # $1 = repo checkout path, $2 = repo slug
   AUTONOMY_REASON="configured $CONF; $AUTONOMY_PROMOTION_DETAIL"
   AUTONOMY_LOG="autonomy: $RSLUG resolves to $CONF — $AUTONOMY_PROMOTION_DETAIL
 autonomy: $RSLUG policy — require-labels=[${AUTONOMY_REQUIRE_LABELS:-none}] forbid-labels=[${AUTONOMY_FORBID_LABELS:-none}] max-files=$AUTONOMY_MAX_FILES max-diff-lines=$AUTONOMY_MAX_DIFF_LINES deny-paths=[${AUTONOMY_DENY_PATHS:-none}] (+${AUTONOMY_DENY_FLOOR_COUNT:-0} built-in)
-autonomy: THIS LEVEL IS ENFORCED — AUTONOMY_ENFORCED=$AUTONOMY_ENFORCED; at L2 the next undispatched work item may be executed and proposed as a pull request, and nothing beyond that (no approval, no merge, no issue closed)"
+autonomy: THIS LEVEL IS ENFORCED — AUTONOMY_ENFORCED=$AUTONOMY_ENFORCED; $(_autonomy_level_permits_text "$CONF")"
   return 0
 }
+
+# One line describing exactly what a resolved level permits, for the log and
+# for nothing else — `autonomy_may_approve` / `_merge` / `_chain` below are the
+# machine-readable form a caller actually branches on; this is prose for a
+# human reading the log. L2's wording is UNCHANGED from epic 11 word for word
+# — it is the one rung whose meaning this item leaves exactly as shipped, see
+# the header comment on "the one deliberate exception".
+_autonomy_level_permits_text() { # $1 = resolved level (L1..L4; L0 never reaches here)
+  case "${1-}" in
+    L1) printf 'at L1 the proposal PR may be approved automatically; nothing beyond that (no execute, no merge, no chain)' ;;
+    L2) printf 'at L2 the next undispatched work item may be executed and proposed as a pull request, and nothing beyond that (no approval, no merge, no issue closed)' ;;
+    L3) printf 'at L3 the proposal PR may be approved and the item PR merged to the integration branch automatically once every gate is green; nothing beyond that (no chaining to the next issue)' ;;
+    L4) printf 'at L4 the loop runs end to end for this repo: approve, merge and chain to the next admitted issue are all automatic (execution itself is still bin/dispatch.sh'"'"'s own gate)' ;;
+    *)  printf 'no autonomy beyond L0 drafting' ;;
+  esac
+}
+
+# ------------------------------------------------------- the ladder predicates
+# Epic 19 item 2. Each reads ONLY `$AUTONOMY_LEVEL`, set by the most recent
+# `autonomy_resolve` call — call resolve first, exactly like every other
+# predicate in this file (`autonomy_admit_labels`, `autonomy_check_size`, …).
+# Under AUTONOMY-OFF or a refused/missing promotion record, resolve has
+# already pinned AUTONOMY_LEVEL to L0, which is in none of the sets below — so
+# these need no separate override check of their own.
+#
+# L1, L3 and L4 are CUMULATIVE with each other (L4 grants what L3 grants, plus
+# chain; L3 grants what L1 grants, plus merge) so that "at L4 it runs end to
+# end" (the epic's Outcome) is literally true. L2 is the one exception: it is
+# NOT part of that ladder, by design — see the header comment above. A repo
+# configured `level = L2` gets execute only, exactly as epic 11 shipped it,
+# whether or not 2 is numerically above 1.
+autonomy_may_approve() { case "$AUTONOMY_LEVEL" in L1|L3|L4) return 0 ;; *) return 1 ;; esac; }
+autonomy_may_merge()   { case "$AUTONOMY_LEVEL" in L3|L4)    return 0 ;; *) return 1 ;; esac; }
+autonomy_may_chain()   { case "$AUTONOMY_LEVEL" in L4)       return 0 ;; *) return 1 ;; esac; }
 
 # ----------------------------------------------------------- admission policy
 # Labels arrive COMMA-FENCED — `,a,b,` — which is the shape the runner's
@@ -807,6 +932,26 @@ autonomy_budget_allows_time() { # $1 = seconds elapsed this cycle
   fi
   return 0
 }
+# Epic 19 item 2: DISTINCT issues advanced, and item PRs merged, this cycle.
+# Independent of max-items (items dispatched) for the same reason `epic-loop.sh`
+# counts a dispatch and a merge separately — chaining to a second issue is not
+# the same event as dispatching a second work item within one issue.
+autonomy_budget_allows_issue() { # $1 = distinct issues already advanced this cycle
+  AUTONOMY_REFUSAL=""
+  if [ "${1:-0}" -ge "$AUTONOMY_BUDGET_MAX_ISSUES" ]; then
+    AUTONOMY_REFUSAL="per-cycle issue budget reached ($AUTONOMY_BUDGET_MAX_ISSUES)"
+    return 1
+  fi
+  return 0
+}
+autonomy_budget_allows_merge() { # $1 = item PRs already merged this cycle
+  AUTONOMY_REFUSAL=""
+  if [ "${1:-0}" -ge "$AUTONOMY_BUDGET_MAX_MERGES" ]; then
+    AUTONOMY_REFUSAL="per-cycle merge budget reached ($AUTONOMY_BUDGET_MAX_MERGES)"
+    return 1
+  fi
+  return 0
+}
 
 AUTONOMY_DENY_FLOOR_COUNT="$(printf '%s\n' "$AUTONOMY_DENY_FLOOR" | grep -c .)"
 
@@ -823,7 +968,10 @@ _autonomy_cli() {
       --repo)   REPO_PATH="${2:-}"; shift ;;
       --slug)   REPO_SLUG="${2:-}"; shift ;;
       --repos)  REPOS_FILE="${2:-}"; shift ;;
-      --deny-paths) MODE=deny ;;
+      --deny-paths)  MODE=deny ;;
+      --may-approve) MODE=approve ;;
+      --may-merge)   MODE=merge ;;
+      --may-chain)   MODE=chain ;;
       -h|--help) sed -n '1,10p' "$0"; return 0 ;;
       *) printf 'unknown argument: %s\n' "$1" >&2; return 1 ;;
     esac
@@ -843,8 +991,9 @@ _autonomy_cli() {
     "$( autonomy_stop_requested && printf 'PRESENT — no cycle will start' || printf 'absent' )"
   printf 'promotions      %s\n' "$AUTONOMY_PROMOTIONS_DIR"
   printf 'ceiling         %s     enforced=%s\n' "$AUTONOMY_CEILING" "$AUTONOMY_ENFORCED"
-  printf 'budget          max-items=%s max-wall-clock=%ss\n' \
-    "$AUTONOMY_BUDGET_MAX_ITEMS" "$AUTONOMY_BUDGET_MAX_SECONDS"
+  printf 'budget          max-items=%s max-wall-clock=%ss max-issues=%s max-merges=%s\n' \
+    "$AUTONOMY_BUDGET_MAX_ITEMS" "$AUTONOMY_BUDGET_MAX_SECONDS" \
+    "$AUTONOMY_BUDGET_MAX_ISSUES" "$AUTONOMY_BUDGET_MAX_MERGES"
   printf 'deny floor      %s built-in patterns, additive only\n' "$AUTONOMY_DENY_FLOOR_COUNT"
 
   if [ "$MODE" = deny ]; then
@@ -852,6 +1001,19 @@ _autonomy_cli() {
     autonomy_deny_diff_paths || RC=1
     return "$RC"
   fi
+
+  case "$MODE" in
+    approve|merge|chain)
+      autonomy_resolve "$REPO_PATH" "$REPO_SLUG"
+      case "$MODE" in
+        approve) autonomy_may_approve ;;
+        merge)   autonomy_may_merge ;;
+        chain)   autonomy_may_chain ;;
+      esac
+      if [ $? -eq 0 ]; then printf 'yes\n'; RC=0; else printf 'no\n'; RC=1; fi
+      return "$RC"
+      ;;
+  esac
 
   if [ -n "$REPOS_FILE" ]; then
     # Mirrors the runner's own `repos` reader: comment/blank skipping, tilde
