@@ -1,6 +1,6 @@
 # Epic: session-scoped autonomous issue loop
 
-**Status:** in flight (item 4 of 6)
+**Status:** in flight (item 5 of 6)
 **Live branch:** main
 **Integration branch:** main
 **Pre-epic tag:** pre-loop-redesign
@@ -146,7 +146,7 @@ integration and live branch. Completed at filing time, 2026-09-10.
 - **Rollback:** the entry point is additive; removing it restores today's manual dispatch
   flow untouched.
 
-### 4. Failure-driven issue filing
+### 4. Failure-driven issue filing — DONE (PR #109, merged b4789da)
 - **Branch:** `feat/loop-files-failure-issues`
 - **Depends on:** item 3
 - **Scope:** When a gate fails in a way that's out of the current item's own scope —
@@ -212,6 +212,13 @@ driver or filing logic assumes the previous item's primitive already exists.
   its own epic later if a real need appears; not reintroduced here.
 - Multiple repos looping simultaneously from one session.
 - Auto-fixing incidentally discovered failures rather than filing them.
+- Issues filed by `issue-filer.sh` (Item 4) carry only `epic-loop-filed`, not the
+  `epic-loop-ready` admission label — a future loop cycle can't autonomously pick one back
+  up without a human adding requirements/acceptance-criteria and the admission label. The
+  plan's "the fix is a future loop cycle picking up the new issue" line assumes that gap
+  closes somehow; needs a decision before Item 6's live-proof run treats it as closed-loop.
+- `run-all-fixtures.sh` hangs indefinitely on `active-epic-fixtures.sh` (observed during
+  Item 4's verification, unrelated to that item's diff) — flagged, not diagnosed or fixed.
 
 ## Log
 - 2026-09-10 — plan approved and filed as epic 21. Step 0 (branch reconciliation)
