@@ -17,6 +17,17 @@
 #   - the STOP and AUTONOMY-OFF presence signals
 #     (autonomy_stop_requested, autonomy_override_active)
 #
+# THE HARM FLOOR ITSELF (epic 21 item 2, wired up here). `autonomy_harm_check`
+# combines the four survivors above with two new deterministic guards —
+# `autonomy_deny_irreversible_op` (refuses a force-push/hard-reset against any
+# branch known to exist on origin) and `autonomy_deny_cross_epic_collision`
+# (refuses acting on a branch another in-flight epic's own status/ directory
+# already claims) — behind ONE well-known entry point: `autonomy.sh
+# --harm-check`, so the CLI mode is a real call site today rather than dead
+# code waiting on item 3's loop driver. This is the deterministic floor only —
+# no "does this look risky" judgment lives here; that is the cold verifier's
+# job (item 3/5).
+#
 # WHAT IS GONE: every level (L0..L4) and the ceiling concept itself, the
 # human-authored grant-record file format and its read/write functions, the
 # require-labels/forbid-labels admission policy, the per-cycle budget
