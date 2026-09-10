@@ -1,89 +1,45 @@
 #!/usr/bin/env bash
-# L2 dispatch — dev-epic-workflow, epic 11 item 3.
+# dispatch — dev-epic-workflow, originally epic 11 item 3 ("L2 dispatch").
 #
-# THIS IS THE ONLY FILE IN THIS WORKFLOW THAT CHANGES WHAT THE MACHINE MAY DO
-# WITHOUT A HUMAN. Items 1, 2 and 2b built a switchboard, a control plane and a
-# capability check and deliberately wired none of them to anything. This wires
-# them, and its ceiling is one sentence:
+# RETIRED AS A DAEMON (epic 21 item 1). `dispatch_repo` used to cut a
+# worktree, push it, invoke `claude -p --agent work-item-executor` headlessly
+# and open the resulting pull request whenever a repo's autonomy-ladder level
+# resolved to the exact rung `L2` — see epics 11 and 19, both closed with a
+# retro pointing here. Epic 21's Outcome is a session-scoped loop that only
+# ever runs inside a live, already-authenticated interactive session: no
+# daemon, no subprocess chain, no autonomy ladder. `dispatch_repo` now always
+# refuses; nothing in this file spawns a subprocess or opens a pull request.
 #
-#   L2's ceiling is an OPEN PULL REQUEST.
+# WHAT SURVIVES, AND WHY. Several functions here are read-only inspection
+# utilities with no dependency on the retired ladder, and other live files
+# still call them directly, so they stay:
+#   dispatch_brief / dispatch_allowed_tools    — phase-session.sh's drafting
+#                                                 utility, verify-item.sh
+#   dispatch_read_executor_status              — epic-loop.sh, verify-item.sh
+#   dispatch_check_diff / dispatch_gate_brief  — denylist+size-ceiling and
+#                                                 gate-set preview, reusable
+#                                                 by Item 2's harm floor
+#   dispatch_work_items / dispatch_select /
+#   dispatch_plan_state / dispatch_plan_source — plan parsing, used by this
+#                                                 file's own read-only CLI
 #
-# The runner never approves a plan, never merges a pull request, never closes an
-# issue, and never chains to a new one. Any commit that weakens that is a defect,
-# not a feature. The refusals here are structural rather than disciplinary: the
-# executor is invoked without `gh pr create`, `gh pr merge` or `gh issue close`
-# in its allowlist, so the ceiling holds even if every sentence in the brief is
-# ignored.
+# WHY THE DENYLIST WAS CHECKED AFTER THE EXECUTOR AND NOT BEFORE, HISTORICALLY.
+# A work item's plan says what it intends to touch in prose, and prose is not
+# machine-readable — that is what epic 10 exists for. A declaration-based
+# check would be checking the wrong thing, so `dispatch_check_diff` still
+# checks the diff that actually exists, which is why it survives this item.
 #
-# WHAT ONE CYCLE DOES, per configured repo, in order:
-#
-#   1. refuse unless the repo resolves to L2 (bin/autonomy.sh, item 1)
-#   2. refuse unless the per-cycle budget allows another item (item 1)
-#   3. ask GitHub for the branches and pull requests of this repo — ONCE
-#   4. find the next UNDISPATCHED work item of an epic at `approved` or
-#      `in flight`, from the `- **Branch:**` line and NEVER from prose
-#   5. admit it against the repo's label policy (item 1)
-#   6. cut its worktree from the integration branch and run the provisioning
-#      preflight — including the smoke check (bin/worktree-provision.sh, item 2b).
-#      A failed smoke check REFUSES THE DISPATCH; it never proceeds hopefully
-#   7. push the branch, so the item is marked dispatched before an executor
-#      exists that could die without saying so
-#   8. invoke `claude -p --agent work-item-executor` with the item's brief and
-#      the per-item-type gate set, and WAIT
-#   9. push whatever it produced, then enforce the denylist and the size ceiling
-#      against `git diff --name-only` — THE REAL DIFF, never the plan's prose
-#  10. open the pull request against the INTEGRATION branch
-#  11. STOP.
-#
-# WHY THE DENYLIST IS CHECKED AFTER THE EXECUTOR AND NOT BEFORE. A work item's
-# plan says what it intends to touch in prose, and prose is not machine-readable
-# — that is what epic 10 exists for. A declaration-based check would be checking
-# the wrong thing, so the check runs against the diff that actually exists, after
-# the executor returns and BEFORE the pull request is opened. A denied path
-# leaves the branch on origin for a human and opens nothing.
-#
-# WHY THE RUNNER OPENS THE PULL REQUEST AND THE EXECUTOR DOES NOT. Same reason:
-# the denylist has to sit between "the work exists" and "the work is proposed",
-# and the only place that fits is here. The brief says so, and the allowlist
-# enforces it.
-#
-# NOTHING HERE RUNS AT L0. Every unconfigured repo on this machine resolves L0,
-# so this file is loaded and never entered, and an unconfigured run's log is
-# byte-identical to what it was before this item — proven by fixture, twice.
-#
-# Usage (read-only unless --dispatch is named):
+# Usage (every mode below is read-only; nothing here ever dispatches):
 #   bin/dispatch.sh --plan <plan.md>                    the work items it parses
 #   bin/dispatch.sh --select --repo <path> --slug <o/n> --epics-dir <dir> [--closing-keyword]
 #   bin/dispatch.sh --check  --repo <path> --slug <o/n>
 #   bin/dispatch.sh --deny   --repo <path> --slug <o/n> --worktree <wt> --base <b>
 #
-#   --closing-keyword (--select only) previews the PR linkage `dispatch_repo`
-#   would write if its own $8 were "yes" — `Closes #<n>` instead of `Part of
-#   #<n>`. Preview only; this CLI never dispatches anything (see below).
+#   --closing-keyword (--select only) previews the PR linkage a caller could
+#   write — `Closes #<n>` instead of `Part of #<n>`. Preview only.
 
 # --------------------------------------------------------------- this build
-# The machine-readable contract marker, the sibling of AUTONOMY_ENFORCED and
-# PROVISION_DISPATCH_WIRED. `yes` says the switchboard is connected. A fixture
-# asserts it, and flipping it to `no` must break a case that passes today.
-DISPATCH_ENFORCED=yes
 DISPATCH_CONTRACT=1
-
-# The one rung this file implements. Anything else is refused by autonomy.sh
-# before it gets here; this constant exists so the refusal can name the rung
-# rather than a level number that means nothing to a reader.
-DISPATCH_LEVEL=L2
-
-# THE ONE FLAG epic 19 item 6 adds. `no` (the default, unchanged for every
-# caller that does not set it — unattended-intake.sh's own L2-only cycle among
-# them) leaves dispatch_pr_body's linkage exactly as it always was: `Part of
-# #<n>`. `dispatch_repo`'s $8 sets this for the duration of one dispatch; it is
-# never inferred here. THE CALLER decides `yes` — bin/epic-loop.sh, item 6 —
-# only after it has independently confirmed BOTH that `autonomy_may_merge` is
-# granted for this repo AND that the item about to be dispatched is the LAST
-# undispatched item of its plan (`epic_loop_next_item` returns empty). Neither
-# of those checks lives in this file: dispatch.sh only carries the flag
-# through to the PR body it already writes.
-DISPATCH_CLOSING_KEYWORD=no
 
 # The field separator dispatch_work_items emits and every reader splits on. See
 # the comment on that function for why it is not a tab.
@@ -94,13 +50,6 @@ DISPATCH_FS="$(printf '\037')"
 # minimal PATH, and the runner has already proven these three are executable.
 DISPATCH_GIT="${INTAKE_GIT:-/usr/bin/git}"
 DISPATCH_GH="${INTAKE_GH:-/opt/homebrew/bin/gh}"
-DISPATCH_CLAUDE="${INTAKE_CLAUDE:-$HOME/.local/bin/claude}"
-
-# How long an executor may run before it is killed. A dispatch that has hung is
-# not a dispatch that is nearly finished, and a launchd job with no ceiling is a
-# job that eventually needs a human with `kill`. Overridable, defaulted low
-# enough to be survivable and high enough for a real item.
-DISPATCH_EXECUTOR_TIMEOUT="${INTAKE_DISPATCH_TIMEOUT:-3600}"
 
 # ------------------------------------------------------------------- state
 DISPATCH_LOG_LAST=""
@@ -587,47 +536,21 @@ DEP_IDS_EOF
 # A source that IS declared and whose labels cannot be READ is a refusal, not an
 # empty list. `unknown` is not `clear`, and a forbidden label that was never
 # fetched is a forbidden label that was never checked.
-dispatch_admit() { # $1 = repo slug
-  local LABELS
-  DISPATCH_REFUSAL=""
-  if ! command -v autonomy_admit_labels >/dev/null 2>&1; then
-    DISPATCH_REFUSAL="the autonomy control surface (bin/autonomy.sh) is not loaded, so no admission policy exists — refusing"
-    return 1
-  fi
-  if [ "${AUTONOMY_LEVEL:-L0}" != "$DISPATCH_LEVEL" ]; then
-    DISPATCH_REFUSAL="this repo resolves ${AUTONOMY_LEVEL:-L0}; dispatch requires $DISPATCH_LEVEL"
-    return 1
-  fi
-  LABELS=",,"
-  if [ "$DISPATCH_SOURCE_KIND" = gh ]; then
-    LABELS="$("$DISPATCH_GH" issue view "$DISPATCH_SOURCE_NUM" --repo "${1:-}" --json labels \
-              -q '",\((((.labels // []) | map(.name)) | join(","))),"' 2>/dev/null)" || LABELS=""
-    case "$LABELS" in
-      ,*,) ;;
-      *) DISPATCH_REFUSAL="the labels of the source issue #$DISPATCH_SOURCE_NUM could not be read, so the admission policy could not be applied — refusing rather than admitting an unchecked item"
-         return 1 ;;
-    esac
-  fi
-  if ! autonomy_admit_labels "$LABELS"; then
-    DISPATCH_REFUSAL="admission refused: ${AUTONOMY_REFUSAL:-label policy}"
-    return 1
-  fi
-  return 0
-}
+# dispatch_admit (the label-admission gate) is retired along with dispatch_repo
+# below (epic 21 item 1) — it existed only to gate the headless invocation this
+# file no longer performs.
 
 # --------------------------------------------------- the gate declaration
 # THE ONE THING AN UNATTENDED EXECUTOR CANNOT WORK OUT FOR ITSELF. Measured on
 # the first real dispatch: the repo-wide gate script covered ZERO TypeScript and
 # ran none of the tests that could catch a regression in the `.tsx` item under
-# way. The attended executor ran the right gates from repo precedent, which is
-# judgement, and judgement is what is absent here.
+# way. An attended executor run from a live session takes its gates from repo
+# precedent, which is judgement; a headless one had none, hence this brief.
 #
-# SO L2 REQUIRES A DECLARED GATE SET. A repo that declares none is refused,
-# naming the file and the key to add. That is not an inconvenience: a gate that
-# has never been shown to run is a hope, and an unattended cycle whose worst
-# available outcome is "gates reported skipped, pull request opened anyway" is
-# exactly what item 2b exists to prevent. Drafting at L0 is untouched by this —
-# a repo with no provisioning section still drafts, exactly as it does today.
+# A repo that declares no gate set is refused here, naming the file and the key
+# to add — a gate that has never been shown to run is a hope. This preview
+# survives the L2 daemon's retirement because it is reusable diagnostic
+# tooling, not part of the retired execution path itself.
 dispatch_gate_brief() { # sets DISPATCH_GATE_BRIEF / DISPATCH_GATE_COMMANDS
   DISPATCH_GATE_BRIEF=""
   DISPATCH_GATE_COMMANDS=""
@@ -778,48 +701,9 @@ $DISPATCH_GATE_COMMANDS
 GATE_CMDS_EOF
 }
 
-# ------------------------------------------------------- the control plane
-# ONE RECORD PER DISPATCH ATTEMPT, in the reserved intake tree item 2 built,
-# written through item 2's guard with the resolved path VISIBLE at the call site
-# (GH #63: correct resolution and invisible resolution are independent
-# properties, and only the second one causes the bug).
-#
-# NAMED `dispatch-<branch-slug>.json` and not `<branch-slug>.json`, deliberately.
-# The executor writes its OWN `<branch-slug>.json` into the EPIC's status tree;
-# these are two different records about two different things — what the executor
-# believes, and what the runner observed — and giving them the same basename in
-# two trees is an invitation to read one and think it is the other.
-#
-# Nothing in this file branches on whether this succeeded. Telemetry that can
-# change a decision is a decision that changes when you watch it.
-dispatch_record() { # $1 = state, $2 = detail
-  local TARGET BODY
-  DISPATCH_STATE="${1:-}"
-  [ -n "${INTAKE_STATUS_DIR:-}" ] || return 0
-  [ -n "$DISPATCH_BRANCH" ] || return 0
-  TARGET="$INTAKE_STATUS_DIR/dispatch-$(dispatch_branch_slug "$DISPATCH_BRANCH").json"
-  BODY="$( {
-    printf '{\n'
-    printf '  "item": "%s item %s — %s",\n' \
-      "$(intake_status_escape "$DISPATCH_EPIC")" \
-      "$(intake_status_escape "$DISPATCH_ITEM")" \
-      "$(intake_status_escape "$DISPATCH_TITLE")"
-    printf '  "branch": "%s",\n'  "$(intake_status_escape "$DISPATCH_BRANCH")"
-    printf '  "state": "%s",\n'   "$(intake_status_escape "${1:-}")"
-    printf '  "detail": "%s",\n'  "$(intake_status_escape "${2:-}")"
-    printf '  "commit": null,\n'
-    printf '  "updated": "%s",\n' "$(dispatch_now)"
-    printf '  "runner": "unattended-intake (L2 dispatch)",\n'
-    printf '  "epic": "%s",\n'    "$(intake_status_escape "$DISPATCH_EPIC")"
-    printf '  "plan": "%s",\n'    "$(intake_status_escape "$DISPATCH_PLAN_REL")"
-    printf '  "executor_state": "%s",\n' "$(intake_status_escape "$DISPATCH_EXECUTOR_STATE")"
-    printf '  "pr": "%s"\n'       "$(intake_status_escape "$DISPATCH_PR_URL")"
-    printf '}'
-  } )"
-  intake_status_write "$TARGET" "$BODY" || true
-  intake_status_ledger dispatch "${1:-}" "${2:-}" ""
-  return 0
-}
+# dispatch_record (one control-plane record per dispatch attempt) is retired
+# with dispatch_repo below (epic 21 item 1) — it recorded state for the
+# headless invocation this file no longer performs.
 
 # ------------------------------------------- the denylist, against the DIFF
 # THE CHECK THAT MAKES THIS RUNG SAFE, and it is asked of `git diff --name-only`
@@ -891,437 +775,33 @@ dispatch_read_executor_status() { # $1 = canonical repo root, $2 = epics dir
   return 0
 }
 
-# ---------------------------------------------------------- the pull request
-# THE CEILING. Against the INTEGRATION branch, always; `Part of #<n>` exactly
-# once — UNLESS the caller set `DISPATCH_CLOSING_KEYWORD=yes` (epic 19 item 6),
-# in which case it is `Closes #<n>` instead. This file never decides which: a
-# closing keyword makes a merge close an issue, and deciding that an item is
-# both the epic's LAST one and cleared to merge is bin/epic-loop.sh's job
-# (`autonomy_may_merge` plus `epic_loop_next_item` returning empty), not this
-# runner's. unattended-intake.sh's own L2-only calls never set the flag, so
-# their PRs carry `Part of #<n>` exactly as before this item.
-#
-# EVERY CLAIM IN IT IS EVIDENCE THE RUNNER ACTUALLY HAS. It did not read the
-# code, it did not run the gates, and it says so rather than filling the
-# template's Verification section with a description of output nobody produced.
-# What it can paste, it pastes: the diffstat, the denylist result, the size
-# against the ceiling, and the executor's own final milestone verbatim.
-dispatch_pr_body() { # $1 = repo slug, $2 = integration branch, $3 = worktree, $4 = base ref
-  local LINKAGE=""
-  case "$DISPATCH_SOURCE_KIND" in
-    gh) if [ "${DISPATCH_CLOSING_KEYWORD:-no}" = yes ]; then LINKAGE="Closes #$DISPATCH_SOURCE_NUM"; else LINKAGE="Part of #$DISPATCH_SOURCE_NUM"; fi ;;
-    ab) if [ "${DISPATCH_CLOSING_KEYWORD:-no}" = yes ]; then LINKAGE="Closes AB#$DISPATCH_SOURCE_NUM"; else LINKAGE="Part of AB#$DISPATCH_SOURCE_NUM"; fi ;;
-  esac
-  cat <<PR_EOF
-> **Opened by an unattended L2 dispatch cycle. No human has read this diff.**
-> A machine selected this work item, wrote it, ran the declared gates and opened
-> this pull request. **Review it cold, against the plan, exactly as you would an
-> attended item** — the pull request is the gate, and nothing merges without you.
+# dispatch_pr_body, the budget counters (_dispatch_elapsed), the executor run
+# log path (_dispatch_run_log_path) and _dispatch_cleanup_worktree are retired
+# with dispatch_repo below (epic 21 item 1) — every one of them existed only to
+# support the headless invocation this file no longer performs.
 
-## Work item
-
-Epic: \`${DISPATCH_PLAN_REL%/plan.md}\` — \`${DISPATCH_PLAN_REL}\`
-Item: ${DISPATCH_ITEM} — ${DISPATCH_TITLE}
-Branch: \`${DISPATCH_BRANCH}\` → \`${2:-}\`
-
-## Summary
-
-Work item ${DISPATCH_ITEM} of \`${DISPATCH_EPIC}\`, executed unattended by
-\`work-item-executor\` and admitted by the L2 dispatch policy. The item was
-selected because no branch named \`${DISPATCH_BRANCH}\` existed on \`origin\` and
-no open or merged pull request had it as head — never from any prose marker in
-the plan.
-
-## In scope
-
-- Work item ${DISPATCH_ITEM} of \`${DISPATCH_PLAN_REL}\` as written. The plan
-  item is the scope; this body does not restate it, because a restatement drafted
-  by the runner would be a second, unreviewed copy of it.
-
-## Deliberately not in scope
-
-- Everything the plan item's own **Not in scope** line names.
-- Any path on the sensitive-path denylist — CI and workflow configuration,
-  \`install.sh\`, the control-plane hooks, the unattended runner, launchd jobs and
-  credential material. That is checked against the real diff below, not promised.
-
-## Verification
-
-**Run by the runner, against the artifacts, after the executor returned:**
-
-- \`git diff --name-only ${4:-}...HEAD\` → **${DISPATCH_DIFF_FILES} file(s)**, **${DISPATCH_DIFF_LINES} line(s)** added+deleted
-- sensitive-path denylist → **clean** (no path matched the built-in floor or this repo's \`deny-paths\`)
-- size ceiling (\`max-files\` / \`max-diff-lines\`) → **within limits**
-- worktree provisioning preflight and smoke check → **passed before the executor was invoked**
-- executor's final milestone, read from its own \`status.json\` → **\`${DISPATCH_EXECUTOR_STATE}\`** — ${DISPATCH_EXECUTOR_DETAIL}
-
-\`\`\`
-$("$DISPATCH_GIT" -C "${3:-}" diff --stat "${4:-}...HEAD" 2>/dev/null | tail -40)
-\`\`\`
-
-\`\`\`
-$("$DISPATCH_GIT" -C "${3:-}" log --oneline "${4:-}..HEAD" 2>/dev/null | head -40)
-\`\`\`
-
-### Gates (per the repo's declared gate set)
-
-The commands below were declared for this item type in the provisioning
-configuration and handed to the executor verbatim:
-
-\`\`\`
-${DISPATCH_GATE_COMMANDS}
-\`\`\`
-
-**Not verified by the runner, stated plainly:** the runner did not re-run these
-and does not paste their output. It read the executor's milestone
-(\`${DISPATCH_EXECUTOR_STATE}\`) and refuses to open a pull request for anything
-short of \`gates-passed\`. If you want the output, it is in the executor's own
-run log on the machine that ran this cycle; if you want certainty, run them here.
-
-## Rollback
-
-Close this pull request, or revert the merge commit. Nothing outside this branch
-was changed by the run: no plan was edited, no issue was labelled, commented on
-or closed, and nothing was merged.
-
-## Plan impact
-
-- Mark item ${DISPATCH_ITEM} of \`${DISPATCH_PLAN_REL}\` done when this merges,
-  and move anything the executor's return summary parked into the Deferred list.
-
-${LINKAGE}
-PR_EOF
-}
-
-# ------------------------------------------------------------------ budget
-# CYCLE-WIDE, not per repo. "One item at a time" is an epic 11 invariant and the
-# default is one item per cycle, so the counter lives with the library — which is
-# sourced once per cycle — rather than being threaded through the runner where
-# somebody would eventually reset it in the repo loop.
-DISPATCH_ITEMS_DONE=0
-DISPATCH_CYCLE_START="$(date -u +%s 2>/dev/null || printf '0')"
-
-_dispatch_elapsed() {
-  local NOW
-  NOW="$(date -u +%s 2>/dev/null || printf '0')"
-  case "$NOW$DISPATCH_CYCLE_START" in *[!0-9]*) printf '0'; return 0 ;; esac
-  printf '%s' $((NOW - DISPATCH_CYCLE_START))
-}
-
-# --------------------------------------------------------------- the cycle
-# THE EXECUTOR'S OUTPUT GOES IN THE WORKTREE'S ADMIN DIRECTORY, NEVER IN ITS
-# WORKING TREE, and this was measured rather than reasoned about: written to
-# `$WT/.dispatch-run.log` it is an untracked file in a checkout where an
-# unattended executor is about to run `git add -A` — so the runner's own log
-# lands in the executor's commit, in the diff the denylist checks, and in the
-# pull request a human reviews. The fixture caught it as "2 file(s)" where the
-# item touched one. Same reasoning, same fix, as item 2b's provisioning log.
-_dispatch_run_log_path() { # $1 = worktree -> stdout
-  local G
-  G="$("$DISPATCH_GIT" -C "${1:-}" rev-parse --absolute-git-dir 2>/dev/null)" || G=""
-  if [ -n "$G" ] && [ -d "$G" ]; then
-    printf '%s/dispatch-executor.log' "$G"
-  else
-    printf '%s/.dispatch-executor-%s.log' "${TMPDIR:-/tmp}" "$$"
-  fi
-}
-
-_dispatch_cleanup_worktree() { # $1 = repo checkout
-  [ -n "$DISPATCH_WORKTREE" ] || return 0
-  # The worktree may hold environment files copied in by provisioning. Removing
-  # it is not tidiness — a credential-bearing checkout that outlives the run is a
-  # credential-bearing checkout nobody is watching.
-  "$DISPATCH_GIT" -C "${1:-}" worktree remove --force "$DISPATCH_WORKTREE" 2>/dev/null || true
-  rm -rf "$DISPATCH_WORKTREE" 2>/dev/null || true
-  DISPATCH_WORKTREE=""
-  return 0
-}
-
-# rc 0 = an item was dispatched and its pull request is open
-# rc 1 = nothing to do, and nothing to say
-# rc 2 = refused or failed; DISPATCH_REFUSAL says why and has been emitted
-# rc 3 = --dry-run reported what would happen and changed nothing
+# rc 1 always now — see the header note at the top of this file. Signature and
+# rc vocabulary kept unchanged from epic 11/19 because unattended-intake.sh and
+# epic-loop.sh (both out of this item's scope) still call this function by
+# name; only its body is retired.
 dispatch_repo() { # $1 repo, $2 slug, $3 epics dir, $4 integration branch,
                   # $5 worktree root, $6 dry-run (yes|no), $7 skill dir,
                   # $8 closing-keyword (yes|no, default no — epic 19 item 6)
   local REPO="${1:-}" SLUG="${2:-}" EDIR="${3:-docs/epics}" BASE="${4:-}"
   local WTROOT="${5:-}" DRY="${6:-no}" SKILL="${7:-}"
-  local BASEREF="origin/$BASE" WT RC CPID WAITED HEARTBEAT ROOT
-  local TOOLS=""
-  DISPATCH_CLOSING_KEYWORD="${8:-no}"
 
-  DISPATCH_REFUSAL=""; DISPATCH_PR_URL=""; DISPATCH_WORKTREE=""
-  DISPATCH_EXECUTOR_STATE=""; DISPATCH_EXECUTOR_DETAIL=""
-  # Cleared per repo. The runner reads it to decide whether this repo's cycle
-  # record closes `finished` or `failed`, and inheriting the previous repo's
-  # value would attribute one repo's failure to another — the same defect
-  # REPO_FAILED_ON_ENTRY already exists to prevent on the drafting side.
-  DISPATCH_STATE=""
-
-  # THE LEVEL, FIRST AND SILENTLY. Every repo with no autonomy configuration
-  # resolves L0, and an L0 repo produces NOT ONE LINE from this file — no log, no
-  # GitHub call, no worktree. That silence is the inertness guarantee at the level
-  # a human notices, and it lives HERE rather than in the runner's `if` for the
-  # same reason `provision_resolve` owns its own silent path: the policy owns the
-  # question, and the caller should not have to know the answer's variable name.
-  if [ "${AUTONOMY_LEVEL:-L0}" != "$DISPATCH_LEVEL" ]; then
-    return 1
-  fi
-
-  # THE BUDGET, NEXT. It is a hard stop: exceeding it stops new work and never
-  # shrinks work to fit.
-  if ! autonomy_budget_allows_item "$DISPATCH_ITEMS_DONE"; then
-    dispatch_emit "L2: $SLUG — no dispatch this cycle: ${AUTONOMY_REFUSAL:-budget}"
-    return 1
-  fi
-  if ! autonomy_budget_allows_time "$(_dispatch_elapsed)"; then
-    dispatch_emit "L2: $SLUG — no dispatch this cycle: ${AUTONOMY_REFUSAL:-budget}"
-    return 1
-  fi
-
-  # THE OVERRIDE, RE-ASKED. autonomy_resolve already honoured it, but a human who
-  # reaches for the kill switch does so DURING a cycle, not before one, and every
-  # `[ -e ]` between here and the pull request is a place they can still be heard.
-  if autonomy_override_active; then
-    dispatch_emit "L2: $SLUG — global override present at $AUTONOMY_OVERRIDE_FILE; nothing is dispatched (drafting continues)"
-    return 1
-  fi
-
-  if ! dispatch_load_signals "$SLUG"; then
-    dispatch_emit "L2 REFUSED: $DISPATCH_REFUSAL"
-    return 2
-  fi
-  if ! dispatch_select "$REPO" "$EDIR"; then
-    if [ -n "$DISPATCH_REFUSAL" ]; then
-      dispatch_emit "L2 REFUSED: $DISPATCH_REFUSAL"
-      return 2
-    fi
-    dispatch_emit "L2: $SLUG — no approved or in-flight epic has an undispatched work item"
-    return 1
-  fi
-
-  dispatch_emit "L2: $SLUG — next undispatched item is $DISPATCH_EPIC item $DISPATCH_ITEM ($DISPATCH_TITLE) on branch $DISPATCH_BRANCH [epic is $DISPATCH_EPIC_STATE]"
-
-  if ! dispatch_admit "$SLUG"; then
-    dispatch_emit "L2 REFUSED: $DISPATCH_EPIC item $DISPATCH_ITEM — $DISPATCH_REFUSAL"
-    dispatch_record refused "$DISPATCH_REFUSAL"
-    return 2
-  fi
-
-  # Resolved before the worktree exists so a repo that declares no gates is
-  # refused without anything having been created for it.
-  if command -v provision_resolve >/dev/null 2>&1; then
-    provision_resolve "$REPO" "$SLUG" || true
-  fi
-  if ! dispatch_gate_brief; then
-    dispatch_emit "L2 REFUSED: $DISPATCH_EPIC item $DISPATCH_ITEM — $DISPATCH_REFUSAL"
-    dispatch_record refused "$DISPATCH_REFUSAL"
-    return 2
-  fi
-
-  if [ "$DRY" = yes ]; then
-    dispatch_emit "DRY-RUN: would cut $WTROOT/$(basename "$REPO")-$(dispatch_branch_slug "$DISPATCH_BRANCH") on $DISPATCH_BRANCH from origin/$BASE"
-    dispatch_emit "DRY-RUN: would provision it, smoke-check it, and invoke claude -p --agent work-item-executor"
-    dispatch_emit "DRY-RUN: would check the real diff against the denylist and the size ceiling, then open a PR against $BASE. Nothing merged, nothing closed."
-    return 3
-  fi
-
-  WT="$WTROOT/$(basename "$REPO")-$(dispatch_branch_slug "$DISPATCH_BRANCH")"
-  # Belt and braces, exactly as the drafting path does it: never create outside
-  # the one declared root, whatever the repo basename or branch turned out to be.
-  case "$WT" in
-    "$WTROOT"/*) ;;
-    *) DISPATCH_REFUSAL="refusing to create a worktree outside $WTROOT"
-       dispatch_emit "L2 REFUSED: $DISPATCH_REFUSAL"; dispatch_record refused "$DISPATCH_REFUSAL"; return 2 ;;
-  esac
-  if [ -e "$WT" ]; then
-    DISPATCH_REFUSAL="$WT already exists — refusing to dispatch into a directory this cycle did not create"
-    dispatch_emit "L2 REFUSED: $DISPATCH_REFUSAL"; dispatch_record refused "$DISPATCH_REFUSAL"; return 2
-  fi
-  if "$DISPATCH_GIT" -C "$REPO" show-ref --verify --quiet "refs/heads/$DISPATCH_BRANCH" 2>/dev/null; then
-    DISPATCH_REFUSAL="a local branch \`$DISPATCH_BRANCH\` already exists in $REPO — that is somebody's work, and this runner never touches it"
-    dispatch_emit "L2 REFUSED: $DISPATCH_REFUSAL"; dispatch_record refused "$DISPATCH_REFUSAL"; return 2
-  fi
-
-  dispatch_record admitted "cutting $DISPATCH_BRANCH from origin/$BASE"
-  intake_status_cycle dispatching "L2: $DISPATCH_EPIC item $DISPATCH_ITEM on $DISPATCH_BRANCH ($SLUG)"
-
-  # NEVER touch the target checkout — no switch, no pull (GH #27). Fetching is
-  # enough: the worktree is cut from origin/<integration>.
-  "$DISPATCH_GIT" -C "$REPO" fetch -q origin "$BASE" 2>/dev/null || true
-  if ! "$DISPATCH_GIT" -C "$REPO" worktree add -q "$WT" -b "$DISPATCH_BRANCH" "$BASEREF" 2>/dev/null; then
-    DISPATCH_REFUSAL="could not create the worktree $WT on $DISPATCH_BRANCH from $BASEREF"
-    dispatch_emit "L2 REFUSED: $DISPATCH_REFUSAL"; dispatch_record failed "$DISPATCH_REFUSAL"
-    "$DISPATCH_GIT" -C "$REPO" branch -D "$DISPATCH_BRANCH" 2>/dev/null || true
-    return 2
-  fi
-  DISPATCH_WORKTREE="$WT"
-
-  # THE PREFLIGHT — the difference between "we provisioned" and "the gate can
-  # run". A failure here refuses the dispatch and leaves NOTHING behind: no
-  # worktree, no local branch, and nothing on origin, so a transient install
-  # failure does not permanently retire a work item.
-  if command -v provision_preflight >/dev/null 2>&1; then
-    if ! provision_preflight "$REPO" "$SLUG" "$WT"; then
-      DISPATCH_REFUSAL="worktree provisioning refused this dispatch: ${PROVISION_REFUSAL:-unknown reason}"
-      dispatch_emit "L2 REFUSED: $DISPATCH_EPIC item $DISPATCH_ITEM — $DISPATCH_REFUSAL"
-      dispatch_record refused "$DISPATCH_REFUSAL"
-      _dispatch_cleanup_worktree "$REPO"
-      "$DISPATCH_GIT" -C "$REPO" branch -D "$DISPATCH_BRANCH" 2>/dev/null || true
-      return 2
-    fi
-    while IFS= read -r PLINE; do
-      [ -n "$PLINE" ] || continue
-      dispatch_emit "$PLINE"
-    done <<PROVISION_REPORT_EOF
-${PROVISION_REPORT:-}
-PROVISION_REPORT_EOF
-  else
-    DISPATCH_REFUSAL="the provisioning library is not loaded, so nothing verified that this worktree can run its gates"
-    dispatch_emit "L2 REFUSED: $DISPATCH_REFUSAL"; dispatch_record refused "$DISPATCH_REFUSAL"
-    _dispatch_cleanup_worktree "$REPO"
-    "$DISPATCH_GIT" -C "$REPO" branch -D "$DISPATCH_BRANCH" 2>/dev/null || true
-    return 2
-  fi
-
-  # THE POINT OF NO RETRY. Pushing the branch here — before an executor exists
-  # that could die without saying so — is what makes the dispatchability rule
-  # answer honestly next cycle. An executor that dies at its first tool call
-  # leaves a branch at the base commit and a control-plane record saying so; the
-  # item is not silently re-dispatched every ten minutes forever, which is the
-  # worst behaviour available to an unattended loop.
-  if ! "$DISPATCH_GIT" -C "$WT" push -q -u origin "$DISPATCH_BRANCH" 2>/dev/null; then
-    DISPATCH_REFUSAL="could not push $DISPATCH_BRANCH to origin — refusing to run an executor whose work would have nowhere to survive"
-    dispatch_emit "L2 REFUSED: $DISPATCH_REFUSAL"; dispatch_record failed "$DISPATCH_REFUSAL"
-    _dispatch_cleanup_worktree "$REPO"
-    "$DISPATCH_GIT" -C "$REPO" branch -D "$DISPATCH_BRANCH" 2>/dev/null || true
-    return 2
-  fi
-  dispatch_emit "L2: $DISPATCH_BRANCH pushed to origin at $BASEREF — the item is now marked dispatched whatever happens next"
-
-  DISPATCH_ITEMS_DONE=$((DISPATCH_ITEMS_DONE + 1))
-  DISPATCH_RUN_LOG="$(_dispatch_run_log_path "$WT")"
-  : > "$DISPATCH_RUN_LOG" 2>/dev/null || true
-  dispatch_record dispatching "executor running in $WT; full output at $DISPATCH_RUN_LOG"
-  dispatch_emit "L2: invoking claude -p --agent work-item-executor for $DISPATCH_EPIC item $DISPATCH_ITEM (timeout ${DISPATCH_EXECUTOR_TIMEOUT}s)"
-
-  TOOLS="$(dispatch_allowed_tools | tr '\n' ' ')"
-  dispatch_emit "L2: executor allowlist — $TOOLS"
-  # shellcheck disable=SC2086
-  ( cd "$WT" && "$DISPATCH_CLAUDE" -p "$(dispatch_brief "$SLUG" "$BASE" "$SKILL")" \
-      --agent work-item-executor \
-      --model sonnet \
-      --add-dir "$SKILL" \
-      --allowed-tools $TOOLS ) > "$DISPATCH_RUN_LOG" 2>&1 &
-  CPID=$!
-  # A HEARTBEAT, NOT A HOPE. Two executors on this epic froze at one milestone
-  # for over an hour and the only reason anybody noticed was a human counting
-  # minutes. A quiet run and a dead one are not the same thing, so this says
-  # which it is every five minutes and moves `updated` on the record each time.
-  WAITED=0; HEARTBEAT=0
-  while kill -0 "$CPID" 2>/dev/null; do
-    if [ "$WAITED" -ge "$DISPATCH_EXECUTOR_TIMEOUT" ]; then
-      dispatch_emit "L2: executor exceeded ${DISPATCH_EXECUTOR_TIMEOUT}s — terminating it. Everything it pushed survives."
-      kill -TERM "$CPID" 2>/dev/null || true
-      sleep 5
-      kill -KILL "$CPID" 2>/dev/null || true
-      break
-    fi
-    sleep 5
-    WAITED=$((WAITED + 5)); HEARTBEAT=$((HEARTBEAT + 5))
-    if [ "$HEARTBEAT" -ge 300 ]; then
-      HEARTBEAT=0
-      dispatch_emit "L2: executor still running — ${WAITED}s elapsed on $DISPATCH_BRANCH"
-      dispatch_record dispatching "executor still running — ${WAITED}s elapsed"
-    fi
-  done
-  wait "$CPID" 2>/dev/null
-  RC=$?
-  dispatch_emit "L2: executor exited $RC after ${WAITED}s"
-
-  # Whatever it produced, get it onto origin before anything is judged. The
-  # executor's contract says push on the first commit; this is the runner not
-  # relying on that having happened.
-  "$DISPATCH_GIT" -C "$WT" push -q -u origin "$DISPATCH_BRANCH" 2>/dev/null || true
-
-  ROOT="$("$DISPATCH_GIT" -C "$REPO" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-  [ -n "$ROOT" ] && ROOT="$(dirname "$ROOT")" || ROOT="$REPO"
-  dispatch_read_executor_status "$ROOT" "$EDIR" || true
-
-  if [ "$DISPATCH_EXECUTOR_STATE" = blocked ]; then
-    # RECORDED, AND THE EPIC IS LEFT ALONE. Never retried: a block is by
-    # definition something the automation cannot resolve, and an unattended retry
-    # loop on an ambiguous plan is the worst behaviour available here.
-    DISPATCH_REFUSAL="the executor returned \`blocked\`: ${DISPATCH_EXECUTOR_DETAIL:-no detail given}. No pull request was opened, the epic is left alone, and this is NOT retried — a human answers the question and re-dispatches"
-    dispatch_emit "L2 BLOCKED: $DISPATCH_EPIC item $DISPATCH_ITEM — $DISPATCH_REFUSAL"
-    dispatch_record blocked "$DISPATCH_REFUSAL"
-    _dispatch_cleanup_worktree "$REPO"
-    return 2
-  fi
-  if [ "$RC" -ne 0 ]; then
-    DISPATCH_REFUSAL="the executor exited $RC (full output at $DISPATCH_RUN_LOG, which lives in the worktree's admin directory and is removed with it). The branch \`$DISPATCH_BRANCH\` is on origin and is left for a human"
-    dispatch_emit "L2 FAILED: $DISPATCH_EPIC item $DISPATCH_ITEM — $DISPATCH_REFUSAL"
-    dispatch_record failed "$DISPATCH_REFUSAL"
-    _dispatch_cleanup_worktree "$REPO"
-    return 2
-  fi
-  case "$DISPATCH_EXECUTOR_STATE" in
-    gates-passed|pr-opened) ;;
-    '') DISPATCH_REFUSAL="the executor wrote no status record at all, so nothing says its gates ran. A pull request opened on that basis is exactly the 'gates reported skipped, PR opened anyway' outcome this rung exists to prevent. The branch \`$DISPATCH_BRANCH\` is on origin and is left for a human"
-        dispatch_emit "L2 REFUSED: $DISPATCH_EPIC item $DISPATCH_ITEM — $DISPATCH_REFUSAL"
-        dispatch_record refused "$DISPATCH_REFUSAL"
-        _dispatch_cleanup_worktree "$REPO"; return 2 ;;
-    *)  DISPATCH_REFUSAL="the executor's last milestone was \`$DISPATCH_EXECUTOR_STATE\` (${DISPATCH_EXECUTOR_DETAIL:-no detail}), not \`gates-passed\` — it did not finish. No pull request was opened; the branch \`$DISPATCH_BRANCH\` is on origin and is left for a human"
-        dispatch_emit "L2 REFUSED: $DISPATCH_EPIC item $DISPATCH_ITEM — $DISPATCH_REFUSAL"
-        dispatch_record refused "$DISPATCH_REFUSAL"
-        _dispatch_cleanup_worktree "$REPO"; return 2 ;;
-  esac
-
-  if ! dispatch_check_diff "$WT" "$BASEREF"; then
-    dispatch_emit "L2 REFUSED: $DISPATCH_EPIC item $DISPATCH_ITEM — $DISPATCH_REFUSAL"
-    dispatch_record refused "$DISPATCH_REFUSAL"
-    _dispatch_cleanup_worktree "$REPO"
-    return 2
-  fi
-  dispatch_emit "L2: diff admitted — $DISPATCH_DIFF_FILES file(s), $DISPATCH_DIFF_LINES line(s), no denylisted path"
-
-  # THE LAST PLACE THE KILL SWITCH IS HEARD. The executor may have run for an
-  # hour, and the file may have appeared during it. L2's ceiling is a pull
-  # request, so dropping to L0 mid-flight means the pull request is not opened.
-  # The work is on origin either way; nothing is lost, and a human decides.
-  if autonomy_override_active; then
-    DISPATCH_REFUSAL="the global override appeared at $AUTONOMY_OVERRIDE_FILE while the executor was running — every repo is pinned to L0, so no pull request is opened. The branch \`$DISPATCH_BRANCH\` is pushed and complete; open it by hand, or remove the override and re-dispatch"
-    dispatch_emit "L2 REFUSED: $DISPATCH_REFUSAL"
-    dispatch_record refused "$DISPATCH_REFUSAL"
-    _dispatch_cleanup_worktree "$REPO"
-    return 2
-  fi
-
-  DISPATCH_PR_URL="$("$DISPATCH_GH" pr create --repo "$SLUG" --base "$BASE" --head "$DISPATCH_BRANCH" \
-      --title "[unattended] $DISPATCH_EPIC item $DISPATCH_ITEM — $DISPATCH_TITLE" \
-      --body "$(dispatch_pr_body "$SLUG" "$BASE" "$WT" "$BASEREF")" 2>/dev/null || true)"
-  if [ -z "$DISPATCH_PR_URL" ]; then
-    DISPATCH_REFUSAL="the pull request could not be created. The branch \`$DISPATCH_BRANCH\` is pushed and complete; open it by hand"
-    dispatch_emit "L2 FAILED: $DISPATCH_REFUSAL"
-    dispatch_record failed "$DISPATCH_REFUSAL"
-    _dispatch_cleanup_worktree "$REPO"
-    return 2
-  fi
-
-  dispatch_emit "L2: $DISPATCH_EPIC item $DISPATCH_ITEM -> $DISPATCH_PR_URL (open, unmerged; nothing was approved, merged or closed)"
-  dispatch_record pr-opened "$DISPATCH_PR_URL"
-  intake_status_cycle dispatched "L2: $DISPATCH_EPIC item $DISPATCH_ITEM opened $DISPATCH_PR_URL — stopping there"
-  _dispatch_cleanup_worktree "$REPO"
-  return 0
+  DISPATCH_REFUSAL="unattended dispatch is retired (epic 21 item 1) — dispatch only runs from a live, already-authenticated interactive session via the orchestrated work-item-executor path. Nothing was cut, pushed or invoked for $SLUG"
+  DISPATCH_STATE="refused"
+  dispatch_emit "REFUSED: $DISPATCH_REFUSAL"
+  return 1
 }
 
 # ---------------------------------------------------------------------- CLI
-# READ-ONLY IN EVERY MODE. There is deliberately no `--dispatch`: the one entry
-# point that runs an executor, pushes a branch or opens a pull request is
-# `dispatch_repo`, and it is reachable only from the runner, on a cycle that has
-# already passed the stop file, the lock, the credential check and the level
-# resolution. A human — and a fixture — can see everything this file decides
-# without any of it happening.
+# READ-ONLY IN EVERY MODE, and there is deliberately no `--dispatch`.
+# `dispatch_repo` is the only function that once ran an executor, pushed a
+# branch or opened a pull request, and it now always refuses (epic 21 item 1)
+# — see the header note at the top of this file. A human can see everything
+# this CLI decides without any of it happening.
 _dispatch_cli_usage() { sed -n '1,10p' "$0"; }
 
 _dispatch_cli() {
@@ -1397,17 +877,14 @@ CLI_ITEMS_EOF
       return 1 ;;
   esac
 
-  printf 'dispatch        enforced=%s   ceiling=%s\n' "$DISPATCH_ENFORCED" "$DISPATCH_LEVEL"
-  printf 'executor        claude -p --agent work-item-executor --model sonnet   timeout=%ss\n' "$DISPATCH_EXECUTOR_TIMEOUT"
+  printf 'dispatch        RETIRED (epic 21 item 1) — dispatch_repo always refuses; nothing here spawns an executor unattended\n'
   printf 'never           approves · merges · closes an issue · chains to another item\n'
-  printf 'ceiling         an OPEN pull request against the integration branch\n'
   if [ -n "$REPO_PATH" ] || [ -n "$REPO_SLUG" ]; then
     if command -v autonomy_resolve >/dev/null 2>&1; then
       autonomy_resolve "$REPO_PATH" "$REPO_SLUG"
-      printf 'level           %s   (%s)\n' "${AUTONOMY_LEVEL:-L0}" "${AUTONOMY_REASON:-unconfigured}"
-      [ "${AUTONOMY_LEVEL:-L0}" = "$DISPATCH_LEVEL" ] || RC=1
+      printf 'policy          %s\n' "${AUTONOMY_REASON:-unconfigured}"
     else
-      printf 'level           UNKNOWN — bin/autonomy.sh is not loadable, so nothing may be dispatched\n'
+      printf 'policy          UNKNOWN — bin/autonomy.sh is not loadable\n'
       RC=1
     fi
     if command -v provision_resolve >/dev/null 2>&1; then

@@ -1,6 +1,6 @@
 # Epic: L2 — approved work reaches a pull request without a human
 
-**Status:** code-complete, NOT closed — all four items merged; **two live LODE verifications outstanding**, and no rung is enabled
+**Status:** closed — superseded by epic 21 (session-scoped issue loop), 2026-09-10
 **Source:** GH #39 — the third epic on this issue. Epic 08 designed the ladder and stopped at its
 measurement on a NO-GO; epic 09 fixed the four defects that verdict named; this one builds the
 one rung the evidence actually supports.
@@ -383,6 +383,17 @@ closed on synthetic evidence** — that is precisely the substitution epic 08's 
 Enabling L2 additionally needs a **promotion record**, which is a human action by design.
 
 ## Log
+- 2026-09-10 — **closed, superseded by epic 21 (retro).** This epic's L2 rung was
+  code-complete but never enabled — no promotion record was ever written on this
+  machine, so the headless dispatch cycle it built never ran live. Epic 21 item 1
+  retired `dispatch_repo` (the headless invocation this epic built) to a permanent
+  refusal and removed the promotion-record mechanism this epic's "enabling L2 needs a
+  promotion record" note depended on. Epic 21's session-scoped loop replaces the whole
+  approach: a live interactive session dispatching through the same orchestrated
+  `work-item-executor` path an attended session already uses, with no headless
+  subprocess and no promotion ladder. The two outstanding live-LODE verifications this
+  epic never completed are moot — the mechanism they would have verified no longer
+  exists.
 - 2026-08-21 — **item 3 verified cold and merged (`2626259`); the epic is code-complete.** Started
   and finished in one day alongside epic 09 items 2, 4, 6, 7 and 8. Test coverage across the skill
   went **879 → 2181 cases** with zero failures at every merge.

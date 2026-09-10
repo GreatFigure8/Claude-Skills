@@ -2,6 +2,19 @@
 # phase-session.sh — the phase-session harness and handoff bridge, epic 19
 # (epic-loop) item 3.
 #
+# KEPT, NOT RETIRED (epic 21 item 1 decision, 2026-09-10, made in-item per the
+# dispatch note): this file's role as epic-loop.sh's automatic phase-chaining
+# mechanism is moot now that epic-loop.sh's approve/merge/chain phases always
+# park for a human (see that file's own retirement note) — nothing left
+# invokes this harness unattended. But `phase_session_run_claude` (spawn one
+# bounded `claude -p` session, wait on it, kill it on timeout) and the handoff
+# validity/fallback machinery around it have no dependency on the retired
+# ladder at all — no level, no grant record, no budget — and are reusable
+# plumbing for spawning a single scoped drafting session, which is exactly
+# what a future item may want. Deleting a working, ladder-independent utility
+# because its one caller is gone would be losing a tool over an accident of
+# history, so it stays as a drafting-phase utility rather than being removed.
+#
 # THE SHAPE THIS ITEM BUILDS, AND NOTHING MORE. Every phase of epic-loop.sh's
 # state machine (item 1) is a FRESH `claude -p` session with no memory of the
 # phase before it — the whole point of the epic's Outcome ("every phase

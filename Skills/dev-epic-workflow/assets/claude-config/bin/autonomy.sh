@@ -1,181 +1,93 @@
 #!/usr/bin/env bash
 # The autonomy control surface — dev-epic-workflow, epic 11 item 1.
 #
-# THIS FILE IS THE SWITCHBOARD, AND SINCE EPIC 11 ITEM 3 IT IS CONNECTED. It
-# parses, validates, resolves and reports the controls; `bin/dispatch.sh` is the
-# one file that acts on them, and `AUTONOMY_ENFORCED` below says so in a form a
-# fixture can assert. Nothing in THIS file ever acts: it answers questions about
-# permission and writes nothing but its own variables. Epic 11 shipped one rung
-# — L2, whose ceiling is an open pull request. Epic 19 item 2 raises the ceiling
-# to L4 and adds the three predicates a caller asks to go further:
-# `autonomy_may_approve`, `autonomy_may_merge`, `autonomy_may_chain`.
+# RETIRED AS A LADDER (epic 21 item 1, 2026-09-10). This file used to resolve
+# a per-repo level (L0 through L4) from a self-attested, human-authored grant
+# record and unlock escalating unattended capability against it: execute
+# (epic 11), then approve/merge/chain (epic 19). Epics 11 and 19 are both
+# closed with a retro pointing here. Epic 21's Outcome replaces the ladder
+# outright: starting a session-scoped loop IS the grant of full autonomy for
+# that session, and the loop's own harm floor (epic 21 item 2) is the brake,
+# not a human-authored grant record nobody has ever actually written on this
+# machine.
 #
-# WHAT EACH RUNG UNLOCKS, AND THE ONE DELIBERATE EXCEPTION. L1, L3 and L4 are
-# cumulative with each other — L3 grants what L1 grants, plus merge; L4 grants
-# everything. L2 is NOT part of that ladder: it shipped in epic 11 with a fixed,
-# narrower meaning ("execute only, nothing beyond") that predates this item and
-# is not widened by it — a repo configured `level = L2` does not also gain
-# approve just because 2 is greater than 1. That is a real asymmetry, not a
-# typo: it exists because L2 was built and documented before L1, L3 or L4 had
-# any mechanism at all, and this item extends the ladder around that shipped
-# fact rather than rewrite it out from under the one rung already in use.
-#   L1  may-approve                        (this item)
-#   L2  execute/dispatch — UNCHANGED, and NOT also may-approve
-#   L3  may-approve AND may-merge
-#   L4  may-approve AND may-merge AND may-chain — "runs end to end" per the
-#       epic's Outcome
-# `autonomy_resolve` still returns exactly ONE level per repo (the configured
-# `level` key, one promotion record) — there is no mechanism here for a repo to
-# hold several rungs' promotion records at once. Whether dispatch/execute
-# itself becomes reachable above L2 is `bin/dispatch.sh`'s own exact-level gate
-# to change, per epic 19's invariant that this epic wraps `dispatch.sh`, it
-# does not edit its internals.
+# WHAT SURVIVES, AND BECOMES THE HARM FLOOR (item 2 wires it up):
+#   - the sensitive-path denylist (AUTONOMY_DENY_FLOOR, autonomy_deny_diff_paths)
+#   - the size ceiling (max-files / max-diff-lines, autonomy_check_size)
+#   - the STOP and AUTONOMY-OFF presence signals
+#     (autonomy_stop_requested, autonomy_override_active)
+#
+# WHAT IS GONE: every level (L0..L4) and the ceiling concept itself, the
+# human-authored grant-record file format and its read/write functions, the
+# require-labels/forbid-labels admission policy, the per-cycle budget
+# (max-items/max-wall-clock/max-issues/max-merges), and the three predicates
+# that used to gate automatic approve/merge/chain.
 #
 # Used two ways:
-#   sourced   `. autonomy.sh` — the runner and (later) the dispatcher call the
-#             functions below. Sourcing NEVER exits the caller and never
-#             mutates anything outside its own variables.
-#   executed  `autonomy.sh --check [...]` — validate the config and print the
-#             resolved surface for a human or a fixture. Read-only, always.
+#   sourced   `. autonomy.sh` — a caller resolves a repo's remaining policy
+#             (denylist additions, size ceiling) and checks a diff against it.
+#             Sourcing NEVER exits the caller and never mutates anything
+#             outside its own variables.
+#   executed  `autonomy.sh --check [...]` — print the resolved policy for a
+#             human or a fixture. Read-only, always.
 #
 # ---------------------------------------------------------------------------
-# WHY A SIBLING FILE AND NOT A THIRD FIELD ON THE `repos` LINE
-#
-# Epic 08 item 2 left the choice open ("extend the `repos` line format, or a
-# sibling file — decide at implementation"). Three reasons decide it here, and
-# the first one is a measured hazard rather than a preference:
-#
-#  1. The `repos` parse splits on the LAST pipe, because checkout paths contain
-#     spaces and whitespace is not a safe separator. A third field would make
-#     `~/Source/LODE|dev|L2` parse as REPO_DIR=`~/Source/LODE|dev`,
-#     BASE_OVERRIDE=`L2` under the CURRENT reader — so any machine running an
-#     older copy of the runner against a newer `repos` file would silently
-#     retarget the integration branch. The failure is silent, it is a branch
-#     change, and it is exactly the class of defect epic 09 spent four items
-#     removing. A file the old reader never opens cannot do that.
-#  2. `repos` is a MEMBERSHIP list — which repos the poller visits at all — and
-#     autonomy is a PERMISSION. Collapsing them means one line edit both
-#     enrols a repo and grants it a rung. They deserve separate edits, separate
-#     review, and separate blast radius, for the same reason the global
-#     override and the stop file below are two files and not one.
-#  3. The policy is not one value. Required labels, forbidden labels, a
-#     path denylist and two size ceilings do not fit on a pipe-delimited line
-#     without inventing a nested syntax, and a nested syntax on a line whose
-#     separator is already ambiguous is how you get the first problem twice.
-#
-# ---------------------------------------------------------------------------
-# THE FOUR FILES, AND WHY THREE OF THEM ANSWER TO `ls`
-#
-#   ~/.config/claude-intake/autonomy        the config: level + policy + budget
-#   ~/.config/claude-intake/AUTONOMY-OFF    presence pins EVERY repo to L0
-#   ~/.config/claude-intake/STOP            presence prevents a cycle starting
-#   ~/.config/claude-intake/promotions/     human-authored promotion records
-#
-# AUTONOMY-OFF and STOP ARE NOT THE SAME CONTROL and must never be merged.
-# Epic 08 item 2 states the distinction and epic 11 item 1 restates it:
-#
-#   AUTONOMY-OFF  revokes the autonomy ABOVE L0 and leaves unattended drafting
-#                 running. It is the "I do not trust the dispatcher today"
-#                 switch, and the thing it protects is that L0 keeps working —
-#                 proposals keep being drafted while nothing is dispatched.
-#   STOP          prevents a cycle from starting AT ALL, L0 included. It is the
-#                 "stop the machine" switch, and it is honoured before the
-#                 credential file is read, before the lock is taken, and before
-#                 any GitHub call, so it works on a machine whose token has
-#                 expired or whose `gh` is missing.
-#
-# Collapsing them costs you the ability to revoke dispatch without also
-# stopping drafting — which is the single most likely thing to want at 2am,
-# and the reason the distinction was designed before either was built.
-#
-# Both are PRESENCE signals. Contents are never read, so `touch` is the whole
-# interface and `ls ~/.config/claude-intake/` is the whole status check. No
-# session, no config archaeology, no knowing which repo is configured.
-#
-# ---------------------------------------------------------------------------
-# CONFIG FORMAT
+# CONFIG FORMAT (repo policy only — no level, no labels, no budget)
 #
 #   # comments and blank lines are ignored
-#   [global]
-#   budget.max-items      = 1
-#   budget.max-wall-clock = 60m
-#   budget.max-issues     = 1
-#   budget.max-merges     = 1
-#   promotion.min-cycles.L2 = 1
-#
 #   [/Users/jonathanstevenson/Source/LODE]     # a PATH section (starts with / or ~)
-#   level          = L2
-#   require-labels = epic:planned
-#   forbid-labels  = do-not-automate
 #   deny-paths     = alembic/*, api/config.py
 #   max-files      = 40
 #   max-diff-lines = 800
 #
 #   [GreatFigure8/Claude-Skills]               # a SLUG section (owner/name)
-#   level = L0
+#   deny-paths = generated/*
 #
 # A section header beginning `/` or `~` is a checkout PATH; anything else must
-# be an `owner/name` slug. That is unambiguous — a path always has a leading
-# slash after `~` expansion and a slug never does — so one file can be written
-# in whichever identity the reader has to hand. If BOTH a path section and a
-# slug section match the same repo, that is a conflict, not a merge: the config
-# is refused and every repo resolves L0.
+# be an `owner/name` slug — unambiguous, so one file can be written in
+# whichever identity the reader has to hand. If BOTH a path section and a slug
+# section match the same repo, that is a conflict, not a merge: the config is
+# refused and every repo resolves the built-in denylist floor only.
 #
-# ANY error anywhere in the file refuses the WHOLE file and every repo resolves
-# L0. Per-section error isolation was considered and rejected: a config with a
-# typo is a config whose author's intent is unknown, and the safe reading of an
-# unknown intent about permissions is "none".
+# ANY error anywhere in the file refuses the WHOLE file. A config with a typo
+# is a config whose author's intent is unknown, and the safe reading of an
+# unknown intent about a size ceiling is "the built-in floor only, nothing
+# looser".
 #
 # ---------------------------------------------------------------------------
-# THE PROMOTION-RECORD CONTRACT (defined here; written after item 2; read by
-# item 3). See references/autonomy-control-surface.md for the human version.
+# THE THREE FILES THAT REMAIN
 #
-#   path     <promotions-dir>/<owner>__<name>.<LEVEL>       e.g.
-#            ~/.config/claude-intake/promotions/GreatFigure8__Claude-Skills.L2
-#   format   `key: value`, one per line, `#` comments allowed
-#   required repo, level, granted, granted-by, cycles, ledger, evidence
+#   ~/.config/claude-intake/autonomy        the config: deny-paths / size ceiling
+#   ~/.config/claude-intake/AUTONOMY-OFF    presence pins every repo to the
+#                                            built-in denylist floor only
+#   ~/.config/claude-intake/STOP            presence prevents a cycle starting
 #
-# `ls` on the directory is therefore a complete answer to "what is promoted to
-# what". A level above L0 with no valid record resolves to L0 and says which
-# field was missing. THE AUTOMATION NEVER WRITES THIS DIRECTORY — a system that
-# can write its own promotion evidence has widened its own permissions by
-# another route, so the only writes in this file are to variables.
+# (The grant-record directory this file used to read is gone: nothing here
+# reads or writes a human-authored capability record any more.)
 #
-# ABOVE L2, `cycles` IS CHECKED TWICE (epic 19 item 2). Every level still
-# requires the human-typed `cycles:` field to be >= promotion.min-cycles.<LEVEL>
-# — that check is unchanged and applies at every level. For L3 and L4 there is
-# a SECOND, independent check: the record's own `ledger` field is opened and
-# the closed cycles it actually contains for this repo are counted — see
-# `autonomy_ledger_cycles` — and THAT count must also meet the bar. A human can
-# mistype a number; the ledger `bin/epic-loop.sh` (item 1) appends to is not
-# something a promotion record's author gets to also author. L1 and L2 are
-# unchanged: self-attestation only, exactly as epic 11 shipped it.
-
-# --------------------------------------------------------------- this build
-# The highest rung this control surface RECOGNISES. Epic 11 shipped L2 only,
-# refusing L3/L4 rather than clamping. Epic 19 item 2 raises the ceiling to
-# L4 — every level in the vocabulary is now reachable given a valid promotion
-# record; nothing above L4 exists to be refused.
-AUTONOMY_CEILING=L4
-
-# Whether anything ACTS on a resolved level. `no` for the whole of item 1, and
-# `yes` since item 3 wired bin/dispatch.sh to it. This is the machine-readable
-# form of "a resolved level now has consequences", and a fixture asserts it —
-# flipping it back to `no` while the dispatcher exists would be a lie a fixture
-# catches rather than a comment nobody re-reads.
-AUTONOMY_ENFORCED=yes
+# AUTONOMY-OFF and STOP ARE NOT THE SAME CONTROL and must never be merged.
+#   AUTONOMY-OFF  refuses this repo's own deny-paths/size-ceiling ADDITIONS,
+#                 leaving only the built-in denylist floor in force. It is the
+#                 "I do not trust this repo's own config today" switch.
+#   STOP          prevents a cycle from starting AT ALL. It is the "stop the
+#                 machine" switch, and it is honoured before the credential
+#                 file is read, before the lock is taken, and before any
+#                 GitHub call, so it works on a machine whose token has
+#                 expired or whose `gh` is missing.
+#
+# Both are PRESENCE signals. Contents are never read, so `touch` is the whole
+# interface and `ls ~/.config/claude-intake/` is the whole status check.
 
 # ------------------------------------------------------------------- paths
 AUTONOMY_CONFIG_FILE="${INTAKE_AUTONOMY_FILE:-$HOME/.config/claude-intake/autonomy}"
 AUTONOMY_OVERRIDE_FILE="${INTAKE_AUTONOMY_OVERRIDE:-$HOME/.config/claude-intake/AUTONOMY-OFF}"
 AUTONOMY_STOP_FILE="${INTAKE_STOP_FILE:-$HOME/.config/claude-intake/STOP}"
-AUTONOMY_PROMOTIONS_DIR="${INTAKE_PROMOTIONS_DIR:-$HOME/.config/claude-intake/promotions}"
 
 # ------------------------------------------------------- the denylist FLOOR
-# Always in force at any level above L0, and there is NO config key that
-# shrinks it — `deny-paths` only ADDS. Epic 08's invariant names the classes:
-# CI config, workflow files, credential handling, install.sh, the control-plane
-# hooks themselves, plus whatever the repo declares.
+# Always in force, and there is NO config key that shrinks it — `deny-paths`
+# only ADDS. Epic 08's invariant names the classes: CI config, workflow files,
+# credential handling, install.sh, the control-plane hooks themselves, plus
+# whatever the repo declares.
 #
 # Matching is shell `case` globbing over the full repo-relative path exactly as
 # `git diff --name-only` prints it, so `*` CROSSES `/` — `.github/*` matches
@@ -209,46 +121,15 @@ id_rsa*|credential material
 .npmrc|registry credentials
 .netrc|host credentials'
 
-# --------------------------------------------------------------- defaults
-# max-items is not invented: "one item at a time" is an epic 11 invariant.
-# max-wall-clock IS a chosen number — 60 minutes, on the reasoning that the one
-# measured executor item on a real stack (LODE PR #857) finished well inside an
-# hour, so an hour is a runaway rather than a slow day. It is a default to be
-# revised against ledger data once item 2 exists, not a measurement.
-AUTONOMY_DEFAULT_MAX_ITEMS=1
-AUTONOMY_DEFAULT_MAX_WALL_CLOCK=60m
-# Distinct GitHub issues / item PR merges a cycle may advance (epic 19 item 2).
-# Both default to 1 for the same reason max-items does: one at a time is the
-# brake, not a preference to be discovered later.
-AUTONOMY_DEFAULT_MAX_ISSUES=1
-AUTONOMY_DEFAULT_MAX_MERGES=1
-# Minimum clean cycles a promotion record must attest to, per level. 1 means
-# "a record citing no cycle at all is refused". Above L2 this number is also
-# checked against the epic-loop ledger, not just the record's own say-so — see
-# the promotion-record contract note above `autonomy_promotion_check`.
-AUTONOMY_DEFAULT_MIN_CYCLES=1
-
-# Identities a promotion record may NOT be granted by. A record is a human act;
-# if the automation could author one it could promote itself.
-AUTONOMY_RESERVED_GRANTORS='unattended-intake claude claude-code automation runner intake'
-
 # ------------------------------------------------------------------ state
 AUTONOMY_LOADED=no
 AUTONOMY_CONFIG_PRESENT=no
 AUTONOMY_CONFIG_OK=yes
 AUTONOMY_CONFIG_ERRORS=""
 AUTONOMY_PARSED=""
-AUTONOMY_BUDGET_MAX_ITEMS=""
-AUTONOMY_BUDGET_MAX_SECONDS=""
-AUTONOMY_BUDGET_MAX_ISSUES=""
-AUTONOMY_BUDGET_MAX_MERGES=""
-AUTONOMY_LEVEL=L0
 AUTONOMY_REASON=""
 AUTONOMY_LOG=""
 AUTONOMY_REFUSAL=""
-AUTONOMY_PROMOTION_DETAIL=""
-AUTONOMY_REQUIRE_LABELS=""
-AUTONOMY_FORBID_LABELS=""
 AUTONOMY_DENY_PATHS=""
 AUTONOMY_MAX_FILES=""
 AUTONOMY_MAX_DIFF_LINES=""
@@ -287,33 +168,6 @@ autonomy_normalise_path() { # $1 = path -> stdout
 autonomy_is_uint() { # $1 -> 0 if a non-negative integer
   case "${1-}" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac
 }
-
-# `90` `90s` `45m` `2h` -> seconds. Refuses zero, negatives and anything else.
-autonomy_parse_duration() { # $1 -> stdout seconds, rc 1 on refusal
-  local V="${1-}" N M
-  case "$V" in
-    *s) N="${V%s}"; M=1 ;;
-    *m) N="${V%m}"; M=60 ;;
-    *h) N="${V%h}"; M=3600 ;;
-    *)  N="$V";     M=1 ;;
-  esac
-  autonomy_is_uint "$N" || return 1
-  [ "$N" -gt 0 ] 2>/dev/null || return 1
-  printf '%s' "$((N * M))"
-}
-
-autonomy_normalise_level() { # $1 -> stdout L0..L4, rc 1 on refusal
-  case "${1-}" in
-    L0|l0) printf 'L0' ;;
-    L1|l1) printf 'L1' ;;
-    L2|l2) printf 'L2' ;;
-    L3|l3) printf 'L3' ;;
-    L4|l4) printf 'L4' ;;
-    *) return 1 ;;
-  esac
-}
-
-autonomy_level_num() { printf '%s' "${1#L}"; }
 
 # A glob that would be re-parsed as shell syntax inside `case` is refused at
 # config-parse time rather than tolerated at match time. This is the only place
@@ -366,19 +220,12 @@ EXISTS_EOF
   return 1
 }
 
-# Keys legal in [global] and keys legal in a repo section — disjoint on
-# purpose, so a budget key in a repo section is an error rather than a value
-# that quietly does nothing.
-_autonomy_global_key_ok() {
-  case "${1-}" in
-    budget.max-items|budget.max-wall-clock|budget.max-issues|budget.max-merges) return 0 ;;
-    promotion.min-cycles.L1|promotion.min-cycles.L2|promotion.min-cycles.L3|promotion.min-cycles.L4) return 0 ;;
-    *) return 1 ;;
-  esac
-}
+# The only keys a repo section may set. No [global] section any more — the
+# only things left to configure are per-repo, so there is nothing left for a
+# global section to hold.
 _autonomy_repo_key_ok() {
   case "${1-}" in
-    level|require-labels|forbid-labels|deny-paths|max-files|max-diff-lines) return 0 ;;
+    deny-paths|max-files|max-diff-lines) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -393,10 +240,6 @@ autonomy_load() {
   AUTONOMY_CONFIG_OK=yes
   AUTONOMY_CONFIG_ERRORS=""
   AUTONOMY_PARSED=""
-  AUTONOMY_BUDGET_MAX_ITEMS="$AUTONOMY_DEFAULT_MAX_ITEMS"
-  AUTONOMY_BUDGET_MAX_SECONDS="$(autonomy_parse_duration "$AUTONOMY_DEFAULT_MAX_WALL_CLOCK")"
-  AUTONOMY_BUDGET_MAX_ISSUES="$AUTONOMY_DEFAULT_MAX_ISSUES"
-  AUTONOMY_BUDGET_MAX_MERGES="$AUTONOMY_DEFAULT_MAX_MERGES"
 
   if [ ! -e "$AUTONOMY_CONFIG_FILE" ]; then
     AUTONOMY_CONFIG_PRESENT=no
@@ -420,14 +263,12 @@ autonomy_load() {
         SECTION="$(_autonomy_strip "${SECTION%]}")"
         if [ -z "$SECTION" ]; then _autonomy_err "$N" "empty section header"; continue; fi
         case "$SECTION" in *"$(printf '\t')"*) _autonomy_err "$N" "section header contains a tab"; SECTION=""; continue ;; esac
-        if [ "$SECTION" != global ]; then
-          case "$SECTION" in
-            /*|'~'*) SECTION="$(autonomy_normalise_path "$SECTION")" ;;
-            */*/*) _autonomy_err "$N" "section [$SECTION] is neither a path (starts with / or ~) nor an owner/name slug" ;;
-            */*) : ;;
-            *) _autonomy_err "$N" "section [$SECTION] is neither a path (starts with / or ~) nor an owner/name slug" ;;
-          esac
-        fi
+        case "$SECTION" in
+          /*|'~'*) SECTION="$(autonomy_normalise_path "$SECTION")" ;;
+          */*/*) _autonomy_err "$N" "section [$SECTION] is neither a path (starts with / or ~) nor an owner/name slug" ;;
+          */*) : ;;
+          *) _autonomy_err "$N" "section [$SECTION] is neither a path (starts with / or ~) nor an owner/name slug" ;;
+        esac
         case "
 $SEEN" in *"
 $SECTION"*) _autonomy_err "$N" "duplicate section [$SECTION]" ;; esac
@@ -436,7 +277,7 @@ $SECTION"
         # A bare marker row, so a section that sets no keys is still DECLARED.
         # `[repo]` with nothing under it is an answer about that repo, and in
         # particular it still conflicts with a second section naming it.
-        AUTONOMY_PARSED="$AUTONOMY_PARSED$SECTION		
+        AUTONOMY_PARSED="$AUTONOMY_PARSED$SECTION
 "
         continue ;;
     esac
@@ -455,24 +296,9 @@ $SECTION"
       _autonomy_err "$N" "'$KEY' has an empty value; delete the line or give it one"
       continue
     fi
-    if [ "$SECTION" = global ]; then
-      if ! _autonomy_global_key_ok "$KEY"; then
-        if _autonomy_repo_key_ok "$KEY"; then
-          _autonomy_err "$N" "'$KEY' is a per-repo key and does not belong in [global]"
-        else
-          _autonomy_err "$N" "unknown key '$KEY' in [global]"
-        fi
-        continue
-      fi
-    else
-      if ! _autonomy_repo_key_ok "$KEY"; then
-        if _autonomy_global_key_ok "$KEY"; then
-          _autonomy_err "$N" "'$KEY' is a global key and does not belong in [$SECTION]"
-        else
-          _autonomy_err "$N" "unknown key '$KEY' in [$SECTION]"
-        fi
-        continue
-      fi
+    if ! _autonomy_repo_key_ok "$KEY"; then
+      _autonomy_err "$N" "unknown key '$KEY' in [$SECTION] (only deny-paths, max-files, max-diff-lines are recognised)"
+      continue
     fi
     if [ -n "$(_autonomy_get "$SECTION" "$KEY")" ]; then
       _autonomy_err "$N" "duplicate key '$KEY' in [$SECTION]"
@@ -486,51 +312,20 @@ $SECTION"
   [ "$AUTONOMY_CONFIG_OK" = yes ]
 }
 
-# Second pass: every value is checked for shape, and a repo asking for a level
-# above L0 is checked for the things that have no safe default.
+# Second pass: every value is checked for shape. max-files/max-diff-lines are
+# OPTIONAL — a repo may declare only deny-paths additions with no ceiling; item
+# 2's harm floor decides what (if anything) to require of a caller, not this
+# file.
 _autonomy_validate_values() {
-  local S V SECS LVL P
-  V="$(_autonomy_get global budget.max-items)"
-  if [ -n "$V" ]; then
-    if autonomy_is_uint "$V" && [ "$V" -ge 1 ]; then AUTONOMY_BUDGET_MAX_ITEMS="$V"
-    else _autonomy_err "[global]" "budget.max-items must be an integer >= 1, got '$V'"; fi
-  fi
-  V="$(_autonomy_get global budget.max-wall-clock)"
-  if [ -n "$V" ]; then
-    SECS="$(autonomy_parse_duration "$V")" \
-      && AUTONOMY_BUDGET_MAX_SECONDS="$SECS" \
-      || _autonomy_err "[global]" "budget.max-wall-clock must be a positive duration like 90s, 45m or 2h, got '$V'"
-  fi
-  V="$(_autonomy_get global budget.max-issues)"
-  if [ -n "$V" ]; then
-    if autonomy_is_uint "$V" && [ "$V" -ge 1 ]; then AUTONOMY_BUDGET_MAX_ISSUES="$V"
-    else _autonomy_err "[global]" "budget.max-issues must be an integer >= 1, got '$V'"; fi
-  fi
-  V="$(_autonomy_get global budget.max-merges)"
-  if [ -n "$V" ]; then
-    if autonomy_is_uint "$V" && [ "$V" -ge 1 ]; then AUTONOMY_BUDGET_MAX_MERGES="$V"
-    else _autonomy_err "[global]" "budget.max-merges must be an integer >= 1, got '$V'"; fi
-  fi
-  for LVL in L1 L2 L3 L4; do
-    V="$(_autonomy_get global "promotion.min-cycles.$LVL")"
-    [ -n "$V" ] || continue
-    autonomy_is_uint "$V" || _autonomy_err "[global]" "promotion.min-cycles.$LVL must be a non-negative integer, got '$V'"
-  done
+  local S V P
 
+  local SECTION_LIST
+  SECTION_LIST="$(_autonomy_sections)"
   # Section names contain spaces, so they are iterated with a read loop over a
   # here-doc rather than word splitting. `while read` on the right of a PIPE is
   # a subshell in bash 3.2, and the errors accumulated below have to survive.
-  local SECTION_LIST
-  SECTION_LIST="$(_autonomy_sections)"
   while IFS= read -r S; do
     [ -n "$S" ] || continue
-    if [ "$S" = global ]; then continue; fi
-    V="$(_autonomy_get "$S" level)"
-    LVL=L0
-    if [ -n "$V" ]; then
-      LVL="$(autonomy_normalise_level "$V")" \
-        || { _autonomy_err "[$S]" "level must be one of L0 L1 L2 L3 L4, got '$V'"; LVL=L0; }
-    fi
     for V in max-files max-diff-lines; do
       P="$(_autonomy_get "$S" "$V")"
       [ -n "$P" ] || continue
@@ -551,182 +346,39 @@ _autonomy_validate_values() {
     done <<DENY_EOF
 $DP
 DENY_EOF
-    # A rung above L0 has no safe default for its size ceiling, so it must be
-    # stated. Labels legitimately default to empty; a ceiling does not — an
-    # unstated ceiling reads as "no ceiling", which is the opposite of a brake.
-    if [ "$LVL" != L0 ]; then
-      [ -n "$(_autonomy_get "$S" max-files)" ] \
-        || _autonomy_err "[$S]" "level $LVL requires max-files to be declared (a size ceiling has no safe default)"
-      [ -n "$(_autonomy_get "$S" max-diff-lines)" ] \
-        || _autonomy_err "[$S]" "level $LVL requires max-diff-lines to be declared (a size ceiling has no safe default)"
-    fi
   done <<SECTIONS
 $SECTION_LIST
 SECTIONS
 }
 
-# ----------------------------------------------------------- promotion record
-autonomy_promotion_path() { # $1 = slug, $2 = level
-  # owner/name -> owner__name. Every `/` becomes `__`, not just the first, so a
-  # slug is recoverable from the filename by eye and `ls` reads as a sentence.
-  printf '%s/%s.%s' "$AUTONOMY_PROMOTIONS_DIR" "${1//\//__}" "$2"
-}
-
-autonomy_min_cycles() { # $1 = level
-  local V
-  V="$(_autonomy_get global "promotion.min-cycles.$1")"
-  [ -n "$V" ] || V="$AUTONOMY_DEFAULT_MIN_CYCLES"
-  printf '%s' "$V"
-}
-
-# Cycles counted from the epic-loop ledger (item 1's `bin/epic-loop.sh`), not
-# self-attested. $1 = ledger file (taken from the promotion record's own
-# `ledger` field) $2 = repo slug -> stdout a non-negative integer.
-#
-# A missing or unreadable ledger counts as ZERO rather than refusing outright
-# here — the caller (`autonomy_promotion_check`) is the one place that turns
-# "zero" into a refusal, so the reason a level is denied is always about the
-# LEVEL's bar, never a second, differently-worded failure mode for "the file
-# is not there". One line format, matching `epic_loop_ledger` exactly:
-#   {"ts":"...","issue":N,"repo":"owner/name","from":"...","to":"...","detail":"..."}
-# A CLOSED cycle is one line naming this repo with `"to":"closed"`; every other
-# transition of the same issue (drafting, dispatching, merged(item N), …) is
-# real ledger traffic but not a completed cycle, so it is not counted.
-autonomy_ledger_cycles() {
-  local F="${1:-}" SLUG="${2:-}" N
-  if [ -z "$F" ] || [ ! -r "$F" ]; then printf '0'; return 0; fi
-  N="$(grep -F "\"repo\":\"$SLUG\"" "$F" 2>/dev/null | grep -c '"to":"closed"')"
-  autonomy_is_uint "$N" && printf '%s' "$N" || printf '0'
-  return 0
-}
-
-# rc 0 = a valid record grants $2 to $1. rc 1 = refused, and
-# AUTONOMY_PROMOTION_DETAIL names exactly what is missing or wrong. Naming it
-# is the point: "brakes are structural, not disciplinary" only works if the
-# refusal tells you how to satisfy it.
-autonomy_promotion_check() { # $1 = repo slug, $2 = level
-  local SLUG="$1" LVL="$2" F K V MISSING NEED G
-  AUTONOMY_PROMOTION_DETAIL=""
-  F="$(autonomy_promotion_path "$SLUG" "$LVL")"
-  if [ ! -f "$F" ]; then
-    AUTONOMY_PROMOTION_DETAIL="no promotion record at $F"
-    return 1
-  fi
-  if [ ! -r "$F" ]; then
-    AUTONOMY_PROMOTION_DETAIL="promotion record $F is not readable"
-    return 1
-  fi
-  local R_repo="" R_level="" R_granted="" R_by="" R_cycles="" R_ledger="" R_evidence=""
-  while IFS= read -r K || [ -n "$K" ]; do
-    K="$(_autonomy_strip "$K")"
-    case "$K" in ''|'#'*) continue ;; esac
-    case "$K" in *:*) ;; *) continue ;; esac
-    V="$(_autonomy_strip "${K#*:}")"
-    case "$(_autonomy_strip "${K%%:*}")" in
-      repo)        R_repo="$V" ;;
-      level)       R_level="$V" ;;
-      granted)     R_granted="$V" ;;
-      granted-by)  R_by="$V" ;;
-      cycles)      R_cycles="$V" ;;
-      ledger)      R_ledger="$V" ;;
-      evidence)    R_evidence="$V" ;;
-    esac
-  done < "$F"
-
-  MISSING=""
-  [ -n "$R_repo" ]     || MISSING="$MISSING repo"
-  [ -n "$R_level" ]    || MISSING="$MISSING level"
-  [ -n "$R_granted" ]  || MISSING="$MISSING granted"
-  [ -n "$R_by" ]       || MISSING="$MISSING granted-by"
-  [ -n "$R_cycles" ]   || MISSING="$MISSING cycles"
-  [ -n "$R_ledger" ]   || MISSING="$MISSING ledger"
-  [ -n "$R_evidence" ] || MISSING="$MISSING evidence"
-  if [ -n "$MISSING" ]; then
-    AUTONOMY_PROMOTION_DETAIL="promotion record $F is missing required field(s):$MISSING"
-    return 1
-  fi
-  if [ "$R_repo" != "$SLUG" ]; then
-    AUTONOMY_PROMOTION_DETAIL="promotion record $F names repo '$R_repo', not '$SLUG'"
-    return 1
-  fi
-  if [ "$R_level" != "$LVL" ]; then
-    AUTONOMY_PROMOTION_DETAIL="promotion record $F grants '$R_level', not '$LVL'"
-    return 1
-  fi
-  case "$R_granted" in
-    [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) ;;
-    *) AUTONOMY_PROMOTION_DETAIL="promotion record $F has granted='$R_granted', not an ISO-8601 UTC timestamp (YYYY-MM-DDTHH:MM:SSZ)"
-       return 1 ;;
-  esac
-  for G in $AUTONOMY_RESERVED_GRANTORS; do
-    if [ "$R_by" = "$G" ]; then
-      AUTONOMY_PROMOTION_DETAIL="promotion record $F is granted-by '$R_by', which names the automation — a promotion record is a human act"
-      return 1
-    fi
-  done
-  if ! autonomy_is_uint "$R_cycles"; then
-    AUTONOMY_PROMOTION_DETAIL="promotion record $F has cycles='$R_cycles', not a non-negative integer"
-    return 1
-  fi
-  NEED="$(autonomy_min_cycles "$LVL")"
-  if [ "$R_cycles" -lt "$NEED" ]; then
-    AUTONOMY_PROMOTION_DETAIL="promotion record $F attests $R_cycles clean cycle(s); $LVL requires $NEED"
-    return 1
-  fi
-  # ABOVE L2, self-attestation is necessary but not sufficient: the record's
-  # own `ledger` field is opened and the CLOSED cycles it actually contains for
-  # this repo must also meet the bar. Additive, never a substitute — a human
-  # still types an honest `cycles:` line (checked above), and now that line
-  # has to survive being checked against the file it points at. L1 and L2 are
-  # unchanged: self-attestation only, exactly as epic 11 shipped it.
-  if [ "$(autonomy_level_num "$LVL")" -gt "$(autonomy_level_num L2)" ]; then
-    local LEDGER_CYCLES
-    LEDGER_CYCLES="$(autonomy_ledger_cycles "$R_ledger" "$SLUG")"
-    if [ "$LEDGER_CYCLES" -lt "$NEED" ]; then
-      AUTONOMY_PROMOTION_DETAIL="promotion record $F attests $R_cycles cycle(s), but its ledger $R_ledger shows only $LEDGER_CYCLES closed cycle(s) for $SLUG; $LVL requires $NEED counted from the ledger"
-      return 1
-    fi
-  fi
-  AUTONOMY_PROMOTION_DETAIL="promotion record $F: $R_cycles clean cycle(s), granted $R_granted by $R_by"
-  return 0
-}
-
 # --------------------------------------------------------------- resolution
-# Sets AUTONOMY_LEVEL, AUTONOMY_REASON, the policy globals, and AUTONOMY_LOG —
-# which is EMPTY when there is nothing to say. That emptiness is the inertness
-# guarantee at the level a human notices: a machine with no autonomy config
-# produces a byte-identical log, not a log with a new "level: L0" line in it.
+# Sets AUTONOMY_REASON, AUTONOMY_LOG (empty when there is nothing to say) and
+# this repo's own denylist/size-ceiling additions. That emptiness is the
+# inertness guarantee at the level a human notices: a machine with no autonomy
+# config produces a byte-identical log, not a log with a new line in it.
 #
-# Precedence, and the order is the whole safety argument:
-#   1. global override present      -> L0  (beats even a valid promotion record)
-#   2. config malformed             -> L0
-#   3. no section for this repo     -> L0  (silent — this is "today")
-#   4. configured L0                -> L0
-#   5. configured above the ceiling -> L0  (this build does not implement it)
-#   6. no valid promotion record    -> L0  (naming what is missing)
-#   7. otherwise                    -> the configured level
+# Precedence:
+#   1. global override present      -> built-in floor only (beats config)
+#   2. config malformed             -> built-in floor only
+#   3. no section for this repo     -> built-in floor only (silent — "today")
+#   4. otherwise                    -> this repo's own additions apply too
 autonomy_resolve() { # $1 = repo checkout path, $2 = repo slug
-  local RPATH RSLUG SEC_PATH SEC_SLUG SEC CONF
+  local RPATH RSLUG SEC_PATH SEC_SLUG SEC
   autonomy_load >/dev/null 2>&1 || true
   RPATH="$(autonomy_normalise_path "${1-}")"
   RSLUG="$(_autonomy_strip "${2-}")"
-  AUTONOMY_LEVEL=L0
   AUTONOMY_REASON=""
   AUTONOMY_LOG=""
-  AUTONOMY_REQUIRE_LABELS=""
-  AUTONOMY_FORBID_LABELS=""
   AUTONOMY_DENY_PATHS=""
   AUTONOMY_MAX_FILES=""
   AUTONOMY_MAX_DIFF_LINES=""
 
   # FIRST, before anything about the config is even looked up. A human who
   # dropped this file in wants to be told that is why, not to be told about a
-  # typo three sections down: both answers are L0, but only one of them is the
-  # answer to "what did I just do".
+  # typo three sections down.
   if autonomy_override_active; then
-    AUTONOMY_LEVEL=L0
     AUTONOMY_REASON="global override present at $AUTONOMY_OVERRIDE_FILE"
-    AUTONOMY_LOG="autonomy: $RSLUG pinned to L0 — $AUTONOMY_REASON (unattended drafting continues)"
+    AUTONOMY_LOG="autonomy: $RSLUG pinned to the built-in denylist floor only — $AUTONOMY_REASON"
     return 0
   fi
 
@@ -737,14 +389,14 @@ autonomy_resolve() { # $1 = repo checkout path, $2 = repo slug
   fi
   if [ -n "$SEC_PATH" ] && [ -n "$SEC_SLUG" ]; then
     AUTONOMY_REASON="refused: [$SEC_PATH] and [$SEC_SLUG] both configure this repo — one repo, one section"
-    AUTONOMY_LOG="autonomy: $RSLUG pinned to L0 — $AUTONOMY_REASON"
+    AUTONOMY_LOG="autonomy: $RSLUG pinned to the built-in denylist floor only — $AUTONOMY_REASON"
     return 0
   fi
   SEC="$SEC_PATH"; [ -n "$SEC" ] || SEC="$SEC_SLUG"
 
   if [ "$AUTONOMY_CONFIG_OK" != yes ]; then
-    AUTONOMY_REASON="autonomy config is invalid; every repo resolves L0"
-    AUTONOMY_LOG="autonomy: $RSLUG pinned to L0 — $AUTONOMY_REASON"
+    AUTONOMY_REASON="autonomy config is invalid; every repo resolves the built-in denylist floor only"
+    AUTONOMY_LOG="autonomy: $RSLUG pinned to the built-in denylist floor only — $AUTONOMY_REASON"
     return 0
   fi
   if [ -z "$SEC" ]; then
@@ -754,104 +406,11 @@ autonomy_resolve() { # $1 = repo checkout path, $2 = repo slug
     return 0
   fi
 
-  AUTONOMY_REQUIRE_LABELS="$(_autonomy_get "$SEC" require-labels)"
-  AUTONOMY_FORBID_LABELS="$(_autonomy_get "$SEC" forbid-labels)"
   AUTONOMY_DENY_PATHS="$(_autonomy_get "$SEC" deny-paths)"
   AUTONOMY_MAX_FILES="$(_autonomy_get "$SEC" max-files)"
   AUTONOMY_MAX_DIFF_LINES="$(_autonomy_get "$SEC" max-diff-lines)"
-
-  CONF="$(_autonomy_get "$SEC" level)"
-  [ -n "$CONF" ] || CONF=L0
-  CONF="$(autonomy_normalise_level "$CONF")" || CONF=L0
-  if [ "$CONF" = L0 ]; then
-    AUTONOMY_REASON="configured L0"
-    AUTONOMY_LOG="autonomy: $RSLUG at L0 (configured) — nothing above L0 is available in this build"
-    return 0
-  fi
-  if [ "$(autonomy_level_num "$CONF")" -gt "$(autonomy_level_num "$AUTONOMY_CEILING")" ]; then
-    AUTONOMY_REASON="refused: [$SEC] asks for $CONF; this build implements no rung above $AUTONOMY_CEILING"
-    AUTONOMY_LOG="autonomy: $RSLUG pinned to L0 — $AUTONOMY_REASON"
-    return 0
-  fi
-  if ! autonomy_promotion_check "$RSLUG" "$CONF"; then
-    AUTONOMY_REASON="refused: [$SEC] asks for $CONF but $AUTONOMY_PROMOTION_DETAIL"
-    AUTONOMY_LOG="autonomy: $RSLUG pinned to L0 — $AUTONOMY_REASON"
-    return 0
-  fi
-  AUTONOMY_LEVEL="$CONF"
-  AUTONOMY_REASON="configured $CONF; $AUTONOMY_PROMOTION_DETAIL"
-  AUTONOMY_LOG="autonomy: $RSLUG resolves to $CONF — $AUTONOMY_PROMOTION_DETAIL
-autonomy: $RSLUG policy — require-labels=[${AUTONOMY_REQUIRE_LABELS:-none}] forbid-labels=[${AUTONOMY_FORBID_LABELS:-none}] max-files=$AUTONOMY_MAX_FILES max-diff-lines=$AUTONOMY_MAX_DIFF_LINES deny-paths=[${AUTONOMY_DENY_PATHS:-none}] (+${AUTONOMY_DENY_FLOOR_COUNT:-0} built-in)
-autonomy: THIS LEVEL IS ENFORCED — AUTONOMY_ENFORCED=$AUTONOMY_ENFORCED; $(_autonomy_level_permits_text "$CONF")"
-  return 0
-}
-
-# One line describing exactly what a resolved level permits, for the log and
-# for nothing else — `autonomy_may_approve` / `_merge` / `_chain` below are the
-# machine-readable form a caller actually branches on; this is prose for a
-# human reading the log. L2's wording is UNCHANGED from epic 11 word for word
-# — it is the one rung whose meaning this item leaves exactly as shipped, see
-# the header comment on "the one deliberate exception".
-_autonomy_level_permits_text() { # $1 = resolved level (L1..L4; L0 never reaches here)
-  case "${1-}" in
-    L1) printf 'at L1 the proposal PR may be approved automatically; nothing beyond that (no execute, no merge, no chain)' ;;
-    L2) printf 'at L2 the next undispatched work item may be executed and proposed as a pull request, and nothing beyond that (no approval, no merge, no issue closed)' ;;
-    L3) printf 'at L3 the proposal PR may be approved and the item PR merged to the integration branch automatically once every gate is green; nothing beyond that (no chaining to the next issue)' ;;
-    L4) printf 'at L4 the loop runs end to end for this repo: approve, merge and chain to the next admitted issue are all automatic (execution itself is still bin/dispatch.sh'"'"'s own gate)' ;;
-    *)  printf 'no autonomy beyond L0 drafting' ;;
-  esac
-}
-
-# ------------------------------------------------------- the ladder predicates
-# Epic 19 item 2. Each reads ONLY `$AUTONOMY_LEVEL`, set by the most recent
-# `autonomy_resolve` call — call resolve first, exactly like every other
-# predicate in this file (`autonomy_admit_labels`, `autonomy_check_size`, …).
-# Under AUTONOMY-OFF or a refused/missing promotion record, resolve has
-# already pinned AUTONOMY_LEVEL to L0, which is in none of the sets below — so
-# these need no separate override check of their own.
-#
-# L1, L3 and L4 are CUMULATIVE with each other (L4 grants what L3 grants, plus
-# chain; L3 grants what L1 grants, plus merge) so that "at L4 it runs end to
-# end" (the epic's Outcome) is literally true. L2 is the one exception: it is
-# NOT part of that ladder, by design — see the header comment above. A repo
-# configured `level = L2` gets execute only, exactly as epic 11 shipped it,
-# whether or not 2 is numerically above 1.
-autonomy_may_approve() { case "$AUTONOMY_LEVEL" in L1|L3|L4) return 0 ;; *) return 1 ;; esac; }
-autonomy_may_merge()   { case "$AUTONOMY_LEVEL" in L3|L4)    return 0 ;; *) return 1 ;; esac; }
-autonomy_may_chain()   { case "$AUTONOMY_LEVEL" in L4)       return 0 ;; *) return 1 ;; esac; }
-
-# ----------------------------------------------------------- admission policy
-# Labels arrive COMMA-FENCED — `,a,b,` — which is the shape the runner's
-# ISSUE_VIEW_JQ already produces, so membership is one glob and `epic:planned`
-# can never match `epic:planned-later`.
-autonomy_admit_labels() { # $1 = comma-fenced actual labels
-  local ACTUAL="${1-}" L REQ FORB
-  AUTONOMY_REFUSAL=""
-  case "$ACTUAL" in ,*,) ;; *) ACTUAL=",$(printf '%s' "$ACTUAL" | sed -e 's/^,//' -e 's/,$//')," ;; esac
-  # Read loops, not `for L in $(...)`: a GitHub label may contain a space
-  # (`needs triage`), and an unquoted command substitution would split it in
-  # two and then never match anything.
-  REQ="$(printf '%s' "$AUTONOMY_REQUIRE_LABELS" | tr ',' '\n')"
-  while IFS= read -r L; do
-    L="$(_autonomy_strip "$L")"
-    [ -n "$L" ] || continue
-    case "$ACTUAL" in
-      *",$L,"*) ;;
-      *) AUTONOMY_REFUSAL="required label '$L' is absent"; return 1 ;;
-    esac
-  done <<REQ_EOF
-$REQ
-REQ_EOF
-  FORB="$(printf '%s' "$AUTONOMY_FORBID_LABELS" | tr ',' '\n')"
-  while IFS= read -r L; do
-    L="$(_autonomy_strip "$L")"
-    [ -n "$L" ] || continue
-    case "$ACTUAL" in
-      *",$L,"*) AUTONOMY_REFUSAL="forbidden label '$L' is present"; return 1 ;;
-    esac
-  done <<FORB_EOF
-$FORB
-FORB_EOF
+  AUTONOMY_REASON="configured"
+  AUTONOMY_LOG="autonomy: $RSLUG policy — deny-paths=[${AUTONOMY_DENY_PATHS:-none}] (+${AUTONOMY_DENY_FLOOR_COUNT:-0} built-in) max-files=${AUTONOMY_MAX_FILES:-none} max-diff-lines=${AUTONOMY_MAX_DIFF_LINES:-none}"
   return 0
 }
 
@@ -912,54 +471,11 @@ autonomy_check_size() { # $1 = files, $2 = lines
   return 0
 }
 
-# ------------------------------------------------------------------- budget
-# A budget is a HARD STOP: exceeding it stops new work, and it never degrades
-# work in flight to fit. Both callers below answer "may another item start?"
-# and neither can answer "shrink this one".
-autonomy_budget_allows_item() { # $1 = items already dispatched this cycle
-  AUTONOMY_REFUSAL=""
-  if [ "${1:-0}" -ge "$AUTONOMY_BUDGET_MAX_ITEMS" ]; then
-    AUTONOMY_REFUSAL="per-cycle item budget reached ($AUTONOMY_BUDGET_MAX_ITEMS)"
-    return 1
-  fi
-  return 0
-}
-autonomy_budget_allows_time() { # $1 = seconds elapsed this cycle
-  AUTONOMY_REFUSAL=""
-  if [ "${1:-0}" -ge "$AUTONOMY_BUDGET_MAX_SECONDS" ]; then
-    AUTONOMY_REFUSAL="per-cycle wall-clock budget reached (${AUTONOMY_BUDGET_MAX_SECONDS}s)"
-    return 1
-  fi
-  return 0
-}
-# Epic 19 item 2: DISTINCT issues advanced, and item PRs merged, this cycle.
-# Independent of max-items (items dispatched) for the same reason `epic-loop.sh`
-# counts a dispatch and a merge separately — chaining to a second issue is not
-# the same event as dispatching a second work item within one issue.
-autonomy_budget_allows_issue() { # $1 = distinct issues already advanced this cycle
-  AUTONOMY_REFUSAL=""
-  if [ "${1:-0}" -ge "$AUTONOMY_BUDGET_MAX_ISSUES" ]; then
-    AUTONOMY_REFUSAL="per-cycle issue budget reached ($AUTONOMY_BUDGET_MAX_ISSUES)"
-    return 1
-  fi
-  return 0
-}
-autonomy_budget_allows_merge() { # $1 = item PRs already merged this cycle
-  AUTONOMY_REFUSAL=""
-  if [ "${1:-0}" -ge "$AUTONOMY_BUDGET_MAX_MERGES" ]; then
-    AUTONOMY_REFUSAL="per-cycle merge budget reached ($AUTONOMY_BUDGET_MAX_MERGES)"
-    return 1
-  fi
-  return 0
-}
-
 AUTONOMY_DENY_FLOOR_COUNT="$(printf '%s\n' "$AUTONOMY_DENY_FLOOR" | grep -c .)"
 
 # ---------------------------------------------------------------------- CLI
 # Read-only in every mode. The runner never invokes this path; it exists so a
-# human — and a fixture — can see the whole resolved surface without a session,
-# which is also how epic 11 item 1's `--dry-run across all four configured
-# repos` verification is performed.
+# human — and a fixture — can see the whole resolved policy without a session.
 _autonomy_cli() {
   local MODE=check REPO_PATH="" REPO_SLUG="" REPOS_FILE="" RC=0
   while [ $# -gt 0 ]; do
@@ -969,9 +485,6 @@ _autonomy_cli() {
       --slug)   REPO_SLUG="${2:-}"; shift ;;
       --repos)  REPOS_FILE="${2:-}"; shift ;;
       --deny-paths)  MODE=deny ;;
-      --may-approve) MODE=approve ;;
-      --may-merge)   MODE=merge ;;
-      --may-chain)   MODE=chain ;;
       -h|--help) sed -n '1,10p' "$0"; return 0 ;;
       *) printf 'unknown argument: %s\n' "$1" >&2; return 1 ;;
     esac
@@ -980,20 +493,15 @@ _autonomy_cli() {
 
   autonomy_load >/dev/null 2>&1 || RC=1
   printf 'config          %s%s\n' "$AUTONOMY_CONFIG_FILE" \
-    "$( [ "$AUTONOMY_CONFIG_PRESENT" = yes ] && printf '' || printf '   (absent — every repo is L0 and today is unchanged)' )"
+    "$( [ "$AUTONOMY_CONFIG_PRESENT" = yes ] && printf '' || printf '   (absent — every repo gets the built-in floor only, and today is unchanged)' )"
   if [ "$AUTONOMY_CONFIG_OK" != yes ]; then
-    printf 'config          INVALID — every repo resolves L0\n'
+    printf 'config          INVALID — every repo resolves the built-in denylist floor only\n'
     printf '%s' "$AUTONOMY_CONFIG_ERRORS" | sed 's/^/  error  /'
   fi
   printf 'override        %s   %s\n' "$AUTONOMY_OVERRIDE_FILE" \
-    "$( autonomy_override_active && printf 'PRESENT — every repo pinned to L0, drafting continues' || printf 'absent' )"
+    "$( autonomy_override_active && printf 'PRESENT — every repo pinned to the built-in floor only' || printf 'absent' )"
   printf 'stop            %s   %s\n' "$AUTONOMY_STOP_FILE" \
     "$( autonomy_stop_requested && printf 'PRESENT — no cycle will start' || printf 'absent' )"
-  printf 'promotions      %s\n' "$AUTONOMY_PROMOTIONS_DIR"
-  printf 'ceiling         %s     enforced=%s\n' "$AUTONOMY_CEILING" "$AUTONOMY_ENFORCED"
-  printf 'budget          max-items=%s max-wall-clock=%ss max-issues=%s max-merges=%s\n' \
-    "$AUTONOMY_BUDGET_MAX_ITEMS" "$AUTONOMY_BUDGET_MAX_SECONDS" \
-    "$AUTONOMY_BUDGET_MAX_ISSUES" "$AUTONOMY_BUDGET_MAX_MERGES"
   printf 'deny floor      %s built-in patterns, additive only\n' "$AUTONOMY_DENY_FLOOR_COUNT"
 
   if [ "$MODE" = deny ]; then
@@ -1001,19 +509,6 @@ _autonomy_cli() {
     autonomy_deny_diff_paths || RC=1
     return "$RC"
   fi
-
-  case "$MODE" in
-    approve|merge|chain)
-      autonomy_resolve "$REPO_PATH" "$REPO_SLUG"
-      case "$MODE" in
-        approve) autonomy_may_approve ;;
-        merge)   autonomy_may_merge ;;
-        chain)   autonomy_may_chain ;;
-      esac
-      if [ $? -eq 0 ]; then printf 'yes\n'; RC=0; else printf 'no\n'; RC=1; fi
-      return "$RC"
-      ;;
-  esac
 
   if [ -n "$REPOS_FILE" ]; then
     # Mirrors the runner's own `repos` reader: comment/blank skipping, tilde
@@ -1046,7 +541,7 @@ _autonomy_cli_one() { # $1 path, $2 slug (either may be empty)
   autonomy_resolve "$P" "$S"
   printf 'repo            %s\n' "${S:-${P:-<none>}}"
   printf '  path          %s\n' "$(autonomy_normalise_path "$P")"
-  printf '  level         %s   (%s)\n' "$AUTONOMY_LEVEL" "${AUTONOMY_REASON:-unconfigured}"
+  printf '  policy        %s\n' "${AUTONOMY_REASON:-unconfigured}"
 }
 
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
