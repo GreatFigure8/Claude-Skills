@@ -832,13 +832,14 @@ run_gate_h "$H" "$H_SLUG" 701
 # Item 2 is the epic's LAST item, so this single invocation both merges it
 # AND (the very next iteration of the same phase loop — `merged` is not a
 # stopping point, exactly like every other real transition in this file)
-# advances merged -> closing, where it then hits closing's own "not
-# implemented" refusal (item 7's build, not this one's) — rc 2, same shape
-# section E already pins for any state this build has no real phase for.
-# That cascade IS "lands both with a merge commit and (once there is no
-# further item) reaches closing" in one cycle, the plan's own DoD line.
-check "H4 L4 item 2: exit 2 (merged, then closing's own not-yet-built refusal)" "2" "$H_RC"
-check "H4 L4 item 2: state advances all the way to closing"          "closing" "$H_STATE"
+# advances merged -> closing -> closed: item 7's close gate is real now, so
+# the cascade runs all the way to the terminal state in one invocation, the
+# same shape section C's dry-run walk already demonstrated for the happy
+# path. Section I below exercises the close gate's own internals (ordering,
+# scaffolding removal, the retro, the conditional issue-close) in isolation;
+# this section only needs to prove the CASCADE reaches `closed` for real.
+check "H4 L4 item 2: exit 0 (merged, cascaded through closing to closed)" "0" "$H_RC"
+check "H4 L4 item 2: state advances all the way to closed"           "closed" "$H_STATE"
 check "H4 L4 item 2: origin/main now carries item 2's commit"        "1" \
       "$("$REAL_GIT" --git-dir="$H/origin.git" log --oneline main 2>/dev/null | grep -c "$H_BR2 work" | tr -d ' ')"
 check "H4 L4 item 2: item 2's branch is gone from origin"            "1" \
@@ -847,6 +848,222 @@ check_contains "H4 L4 item 2: checklist PATCH ticks item 2 as well"  1 "$(cat "$
 check_contains "H4 L4 item 2: ledger recorded merged -> closing"     1 \
       "$(cat "$H/repo/docs/epics/.intake/loop/ledger.jsonl" 2>/dev/null)" \
       '"from":"merged","to":"closing"'
+check_contains "H4 L4 item 2: ledger recorded closing -> closed"     1 \
+      "$(cat "$H/repo/docs/epics/.intake/loop/ledger.jsonl" 2>/dev/null)" \
+      '"from":"closing","to":"closed"'
+check_contains "H4 L4 item 2: origin/main's plan.md now reads Status: closed" 1 \
+      "$("$REAL_GIT" --git-dir="$H/origin.git" show "main:docs/epics/$H_EPIC/plan.md" 2>/dev/null)" \
+      '**Status:** closed'
+
+# ============================================================ SECTION I ===
+# The close gate itself (item 7), in isolation — Section H above only proved
+# the CASCADE reaches `closed`; this section seeds the per-issue state
+# directly AT `closing` (the same "simulate the prior phase's own concern"
+# shape H4 already used for `awaiting-merge`) and exercises
+# epic_loop_close_gate's own internals: the landing order (GH #41), the
+# scaffolding removal (`status/`, `CANCEL`, a conditionally-matched
+# `active-epic` pointer, a conditionally-matched `handoff.md`), the retro
+# comment built from the ledger, and the conditional `gh issue close`.
+echo
+echo "=== I. the close gate — landing order, scaffolding, retro, issue-close ="
+
+GH_STUB_I="$SANDBOX/gh-i"
+cat > "$GH_STUB_I" <<'GHSTUB'
+#!/usr/bin/env bash
+printf 'gh %s\n' "$*" >> "${EPIC_LOOP_FIX_CALLS:-/dev/null}"
+case "$1" in
+  issue)
+    case "$2" in
+      view)
+        printf '%s' "${EPIC_LOOP_FIX_ISSUE_STATE:-OPEN}"
+        exit 0 ;;
+      comment)
+        PREV_A=""
+        for A in "$@"; do
+          [ "$PREV_A" = --body ] && printf '%s' "$A" > "${EPIC_LOOP_FIX_RETRO_OUT:-/dev/null}"
+          PREV_A="$A"
+        done
+        exit 0 ;;
+      close) exit 0 ;;
+      *) exit 0 ;;
+    esac ;;
+  *) exit 0 ;;
+esac
+GHSTUB
+chmod +x "$GH_STUB_I"
+
+I_SLUG="acme/close-fixture"
+
+# Writes docs/epics/$2/plan.md (Status: in flight, or already closed when
+# $5=yes — the human-already-closed-it path), a `status/` dir with one file,
+# a `CANCEL` sentinel, pushes to origin, then seeds the per-issue state file
+# AT `closing` and a two-line ledger for $3 (the transitions a real
+# merged-item cascade would have appended). $1=case dir $2=epic dir name
+# $3=issue $4=slug $5=already-closed(yes|no, default no).
+seed_closing_epic() {
+  local D="$1" EPIC="$2" ISSUE="$3" SLUG="$4" ALREADY="${5:-no}"
+  mkdir -p "$D/repo/docs/epics/$EPIC/status"
+  : > "$D/repo/docs/epics/$EPIC/status/some-branch.json"
+  : > "$D/repo/docs/epics/$EPIC/CANCEL"
+  {
+    printf '%s\n\n' "# Epic: fixture close epic"
+    if [ "$ALREADY" = yes ]; then printf '%s\n' "**Status:** closed"
+    else printf '%s\n' "**Status:** in flight (item 2 of 2)"
+    fi
+    printf '%s\n' "**Source:** GH #$ISSUE"
+  } > "$D/repo/docs/epics/$EPIC/plan.md"
+  "$REAL_GIT" -C "$D/repo" add -A
+  "$REAL_GIT" -C "$D/repo" commit -q -m "docs(epic): file $EPIC"
+  "$REAL_GIT" -C "$D/repo" push -q origin main
+
+  mkdir -p "$D/repo/docs/epics/.intake/loop"
+  cat > "$D/repo/docs/epics/.intake/loop/$ISSUE.json" <<EOF
+{
+  "issue": $ISSUE,
+  "repo": "$SLUG",
+  "epic": "docs/epics/$EPIC/plan.md",
+  "state": "closing",
+  "item": null,
+  "detail": "seed",
+  "updated": "1970-01-01T00:00:00Z"
+}
+EOF
+  {
+    printf '{"ts":"1970-01-01T00:00:00Z","issue":%s,"repo":"%s","from":"awaiting-merge","to":"merged","detail":"item 2 PR 900 merged into main"}\n' "$ISSUE" "$SLUG"
+    printf '{"ts":"1970-01-01T00:00:01Z","issue":%s,"repo":"%s","from":"merged","to":"closing","detail":"epic last item merged"}\n' "$ISSUE" "$SLUG"
+  } > "$D/repo/docs/epics/.intake/loop/ledger.jsonl"
+}
+
+# $1=case dir $2=**Epic:** field value to write into docs/epics/handoff.md,
+# committed and pushed (a TRACKED file, unlike status/CANCEL/active-epic).
+seed_handoff() {
+  local D="$1" EPICVAL="$2"
+  {
+    printf '%s\n\n' "# Session Handoff"
+    printf '%s\n' "**Epic:** $EPICVAL"
+  } > "$D/repo/docs/epics/handoff.md"
+  "$REAL_GIT" -C "$D/repo" add -A
+  "$REAL_GIT" -C "$D/repo" commit -q -m "chore(epic): session handoff seed"
+  "$REAL_GIT" -C "$D/repo" push -q origin main
+}
+
+# $1=case dir $2=pointer content (gitignored — never committed, plain rm).
+seed_active_epic_pointer() {
+  mkdir -p "$1/repo/.claude/signals"
+  printf '%s' "$2" > "$1/repo/.claude/signals/active-epic"
+}
+
+run_gate_i() { # $1=case dir $2=slug $3=issue
+  local D="$1" SLUG="$2" ISSUE="$3"
+  # `local` here, not a bare global export: a temporary `VAR=val
+  # run_gate_i ...` prefix on ONE call must not leak into the next
+  # (unprefixed) call in this same shell — function scope, unlike a plain
+  # command's temporary environment, does not revert on its own.
+  local EPIC_LOOP_FIX_ISSUE_STATE="${EPIC_LOOP_FIX_ISSUE_STATE:-OPEN}"
+  export HOME="$D/home"
+  export INTAKE_GIT="$REAL_GIT"
+  export INTAKE_GH="$GH_STUB_I"
+  export INTAKE_REPO_SLUG_OVERRIDE="$SLUG"
+  export INTAKE_STOP_FILE="$D/home/.config/claude-intake/STOP"
+  export INTAKE_AUTONOMY_OVERRIDE="$D/home/.config/claude-intake/AUTONOMY-OFF"
+  export INTAKE_PROMOTIONS_DIR="$D/home/.config/claude-intake/promotions"
+  export INTAKE_AUTONOMY_FILE="$D/home/.config/claude-intake/autonomy"
+  export EPIC_LOOP_FIX_CALLS="$D/gh-calls.log"
+  export EPIC_LOOP_FIX_ISSUE_STATE
+  export EPIC_LOOP_FIX_RETRO_OUT="$D/retro-out.txt"
+  : > "$EPIC_LOOP_FIX_CALLS"
+  : > "$EPIC_LOOP_FIX_RETRO_OUT"
+  I_OUT="$(bash "$SCRIPT" --repo "$D/repo" --once 2>&1)"; I_RC=$?
+  I_STATE="$(grep -o '"state": "[^"]*"' "$D/repo/docs/epics/.intake/loop/$ISSUE.json" 2>/dev/null \
+               | head -1 | sed -E 's/.*"([a-zA-Z-]+)"$/\1/')"
+  I_CALLS="$(cat "$EPIC_LOOP_FIX_CALLS" 2>/dev/null)"
+  I_RETRO="$(cat "$EPIC_LOOP_FIX_RETRO_OUT" 2>/dev/null)"
+}
+
+# --- I1: the full success path — status/CANCEL/pointer/handoff all match
+# this epic, issue still open. Everything comes down, in order. ------------
+I1="$(mkcase_g i1-full-success)"
+seed_closing_epic "$I1" "09-fixture-close" 901 "$I_SLUG"
+seed_handoff "$I1" "docs/epics/09-fixture-close"
+seed_active_epic_pointer "$I1" "09-fixture-close"
+EPIC_LOOP_FIX_ISSUE_STATE=OPEN run_gate_i "$I1" "$I_SLUG" 901
+check "I1 exit 0 (closed, not a crash)"                              "0" "$I_RC"
+check "I1 state advances to closed"                                  "closed" "$I_STATE"
+check_contains "I1 origin/main's plan.md now reads Status: closed"   1 \
+      "$("$REAL_GIT" --git-dir="$I1/origin.git" show main:docs/epics/09-fixture-close/plan.md 2>/dev/null)" \
+      '**Status:** closed'
+check "I1 status/ removed from the checkout"                         "0" "$([ -e "$I1/repo/docs/epics/09-fixture-close/status" ] && echo 1 || echo 0)"
+check "I1 CANCEL removed from the checkout"                          "0" "$([ -e "$I1/repo/docs/epics/09-fixture-close/CANCEL" ] && echo 1 || echo 0)"
+check "I1 active-epic pointer removed (it named this epic)"          "0" "$([ -e "$I1/repo/.claude/signals/active-epic" ] && echo 1 || echo 0)"
+check "I1 handoff.md removed from the checkout (it named this epic)" "0" "$([ -e "$I1/repo/docs/epics/handoff.md" ] && echo 1 || echo 0)"
+check "I1 handoff.md removed from origin/main too (tracked file)"    "0" \
+      "$("$REAL_GIT" --git-dir="$I1/origin.git" ls-tree --name-only main -- docs/epics/handoff.md 2>/dev/null | grep -c . | tr -d ' ')"
+check "I1 gh issue comment WAS called"                                "1" "$(grep -c '^gh issue comment 901' <<<"$I_CALLS" | tr -d ' ')"
+check_contains "I1 retro names the epic and the issue"               1 "$I_RETRO" "09-fixture-close closed by epic-loop"
+check_contains "I1 retro includes a ledger transition line"          1 "$I_RETRO" "merged -> closing"
+check "I1 gh issue close WAS called (issue was still open)"          "1" "$(grep -c '^gh issue close 901' <<<"$I_CALLS" | tr -d ' ')"
+
+# --- I2: the active-epic pointer names a DIFFERENT epic — left alone. -----
+I2="$(mkcase_g i2-pointer-other-epic)"
+seed_closing_epic "$I2" "09-fixture-close" 902 "$I_SLUG"
+seed_active_epic_pointer "$I2" "05-some-other-epic"
+run_gate_i "$I2" "$I_SLUG" 902
+check "I2 exit 0"                                                    "0" "$I_RC"
+check "I2 state advances to closed regardless"                       "closed" "$I_STATE"
+check "I2 the OTHER epic's pointer is untouched"                     "05-some-other-epic" "$(cat "$I2/repo/.claude/signals/active-epic" 2>/dev/null)"
+
+# --- I3: handoff.md names a DIFFERENT epic — left alone. -------------------
+I3="$(mkcase_g i3-handoff-other-epic)"
+seed_closing_epic "$I3" "09-fixture-close" 903 "$I_SLUG"
+seed_handoff "$I3" "docs/epics/05-some-other-epic"
+run_gate_i "$I3" "$I_SLUG" 903
+check "I3 exit 0"                                                    "0" "$I_RC"
+check "I3 state advances to closed regardless"                       "closed" "$I_STATE"
+check "I3 the OTHER epic's handoff.md is untouched in the checkout"  "1" "$([ -e "$I3/repo/docs/epics/handoff.md" ] && echo 1 || echo 0)"
+check "I3 the OTHER epic's handoff.md is untouched on origin"        "1" \
+      "$("$REAL_GIT" --git-dir="$I3/origin.git" ls-tree --name-only main -- docs/epics/handoff.md 2>/dev/null | grep -c . | tr -d ' ')"
+
+# --- I4: the issue is ALREADY closed (the final PR's own Closes #n) — no
+# redundant `gh issue close`, but the retro still posts. --------------------
+I4="$(mkcase_g i4-issue-already-closed)"
+seed_closing_epic "$I4" "09-fixture-close" 904 "$I_SLUG"
+EPIC_LOOP_FIX_ISSUE_STATE=CLOSED run_gate_i "$I4" "$I_SLUG" 904
+check "I4 exit 0"                                                    "0" "$I_RC"
+check "I4 state advances to closed"                                  "closed" "$I_STATE"
+check "I4 gh issue close was NEVER called (already closed)"          "0" "$(grep -c '^gh issue close' <<<"$I_CALLS" | tr -d ' ')"
+check "I4 gh issue comment WAS still called"                         "1" "$(grep -c '^gh issue comment' <<<"$I_CALLS" | tr -d ' ')"
+
+# --- I5: a human already set Status: closed by hand — no redundant close
+# commit, cleanup and retro/issue-close still run. --------------------------
+I5="$(mkcase_g i5-already-closed-by-human)"
+seed_closing_epic "$I5" "09-fixture-close" 905 "$I_SLUG" yes
+run_gate_i "$I5" "$I_SLUG" 905
+check "I5 exit 0"                                                    "0" "$I_RC"
+check "I5 state advances to closed"                                  "closed" "$I_STATE"
+check "I5 no redundant 'docs(epic): close' commit was pushed"        "0" \
+      "$("$REAL_GIT" --git-dir="$I5/origin.git" log --oneline main 2>/dev/null | grep -c 'docs(epic): close 09-fixture-close' | tr -d ' ')"
+check "I5 status/ still removed on the already-closed path"          "0" "$([ -e "$I5/repo/docs/epics/09-fixture-close/status" ] && echo 1 || echo 0)"
+check "I5 gh issue close WAS still called"                           "1" "$(grep -c '^gh issue close 905' <<<"$I_CALLS" | tr -d ' ')"
+
+# --- I6: no epic recorded on the state file — refuses cleanly, touches
+# nothing, state stays `closing` for a later cycle. --------------------------
+I6="$(mkcase_g i6-no-epic-recorded)"
+mkdir -p "$I6/repo/docs/epics/.intake/loop"
+cat > "$I6/repo/docs/epics/.intake/loop/906.json" <<EOF
+{
+  "issue": 906,
+  "repo": "$I_SLUG",
+  "epic": "",
+  "state": "closing",
+  "item": null,
+  "detail": "seed",
+  "updated": "1970-01-01T00:00:00Z"
+}
+EOF
+run_gate_i "$I6" "$I_SLUG" 906
+check "I6 exit 0 (error reported, not a crash)"                      "0" "$I_RC"
+check "I6 state stays closing (nothing to advance from)"             "closing" "$I_STATE"
+check "I6 gh was never called"                                       "0" "$(grep -c '^gh ' <<<"$I_CALLS" | tr -d ' ')"
 
 echo
 echo "cases: $CASES   failures: $FAILURES"
