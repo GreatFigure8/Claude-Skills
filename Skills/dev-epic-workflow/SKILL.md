@@ -1,6 +1,6 @@
 ---
 name: dev-epic-workflow
-description: Jonathan's development process for any code change — plan first as an epic, one branch and one executor context per work item, commit early and often, verify what actually landed. Use whenever work involves writing, changing, refactoring, or shipping code in his repos (FastAPI/FastMCP, Oracle Fusion MCP tooling, OIC, Next.js, OCI, Supabase), or on "plan", "epic", "work item", "branch", "PR", "let's build", "refactor", "migrate". Also trigger for issue intake — picking up or filing GitHub issues / Azure DevOps work items ("pick up issue 123", "AB#", "file this as a bug", "/intake") — and for orchestrated execution — dispatching, monitoring, cancelling, or reconciling a work-item-executor subagent, status.json, "orchestrator", "is it blocked". Also for resuming an in-flight epic, verifying a step landed, merging approved PRs, deleting merged branches, and when context is filling or has compacted — "handoff", "checkpoint", "resume where we left off", "/clear", "new session", parallel sessions, git worktrees.
+description: Jonathan's development process for any code change — plan first as an epic, one branch and one executor context per work item, commit early and often, verify what actually landed. Use whenever work involves writing, changing, refactoring, or shipping code in his repos (FastAPI/FastMCP, Oracle Fusion MCP tooling, OIC, Next.js, OCI, Supabase), or on "plan", "epic", "work item", "branch", "PR", "let's build", "refactor", "migrate". Also trigger for issue intake — picking up or filing GitHub issues / Azure DevOps work items ("pick up issue 123", "AB#", "file this as a bug", "/intake") — and for orchestrated execution — dispatching, monitoring, cancelling, or reconciling a work-item-executor subagent, status.json, "orchestrator", "is it blocked". Also for resuming an in-flight epic, verifying a step landed, merging approved PRs, deleting merged branches, and when context is filling or has compacted — "handoff", "checkpoint", "resume where we left off", "/clear", "new session", parallel sessions, git worktrees. Also for the session-scoped autonomous issue loop — "start the loop", "run the loop on <repo>", "stop the loop", "/loop", working admitted issues end to end without an approval stop.
 ---
 
 # Development Epic Workflow
@@ -15,9 +15,9 @@ The failure modes this exists to prevent, in order of how much damage they do:
 4. **Long-lived branches drifting from the integration branch.** Cost: merge archaeology.
 5. **Conversational state outliving its context.** A compaction summary's — or an executor's return summary's — memory of file state is an unverified claim: the same failure class as #3, at a context boundary. State that matters gets written to disk before it's needed, not summarized after it's lost.
 
-## Session mode — intake or coding, declared once at the top
+## Session mode — intake, coding, or loop, declared once at the top
 
-Every session runs in exactly one of two modes, declared once and held for the rest of the
+Every session runs in exactly one of three modes, declared once and held for the rest of the
 session — Claude does not re-infer or drift between them on its own initiative mid-session.
 
 **Intake session** — triggered by `/intake` in any form, or Jonathan opening with a bug report,
@@ -42,6 +42,15 @@ conversation, re-litigate scope, or ask whether to plan first — Jonathan start
 session already made that call. If the requested work genuinely has no filed epic, file one per
 Phase 1 in the same breath and say so in one line, then keep going into Phase 2 rather than
 turning the rest of the session into intake.
+
+**Loop session** — triggered by "start the loop on `<repo>`" in any phrasing, or `/loop`. It is a
+coding session that has additionally been granted **full autonomy for this session and this repo**:
+the loop drafts, dispatches, verifies, harm-checks, merges, chains and closes admitted issues with
+no approval stop, because *starting the loop is the approval*. Scope is one repo, live only —
+never headless, never two repos. It runs until Jonathan says stop or the session ends. The contract
+is `references/session-loop.md`; the only in-flight brake is the harm floor, and the driver runs it
+rather than trusting the session to remember. **Full autonomy is opt-in per session and never
+ambient** — a session that has not started the loop is an ordinary coding session, unchanged.
 
 When the very first message gives no signal either way, default to intake — of the two failure
 modes, coding without an agreed plan (failure mode #1 above) is the expensive one to be wrong
@@ -174,6 +183,30 @@ The item lifecycle, whoever executes it — **in orchestrated mode the orchestra
 
 **When scope grows mid-item**, don't grow the branch. Split: land the agreed slice as PR A, and put the remainder in a follow-on item (PR B) with its own branch and its own approval — the way a transport extraction splits into "client extraction" then "async conversion." An executor proposes the split in its return summary and finishes the agreed slice; the orchestrator announces the split and updates the plan. An executor that hits genuine ambiguity reports `blocked` and returns — the orchestrator resolves it (with Jonathan if needed) and re-dispatches; decisions stay in the session Jonathan actually sits in.
 
+## Phase 3 autonomous — the session-scoped loop
+
+Everything above assumes Jonathan approves each step. **The loop is the same lifecycle with the
+approval moved to the front**: he starts it once, naming one repo, and the session then runs
+Phases 1, 3, 4 and 5 over admitted issues continuously — draft, dispatch, verify, harm-check,
+merge, chain, close, next issue — until he says stop or the session ends. Nothing about the
+lifecycle changes; what changes is who says go, and when. Full contract:
+`references/session-loop.md`.
+
+Four things about it are worth knowing before reading that file:
+
+- **The brake is deterministic, not remembered.** `bin/session-loop.sh --next` runs epic 21 item
+  2's `autonomy_harm_check` *itself* before it will name a merge, a chain or a close, and answers
+  `blocked`/`halt` instead when the floor refuses. A session cannot skip a check it is never
+  offered the chance to skip.
+- **It is not headless.** The driver never invokes `claude`. Drafting, execution and verification
+  are `Agent`-tool dispatches inside the live session — the same `work-item-executor` path Phase 3
+  already describes, unchanged. The headless runner it replaced was retired, not wrapped.
+- **Admission is narrow and checked, not claimed.** An issue is worked only if it carries the
+  `epic-loop-ready` label *and* its body carries human-authored requirements and acceptance
+  criteria (the skeleton `author-issue` files). Anything else is parked and stepped over.
+- **It self-paces across turns with `ScheduleWakeup`**, one action per wakeup, never a blocking
+  `sleep` — a scheduled wakeup can be interrupted by Jonathan typing stop; a `sleep` cannot.
+
 ## Phase 3.5 — Session boundaries and context checkpoints
 
 In orchestrated mode, executor contexts end themselves — this phase now governs the **orchestrator session** (and any direct-mode session). The orchestrator carries only plan-level state, so its checkpoints are rare: end of the working day, an epic pause, or a long-running orchestrator that has genuinely filled. When a session must end, it ends through a **checkpoint**, never through reliance on auto-compaction. Full protocol, templates, and the automation that backs this phase: `references/session-handoff.md`.
@@ -241,8 +274,9 @@ Report the verification, then update the plan: mark the item done, move any disc
 - `references/executor-control-plane.md` — orchestrated execution: the status contract (`status.json` milestones), telemetry feeds (commit stream, status log, `/tasks`/agent view), the deterministic cancel protocol (sentinel files + PreToolUse gate), reconciliation rules, dispatch conventions, and the failure-mode table.
 - `references/autonomy-control-surface.md` — the per-repo autonomy ladder and the controls that govern it: the config file and why it is a sibling of `repos` rather than a third field on its lines, the admission policy (required/forbidden labels, the sensitive-path denylist and its built-in floor, size ceilings), the per-cycle budget, the two separate revocation files (`AUTONOMY-OFF` pins every repo to L0 and leaves drafting running; `STOP` prevents a cycle starting at all), and the promotion-record contract that gates every rung above L0. The **permission** surface: it answers what the machine may do and never acts.
 - `references/worktree-provisioning.md` — the **capability** surface beside it: how a freshly-cut worktree is made able to run its gates (the declared environment files to copy, the declared install command, and the **smoke check** that proves the gate can run before any executor is dispatched into it), and the **per-item-type gate declaration** a dispatch brief carries — because a repo-wide gate script was measured covering none of a `.tsx` item. Every failure refuses to dispatch and names what failed. **A repo that declares nothing gets a bare worktree, exactly as today.**
+- `references/session-loop.md` — the **session-scoped autonomous loop**: what "start the loop" grants and what it does not, the deterministic-driver/live-session seam and why the harm floor sits on the driver's side, the turn cycle and its `ScheduleWakeup` self-pacing, the action vocabulary (`draft`/`dispatch`/`verify`/`merge`/`close`/`poll`/`blocked`/`halt`/`stop`), how drafting reuses the unattended-intake contract in-session and the exactly three ways it departs from it, the two-part admission rule (`epic-loop-ready` **and** human-authored requirements + acceptance criteria in the body), how a stop lands cleanly, and the consequence that the denylist floor stops the loop merging changes to its own control plane.
 - `references/l2-dispatch.md` — the **action** surface, and the only one that acts: at L2 the scheduled runner takes the next undispatched work item of an epic at `approved` or `in flight`, admits it, provisions its worktree, runs `work-item-executor` in it, checks the **real diff** against the sensitive-path denylist, opens the pull request, and **stops**. How "undispatched" is decided from the `- **Branch:**` line plus branch-and-PR existence and never from prose; why a dependency must be *merged* rather than merely dispatched; why the branch is pushed before the executor starts; and the ceiling — enforced by the executor's allowlist, not by its brief. **The runner never approves, never merges, never closes an issue and never chains.**
-- `assets/claude-config/` — the drop-in automation: hook scripts (SessionStart context injection, PreCompact snapshot, SessionEnd guard, statusline, PreToolUse cancel gate, SubagentStart/Stop lifecycle, PostToolUse tool logger), `settings.json` hook wiring, the `/handoff` and `/intake` slash commands, the `work-item-executor` agent definition (`agents/`), and `install.sh`, the idempotent installer that puts it all into `~/.claude/` (user mode) or a repo's `.claude/` (repo mode) as the Phase 3.5 bootstrap.
+- `assets/claude-config/` — the drop-in automation: hook scripts (SessionStart context injection, PreCompact snapshot, SessionEnd guard, statusline, PreToolUse cancel gate, SubagentStart/Stop lifecycle, PostToolUse tool logger), `settings.json` hook wiring, the `/handoff`, `/intake` and `/loop` slash commands, the `work-item-executor` agent definition (`agents/`), and `install.sh`, the idempotent installer that puts it all into `~/.claude/` (user mode) or a repo's `.claude/` (repo mode) as the Phase 3.5 bootstrap. `bin/` is deliberately not installed — `session-loop.sh`, `autonomy.sh`, `declared-paths-gate.sh` and their siblings are invoked from the skill directory by absolute path, so there is one copy and no second one to drift.
 
 ## Working style notes
 
