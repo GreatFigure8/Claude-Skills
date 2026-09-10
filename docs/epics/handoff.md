@@ -1,29 +1,59 @@
-# Session Handoff — 19-epic-loop / work item 8
+# Session Handoff — 21-session-scoped-issue-loop / between items
 
-**Written:** 2026-09-10T18:15:04Z
-**Epic:** docs/epics/19-epic-loop
-**Branch:** dev (pushed: yes)
-**Last commit:** 82a2a52 Merge pull request #104 from GreatFigure8/feat/epic-loop-close-phase
+**Written:** 2026-09-10T00:00:00Z
+**Epic:** docs/epics/21-session-scoped-issue-loop
+**Branch:** main (pushed: yes)
+**Last commit:** 2f791a8 docs(epic): file 21-session-scoped-issue-loop plan
 **Worktree:** main checkout
 
 ## Verified this session
-- Item 7 (Close phase) dispatched to a `work-item-executor` in its own worktree on `feat/epic-loop-close-phase`. PR #104 checked cold before merge: `gh pr view` showed OPEN/MERGEABLE, `gh pr diff` confirmed the changed files matched the item's declared Touches exactly (`bin/epic-loop.sh`, `hooks/tests/epic-loop-fixtures.sh` — no other files), and the three claimed new functions (`epic_loop_close_gate`, `epic_loop_build_retro`, `epic_loop_set_plan_status`) were grepped directly out of the diff, not taken on the executor's word.
-- PR #104 merged with a merge commit (`gh pr merge --merge`), `dev` pulled fast-forward to `82a2a52`, merge commit confirmed present in `git log`.
-- Land-and-reset completed: remote branch `feat/epic-loop-close-phase` deleted, worktree `../claude-skills-epic-loop-close-phase` removed, local branch deleted (`-d`, not `-D`, succeeded cleanly), `git fetch --prune` run, item's `status/` JSON + agent log + owner record + `CANCEL` sentinel removed from `docs/epics/19-epic-loop/status/`.
-- GH #93 checklist comment (`issuecomment-5614219177`) edited via `gh api ... -X PATCH`: item 7 box now ticked, item 8 still open.
-- `plan.md` header moved to `in flight (item 8 of 8)`; item 7's heading now reads `DONE (PR #104)`.
+- `epic-loop.sh`, `autonomy.sh`, `dispatch.sh`, `phase-session.sh`, `verify-item.sh` all
+  live in `Skills/dev-epic-workflow/assets/claude-config/bin/` (shared skill infra, not
+  repo-local) — verified by direct reads via subagent this session.
+- `epic-loop.sh` is single-pass only (`--once`); no continuous/self-pacing mechanism
+  exists anywhere in the repo — verified by grep for `ScheduleWakeup`/self-pacing/
+  dynamic-loop, zero hits.
+- Zero `gh issue create` calls in any `bin/`/hook code — verified by repo-wide grep.
+- `main` and `dev` had zero divergence in `main`'s favor (`dev` was a clean 28-commit
+  fast-forward ahead) — verified via `git log --oneline main..dev` / `dev..main` before
+  merging.
+- `main` fast-forwarded to `dev`'s tip, tagged `pre-loop-redesign` at the prior `main`
+  commit (`6a9fb40`) first, pushed; `dev` deleted locally and on `origin` — verified by
+  the fast-forward and push output this session.
+- Epic 21's plan committed (`2f791a8`) and pushed to `origin/main` — verified by push
+  output (`0c1bf3e..2f791a8`).
+- `.gitignore` already covers `.claude/signals/`, `docs/epics/*/status/`,
+  `docs/epics/*/CANCEL` — verified by grep, no change needed.
 
 ## Claimed but NOT yet verified
-- Item 7's own gate numbers (148/148 epic-loop-fixtures, 231/231 l2-dispatch, 289/289 autonomy-control) are as reported by the executor in its return summary — not independently re-run this session.
-- Item 3/PR #99's gate numbers and item 1/PR #98's original executor/model — long-standing unverified carries from prior sessions, still not re-checked.
+- The specific file:line citations in the plan's Grounding section and Item 1's Touches
+  list (exact functions/line numbers in `autonomy.sh`, `dispatch.sh`, `phase-session.sh`,
+  `epic-loop.sh`, `verify-item.sh`) are as reported by investigation subagents this
+  session — not independently re-checked by the orchestrator against the files directly.
+- Epics 11's and 19's plan.md header text beyond "epic 19: in flight (item 8 of 8)" —
+  not re-read in full this session; Item 1 of epic 21 should read both in full before
+  writing their closing retros.
+- Whether stale worktrees remain under `.claude/worktrees/` from epic 19's items
+  (several were listed at this session's start, including one locked on
+  `feat/epic-loop-entry-and-live-proof`) — not re-checked after the `dev`→`main`
+  collapse. These likely need `git worktree remove` + prune before or during Item 1,
+  since the branches they point at either merged already or belonged to now-superseded
+  epic 19 item 8.
 
 ## Exact next action
-- Dispatch item 8 (plan.md lines ~172-185): "Next-issue loop, entry points, runbook, live proof." Branch `feat/epic-loop-entry-and-live-proof`. Read the plan's item 8 section and its DoD/Not-in-scope lines before dispatching — nothing about it was inspected this session beyond confirming its existence in the sequence. Note the plan's own caveat: item 8's live proof depends on epic 11's two outstanding live verifications having run first, or it becomes the third such outstanding verification — check that dependency before treating the live-proof part of DoD as achievable this cycle.
-- This is the epic's last work item; after item 8 lands, Phase 5 (close the epic) is next — closing needs both preconditions in that phase's checklist (plan header → `closed`, merged and pulled on the canonical checkout) before any scaffolding removal.
+Dispatch Item 1 of epic 21 ("Retire the promotion-ladder and daemon-trigger surface") —
+read `docs/epics/21-session-scoped-issue-loop/plan.md` Item 1 in full, check
+`.claude/worktrees/` for stale epic-11/epic-19 worktrees and clean them up first, then
+dispatch a `work-item-executor` on branch `refactor/retire-autonomy-ladder` from `main`.
 
 ## Environment state
-- None running. No open worktrees for this epic (only other agents' unrelated in-flight branches from before this session: `feat/settings-merge-shared-script`, `feat/gh-issue-per-story-executor`, `fix/dev-story-sprint-prep-for-clear-prompt-only`, `test/merge-settings-fixtures`, `feat/gh-issue-per-story-skill`, `feat/refresh-hook-merges-allowlist`, `docs/allowlist-goes-live-on-push` — none touched this session).
-- Stray local `worktree-agent-*` scratch branches from past dispatches remain untouched in this checkout, as before — out of scope for this epic.
+- No worktrees currently active for epic 21 (nothing dispatched yet this epic).
+- A peer interactive session (`claude-skills-5a`, seen via `ListAgents` this session) may
+  still be running against this same shared checkout — verify it isn't mid-git-operation
+  before the next dispatch.
+- No running services, no applied-but-unmerged migrations, no env vars/tunnels set.
 
 ## Open questions for Jonathan
-- None.
+- None — the design decisions (replace vs. add, harm-floor definition, issue-filing
+  dedup/attribution, integration-testing scope) were all resolved in this session's
+  conversation and are captured directly in the plan.
