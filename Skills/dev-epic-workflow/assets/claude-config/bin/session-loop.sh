@@ -110,8 +110,15 @@
 # are terminal for an issue; the loop steps to the next admitted issue.
 #
 #   picked -> drafting -> filed -> dispatching(item N) -> awaiting-verify
-#          -> verified -> merged(item N) -> [dispatching(N+1) | closing]
+#          -> verified -> merged(item N) -> [dispatching(N+1) | integration-tested]
 #          -> closed | blocked | parked
+#
+# `integration-tested` (epic 21 item 5) is reached once, after every work item
+# of the issue has merged and before it closes — never per item, the way
+# `merged(item N)` is. A repo with nothing declared to check reaches it in the
+# same `--next` call that found nothing left to dispatch, silently; a repo
+# with a declared command or declared gates reaches it only after the session
+# reports back via `--record --state integration-tested`.
 #
 # There is deliberately NO `awaiting-approval` state. epic-loop.sh had one
 # because a human approved every plan between drafting and dispatch; this loop
@@ -139,6 +146,11 @@ SESSION_LOOP_AUTONOMY_LIB="${INTAKE_AUTONOMY_LIB:-$SESSION_LOOP_BIN_DIR/autonomy
 SESSION_LOOP_DISPATCH_LIB="${INTAKE_DISPATCH_LIB:-$SESSION_LOOP_BIN_DIR/dispatch.sh}"
 SESSION_LOOP_VERIFY_LIB="${INTAKE_VERIFY_ITEM_LIB:-$SESSION_LOOP_BIN_DIR/verify-item.sh}"
 SESSION_LOOP_DPG_LIB="${INTAKE_DECLARED_PATHS_GATE_LIB:-$SESSION_LOOP_BIN_DIR/declared-paths-gate.sh}"
+# The same declared-gate library dispatch.sh already sources (epic 11 item
+# 2b/3), reused rather than re-derived for the per-issue integration check
+# (epic 21 item 5): `provision_integration_test` and, on its refusal,
+# `provision_gates ""` for the declared-gates fallback.
+SESSION_LOOP_PROVISION_LIB="${INTAKE_PROVISION_LIB:-$SESSION_LOOP_BIN_DIR/worktree-provision.sh}"
 
 # The admission label, one definition, matching the producing side exactly.
 SESSION_LOOP_ADMISSION_LABEL="${INTAKE_ADMISSION_LABEL:-epic-loop-ready}"
@@ -483,6 +495,7 @@ session_loop_emit_action() { # $1=action $2=reason $3=wake
 # The whole decision. Returns the exit code the CLI should use.
 session_loop_next() {
   local ISSUE EPIC PLAN PLAN_REL BRANCH ITEM PHASE IFILE
+  local ITEST GCMDS GLINE
 
   # 1. STOP FIRST, before anything is read from GitHub, before the state is
   #    consulted, and before any harm check spends a query. "A typed stop halts
@@ -650,7 +663,46 @@ CAND_EOF
     return 2
   fi
 
-  # 7. Nothing left to dispatch anywhere -> this issue's epic is done.
+  # 7. Nothing left to dispatch anywhere -> ONE per-issue integration check
+  #    before close (epic 21 item 5), unless it has already run for this
+  #    issue. Reused declared-gate pattern from worktree-provisioning.md: a
+  #    declared `integration-test` command wins; where none is declared, the
+  #    repo's own declared `gates.*` are the closest available check (never an
+  #    invented one); where NEITHER is declared, this is silent and the gap is
+  #    a known one, not a defect (see the plan's Deferred parking lot).
+  if [ "$PHASE" != integration-tested ]; then
+    if ! session_loop_source "$SESSION_LOOP_PROVISION_LIB" provision_resolve; then
+      session_loop_emit_action blocked "$SESSION_LOOP_REFUSAL" 0
+      return 2
+    fi
+    if ! provision_resolve "$SESSION_LOOP_ROOT" "$SESSION_LOOP_SLUG"; then
+      session_loop_emit_action blocked "${PROVISION_REFUSAL:-provisioning config could not be resolved}" 0
+      return 2
+    fi
+    if ITEST="$(provision_integration_test)"; then
+      session_loop_emit command "$ITEST"
+      session_loop_emit_action integration-test "run the declared integration-test command for $SESSION_LOOP_SLUG above (once for issue #$ISSUE, post-merge, pre-close), then \`session-loop.sh --record --issue $ISSUE --state integration-tested --detail \"pass|fail: <output summary>\"\`. On FAIL, file it FIRST via \`bin/issue-filer.sh --file --repo $SESSION_LOOP_ROOT --issue $ISSUE --item issue-level --check \"integration-test\" --evidence \"<the command's own failure output>\"\` — the same call site pattern dispatch's blocked handling already uses — THEN record integration-tested; filing is the terminal action and never blocks the record or the chain to close." \
+        "$SESSION_LOOP_WAKE_ACT"
+      return 0
+    fi
+    if [ -n "$PROVISION_GATE_TYPES" ]; then
+      GCMDS="$(provision_gates "")"
+      while IFS= read -r GLINE; do
+        [ -n "$GLINE" ] || continue
+        session_loop_emit command "$GLINE"
+      done <<GATES_FALLBACK_EOF
+$GCMDS
+GATES_FALLBACK_EOF
+      session_loop_emit_action integration-test "no integration-test command is declared for $SESSION_LOOP_SLUG — running its declared gates.* above as the closest available check instead (epic 21 item 5's own scope: never invent one). Run every command, then \`--record --issue $ISSUE --state integration-tested --detail \"pass|fail: <summary>\"\`, filing a FAIL first via bin/issue-filer.sh --file the same way." \
+        "$SESSION_LOOP_WAKE_ACT"
+      return 0
+    fi
+    session_loop_emit integration-test "skipped — $SESSION_LOOP_SLUG declares neither integration-test nor gates.<type>; nothing invented, this is the plan's own Deferred gap, not a defect"
+  fi
+
+  # 8. Every work item merged and the per-issue integration check is settled
+  #    (or, for a repo declaring neither check, silently not applicable) ->
+  #    this issue's epic is done.
   if ! session_loop_harm_check "" "" "$EPIC" ""; then
     session_loop_emit_action "$(session_loop_harm_is_stop && printf halt || printf blocked)" \
       "$SESSION_LOOP_HARM_REASON" 0

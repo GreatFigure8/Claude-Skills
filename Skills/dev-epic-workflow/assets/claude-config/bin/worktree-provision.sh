@@ -125,6 +125,7 @@ PROVISION_ENV_FILES=""
 PROVISION_INSTALL=""
 PROVISION_SMOKE=""
 PROVISION_GATE_TYPES=""
+PROVISION_INTEGRATION_TEST=""
 PROVISION_REASON=""
 PROVISION_LOG=""
 PROVISION_REFUSAL=""
@@ -224,9 +225,18 @@ HASKEYS_EOF
 # fixed name, because the item types a repo has are the repo's business —
 # but the TYPE part is constrained so `gates.` alone, or a type with a space in
 # it, is an error rather than a key nobody can ever name in a brief.
+#
+# `integration-test` (epic 21 item 5) is ONE command, not a family: it runs
+# once per ISSUE, after every one of its work items has merged and before it
+# closes — never per item type, so it gets no `.<type>` suffix the way gates
+# does. It is declared here rather than in a fourth sibling file for the same
+# three reasons `references/worktree-provisioning.md` already gives for
+# putting `gates.*` here: it is capability, not permission; a typo in it must
+# not pin the repo to L0; and an older parser refusing an unknown key is
+# exactly the version-skew argument that keeps this file's format singular.
 _provision_key_ok() { # $1 = key
   case "${1-}" in
-    env-files|install|smoke) return 0 ;;
+    env-files|install|smoke|integration-test) return 0 ;;
     gates.*)
       case "${1#gates.}" in
         '') return 1 ;;
@@ -366,7 +376,7 @@ $SECTION"
     if ! _provision_key_ok "$KEY"; then
       case "$KEY" in
         gates.*) _provision_err "$N" "'$KEY' is not a usable gate name — a gate is 'gates.<type>' where <type> is letters, digits, dot, dash or underscore" ;;
-        *)       _provision_err "$N" "unknown key '$KEY' in [$SECTION]; this file knows env-files, install, smoke and gates.<type>" ;;
+        *)       _provision_err "$N" "unknown key '$KEY' in [$SECTION]; this file knows env-files, install, smoke, gates.<type> and integration-test" ;;
       esac
       continue
     fi
@@ -433,6 +443,7 @@ provision_resolve() { # $1 = repo checkout path, $2 = repo slug
   PROVISION_INSTALL=""
   PROVISION_SMOKE=""
   PROVISION_GATE_TYPES=""
+  PROVISION_INTEGRATION_TEST=""
   PROVISION_REASON=""
   PROVISION_LOG=""
   PROVISION_REFUSAL=""
@@ -488,8 +499,9 @@ provision_resolve() { # $1 = repo checkout path, $2 = repo slug
   # every repo whose author meant something by the order they wrote them in.
   PROVISION_GATE_TYPES="$(printf '%s\n' "$PROVISION_PARSED" \
     | awk -F'\t' -v s="$SEC" '$1 == s && $2 ~ /^gates\./ { sub(/^gates\./, "", $2); print $2 }')"
+  PROVISION_INTEGRATION_TEST="$(_provision_get "$SEC" integration-test)"
   PROVISION_REASON="declared by [$SEC]"
-  PROVISION_LOG="provisioning: $SEC declares env-files=[${PROVISION_ENV_FILES:-none}] install=[${PROVISION_INSTALL:-none}] gates=[$(printf '%s' "$PROVISION_GATE_TYPES" | tr '\n' ' ' | sed -e 's/ $//' -e 's/^$/none/')]"
+  PROVISION_LOG="provisioning: $SEC declares env-files=[${PROVISION_ENV_FILES:-none}] install=[${PROVISION_INSTALL:-none}] gates=[$(printf '%s' "$PROVISION_GATE_TYPES" | tr '\n' ' ' | sed -e 's/ $//' -e 's/^$/none/')] integration-test=[${PROVISION_INTEGRATION_TEST:-none}]"
   return 0
 }
 
@@ -564,6 +576,40 @@ CMDS_EOF
   printf 'Do NOT substitute a gate you believe is equivalent, and do NOT skip one that\n'
   printf 'looks unrelated to your diff: this list is declared per item type precisely\n'
   printf 'because a repo-wide gate script was measured covering none of an item.\n'
+  return 0
+}
+
+# --------------------------------------------- the integration-test declaration
+# EPIC 21 ITEM 5. One command, run once per ISSUE — after every one of its work
+# items has merged and before the issue closes — not per item type the way
+# `gates.*` is, so it names no `.<type>` suffix and this function takes no
+# argument. The caller is `session-loop.sh`'s `--next`, never `provision_preflight`:
+# this command runs against the CANONICAL repo root at the integration branch's
+# tip, post-merge, not inside a per-item dispatch worktree, so it is resolved
+# here (declaration is this file's job) but never executed here (this file only
+# executes `install`/`smoke`, both scoped to a dispatch worktree — see the
+# module header's "A DRAFTING WORKTREE IS NEVER PROVISIONED" section for why
+# execution stays scoped to the one place that needs it).
+#
+#   declared      -> its command, on stdout
+#   not declared  -> REFUSED, PROVISION_REFUSAL says so. There is deliberately
+#                    no fallback here to `gates.*` — "run the stack's existing
+#                    gates as the closest available check" (the plan's own
+#                    words) is the CALLER's policy, not a capability this file
+#                    owns, so `session-loop.sh` reads `provision_gates ""`
+#                    itself on this refusal rather than this function guessing
+#                    which of two different config families the caller meant.
+provision_integration_test() {
+  PROVISION_REFUSAL=""
+  if [ "$PROVISION_RESOLVED" != yes ]; then
+    PROVISION_REFUSAL="provision_resolve has not been called; there is no repo yet"
+    return 1
+  fi
+  if [ "$PROVISION_DECLARED" != yes ] || [ -z "$PROVISION_INTEGRATION_TEST" ]; then
+    PROVISION_REFUSAL="no integration-test command is declared for [${PROVISION_SECTION:-this repo}]"
+    return 1
+  fi
+  printf '%s\n' "$PROVISION_INTEGRATION_TEST"
   return 0
 }
 
@@ -783,6 +829,7 @@ _provision_cli_one() { # $1 path, $2 slug
     done <<CLI_TYPES_EOF
 $PROVISION_GATE_TYPES
 CLI_TYPES_EOF
+    printf '  integration-test  %s\n' "${PROVISION_INTEGRATION_TEST:-none}"
   elif [ -n "$PROVISION_REFUSAL" ]; then
     printf '  provisioning  REFUSED — %s\n' "$PROVISION_REFUSAL"
     printf '                no dispatch may proceed into a worktree of this repo\n'
@@ -799,6 +846,7 @@ _provision_cli() {
       --check)     MODE=check ;;
       --gates)     MODE=gates; TYPE="${2-}"; shift ;;
       --brief)     MODE=brief; TYPE="${2-}"; shift ;;
+      --integration-test) MODE=integration-test ;;
       --preflight) MODE=preflight; WT="${2-}"; shift ;;
       --repo)      REPO_PATH="${2-}"; shift ;;
       --slug)      REPO_SLUG="${2-}"; shift ;;
@@ -816,6 +864,10 @@ _provision_cli() {
       else
         provision_gate_brief "$TYPE" || { printf '%s\n' "$PROVISION_REFUSAL" >&2; return 1; }
       fi
+      return 0 ;;
+    integration-test)
+      provision_resolve "$REPO_PATH" "$REPO_SLUG" || { printf '%s\n' "$PROVISION_REFUSAL" >&2; return 1; }
+      provision_integration_test || { printf '%s\n' "$PROVISION_REFUSAL" >&2; return 1; }
       return 0 ;;
     preflight)
       if [ -z "$WT" ]; then printf 'preflight needs a worktree path\n' >&2; return 1; fi
