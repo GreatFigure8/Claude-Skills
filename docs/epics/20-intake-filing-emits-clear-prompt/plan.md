@@ -1,6 +1,6 @@
 # Epic: intake-filing-emits-clear-prompt — end every intake session with a paste-able coding-session prompt
 
-**Status:** in flight (item 3 of 3)
+**Status:** closed
 **Source:** GH #94
 **Live branch:** main   **Integration branch:** none (per repo `CLAUDE.md`, items merge straight to `main`)
 **Approved:** 2026-09-10
@@ -117,3 +117,7 @@ Items 1 and 2 are independent and can run in parallel. Item 3 depends on both be
 ## Log
 
 - 2026-09-10 — drafted from grounding, approved by Jonathan, filed as epic 20 with GH #94.
+- 2026-09-10 — items 1 and 2 merged (PR #96, PR #95). Item 3 dispatched, verified cold
+  (12/12 cases pass on the merged tree, mutation regression confirmed the fixture goes red
+  when a marker is removed), merged (PR #97, `Closes #94`). Nothing split, nothing deferred
+  beyond what the plan already parked. Epic closed.
