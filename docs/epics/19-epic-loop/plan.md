@@ -1,7 +1,7 @@
 # Epic: epic-loop — an issue becomes a closed epic without a human in the middle
 
-**Status:** planning
-**Source:** GH #<to be filed on approval> — report-first intake; issue created at filing, not before
+**Status:** approved
+**Source:** GH #93 — report-first intake; issue created at filing
 **Live branch:** `main`   **Integration branch:** `dev` (pushed from `main`'s tip 2026-09-10, scoped to this epic's testing — this repo's own convention per `CLAUDE.md` otherwise has no per-epic integration branch; `dev` is not a repo-wide policy change, promotion `dev` → `main` stays human, see Deferred)   **Pre-epic tag:** `pre-epic-loop` — required; this epic changes what the machine may do unsupervised
 
 ## Outcome
