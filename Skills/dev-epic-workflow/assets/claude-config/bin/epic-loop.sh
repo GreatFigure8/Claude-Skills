@@ -24,10 +24,12 @@
 #
 # `merged(item N)` either advances to `dispatching(item N+1)` — the next
 # undispatched item of the SAME epic — or to `closing` when there is none.
-# `blocked` and `refused` are not reachable by this build (nothing here makes a
-# judgement that could produce either); they exist in the vocabulary because a
-# later item writes them and a reader — this file's own `epic_loop_next_state`
-# included — must already know they are terminal.
+# `refused` is still not reachable by this build. `blocked` became reachable
+# in item 5: a cold verifier `fail` verdict at `awaiting-verify` routes there
+# for real (`epic_loop_verify_gate` below) and is never auto-retried — a human
+# resolves it. Both states were already in this file's vocabulary before that,
+# because a reader — this file's own `epic_loop_next_state` included — had to
+# already know they are terminal.
 #
 # PER-ISSUE STATE, one file per issue, named for the issue number, living
 # beside the reserved intake status tree so it is protected by the SAME
@@ -102,6 +104,10 @@ DISPATCH_LIB="${INTAKE_DISPATCH_LIB:-$BIN_DIR/dispatch.sh}"
 # epic_loop_run_phase_session below, so a build with no reachable real phase
 # (this one) never pays for it and never risks it silently becoming reachable.
 PHASE_SESSION_BIN="${INTAKE_PHASE_SESSION:-$BIN_DIR/phase-session.sh}"
+# ITEM 5's own harness — invoked as an external script by epic_loop_verify_gate
+# below, the same "not sourced at top level" discipline as PHASE_SESSION_BIN,
+# for the same reason: `awaiting-verify` is the only state that ever reaches it.
+VERIFY_ITEM_BIN="${INTAKE_VERIFY_ITEM_BIN:-$BIN_DIR/verify-item.sh}"
 
 EPIC_LOOP_EPICS_DIR="${INTAKE_EPICS_DIR:-docs/epics}"
 
@@ -541,6 +547,123 @@ Approved by epic-loop's L1 approval gate: PR #$PR merged, \`**Status:** planning
   return 0
 }
 
+# ------------------------------------------------------------ the verify gate
+# ITEM 5. Real (non-dry-run) implementation of `awaiting-verify`: locate the
+# item's own open pull request by its DECLARED branch (same parser,
+# `dispatch_work_items`, sourced read-only, that `epic_loop_next_item` /
+# `epic_loop_first_item` above already use), then hand everything else —
+# the four deterministic gates, the cold verifier session, the verdict
+# comment — to `verify-item.sh`, exactly the phase-execution seam item 3
+# built for a caller like this one. This function embeds NO verify judgement
+# of its own: it only finds the PR and translates verify-item.sh's exit code
+# into a state transition, the same shape epic_loop_approval_gate already
+# uses for `awaiting-approval`.
+
+# The declared BRANCH of one work item, same parser/read-only sourcing as
+# epic_loop_first_item / epic_loop_next_item above. $1=repo root
+# $2=epic-relative plan path $3=item id -> stdout branch name or empty.
+epic_loop_item_branch() {
+  local ROOT="${1:-}" PLAN_REL="${2:-}" ITEM="${3:-}" PLAN
+  [ -n "$PLAN_REL" ] || return 0
+  PLAN="$ROOT/$PLAN_REL"
+  [ -r "$PLAN" ] || return 0
+  command -v dispatch_work_items >/dev/null 2>&1 || return 0
+  local ID BR GT DEP TITLE
+  while IFS="$DISPATCH_FS" read -r ID BR GT DEP TITLE; do
+    [ -n "${ID:-}" ] || continue
+    if [ "$ID" = "$ITEM" ]; then printf '%s' "$BR"; return 0; fi
+  done <<ITEMS_EOF
+$(dispatch_work_items < "$PLAN")
+ITEMS_EOF
+  return 0
+}
+
+# The open PR whose head branch is EXACTLY the item's declared branch — never
+# a prefix match, unlike epic_loop_find_proposal_pr's `intake/proposed-N-*`
+# search: item branches are one-to-one with work items, not a namespaced
+# family sharing a common prefix. $1=slug $2=branch -> stdout
+# "<pr-number> <url>", rc 1 if no open PR's head branch matches.
+epic_loop_find_item_pr() {
+  local SLUG="${1:-}" BR="${2:-}" LIST PR HEAD URLV
+  [ -n "$BR" ] || return 1
+  LIST="$("$GH_BIN" pr list --repo "$SLUG" --state open --limit 100 \
+            --json number,headRefName,url -q '.[] | "\(.number) \(.headRefName) \(.url)"' 2>/dev/null)" || return 1
+  while IFS=' ' read -r PR HEAD URLV; do
+    case "${PR:-}" in ''|*[!0-9]*) continue ;; esac
+    [ -n "${HEAD:-}" ] || continue
+    [ "$HEAD" = "$BR" ] && { printf '%s %s' "$PR" "$URLV"; return 0; }
+  done <<ITEM_PR_LIST_EOF
+$LIST
+ITEM_PR_LIST_EOF
+  return 1
+}
+
+# THE GATE ITSELF. $1=repo checkout $2=repo slug $3=issue $4=repo root
+# $5=epics-dir $6=epic-relative plan path $7=item id $8=per-issue state file
+# path (may be empty).
+#
+# Sets, for the caller:
+#   EPIC_LOOP_VERIFY_RESULT   pass | fail | parked | error
+#   EPIC_LOOP_VERIFY_DETAIL   one line, for the state file and the ledger
+#
+# rc is always 0 — same contract as epic_loop_approval_gate: a parked issue
+# and a failed verify are both things this gate REPORTS, never a crash.
+epic_loop_verify_gate() {
+  local REPO="${1:-}" SLUG="${2:-}" ISSUE="${3:-}" ROOT="${4:-}" EPICS_DIR="${5:-}"
+  local PLAN_REL="${6:-}" ITEM="${7:-}" SF="${8:-}"
+  EPIC_LOOP_VERIFY_RESULT=error
+  EPIC_LOOP_VERIFY_DETAIL="no attempt made"
+  : "$EPICS_DIR"  # not needed once PLAN_REL is already epics-dir-relative
+
+  if [ -z "$PLAN_REL" ] || [ -z "$ITEM" ]; then
+    EPIC_LOOP_VERIFY_DETAIL="no epic/item recorded for issue #$ISSUE — cannot know which PR to verify"
+    return 0
+  fi
+
+  local BR
+  BR="$(epic_loop_item_branch "$ROOT" "$PLAN_REL" "$ITEM")"
+  if [ -z "$BR" ]; then
+    EPIC_LOOP_VERIFY_DETAIL="item $ITEM has no declared branch in $PLAN_REL — cannot look up its PR"
+    return 0
+  fi
+
+  "$GIT_BIN" -C "$REPO" fetch origin >/dev/null 2>&1 || true
+
+  local PR_LINE PR
+  PR_LINE="$(epic_loop_find_item_pr "$SLUG" "$BR")" || PR_LINE=""
+  PR="${PR_LINE%% *}"
+  case "$PR" in ''|*[!0-9]*) PR="" ;; esac
+  if [ -z "$PR" ]; then
+    EPIC_LOOP_VERIFY_RESULT=parked
+    EPIC_LOOP_VERIFY_DETAIL="no open PR found for item $ITEM's branch $BR — nothing to verify this cycle"
+    return 0
+  fi
+
+  if [ ! -r "$VERIFY_ITEM_BIN" ]; then
+    EPIC_LOOP_VERIFY_DETAIL="cannot read verify-item harness: $VERIFY_ITEM_BIN"
+    return 0
+  fi
+
+  local OUT RC
+  if [ -n "$SF" ]; then
+    OUT="$(bash "$VERIFY_ITEM_BIN" --plan "$ROOT/$PLAN_REL" --item "$ITEM" --pr "$PR" \
+             --repo "$REPO" --slug "$SLUG" --issue "$ISSUE" --state-file "$SF" --epic "$PLAN_REL" 2>&1)"
+  else
+    OUT="$(bash "$VERIFY_ITEM_BIN" --plan "$ROOT/$PLAN_REL" --item "$ITEM" --pr "$PR" \
+             --repo "$REPO" --slug "$SLUG" --issue "$ISSUE" --epic "$PLAN_REL" 2>&1)"
+  fi
+  RC=$?
+  EPIC_LOOP_VERIFY_DETAIL="$(printf '%s\n' "$OUT" | tail -1)"
+  [ -n "$EPIC_LOOP_VERIFY_DETAIL" ] || EPIC_LOOP_VERIFY_DETAIL="verify-item.sh exited $RC with no output"
+  case "$RC" in
+    0)   EPIC_LOOP_VERIFY_RESULT=pass ;;
+    1)   EPIC_LOOP_VERIFY_RESULT=fail ;;
+    2|3) EPIC_LOOP_VERIFY_RESULT=parked ;;
+    *)   EPIC_LOOP_VERIFY_RESULT=error ;;
+  esac
+  return 0
+}
+
 # --------------------------------------------------------------- the state tree
 # Reuses intake_status_tree for its three guarantees (leading dot, refuses a
 # plan.md ever appearing under `.intake`, self-ignoring `.gitignore`) rather
@@ -707,6 +830,40 @@ epic_loop_process_issue() { # $1=issue $2=repo-checkout $3=slug $4=state-dir $5=
           *)
             printf 'epic-loop: issue #%s — approval gate error: %s\n' "$ISSUE" "$EPIC_LOOP_GATE_DETAIL" >&2
             epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" awaiting-approval awaiting-approval "ERROR: $EPIC_LOOP_GATE_DETAIL"
+            return 0
+            ;;
+        esac
+      fi
+      # ITEM 5's one real phase. `pass` advances to `awaiting-merge` (item 6
+      # owns what happens there); `fail` is the one path in this whole build
+      # that reaches `blocked` for real — and it is NEVER auto-retried, per
+      # the plan's own scope line, so this branch returns rather than
+      # looping. `parked`/`error` leave the state untouched for a later
+      # cycle, the same shape awaiting-approval's own park/error cases use.
+      if [ "$CUR_STATE" = awaiting-verify ]; then
+        epic_loop_verify_gate "$REPO" "$SLUG" "$ISSUE" "$ROOT" "$EPIC_LOOP_EPICS_DIR" "$CUR_EPIC" "$CUR_ITEM" "$TARGET"
+        case "$EPIC_LOOP_VERIFY_RESULT" in
+          pass)
+            printf 'epic-loop: issue #%s — verify: %s\n' "$ISSUE" "$EPIC_LOOP_VERIFY_DETAIL"
+            epic_loop_state_write "$TARGET" "$ISSUE" "$SLUG" "$CUR_EPIC" awaiting-merge "$CUR_ITEM" "$EPIC_LOOP_VERIFY_DETAIL" || true
+            epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" awaiting-verify awaiting-merge "$EPIC_LOOP_VERIFY_DETAIL"
+            continue
+            ;;
+          fail)
+            printf 'epic-loop: issue #%s — verify FAILED: %s\n' "$ISSUE" "$EPIC_LOOP_VERIFY_DETAIL" >&2
+            epic_loop_state_write "$TARGET" "$ISSUE" "$SLUG" "$CUR_EPIC" blocked "$CUR_ITEM" "$EPIC_LOOP_VERIFY_DETAIL" || true
+            epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" awaiting-verify blocked "$EPIC_LOOP_VERIFY_DETAIL"
+            return 0
+            ;;
+          parked)
+            printf 'epic-loop: issue #%s — verify parked: %s\n' "$ISSUE" "$EPIC_LOOP_VERIFY_DETAIL"
+            epic_loop_state_write "$TARGET" "$ISSUE" "$SLUG" "$CUR_EPIC" awaiting-verify "$CUR_ITEM" "$EPIC_LOOP_VERIFY_DETAIL" || true
+            epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" awaiting-verify awaiting-verify "$EPIC_LOOP_VERIFY_DETAIL"
+            return 0
+            ;;
+          *)
+            printf 'epic-loop: issue #%s — verify gate error: %s\n' "$ISSUE" "$EPIC_LOOP_VERIFY_DETAIL" >&2
+            epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" awaiting-verify awaiting-verify "ERROR: $EPIC_LOOP_VERIFY_DETAIL"
             return 0
             ;;
         esac
