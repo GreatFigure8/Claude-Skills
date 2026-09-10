@@ -1,75 +1,61 @@
-# Session Handoff — epic 21 (session-scoped issue loop) / between items
+# Session Handoff — epic 21 (session-scoped issue loop) / before item 6
 
-**Written:** 2026-09-10T21:20:00Z
-**Epic:** 21-session-scoped-issue-loop (docs/epics/21-session-scoped-issue-loop/plan.md)
+**Written:** 2026-09-10T22:17:53Z
+**Epic:** docs/epics/21-session-scoped-issue-loop
 **Branch:** main (pushed: yes)
-**Last commit:** 8a28e19 chore(epic-21): item 3 merged (PR #108), dispatch item 4
+**Last commit:** 385f8cf fix(fixtures): guard cancel-gate/lifecycle/active-epic harnesses against empty sandbox paths
 **Worktree:** main checkout
 
 ## Verified this session
-- Item 2 ("Define the harm floor") merged via PR #107 (4569c56) — cold-verified: diff matched
-  plan scope exactly, all four claimed gates re-ran clean on a fresh checkout, and the two
-  pre-existing-broken fixture suites (`autonomy-control-fixtures.sh`, `l2-dispatch-fixtures.sh`)
-  were independently confirmed broken on `main` itself, not caused by this PR.
-- Item 3 ("The loop entry point — session-scoped driver") merged via PR #108 (e25ba20) — cold
-  verification (skeptical, since this item grants itself merge/chain authority) found the harm
-  floor gating on merge/dispatch/close is real and unconditional, but caught ONE blocker: the
-  merge gate's denylist diff had no exit-code check and no `git fetch`, so an unresolvable branch
-  silently produced zero paths and the harm check passed vacuously. Fixed in a follow-up commit
-  (d82dbee) that fails closed on both "diff command errors" and "diff resolves to zero paths."
-  The fix was independently re-verified by a second reviewer using its own reproduction harness
-  (separate sandbox repo, not the shipped fixture suite) against both the pre-fix and post-fix
-  driver — pre-fix reproduced the fail-open on 2 of 3 scenarios, post-fix refused both while still
-  passing a real benign diff. Fixture suite: 48 cases, 0 failures on the merged branch.
-- Both merges landed as real merge commits (confirmed via `gh pr view --json state,mergedAt,mergeCommit`,
-  not just PR-page trust), worktrees and local branches for both items cleaned up, `git worktree list`
-  and `git branch -a` confirmed clean of stale item-2/item-3 state.
+- This session's own work was an unrelated ad-hoc fix, not an epic 21 item: added the
+  `sandboxed()` empty/outside-sandbox path guard (matching `session-start-fixtures.sh`'s
+  existing guard from epic 04 item 2) to `cancel-gate-fixtures.sh`, `lifecycle-fixtures.sh`,
+  and `active-epic-fixtures.sh`. Verified directly: injected the same empty-path bug into
+  each harness and confirmed each now aborts with exit 2 instead of mutating the real repo
+  (checked via `git status` before/after each mutant run); confirmed all pre-existing cases
+  still pass (111 / 107 / 416, 0 failures). Committed as 385f8cf and pushed to `origin/main`.
+- Re-read `docs/epics/21-session-scoped-issue-loop/plan.md` directly this session: its
+  `Status` line reads `in flight (item 6 of 6)`, and items 1-5 each carry a `DONE (PR #...,
+  merged <hash>)` marker in their section headers (item 1 PR #106, item 2 PR #107, item 3
+  PR #108, item 4 PR #109, item 5 PR #110). `git log --oneline -10` confirms those PRs'
+  merge commits are on `main`. Item 6 ("Runbook and live proof") has no DONE marker and is
+  the only item left before the epic can close.
 
 ## Claimed but NOT yet verified
-- Item 3's own executor reported 6 pre-existing-broken fixture suites on `main`
-  (`autonomy-control-fixtures.sh`, `epic-loop-fixtures.sh`, `l2-dispatch-fixtures.sh`,
-  `intake-outcomes-fixtures.sh`, `session-start-fixtures.sh`, `worktree-provision-fixtures.sh`),
-  independently re-confirmed by the cold-verification agent as byte-identical failure counts on
-  `origin/main` before and after this branch. Not yet filed as a tracked follow-on item or issue —
-  still just prose in two agent reports. Worth filing as GH issues or a Deferred-list entry before
-  epic close, so the finding doesn't evaporate with this session.
-- The loop driver (`session-loop.sh`) has never run live end-to-end against a real issue. Item 3's
-  own DoD sentence ("given one admitted issue, the loop drafts, dispatches every item, verifies,
-  harm-checks, merges, chains, closes") is proven only at fixture/dry-run granularity — the real
-  live proof is item 6's explicit job, not done yet.
-- `ScheduleWakeup`'s use inside the loop driver was never actually invoked/tested by any executor
-  (not available to a work-item-executor) — specified against the `wake-in` seconds the driver
-  prints, not against a tested call. Flagged by item 3's own executor as an explicit assumption.
-- One duplicate/errant subagent dispatch happened this session (a `work-item-executor` accidentally
-  spawned a second time instead of messaging the original agent) — it was caught and `TaskStop`'d
-  immediately before touching any files; `git worktree list` was checked afterward and confirmed
-  clean. Not expected to have left any residue, but noting it since it wasn't part of the plan.
+- Items 1-5's internal correctness was verified in prior sessions per the plan's own Log
+  section and earlier handoff entries — this session did not re-verify their diffs or gates,
+  only confirmed the plan's DONE markers and merge commits exist.
+- Carried from the plan's own Deferred/out-of-scope list, not independently re-checked this
+  session: 6 pre-existing-broken fixture suites on `main` (`autonomy-control-fixtures.sh`,
+  `epic-loop-fixtures.sh`, `l2-dispatch-fixtures.sh`, `intake-outcomes-fixtures.sh`,
+  `session-start-fixtures.sh`, `worktree-provision-fixtures.sh`) were never filed as tracked
+  issues; `worktree-provision-fixtures.sh` carries 2 pre-existing failures reconfirmed
+  unchanged across items; `run-all-fixtures.sh` was reported to hang indefinitely on
+  `active-epic-fixtures.sh`. This session ran `active-epic-fixtures.sh` directly (not through
+  the wrapper) and it completed in ~2 minutes with 416/416 passing, which suggests the hang
+  is in the wrapper script itself rather than that fixture file — not confirmed by reading
+  `run-all-fixtures.sh`.
+- The loop driver (`session-loop.sh`) has still never run live end-to-end against a real
+  issue — item 6's explicit, not-yet-done job.
 
 ## Exact next action
-- Item 4 ("Failure-driven issue filing", branch `feat/loop-files-failure-issues`, depends on item 3
-  — now merged and satisfied) is next. Dispatch it per Phase 3 steps 1-2: refresh `main` (already at
-  8a28e19), worktree via `Agent` tool with `isolation: "worktree"`, output-discipline brief in the
-  dispatch prompt (same discipline that worked cleanly for items 2 and 3 this session — no narration
-  problems recurred after item 1's flagged overrun). Read item 4's plan section fresh, don't assume
-  its shape from memory — items 2 and 3 both required re-grounding against post-merge reality before
-  dispatch, and item 4 may too, given items 1-3 all touched shared control-plane files.
-- After item 4 lands: item 5 depends on items 1+4 (both satisfied once 4 merges) — dispatchable
-  immediately after item 4, no re-check needed beyond the same fresh-grounding step. Item 6 depends
-  on 3, 4, 5 — last in the chain.
-- Jonathan said "I need to get this loop done tonight" (2026-09-10) — treat items 4-6 as the
-  priority for the rest of this session; this handoff is a safety checkpoint, not a stopping point.
+- Dispatch epic 21 item 6, "Runbook and live proof" (branch `docs/loop-runbook-and-live-proof`,
+  depends on items 3/4/5 — all merged and satisfied): write `DOCS/runbooks/session-loop.md`
+  (start/stop, harm-floor checks, what auto-files and why, the admission precondition) and
+  link it from `SKILL.md`; then run one real end-to-end issue on `claude-skills` through the
+  full pipeline (draft, dispatch, verify, harm-check, merge, chain, close) with one
+  deliberately seeded failure that must land as exactly one filed issue, verified directly on
+  GitHub.
+
+## Environment state
+- None — no running services, no applied-but-unmerged migrations, no env vars or tunnels from
+  this session. `.claude/signals/active-epic` still points at `21-session-scoped-issue-loop`.
 
 ## Open questions for Jonathan
-- Should the 6 pre-existing broken fixture suites be filed as a GH issue now, or left as a plan
-  Deferred-list line to file at epic close? Not blocking item 4-6 dispatch either way.
-
-## Live environment state
-- No running services, no applied migrations, no env vars/tunnels relevant to this epic — this is
-  a shell-scripts-and-fixtures repo, not a running application.
-- `.claude/signals/active-epic` currently points to `21-session-scoped-issue-loop` — correct, leave
-  as-is for item 4's dispatch.
-- `docs/epics/21-session-scoped-issue-loop/status/` still holds orphaned agent logs from earlier in
-  this epic's life (pre-dating this session, flagged but not root-caused: `a31317907464e2ccb`,
-  `a9668690827c5fedf`, `aba3c8e9dbfcf3255`, `afd197422c62ae627`) plus this session's verification-
-  agent logs (not the executor's own — those were cleaned per item at land-and-reset). Harmless
-  leftover telemetry; not blocking, not cleaned this session for time reasons.
+- The plan's Deferred list flags that issues filed by `issue-filer.sh` (item 4) carry only the
+  `epic-loop-filed` label, not `epic-loop-ready`, so a future loop cycle can't autonomously
+  pick one back up without a human adding requirements/acceptance-criteria and the admission
+  label. The plan notes this needs a decision before item 6's live-proof run can treat the
+  loop as fully closed — worth resolving before or during item 6's dispatch.
+- Should the 6 pre-existing broken fixture suites (see above) be filed as GH issues now, or
+  left as a plan Deferred-list line to file at epic close? Not blocking item 6.
