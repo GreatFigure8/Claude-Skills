@@ -183,8 +183,6 @@ SESSION_LOOP_HARM_REASON=""
 
 session_loop_now() { date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || printf '1970-01-01T00:00:00Z'; }
 
-session_loop_die() { printf '%s\n' "$*" >&2; exit 1; }
-
 # Sourcing is lazy and each failure is a NAMED refusal, never a crash: a
 # missing sibling library must not look like "nothing to do".
 session_loop_source() { # $1 = path, $2 = a function it must define
