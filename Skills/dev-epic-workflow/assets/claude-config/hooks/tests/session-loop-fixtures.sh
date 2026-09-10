@@ -344,6 +344,65 @@ check_contains "H9 the merge action reports the harm check passing" 1 \
   "$(cat "$SANDBOX/h-real.out")" "harm-check     pass (merge)"
 
 echo
+echo "=== I. the per-issue integration check before close (epic 21 item 5) ==="
+
+# dispatch_load_signals needs a plausible answer from both queries: an empty
+# branch list reads as a FAILED query (dispatch.sh's own rule), not as "no
+# branches", so a placeholder is seeded rather than left absent.
+printf 'main\n' > "$SANDBOX/gh/branches"
+: > "$SANDBOX/gh/pr-list"
+
+I_PROV_NONE="$SANDBOX/no-provisioning-file"
+mkdir -p "$SANDBOX/prov"
+
+i_reset() { # picks up the merged-item-1 issue fresh, with no plan work items
+  rm -rf "$REPO/docs/epics/.intake"
+  loop --start --repo "$REPO" >/dev/null 2>&1
+  loop --record --repo "$REPO" --issue 7 --state merged --item 1 --branch feat/real >/dev/null 2>&1
+}
+
+echo "--- I1: a declared integration-test command wins ---"
+I1_CFG="$SANDBOX/prov/i1"
+printf '[%s]\nsmoke = true\nintegration-test = echo integration-ok\n' "$REPO" > "$I1_CFG"
+chmod 600 "$I1_CFG"
+i_reset
+OUT="$(INTAKE_PROVISION_FILE="$I1_CFG" loop --next --repo "$REPO")"
+check "I1 the action is integration-test" "integration-test" \
+  "$(printf '%s\n' "$OUT" | awk '$1=="action"{print $2; exit}')"
+check_contains "I2 the declared command is printed"   1 "$OUT" "command        echo integration-ok"
+check_contains "I3 the reason names the record call"  1 "$OUT" "--state integration-tested"
+check_contains "I4 the reason names the filing path on FAIL" 1 "$OUT" "bin/issue-filer.sh --file"
+# Record it done, then the NEXT --next skips straight to the harm-checked close
+# — no re-run of the check, no repeated integration-test action.
+loop --record --repo "$REPO" --issue 7 --state integration-tested --detail "pass: ok" >/dev/null 2>&1
+OUT="$(loop --next --repo "$REPO")"
+check "I5 after --record, the next action is close" "close" \
+  "$(printf '%s\n' "$OUT" | awk '$1=="action"{print $2; exit}')"
+check_contains "I6 the close harm check ran"          1 "$OUT" "harm-check     pass (chain)"
+check_contains "I7 no second integration-test action"  0 "$OUT" "action         integration-test"
+
+echo
+echo "--- I2: no integration-test declared -> the repo's own gates.* fall back ---"
+I2_CFG="$SANDBOX/prov/i2"
+printf '[%s]\nsmoke = true\ngates.default = echo gate-ok\n' "$REPO" > "$I2_CFG"
+chmod 600 "$I2_CFG"
+i_reset
+OUT="$(INTAKE_PROVISION_FILE="$I2_CFG" loop --next --repo "$REPO")"
+check "I8 the action is still integration-test"  "integration-test" \
+  "$(printf '%s\n' "$OUT" | awk '$1=="action"{print $2; exit}')"
+check_contains "I9 the declared GATE is printed as the command" 1 "$OUT" "command        echo gate-ok"
+check_contains "I10 the reason says it is the closest available check" 1 "$OUT" "closest available check"
+
+echo
+echo "--- I3: neither declared -> silently skipped, straight to close ---"
+i_reset
+OUT="$(INTAKE_PROVISION_FILE="$I_PROV_NONE" loop --next --repo "$REPO")"
+check "I11 the action is close, in the SAME call" "close" \
+  "$(printf '%s\n' "$OUT" | awk '$1=="action"{print $2; exit}')"
+check_contains "I12 the gap is noted"              1 "$OUT" "integration-test skipped"
+check_contains "I13 nothing was invented"          1 "$OUT" "nothing invented"
+
+echo
 printf '%s case(s), %s failure(s)\n' "$CASES" "$FAILURES"
 [ "$FAILURES" -eq 0 ] || exit 1
 exit 0

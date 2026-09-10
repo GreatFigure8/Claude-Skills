@@ -54,12 +54,13 @@ them. `[global]` has no meaning here and is refused — every key in this file i
 
 ```ini
 [/Users/jonathanstevenson/Source/LODE]
-env-files = .env, apps/api/.env.local
-install   = pnpm install --frozen-lockfile
-smoke     = pnpm --filter web exec tsc --noEmit
-gates.api = bash scripts/test-both.sh
-gates.web = pnpm --filter web test
-gates.tsx = pnpm --filter web test
+env-files        = .env, apps/api/.env.local
+install          = pnpm install --frozen-lockfile
+smoke            = pnpm --filter web exec tsc --noEmit
+gates.api        = bash scripts/test-both.sh
+gates.web        = pnpm --filter web test
+gates.tsx        = pnpm --filter web test
+integration-test = pnpm run test:e2e
 ```
 
 | Key | Meaning |
@@ -68,6 +69,7 @@ gates.tsx = pnpm --filter web test
 | `install` | one shell command, run with the worktree as cwd |
 | `smoke` | one shell command that **proves the gates can run**. Required of any section that declares anything |
 | `gates.<type>` | the gate command for an item type. `<type>` is letters, digits, dot, dash or underscore |
+| `integration-test` | **one** command, run once per **issue** — after every one of its work items has merged and before it closes, never per item type. Consumed by `session-loop.sh` (epic 21 item 5), not by `provision_preflight`: it runs against the canonical checkout at the integration branch's tip, post-merge, never inside a per-item dispatch worktree |
 
 **A section that declares anything must declare `smoke`.** It is claiming "a worktree of this
 repo can run its gates", and `smoke` is the only part of that claim which is ever *checked* —
@@ -177,10 +179,11 @@ an equivalent, and forbids skipping one that looks unrelated to the diff.
 bin/worktree-provision.sh --check --repo <path> --slug <owner/name>
 bin/worktree-provision.sh --gates <type> --repo <path>
 bin/worktree-provision.sh --brief <type> --repo <path>
+bin/worktree-provision.sh --integration-test --repo <path> --slug <owner/name>
 bin/worktree-provision.sh --preflight <worktree> --repo <path> --slug <owner/name>
 ```
 
-`--check`, `--gates` and `--brief` are read-only. **`--preflight` is the only mode that
+`--check`, `--gates`, `--brief` and `--integration-test` are read-only. **`--preflight` is the only mode that
 writes**: it copies, installs and runs the smoke command. Every mode's exit code agrees with
 its text — a mode that prints "no dispatch may proceed" and exits 0 is a mode whose exit code
 is a lie, and the exit code is the half a script reads.

@@ -173,6 +173,40 @@ step 10's land-and-reset in full: pull, delete the branch remotely and locally w
 remove the worktree, prune, tick the item's checklist on the tracker, clean the item's
 control-plane state. Record `merged`.
 
+### `integration-test` — one per-issue check before `close`
+
+Once every work item of the issue has merged and the check has not already run for
+this issue, the driver names ONE command to run in `SESSION_LOOP_ROOT` (the canonical
+checkout, at the integration branch's tip — not a worktree) before it will name `close`,
+reusing `worktree-provisioning.md`'s declared-gate pattern rather than inventing a second
+config surface for one more command:
+
+1. **A declared `integration-test` command wins.** The driver prints it as `command`;
+   run it exactly as printed.
+2. **Where none is declared, the repo's own declared `gates.*` are the closest available
+   check** — printed one `command` per line, in declaration order, the same list
+   `dispatch`'s gate brief already uses. This is a substitute, never an invention: nothing
+   is run that the repo did not itself declare somewhere.
+3. **Where neither is declared**, the driver says so and moves straight to `close` in the
+   same turn — silent the way a bare, unconfigured worktree already is elsewhere in this
+   control plane. That silence is a known gap (a repo with no declared check gets none),
+   not a defect, and it is recorded as such rather than papered over with an invented
+   check.
+
+For cases 1 and 2, run every printed command, then report back:
+
+```
+session-loop.sh --record --repo <path> --issue N --state integration-tested \
+  --detail "pass: <summary>"        # or "fail: <summary>"
+```
+
+**On FAIL, file it FIRST**, the same call site pattern `dispatch`'s `blocked` handling
+already uses: `bin/issue-filer.sh --file --repo <path> --issue N --item issue-level --check
+"integration-test" --evidence "<the command's own failure output>"`. Filing is the
+terminal action (epic 21 item 4) — it never blocks the record, and the record never blocks
+the chain to `close`: a per-issue integration failure is followed up by a future loop
+cycle picking up the filed issue, not by holding this one open.
+
 ### `close` — every work item has landed
 
 Phase 5: plan header to `**Status:** closed` merged into the canonical checkout **first**,
@@ -272,9 +306,13 @@ epic's live-proof run (item 6) needs an issue whose diff stays outside those pat
   is a deterministic tool, not wired into `session-loop.sh`'s own state machine — the
   judgement of *which* failures are out of scope stays with whichever live session
   discovered them, the same seam every other judgement step in this file already follows.
-- **Item 5 — per-issue integration testing.** Today `close` runs no whole-issue check.
-  Item 5 adds one between the last merge and the close, routing a failure through
-  `bin/issue-filer.sh --file` the same way item 4's `dispatch` call site does.
+- **Item 5 — per-issue integration testing (done).** `session-loop.sh --next` now names an
+  `integration-test` action between the last item's merge and `close`: a declared
+  `integration-test` command (`worktree-provision.sh`'s config, epic 11 item 2b's own
+  pattern), or the repo's declared `gates.*` where none is declared, or a silent no-op
+  with the gap noted where neither is declared — never an invented check. A `fail` routes
+  through `bin/issue-filer.sh --file`, the same call site pattern item 4's `dispatch`
+  handling already uses. See the `integration-test` action above.
 
 ## Files
 
