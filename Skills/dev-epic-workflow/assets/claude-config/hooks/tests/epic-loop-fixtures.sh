@@ -351,6 +351,267 @@ check "F2 --repo naming a nonexistent directory exits 1" "1" "$F2_RC"
 F3_OUT="$(bash "$SCRIPT" --repo "$REPO" --max-issues notanumber --dry-run 2>&1)"; F3_RC=$?
 check "F3 non-numeric --max-issues exits 1" "1" "$F3_RC"
 
+# ============================================================ SECTION G ===
+# The approval gate (item 4) — the one real (non-dry-run) phase this build
+# has. A REAL bare `origin` per case plus a real clone, exactly the shape
+# `l2-dispatch-fixtures.sh` uses for the same reason: `git fetch` / `merge
+# --ff-only` / `git mv` / `git push` are exercised for real, and only `gh`
+# is faked. The fake `gh` backs `pr list` / `pr merge` / `api .../contents`
+# by reading and writing the SAME bare origin through real `git`, so a
+# "merge" really does move the base ref and a "contents" read really does
+# come from the ref it names — nothing here is asserted against a scripted
+# opinion of what `gh` would have said.
+echo
+echo "=== G. the approval gate — 3 verdicts x autonomy level ==========="
+
+GH_STUB_G="$SANDBOX/gh-g"
+cat > "$GH_STUB_G" <<'GHSTUB'
+#!/usr/bin/env bash
+printf 'gh %s\n' "$*" >> "${EPIC_LOOP_FIX_CALLS:-/dev/null}"
+case "$1" in
+  pr)
+    case "$2" in
+      list)
+        cat "${EPIC_LOOP_FIX_OPEN_PRS:-/dev/null}" 2>/dev/null
+        exit 0 ;;
+      merge)
+        PRNUM="$3"
+        HEADBR="$(awk -v p="$PRNUM" '$1==p{print $2}' "${EPIC_LOOP_FIX_OPEN_PRS:-/dev/null}" 2>/dev/null)"
+        BASEBR="$(cat "${EPIC_LOOP_FIX_BASE_BRANCH:-/dev/null}" 2>/dev/null)"
+        [ -n "$HEADBR" ] && [ -n "$BASEBR" ] || exit 1
+        HSHA="$(git --git-dir="$EPIC_LOOP_FIX_ORIGIN_GIT" rev-parse "refs/heads/$HEADBR" 2>/dev/null)"
+        [ -n "$HSHA" ] || exit 1
+        git --git-dir="$EPIC_LOOP_FIX_ORIGIN_GIT" update-ref "refs/heads/$BASEBR" "$HSHA"
+        exit $? ;;
+      *) exit 0 ;;
+    esac ;;
+  api)
+    URLPATH="$2"
+    REF="${URLPATH##*ref=}"
+    PPATH="${URLPATH#repos/*/contents/}"
+    PPATH="${PPATH%%\?*}"
+    git --git-dir="$EPIC_LOOP_FIX_ORIGIN_GIT" show "$REF:$PPATH" 2>/dev/null
+    exit 0 ;;
+  issue) exit 0 ;;
+  *) exit 0 ;;
+esac
+GHSTUB
+chmod +x "$GH_STUB_G"
+
+G_SLUG="acme/gate-fixture"
+
+# $1 = case name -> case dir on stdout. A fresh bare origin + clone, one
+# base commit with an (empty) docs/epics/, pushed.
+mkcase_g() {
+  local D="$SANDBOX/g-$1"
+  rm -rf "$D"
+  mkdir -p "$D/home/.config/claude-intake/promotions"
+  "$REAL_GIT" init -q --bare -b main "$D/origin.git"
+  "$REAL_GIT" clone -q "$D/origin.git" "$D/repo"
+  "$REAL_GIT" -C "$D/repo" config user.email fixture@test.local
+  "$REAL_GIT" -C "$D/repo" config user.name fixture
+  mkdir -p "$D/repo/docs/epics"
+  : > "$D/repo/docs/epics/.gitkeep"
+  "$REAL_GIT" -C "$D/repo" add -A
+  "$REAL_GIT" -C "$D/repo" commit -q -m base
+  "$REAL_GIT" -C "$D/repo" push -q -u origin main
+  printf '%s' "$D"
+}
+
+# Cuts and pushes a proposal branch/plan.md carrying $4's Recommendation,
+# then switches the clone back to `main` (the driver's own convention: its
+# checkout stays on the integration branch). $1=case dir $2=issue $3=slug
+# $4=recommendation. Writes open-prs.txt / base-branch.txt for the gh stub.
+seed_proposal() {
+  local D="$1" ISSUE="$2" PSLUG="$3" REC="$4" BR
+  BR="intake/proposed-$ISSUE-$PSLUG"
+  "$REAL_GIT" -C "$D/repo" switch -q -c "$BR"
+  mkdir -p "$D/repo/docs/epics/proposed-$ISSUE-$PSLUG"
+  {
+    printf '%s\n\n' "# Epic: proposed epic for #$ISSUE"
+    printf '%s\n' "**Status:** planning"
+    printf '%s\n' "**Source:** GH #$ISSUE"
+    printf '%s\n\n' "**Recommendation:** $REC"
+    printf '%s\n\n' "## Work items"
+    printf '%s\n' "### 1. first"
+    printf '%s\n' '- **Branch:** `feat/first`'
+  } > "$D/repo/docs/epics/proposed-$ISSUE-$PSLUG/plan.md"
+  "$REAL_GIT" -C "$D/repo" add -A
+  "$REAL_GIT" -C "$D/repo" commit -q -m "docs(intake): proposed epic for #$ISSUE"
+  "$REAL_GIT" -C "$D/repo" push -q -u origin "$BR"
+  "$REAL_GIT" -C "$D/repo" switch -q main
+  printf '900 %s\n' "$BR" > "$D/open-prs.txt"
+  printf 'main\n' > "$D/base-branch.txt"
+}
+
+# Writes an autonomy config + (for L1/L4) a valid promotion record granting
+# $3 to $2, isolated under $1/home so cases never see each other's grants.
+# L4's record also gets a ledger with 3 closed cycles, since above L2 the
+# ledger is consulted too (autonomy.sh, `autonomy_ledger_cycles`).
+grant_level() {
+  local D="$1" SLUG="$2" LVL="$3" F
+  [ "$LVL" = L0 ] && return 0
+  cat > "$D/home/.config/claude-intake/autonomy" <<CFG
+[$SLUG]
+level = $LVL
+max-files = 40
+max-diff-lines = 800
+CFG
+  F="$D/home/.config/claude-intake/promotions/$(printf '%s' "$SLUG" | sed 's|/|__|g').$LVL"
+  {
+    printf 'repo: %s\n' "$SLUG"
+    printf 'level: %s\n' "$LVL"
+    printf 'granted: 2026-09-01T00:00:00Z\n'
+    printf 'granted-by: jonathanstevenson\n'
+    printf 'cycles: 3\n'
+    printf 'ledger: %s/ledger.jsonl\n' "$D"
+    printf 'evidence: fixture grant\n'
+  } > "$F"
+  if [ "$LVL" = L3 ] || [ "$LVL" = L4 ]; then
+    {
+      printf '{"ts":"2026-09-01T00:00:00Z","issue":1,"repo":"%s","from":"closing","to":"closed","detail":"fixture"}\n' "$SLUG"
+      printf '{"ts":"2026-09-01T00:00:01Z","issue":2,"repo":"%s","from":"closing","to":"closed","detail":"fixture"}\n' "$SLUG"
+      printf '{"ts":"2026-09-01T00:00:02Z","issue":3,"repo":"%s","from":"closing","to":"closed","detail":"fixture"}\n' "$SLUG"
+    } > "$D/ledger.jsonl"
+  fi
+}
+
+seed_state() { # $1=case dir $2=issue $3=slug
+  mkdir -p "$1/repo/docs/epics/.intake/loop"
+  cat > "$1/repo/docs/epics/.intake/loop/$2.json" <<EOF
+{
+  "issue": $2,
+  "repo": "$3",
+  "epic": "",
+  "state": "awaiting-approval",
+  "item": null,
+  "detail": "seed",
+  "updated": "1970-01-01T00:00:00Z"
+}
+EOF
+}
+
+# Runs the driver for real (no --dry-run) against case $1, slug $2. Sets
+# G_OUT / G_RC / G_STATE (the per-issue state's own "state" field) /
+# G_CALLS (the gh-stub's call log, for substring assertions).
+run_gate() {
+  local D="$1" SLUG="$2" ISSUE="$3"
+  export HOME="$D/home"
+  export INTAKE_GIT="$REAL_GIT"
+  export INTAKE_GH="$GH_STUB_G"
+  export INTAKE_REPO_SLUG_OVERRIDE="$SLUG"
+  export INTAKE_STOP_FILE="$D/home/.config/claude-intake/STOP"
+  export INTAKE_AUTONOMY_OVERRIDE="$D/home/.config/claude-intake/AUTONOMY-OFF"
+  export INTAKE_PROMOTIONS_DIR="$D/home/.config/claude-intake/promotions"
+  export INTAKE_AUTONOMY_FILE="$D/home/.config/claude-intake/autonomy"
+  export EPIC_LOOP_FIX_OPEN_PRS="$D/open-prs.txt"
+  export EPIC_LOOP_FIX_BASE_BRANCH="$D/base-branch.txt"
+  export EPIC_LOOP_FIX_ORIGIN_GIT="$D/origin.git"
+  export EPIC_LOOP_FIX_CALLS="$D/gh-calls.log"
+  : > "$EPIC_LOOP_FIX_CALLS"
+  G_OUT="$(bash "$SCRIPT" --repo "$D/repo" --once 2>&1)"; G_RC=$?
+  G_STATE="$(grep -o '"state": "[^"]*"' "$D/repo/docs/epics/.intake/loop/$ISSUE.json" 2>/dev/null \
+               | head -1 | sed -E 's/.*"([a-zA-Z-]+)"$/\1/')"
+  G_CALLS="$(cat "$EPIC_LOOP_FIX_CALLS" 2>/dev/null)"
+}
+
+# --- G1/G2: ready(plan) at the L0/L1 boundary ------------------------------
+G1="$(mkcase_g g1-ready-l0)"; seed_proposal "$G1" 601 widget-support plan
+seed_state "$G1" 601 "$G_SLUG"; grant_level "$G1" "$G_SLUG" L0
+run_gate "$G1" "$G_SLUG" 601
+check "G1 ready+L0: exit 0 (parked, not a crash)"                   "0"      "$G_RC"
+check "G1 ready+L0: state stays awaiting-approval"                  "awaiting-approval" "$G_STATE"
+check_contains "G1 ready+L0: output says parked"                    1 "$G_OUT" "approval gate parked"
+check_contains "G1 ready+L0: names may-approve/level as the reason" 1 "$G_OUT" "does not grant may-approve"
+check "G1 ready+L0: gh pr merge was never called"                   "0" "$(grep -c '^gh pr merge' "$G1/gh-calls.log" | tr -d ' ')"
+check "G1 ready+L0: origin/main carries no numbered epic folder"    "0" \
+      "$("$REAL_GIT" --git-dir="$G1/origin.git" ls-tree -d --name-only main -- docs/epics 2>/dev/null | grep -c '^docs/epics/[0-9]' | tr -d ' ')"
+
+G2="$(mkcase_g g2-ready-l1)"; seed_proposal "$G2" 602 widget-support plan
+seed_state "$G2" 602 "$G_SLUG"; grant_level "$G2" "$G_SLUG" L1
+run_gate "$G2" "$G_SLUG" 602
+check "G2 ready+L1: exit 2 (approved, then the NEXT phase — approved -> dispatching — is still unimplemented; a real refusal, not a crash)" "2" "$G_RC"
+check "G2 ready+L1: state advances to approved"                     "approved" "$G_STATE"
+check_contains "G2 ready+L1: epic path recorded is the numbered folder" 1 \
+      "$(cat "$G2/repo/docs/epics/.intake/loop/602.json")" "docs/epics/01-widget-support/plan.md"
+check "G2 ready+L1: gh pr merge WAS called exactly once"            "1" "$(grep -c '^gh pr merge' "$G2/gh-calls.log" | tr -d ' ')"
+check "G2 ready+L1: gh issue edit --add-label epic:planned was called" "1" \
+      "$(grep -c 'epic:planned' "$G2/gh-calls.log" | tr -d ' ')"
+G2_COMMENT="$(cat "$G2/gh-calls.log")"
+check_contains "G2 ready+L1: the issue comment says Epic filed"     1 "$G2_COMMENT" "Epic filed: docs/epics/01-widget-support/plan.md"
+check_contains "G2 ready+L1: the permalink names the repo slug"     1 "$G2_COMMENT" "https://github.com/$G_SLUG/blob/"
+check "G2 ready+L1: origin/main's plan.md now reads Status: approved" "1" \
+      "$("$REAL_GIT" --git-dir="$G2/origin.git" show main:docs/epics/01-widget-support/plan.md 2>/dev/null | grep -c '^\*\*Status:\*\* approved$' | tr -d ' ')"
+check "G2 ready+L1: the OLD proposed- folder is gone from main"     "0" \
+      "$("$REAL_GIT" --git-dir="$G2/origin.git" ls-tree --name-only main -- docs/epics/proposed-602-widget-support 2>/dev/null | grep -c . | tr -d ' ')"
+
+# --- G3/G4: no-work and needs-decision at L1 (may-approve true, verdict not ready) ---
+G3="$(mkcase_g g3-nowork-l1)"; seed_proposal "$G3" 603 other-thing no-work
+seed_state "$G3" 603 "$G_SLUG"; grant_level "$G3" "$G_SLUG" L1
+run_gate "$G3" "$G_SLUG" 603
+check "G3 no-work+L1: exit 0 (parked)"                              "0" "$G_RC"
+check "G3 no-work+L1: state stays awaiting-approval"                "awaiting-approval" "$G_STATE"
+check_contains "G3 no-work+L1: names the recommendation as the reason" 1 "$G_OUT" "recommendation is no-work"
+check "G3 no-work+L1: gh pr merge was never called"                 "0" "$(grep -c '^gh pr merge' "$G3/gh-calls.log" | tr -d ' ')"
+
+G4="$(mkcase_g g4-decision-l1)"; seed_proposal "$G4" 604 hard-choice needs-decision
+seed_state "$G4" 604 "$G_SLUG"; grant_level "$G4" "$G_SLUG" L1
+run_gate "$G4" "$G_SLUG" 604
+check "G4 needs-decision+L1: exit 0 (parked)"                       "0" "$G_RC"
+check "G4 needs-decision+L1: state stays awaiting-approval"         "awaiting-approval" "$G_STATE"
+check_contains "G4 needs-decision+L1: names the recommendation as the reason" 1 "$G_OUT" "recommendation is needs-decision"
+check "G4 needs-decision+L1: gh pr merge was never called"          "0" "$(grep -c '^gh pr merge' "$G4/gh-calls.log" | tr -d ' ')"
+
+# --- G5/G6/G7: L4 — the DoD's own line, "needs-decision at L4 still parks",
+# plus the symmetric proof that L4 approves a `plan` and still parks a
+# `no-work` regardless of level.
+G5="$(mkcase_g g5-decision-l4)"; seed_proposal "$G5" 605 hard-choice needs-decision
+seed_state "$G5" 605 "$G_SLUG"; grant_level "$G5" "$G_SLUG" L4
+run_gate "$G5" "$G_SLUG" 605
+check "G5 needs-decision+L4: exit 0 (parked — DoD: needs-decision at L4 still parks)" "0" "$G_RC"
+check "G5 needs-decision+L4: state stays awaiting-approval"         "awaiting-approval" "$G_STATE"
+check_contains "G5 needs-decision+L4: never auto-approved regardless of level" 1 "$G_OUT" "never auto-approved regardless of level"
+check "G5 needs-decision+L4: gh pr merge was never called"          "0" "$(grep -c '^gh pr merge' "$G5/gh-calls.log" | tr -d ' ')"
+
+G6="$(mkcase_g g6-ready-l4)"; seed_proposal "$G6" 606 widget-support plan
+seed_state "$G6" 606 "$G_SLUG"; grant_level "$G6" "$G_SLUG" L4
+run_gate "$G6" "$G_SLUG" 606
+check "G6 ready+L4: exit 2 (approved, next phase still unimplemented)" "2" "$G_RC"
+check "G6 ready+L4: state advances to approved"                     "approved" "$G_STATE"
+check "G6 ready+L4: gh pr merge WAS called exactly once"            "1" "$(grep -c '^gh pr merge' "$G6/gh-calls.log" | tr -d ' ')"
+check "G6 ready+L4: origin/main's plan.md now reads Status: approved" "1" \
+      "$("$REAL_GIT" --git-dir="$G6/origin.git" show main:docs/epics/01-widget-support/plan.md 2>/dev/null | grep -c '^\*\*Status:\*\* approved$' | tr -d ' ')"
+
+G7="$(mkcase_g g7-nowork-l4)"; seed_proposal "$G7" 607 other-thing no-work
+seed_state "$G7" 607 "$G_SLUG"; grant_level "$G7" "$G_SLUG" L4
+run_gate "$G7" "$G_SLUG" 607
+check "G7 no-work+L4: exit 0 (parked — the verdict rules out approval before level is even asked)" "0" "$G_RC"
+check "G7 no-work+L4: gh pr merge was never called"                 "0" "$(grep -c '^gh pr merge' "$G7/gh-calls.log" | tr -d ' ')"
+
+# --- G8: a human already merged the PR and set Status: approved by hand —
+# the scope's own words: "later cycles must detect the human's merge +
+# `approved` edit and continue from there." No proposal PR exists at all
+# here (open-prs.txt is never written), so a pass that reached `gh pr list`
+# or `gh pr merge` would be reaching for something that plainly is not there.
+G8="$(mkcase_g g8-human-approved)"
+mkdir -p "$G8/repo/docs/epics/01-manual"
+{
+  printf '%s\n\n' "# Epic: manually approved"
+  printf '%s\n' "**Status:** approved"
+  printf '%s\n' "**Source:** GH #608"
+} > "$G8/repo/docs/epics/01-manual/plan.md"
+"$REAL_GIT" -C "$G8/repo" add -A
+"$REAL_GIT" -C "$G8/repo" commit -q -m "docs(epic): file 01-manual — approved by hand"
+"$REAL_GIT" -C "$G8/repo" push -q origin main
+seed_state "$G8" 608 "$G_SLUG"; grant_level "$G8" "$G_SLUG" L0
+run_gate "$G8" "$G_SLUG" 608
+check "G8 human-approved: exit 2 (approved, next phase still unimplemented)" "2" "$G_RC"
+check "G8 human-approved: state advances to approved without any grant at all" "approved" "$G_STATE"
+check_contains "G8 human-approved: epic path is the human's own numbered folder" 1 \
+      "$(cat "$G8/repo/docs/epics/.intake/loop/608.json")" "docs/epics/01-manual/plan.md"
+check "G8 human-approved: gh was never called — nothing to list or merge" "0" \
+      "$(grep -c '^gh ' "$G8/gh-calls.log" | tr -d ' ')"
+
 echo
 echo "cases: $CASES   failures: $FAILURES"
 [ "$FAILURES" -eq 0 ] || exit 1

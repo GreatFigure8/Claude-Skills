@@ -343,6 +343,17 @@ process can do.
   the work-in-progress check's first signal — and reading is the whole of its involvement:
   the runner can never label an issue into being skipped, so it can never block itself.
 
+**This is L0's stop, not the whole ladder's.** Everything above named this the drafting
+cycle's own hard stop, and it still is — this file, and the runner it describes, never
+approve, merge, or close regardless of any repo's granted level. But epic 19's
+`bin/epic-loop.sh` is a separate, later-arriving consumer of the proposal this runner
+opens, and *it* continues past the point where drafting stops: given a `may-approve`
+repo (L1+) and a `plan` recommendation, its approval gate (epic 19 item 4) merges the
+proposal PR itself, files the epic, and applies `epic:planned` — the exact sequence
+"Approval remains exactly where it was" below still describes for every repo that has
+not been granted a level. `no-work` and `needs-decision` are never auto-approved at any
+level, L4 included; only `may-approve` moves, never the recommendation vocabulary.
+
 Approval remains exactly where it was: Jonathan reads the PR the way he reads any PR. The
 epic becomes real when he merges it **and** sets `**Status:** approved`; until that edit
 lands, the plan is a draft that happens to be version-controlled. A `planning` plan is

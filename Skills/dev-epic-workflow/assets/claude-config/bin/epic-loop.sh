@@ -262,6 +262,285 @@ ITEMS_EOF
   return 0
 }
 
+# --------------------------------------------------------- the approval gate
+# ITEM 4. The one phase this build gives a REAL (non-dry-run) implementation:
+# `awaiting-approval`. Everything else still refuses exactly as item 1 left
+# it — see the DRY-run branch in `epic_loop_process_issue` below, which only
+# carves out this one state.
+#
+# NOT THIS FILE'S JOB: drafting the proposal. `unattended-intake.sh` already
+# opened it (its own hard stop, unchanged) before this state is ever reached;
+# this gate only decides what happens to a proposal that already exists.
+#
+# THE VOCABULARY. `unattended-intake.sh` writes `**Recommendation:** plan |
+# no-work | needs-decision` (references/issue-intake.md). The plan's own
+# prose for this item calls the approvable one "ready" — that is prose for
+# `plan`, not a fourth value; this file reads the real field and never
+# invents "ready" as a literal string.
+EPIC_LOOP_PROPOSAL_PREFIX="${INTAKE_PROPOSAL_PREFIX:-intake/proposed-}"
+EPIC_LOOP_PLAN_HEADER_LINES=10   # same window session-start-context.sh and
+                                 # unattended-intake.sh's PLAN_HEADER_LINES use
+
+# stdin = a plan.md's text -> stdout one of plan | no-work | needs-decision.
+# The SAME parse unattended-intake.sh applies to its own draft (first-word,
+# case-folded, absent reads as `plan`, anything unrecognised reads as
+# `needs-decision`) — duplicated rather than sourced, because
+# unattended-intake.sh is a top-level script with its own preflight and
+# locking, never designed to be sourced (unlike autonomy.sh / dispatch.sh /
+# intake-status.sh, which this file DOES source).
+epic_loop_parse_recommendation() {
+  local RAW REC
+  RAW="$(head -"$EPIC_LOOP_PLAN_HEADER_LINES" 2>/dev/null \
+           | sed -n -E -e 's/^[[:space:]*_]*[Rr]ecommendation:[[:space:]*_]*//p' \
+           | head -1 | tr -d '\r')"
+  REC="$(printf '%s' "$RAW" | tr '[:upper:]' '[:lower:]' \
+           | sed -E -e 's/[^a-z-].*$//' -e 's/^-+//' -e 's/-+$//')"
+  case "$REC" in
+    plan|no-work|needs-decision) ;;
+    '') REC=plan ;;
+    *)  REC=needs-decision ;;
+  esac
+  printf '%s' "$REC"
+}
+
+# A NUMBERED (non-`proposed-`) epic folder whose plan.md names $3 as its
+# `Source` is FILED — approved already, however that happened: this gate's
+# own sequence below, or a human who merged the PR and edited `Status` by
+# hand while this driver was not looking. Numbering is assigned ONLY at
+# approval (SKILL.md, Phase 1: "the number is assigned when the plan is
+# approved"), so a numbered folder's mere existence is the proof; its
+# CURRENT Status (approved / in flight / closed) is not re-examined, because
+# by the time it has moved past `approved` this gate has nothing left to
+# decide anyway — a later item's phase owns what happens next.
+# $1 = repo root  $2 = epics-dir (repo-root-relative)  $3 = issue
+# -> stdout "<epics-dir>/<NN-slug>/plan.md", rc 1 if none found
+epic_loop_find_filed_epic() {
+  local ROOT="${1:-}" EPICS_DIR="${2:-}" ISSUE="${3:-}" PLAN DIRNAME SRC
+  for PLAN in "$ROOT/$EPICS_DIR"/*/plan.md; do
+    [ -r "$PLAN" ] || continue
+    DIRNAME="$(basename "$(dirname "$PLAN")")"
+    case "$DIRNAME" in proposed-*) continue ;; esac
+    SRC="$(head -20 "$PLAN" 2>/dev/null \
+             | grep -m1 -Ei 'Source:.*GH[[:space:]]*#[0-9]+' \
+             | sed -E 's/.*GH[[:space:]]*#([0-9]+).*/\1/')"
+    [ -n "$SRC" ] || continue
+    [ "$SRC" = "$ISSUE" ] || continue
+    printf '%s/%s/plan.md' "$EPICS_DIR" "$DIRNAME"
+    return 0
+  done
+  return 1
+}
+
+# The open proposal PR for issue $2, found the same way
+# unattended-intake.sh's own collision check finds its candidates: by BRANCH
+# PREFIX, never by title or body text — the branch name is the one thing an
+# attended and an unattended run can never disagree about.
+# $1 = repo slug  $2 = issue -> stdout "<pr-number> <head-branch>", rc 1 if
+# no open PR's head branch matches.
+epic_loop_find_proposal_pr() {
+  local SLUG="${1:-}" ISSUE="${2:-}" LIST PR BR
+  LIST="$("$GH_BIN" pr list --repo "$SLUG" --state open --limit 100 \
+            --json number,headRefName -q '.[] | "\(.number) \(.headRefName)"' 2>/dev/null)" || return 1
+  while IFS=' ' read -r PR BR; do
+    case "${PR:-}" in ''|*[!0-9]*) continue ;; esac
+    [ -n "${BR:-}" ] || continue
+    case "$BR" in "$EPIC_LOOP_PROPOSAL_PREFIX""$ISSUE"-*) printf '%s %s' "$PR" "$BR"; return 0 ;; esac
+  done <<PROPOSAL_PR_LIST_EOF
+$LIST
+PROPOSAL_PR_LIST_EOF
+  return 1
+}
+
+# Rewrite ONLY the header's `**Status:**` line to `approved` — the same
+# temp-file-verify-mv shape `downgrade_plan_recommendation` in
+# unattended-intake.sh uses for its own header rewrite, so a reader who
+# already knows that function recognises this one. $1 = plan file.
+epic_loop_set_status_approved() {
+  local F="${1:-}" TMP
+  [ -f "$F" ] || return 1
+  TMP="$F.epic-loop-approve.$$"
+  awk '
+    BEGIN { done = 0 }
+    !done && /^\*\*Status:\*\*/ { print "**Status:** approved"; done = 1; next }
+    { print }
+  ' "$F" > "$TMP" 2>/dev/null || { rm -f "$TMP"; return 1; }
+  [ -s "$TMP" ] || { rm -f "$TMP"; return 1; }
+  mv "$TMP" "$F" 2>/dev/null || { rm -f "$TMP"; return 1; }
+  grep -q '^\*\*Status:\*\* approved$' "$F" || return 1
+  return 0
+}
+
+# THE GATE ITSELF. $1=repo checkout (the driver's OWN main checkout, per the
+# plan's Risks: "the driver works in the repo's main checkout only via gh and
+# git pull; executors stay in worktrees" — never a worktree) $2=repo slug
+# $3=issue $4=repo root (for reading; equal to $1 in every real and fixture
+# use of this file) $5=epics-dir (repo-root-relative).
+#
+# Sets, for the caller:
+#   EPIC_LOOP_GATE_RESULT  approved | parked | error
+#   EPIC_LOOP_GATE_EPIC    epics-dir-relative plan path — only when approved
+#   EPIC_LOOP_GATE_DETAIL  one line, for the state file and the ledger
+#
+# rc is always 0 — a parked issue and a failed merge are both things this
+# gate REPORTS, never a crash; the caller decides what rc the whole
+# invocation carries.
+epic_loop_approval_gate() {
+  local REPO="${1:-}" SLUG="${2:-}" ISSUE="${3:-}" ROOT="${4:-}" EPICS_DIR="${5:-}"
+  EPIC_LOOP_GATE_RESULT=error
+  EPIC_LOOP_GATE_EPIC=""
+  EPIC_LOOP_GATE_DETAIL="no attempt made"
+
+  # Best-effort sync of the main checkout to whatever it already tracks,
+  # BEFORE anything on disk is trusted — never fatal: a transient fetch
+  # failure falls through to whatever is already on disk, exactly as if
+  # this step had never run.
+  "$GIT_BIN" -C "$REPO" fetch origin >/dev/null 2>&1 || true
+  local CUR_BR
+  CUR_BR="$("$GIT_BIN" -C "$REPO" branch --show-current 2>/dev/null)"
+  if [ -n "$CUR_BR" ]; then
+    "$GIT_BIN" -C "$REPO" merge --ff-only "origin/$CUR_BR" >/dev/null 2>&1 || true
+  fi
+
+  # THE HUMAN MAY HAVE ALREADY DONE THIS. Checked before anything else is
+  # asked, so a repo where Jonathan merged the PR and edited `Status` by hand
+  # is recognised and carried forward rather than re-decided — the scope's
+  # own words: "later cycles must detect the human's merge + `approved` edit
+  # and continue from there."
+  local FILED
+  if FILED="$(epic_loop_find_filed_epic "$ROOT" "$EPICS_DIR" "$ISSUE")"; then
+    EPIC_LOOP_GATE_RESULT=approved
+    EPIC_LOOP_GATE_EPIC="$FILED"
+    EPIC_LOOP_GATE_DETAIL="already approved by a human at $FILED — continuing from there, nothing merged or filed by this gate"
+    return 0
+  fi
+
+  local PR_LINE PR BR
+  PR_LINE="$(epic_loop_find_proposal_pr "$SLUG" "$ISSUE")" || PR_LINE=""
+  PR="${PR_LINE%% *}"
+  BR="${PR_LINE#* }"
+  case "$PR" in ''|*[!0-9]*) PR=""; BR="" ;; esac
+  if [ -z "$PR" ]; then
+    EPIC_LOOP_GATE_RESULT=parked
+    EPIC_LOOP_GATE_DETAIL="no open proposal PR found for issue #$ISSUE (branch ${EPIC_LOOP_PROPOSAL_PREFIX}${ISSUE}-*) — nothing to approve or park differently this cycle"
+    return 0
+  fi
+
+  local BREST PSLUG PLAN_REL PLAN_TEXT REC
+  BREST="${BR#"$EPIC_LOOP_PROPOSAL_PREFIX"}"
+  PSLUG="${BREST#"$ISSUE"-}"
+  PLAN_REL="$EPICS_DIR/proposed-$ISSUE-$PSLUG/plan.md"
+  PLAN_TEXT="$("$GH_BIN" api "repos/$SLUG/contents/$PLAN_REL?ref=$BR" \
+                 -H 'Accept: application/vnd.github.raw' 2>/dev/null)"
+  if [ -z "$PLAN_TEXT" ]; then
+    EPIC_LOOP_GATE_RESULT=parked
+    EPIC_LOOP_GATE_DETAIL="PR #$PR is open but its plan at $PLAN_REL@$BR could not be read — parked rather than guessing"
+    return 0
+  fi
+  REC="$(printf '%s' "$PLAN_TEXT" | epic_loop_parse_recommendation)"
+
+  # THE ORDER MATTERS: the recommendation is checked BEFORE `may-approve`, so
+  # a `needs-decision` proposal parks at every level including L4 — "never
+  # no-work or needs-decision" is unconditional, not something a high enough
+  # rung overrides. Only once the recommendation itself is `plan` does the
+  # repo's granted level get asked at all.
+  local REASON=""
+  if [ "$REC" != plan ]; then
+    REASON="recommendation is $REC, never auto-approved regardless of level"
+  elif ! autonomy_may_approve; then
+    REASON="level ${AUTONOMY_LEVEL:-L0} does not grant may-approve"
+  fi
+  if [ -n "$REASON" ]; then
+    EPIC_LOOP_GATE_RESULT=parked
+    EPIC_LOOP_GATE_DETAIL="parked at PR #$PR ($BR) — $REASON"
+    return 0
+  fi
+
+  # ---------------------------------------------- may-approve AND ready
+  # Merge first: everything after this point is bookkeeping on a PR that is
+  # ALREADY merged, so a failure past here never leaves a merged PR
+  # unaccounted for — it leaves an unfinished FILING, which is visible (the
+  # folder is still named `proposed-*`) and safely retryable.
+  if ! "$GH_BIN" pr merge "$PR" --repo "$SLUG" --merge >/dev/null 2>&1; then
+    EPIC_LOOP_GATE_RESULT=parked
+    EPIC_LOOP_GATE_DETAIL="may-approve and recommendation=plan at PR #$PR, but the merge itself failed — parked unchanged, retried next cycle"
+    return 0
+  fi
+
+  "$GIT_BIN" -C "$REPO" fetch origin >/dev/null 2>&1 || true
+  if [ -z "$CUR_BR" ] || ! "$GIT_BIN" -C "$REPO" merge --ff-only "origin/$CUR_BR" >/dev/null 2>&1; then
+    EPIC_LOOP_GATE_RESULT=error
+    EPIC_LOOP_GATE_DETAIL="PR #$PR merged on origin, but the local checkout at $REPO could not fast-forward onto it — filing did not complete; fix the checkout and retry"
+    return 0
+  fi
+
+  if [ ! -d "$REPO/$EPICS_DIR/proposed-$ISSUE-$PSLUG" ]; then
+    EPIC_LOOP_GATE_RESULT=error
+    EPIC_LOOP_GATE_DETAIL="PR #$PR merged, but $EPICS_DIR/proposed-$ISSUE-$PSLUG is not on $CUR_BR after the pull — filing did not complete"
+    return 0
+  fi
+
+  # THE NUMBER, assigned now and only now (SKILL.md, Phase 1) — the next
+  # integer above every NN-slug folder already on the integration branch,
+  # zero-padded to two digits (three once a repo passes 99 epics; %02d
+  # widens rather than truncates).
+  local NEXT_NUM=1 D B N
+  for D in "$REPO/$EPICS_DIR"/*/; do
+    [ -d "$D" ] || continue
+    B="$(basename "$D")"
+    case "$B" in
+      [0-9]*-*)
+        N="${B%%-*}"
+        case "$N" in ''|*[!0-9]*) continue ;; esac
+        [ "$N" -ge "$NEXT_NUM" ] 2>/dev/null && NEXT_NUM=$((N + 1))
+        ;;
+    esac
+  done
+  local NN OLD_DIR NEW_DIR
+  NN="$(printf '%02d' "$NEXT_NUM")"
+  OLD_DIR="$EPICS_DIR/proposed-$ISSUE-$PSLUG"
+  NEW_DIR="$EPICS_DIR/$NN-$PSLUG"
+
+  if ! "$GIT_BIN" -C "$REPO" mv "$OLD_DIR" "$NEW_DIR" 2>/dev/null; then
+    EPIC_LOOP_GATE_RESULT=error
+    EPIC_LOOP_GATE_DETAIL="PR #$PR merged, but git mv $OLD_DIR -> $NEW_DIR failed — filing did not complete"
+    return 0
+  fi
+  if ! epic_loop_set_status_approved "$REPO/$NEW_DIR/plan.md"; then
+    EPIC_LOOP_GATE_RESULT=error
+    EPIC_LOOP_GATE_DETAIL="PR #$PR merged and renamed to $NEW_DIR, but Status could not be set to approved — filing did not complete, fix by hand"
+    return 0
+  fi
+  if ! "$GIT_BIN" -C "$REPO" add "$NEW_DIR" >/dev/null 2>&1 \
+     || ! "$GIT_BIN" -C "$REPO" commit -q -m "docs(epic): file $NN-$PSLUG — approved via epic-loop (L1 auto-approve, issue #$ISSUE)" >/dev/null 2>&1; then
+    EPIC_LOOP_GATE_RESULT=error
+    EPIC_LOOP_GATE_DETAIL="PR #$PR merged and renamed to $NEW_DIR, but the filing commit failed — filing did not complete, fix by hand"
+    return 0
+  fi
+  if ! "$GIT_BIN" -C "$REPO" push -q origin "$CUR_BR" >/dev/null 2>&1; then
+    EPIC_LOOP_GATE_RESULT=error
+    EPIC_LOOP_GATE_DETAIL="filed $NEW_DIR locally but the push to origin/$CUR_BR failed — the commit exists locally; retry the push"
+    return 0
+  fi
+
+  local SHA PERMALINK
+  SHA="$("$GIT_BIN" -C "$REPO" rev-parse HEAD 2>/dev/null)"
+  PERMALINK="https://github.com/$SLUG/blob/${SHA:-$CUR_BR}/$NEW_DIR/plan.md"
+
+  # Label and comment are best-effort, matching unattended-intake.sh's own
+  # `|| true` on its issue comment/label calls: the epic IS filed by this
+  # point regardless of whether GitHub's side of the bookkeeping lands.
+  "$GH_BIN" issue edit "$ISSUE" --repo "$SLUG" --add-label epic:planned >/dev/null 2>&1 || true
+  "$GH_BIN" issue comment "$ISSUE" --repo "$SLUG" \
+    --body "Epic filed: $NEW_DIR/plan.md — $PERMALINK
+
+Approved by epic-loop's L1 approval gate: PR #$PR merged, \`**Status:** planning\` set to \`approved\`, numbered $NEW_DIR." >/dev/null 2>&1 || true
+
+  EPIC_LOOP_GATE_RESULT=approved
+  EPIC_LOOP_GATE_EPIC="$NEW_DIR/plan.md"
+  EPIC_LOOP_GATE_DETAIL="approved via L1 auto-approve — PR #$PR merged, filed at $NEW_DIR, epic:planned applied, permalink commented on #$ISSUE"
+  return 0
+}
+
 # --------------------------------------------------------------- the state tree
 # Reuses intake_status_tree for its three guarantees (leading dot, refuses a
 # plan.md ever appearing under `.intake`, self-ignoring `.gitignore`) rather
@@ -375,10 +654,9 @@ epic_loop_process_issue() { # $1=issue $2=repo-checkout $3=slug $4=state-dir $5=
     # Level and budget both come from autonomy.sh's config, so it is resolved
     # (which loads that config) BEFORE either is consulted — the reverse order
     # reads AUTONOMY_BUDGET_MAX_ITEMS/_SECONDS before autonomy_load has ever
-    # set them. Informational for level in this build — no `may-approve` /
-    # `may-merge` / `may-chain` exists yet (item 2), so the level is logged
-    # but nothing here branches on it; `--dry-run` previews the happy path
-    # regardless and says so in its own output.
+    # set them. `may-approve` (item 4, below) reads AUTONOMY_LEVEL set here;
+    # every other state still only logs the level — `--dry-run` previews the
+    # happy path regardless of level and says so in its own output.
     autonomy_resolve "$REPO" "$SLUG" || true
 
     # Wall-clock budget, checked every phase: a cycle running long is a cycle
@@ -402,6 +680,37 @@ epic_loop_process_issue() { # $1=issue $2=repo-checkout $3=slug $4=state-dir $5=
     CMD="$(epic_loop_phase_command "$CUR_STATE" "$ISSUE" "$CUR_ITEM" "$SLUG" "$CUR_EPIC")"
 
     if [ "$DRY" != yes ]; then
+      # ITEM 4's one real phase. Every other state below still refuses —
+      # see the fallback at the end of this block, unchanged from item 1.
+      if [ "$CUR_STATE" = awaiting-approval ]; then
+        epic_loop_approval_gate "$REPO" "$SLUG" "$ISSUE" "$ROOT" "$EPIC_LOOP_EPICS_DIR"
+        case "$EPIC_LOOP_GATE_RESULT" in
+          approved)
+            printf 'epic-loop: issue #%s — approval gate: %s\n' "$ISSUE" "$EPIC_LOOP_GATE_DETAIL"
+            epic_loop_state_write "$TARGET" "$ISSUE" "$SLUG" "$EPIC_LOOP_GATE_EPIC" approved "" "$EPIC_LOOP_GATE_DETAIL" || true
+            epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" awaiting-approval approved "$EPIC_LOOP_GATE_DETAIL"
+            # Loop again rather than returning: STOP is honoured again at the
+            # top before anything else runs, exactly as every other
+            # transition in this loop already does. The NEXT iteration reads
+            # state=approved, for which this build (like every state but
+            # awaiting-approval) has no real implementation — it refuses
+            # below with rc 2, correctly: this item files the epic, it does
+            # not dispatch it.
+            continue
+            ;;
+          parked)
+            printf 'epic-loop: issue #%s — approval gate parked: %s\n' "$ISSUE" "$EPIC_LOOP_GATE_DETAIL"
+            epic_loop_state_write "$TARGET" "$ISSUE" "$SLUG" "$CUR_EPIC" awaiting-approval "" "$EPIC_LOOP_GATE_DETAIL" || true
+            epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" awaiting-approval awaiting-approval "$EPIC_LOOP_GATE_DETAIL"
+            return 0
+            ;;
+          *)
+            printf 'epic-loop: issue #%s — approval gate error: %s\n' "$ISSUE" "$EPIC_LOOP_GATE_DETAIL" >&2
+            epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" awaiting-approval awaiting-approval "ERROR: $EPIC_LOOP_GATE_DETAIL"
+            return 0
+            ;;
+        esac
+      fi
       printf 'epic-loop: real execution of phase "%s" is not implemented in this build (epic 19 items 2-8 fill it in) — pass --dry-run to preview the sequence. Nothing was invoked; issue #%s is unchanged.\n' \
         "$CUR_STATE" "$ISSUE" >&2
       return 2
