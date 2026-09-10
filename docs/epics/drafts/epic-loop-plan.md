@@ -2,7 +2,7 @@
 
 **Status:** planning
 **Source:** GH #<to be filed on approval> — report-first intake; issue created at filing, not before
-**Live branch:** `main`   **Integration branch:** `main` (this repo works against main)   **Pre-epic tag:** `pre-epic-loop` — required; this epic changes what the machine may do unsupervised
+**Live branch:** `main`   **Integration branch:** `dev` (pushed from `main`'s tip 2026-09-10, scoped to this epic's testing — this repo's own convention per `CLAUDE.md` otherwise has no per-epic integration branch; `dev` is not a repo-wide policy change, promotion `dev` → `main` stays human, see Deferred)   **Pre-epic tag:** `pre-epic-loop` — required; this epic changes what the machine may do unsupervised
 
 ## Outcome
 
@@ -67,7 +67,11 @@ Assumptions, not verified:
 - `dispatch.sh`, `unattended-intake.sh`, `work-item-executor` contracts stay stable — this epic
   wraps them, it does not edit their internals (epic 16 owns `dispatch.sh`'s inside).
 - Every `claude -p` phase gets the output-discipline rule in its brief.
-- claude-skills itself is never an early target: here, merging is going live.
+- claude-skills is item 8's live-proof target (decided on filing — see Log), proposal and item
+  PRs opened against `dev`, not `main`. No repo, including claude-skills, is granted L1 or L3 by
+  this epic: every phase parks for a human to approve or merge until a promotion record says
+  otherwise, so a bad draft or a bad PR stops there rather than reaching `dev` unattended — and
+  even a merged `dev` is not live, since promotion to `main` stays a separate human step.
 - Nothing in the loop is installed by `install.sh`; the launchd plist stays opt-in.
 
 ## Work items
@@ -170,8 +174,9 @@ Assumptions, not verified:
 - **Scope:** bounded iteration over admitted issues (`budget.max-issues`); launchd plist
   `com.jonathanstevenson.epic-loop.plist` opt-in beside the existing one; SessionStart injection
   gains one line of loop state per parked issue; runbook `DOCS/runbooks/epic-loop.md`. Live proof:
-  one real issue on the first target repo (Open question 3) at the level Jonathan grants, end to
-  end.
+  one real issue on claude-skills, walked through every phase by the driver, PRs opened against
+  `dev`, parking for Jonathan's approval and merge at each step since neither L1 nor L3 is
+  granted here.
 - **Touches:** `.../bin/epic-loop.sh`, `.../launchd/com.jonathanstevenson.epic-loop.plist`
   (new), `.../hooks/session-start-context.sh`, `.../hooks/tests/session-start-fixtures.sh`,
   `DOCS/runbooks/epic-loop.md` (new), `SKILL.md` (reference list entry).
@@ -197,6 +202,11 @@ it becomes the third. Epic 16 proceeds independently behind `dispatch.sh`'s inte
   both checked between phases; budgets per cycle.
 - **Driver merges on a shared checkout.** Mitigation: the driver works in the repo's main
   checkout only via `gh` and `git pull`; executors stay in worktrees.
+- **Live proof runs on claude-skills.** Mitigation: item 8's proposal and item PRs target `dev`,
+  not `main`, so a merged PR is not live — reaching `main` needs a separate human promotion step
+  (Deferred). L1 and L3 both default to wait for this repo besides (no promotion record exists
+  for any repo today), so nothing merges to `dev` without Jonathan's explicit approve/merge
+  either.
 
 ## Deferred / out of scope
 
@@ -207,19 +217,25 @@ it becomes the third. Epic 16 proceeds independently behind `dispatch.sh`'s inte
 - Azure DevOps source; this epic is GitHub only.
 - Replacing bash with the Agent SDK; epic 16 owns the executor internals.
 
-## Open questions
-
-1. **Approval default.** Your step list has no approval gate. Recommendation: the gate exists,
-   defaults to wait, and L1 is granted per repo by promotion record. Do you want L1 granted on
-   the first target repo despite the unmeasured NO-GO?
-2. **Merge default.** Same shape for L3. Recommendation: wait by default; grant L3 after the
-   first clean L2 cycle on that repo.
-3. **First target repo.** Synthetic repo for items 1–7, then one `dev`-based repo for item 8.
-   Recommendation: `fusion-sql-mcp` or `Oracle-Simple-Convert`. Not claude-skills.
-4. **Verifier model.** Recommendation: Opus for the verify phase, Sonnet for every other phase.
-5. **Ordering against epic 11 and 16.** Recommendation: file now, dispatch items 1–3 now, hold
-   item 8 until epic 11's live verifications run.
-
 ## Log
 
-- <filing date>: filed.
+- 2026-09-10: decisions resolved before filing —
+  - Approval default (L1): wait. No repo is granted L1 by this epic; the gate exists but every
+    proposal PR parks at `awaiting-approval` for a human merge.
+  - Merge default (L3): wait. No repo is granted L3 by this epic; every item PR parks at
+    `awaiting-merge`.
+  - First target / live-proof repo (item 8): claude-skills, overriding the earlier
+    fusion-sql-mcp/Oracle-Simple-Convert recommendation — Jonathan is less concerned about
+    breaking this repo than about the "Jonathan tests all live loads" constraint on
+    Oracle-Simple-Convert. The invariant excluding claude-skills was removed; safety instead
+    comes from L1/L3 both defaulting to wait (see Risks).
+  - Verifier model: Opus for the verify phase (item 5); Sonnet for every other phase — draft
+    recommendation adopted without objection.
+  - Ordering: file now; dispatch items 1–3 now (neither touches `dispatch.sh` internals or
+    needs a live repo). Item 8's live proof still waits on epic 11's two outstanding live
+    verifications per Sequence.
+  - Integration branch (item 8 / claude-skills): `dev`, not `main`. `dev` was pushed from
+    `main`'s tip (09bcf5a) directly to origin, scoped to this epic's testing; `CLAUDE.md`'s
+    "no per-epic integration branch" convention is unchanged repo-wide, this is a one-off
+    exception. Every Risks/Invariants mention of "reaching main" updated to "reaching dev";
+    dev → main promotion stays human and undecided (Deferred).
