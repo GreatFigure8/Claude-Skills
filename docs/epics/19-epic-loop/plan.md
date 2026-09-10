@@ -1,6 +1,6 @@
 # Epic: epic-loop — an issue becomes a closed epic without a human in the middle
 
-**Status:** in flight (item 5 of 8)
+**Status:** in flight (item 6 of 8)
 **Source:** GH #93 — report-first intake; issue created at filing
 **Live branch:** `main`   **Integration branch:** `dev` (pushed from `main`'s tip 2026-09-10, scoped to this epic's testing — this repo's own convention per `CLAUDE.md` otherwise has no per-epic integration branch; `dev` is not a repo-wide policy change, promotion `dev` → `main` stays human, see Deferred)   **Pre-epic tag:** `pre-epic-loop` — required; this epic changes what the machine may do unsupervised
 
@@ -132,7 +132,7 @@ Assumptions, not verified:
 - **DoD:** fixtures for all three verdicts × two levels; `needs-decision` at L4 still parks.
 - **Not:** changing the drafting runner.
 
-### 5. Verify phase — cold acceptance check
+### 5. Verify phase — cold acceptance check — DONE (PR #102)
 - **Branch:** `feat/epic-loop-verify-phase`
 - **Scope:** `bin/verify-item.sh`: deterministic gates first (`status.json` shows
   `gates-passed` and `pr-opened`; `declared-paths-gate.sh` clean; `gh pr checks` green; real diff
