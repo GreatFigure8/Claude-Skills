@@ -67,6 +67,19 @@ QUEUED_EPIC="docs/epics/06-queued"
 git_q() { git -c user.email=fixture@example.com -c user.name=fixture \
               -c commit.gpgsign=false -c init.defaultBranch=main "$@"; }
 
+# Every path this harness inits, commits in, or removes MUST live under
+# $SANDBOX. Without this guard a single mistyped or clobbered variable makes
+# `git -C "" add -A` (git treats an empty -C as "stay here") commit the
+# developer's own checkout — exactly the epic 04 item 2 bug. Abort loudly
+# instead (same guard as session-start-fixtures.sh).
+sandboxed() { # $1 = path that is about to be used destructively
+  case "${1:-}" in
+    "$SANDBOX"/*) return 0 ;;
+    *) echo "ABORT: refusing to operate outside the sandbox: [${1:-<empty>}]" >&2
+       exit 2 ;;
+  esac
+}
+
 check() { # $1 label  $2 expected  $3 actual  $4 variant
   CASES=$((CASES + 1))
   if [ "$2" = "$3" ]; then R="PASS"; else R="FAIL"; FAILURES=$((FAILURES + 1)); fi
@@ -90,6 +103,7 @@ path_for() {
 }
 
 plan_file() { # $1 = dir, $2 = status word (empty = no Status line at all)
+  sandboxed "$1"
   mkdir -p "$1"
   if [ -n "$2" ]; then
     printf '# Epic: fixture\n\n**Status:** %s\n**Source:** GH #0\n\n## Outcome\nfixture\n' "$2" > "$1/plan.md"
@@ -101,6 +115,7 @@ plan_file() { # $1 = dir, $2 = status word (empty = no Status line at all)
 # Build a repo with a closed epic and an open epic, then TOUCH THE CLOSED ONE
 # LAST — the exact observed failure: mtime says "closed epic", truth says "open".
 mkrepo() { # $1 = base -> $1/orch (main checkout) + $1/orch-wt (linked worktree)
+  sandboxed "$1"
   rm -rf "$1"; mkdir -p "$1/orch/.claude/signals"
   plan_file "$1/orch/$OPEN_EPIC" "in flight (item 1 of 1)"
   plan_file "$1/orch/$CLOSED_EPIC" "closed"
@@ -303,7 +318,7 @@ for V in full nojq bare; do
         "$(run_life "$ORCH" SubagentStop "$AGENT" "$V"; ls "$ORCH/.claude/signals/" 2>/dev/null \
            | grep -c 'subagent-active' | tr -d ' ')" "$V"
 
-  NOEPICS="$SANDBOX/G-noepics-$V"; rm -rf "$NOEPICS"; mkdir -p "$NOEPICS"
+  NOEPICS="$SANDBOX/G-noepics-$V"; sandboxed "$NOEPICS"; rm -rf "$NOEPICS"; mkdir -p "$NOEPICS"
   : > "$SANDBOX/stderr-G2.log"
   fx_lifecycle SubagentStart "$AGENT" | CLAUDE_PROJECT_DIR="$NOEPICS" PATH="$(path_for "$V")" \
     /bin/bash "$LIFECYCLE" > /dev/null 2> "$SANDBOX/stderr-G2.log"
@@ -645,7 +660,7 @@ make_reserved_tree() { # $1 = checkout root  $2 = epics dir
 for V in full nojq bare; do
   # (i) THE RESERVED TREE IS THE ONLY THING UNDER docs/epics, and it is the
   #     newest thing on disk. If it were resolvable it would win outright.
-  B="$SANDBOX/O1-$V"; rm -rf "$B"; mkdir -p "$B/orch/.claude/signals"
+  B="$SANDBOX/O1-$V"; sandboxed "$B"; rm -rf "$B"; mkdir -p "$B/orch/.claude/signals"
   git_q -C "$B/orch" init -q
   make_reserved_tree "$B/orch" "docs/epics"
   : > "$SANDBOX/stderr-O.log"
@@ -676,7 +691,7 @@ for V in full nojq bare; do
   #       shell * does not match a leading dot. Two guarantees, either one
   #       sufficient; this proves the first alone holds when the second is
   #       violated. (The library REFUSES such a tree; that is its own fixture.)
-  B="$SANDBOX/O3-$V"; rm -rf "$B"; mkdir -p "$B/orch/.claude/signals"
+  B="$SANDBOX/O3-$V"; sandboxed "$B"; rm -rf "$B"; mkdir -p "$B/orch/.claude/signals"
   git_q -C "$B/orch" init -q
   make_reserved_tree "$B/orch" "docs/epics"
   plan_file "$B/orch/docs/epics/$RESERVED" "in flight (item 1 of 1)"

@@ -47,6 +47,19 @@ ITEM="fix-item-a"                      # executor status file: <item>.json
 git_q() { git -c user.email=fixture@example.com -c user.name=fixture \
               -c commit.gpgsign=false -c init.defaultBranch=main "$@"; }
 
+# Every path this harness inits, commits in, or removes MUST live under
+# $SANDBOX. Without this guard a single mistyped or clobbered variable makes
+# `git -C "" add -A` (git treats an empty -C as "stay here") commit the
+# developer's own checkout — exactly the epic 04 item 2 bug. Abort loudly
+# instead (same guard as session-start-fixtures.sh).
+sandboxed() { # $1 = path that is about to be used destructively
+  case "${1:-}" in
+    "$SANDBOX"/*) return 0 ;;
+    *) echo "ABORT: refusing to operate outside the sandbox: [${1:-<empty>}]" >&2
+       exit 2 ;;
+  esac
+}
+
 # --------------------------------------------------------------- helpers ----
 
 check() { # $1 label  $2 expected  $3 actual  $4 variant
@@ -72,6 +85,7 @@ path_for() {
 }
 
 mkorch() { # $1 = base path -> $1/orch (main) + $1/orch-wt (worktree, fix/item-a)
+  sandboxed "$1"
   rm -rf "$1"; mkdir -p "$1/orch/$EPIC_REL" "$1/orch/.claude/signals"
   printf '# fixture epic\n' > "$1/orch/$EPIC_REL/plan.md"
   git_q -C "$1/orch" init -q
@@ -85,6 +99,7 @@ mkorch() { # $1 = base path -> $1/orch (main) + $1/orch-wt (worktree, fix/item-a
 # then write docs/epics/<NN>-<slug>/status/<item>.json atomically.
 exec_status() { # $1 = dir the executor runs in  $2 = state
   R="$(cd "$1" && dirname "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)")"
+  sandboxed "$R"
   D="$R/$EPIC_REL/status"; mkdir -p "$D"
   printf '{\n  "item": "3 fixture",\n  "branch": "fix/item-a",\n  "state": "%s",\n  "detail": "fixture write",\n  "commit": "abc1234",\n  "updated": "2026-08-19T00:00:00Z"\n}\n' \
     "$2" > "$D/$ITEM.json.tmp"
@@ -247,7 +262,7 @@ for V in full nojq bare; do
       > /dev/null 2>> "$SANDBOX/stderr.log"
   check "truncated JSON: exit code" 0 "$?" "$V"
 
-  NOEPIC="$SANDBOX/F-noepic-$V"; rm -rf "$NOEPIC"; mkdir -p "$NOEPIC"
+  NOEPIC="$SANDBOX/F-noepic-$V"; sandboxed "$NOEPIC"; rm -rf "$NOEPIC"; mkdir -p "$NOEPIC"
   run_life "$NOEPIC" SubagentStart "$OWNER" "$V"
   run_life "$NOEPIC" SubagentStop "$OWNER" "$V"; RC=$?
   check "no epic, no git repo: exit code" 0 "$RC" "$V"

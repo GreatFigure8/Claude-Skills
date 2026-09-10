@@ -30,6 +30,7 @@ for f in "$GATE" "$LOGGER"; do
 done
 
 SANDBOX="$(mktemp -d "${TMPDIR:-/tmp}/cancel-gate-fixtures.XXXXXX")" || exit 1
+SANDBOX="$(cd "$SANDBOX" && pwd -P)" || exit 1      # /var -> /private/var on macOS
 case "$SANDBOX" in /*) ;; *) echo "ERROR: bad sandbox path" >&2; exit 1 ;; esac
 trap 'rm -rf "$SANDBOX"' EXIT INT TERM
 
@@ -41,10 +42,24 @@ OTHER_ID="b6f0e1e0f8c0afd15b0"
 
 # ---------------------------------------------------------------- sandbox ----
 
+# Every path this harness inits, commits in, or removes MUST live under
+# $SANDBOX. Without this guard a single mistyped or clobbered variable makes
+# `git -C "" add -A` (git treats an empty -C as "stay here") commit the
+# developer's own checkout — exactly the epic 04 item 2 bug. Abort loudly
+# instead (same guard as session-start-fixtures.sh).
+sandboxed() { # $1 = path that is about to be used destructively
+  case "${1:-}" in
+    "$SANDBOX"/*) return 0 ;;
+    *) echo "ABORT: refusing to operate outside the sandbox: [${1:-<empty>}]" >&2
+       exit 2 ;;
+  esac
+}
+
 git_q() { git -c user.email=fixture@example.com -c user.name=fixture \
               -c commit.gpgsign=false -c init.defaultBranch=main "$@"; }
 
 mkrepo() { # $1 = path, $2 = branch
+  sandboxed "$1"
   mkdir -p "$1/$EPIC_REL" "$1/.claude/signals"
   printf '# fixture epic\n' > "$1/$EPIC_REL/plan.md"
   git_q -C "$1" init -q
@@ -124,7 +139,7 @@ printf 'not json at all\n' > "$FX/garbage.json"
 
 # ---------------------------------------------------------------- helpers ----
 
-sentinel_reset() { rm -f "$1/$EPIC_REL/CANCEL" "$1/.claude/signals/cancel"; }
+sentinel_reset() { sandboxed "$1"; rm -f "$1/$EPIC_REL/CANCEL" "$1/.claude/signals/cancel"; }
 
 run_gate() { # $1 repo  $2 fixture  $3 variant
   CLAUDE_PROJECT_DIR="$1" PATH="$(path_for "$3")" \
@@ -228,7 +243,7 @@ echo "=== tool logger (lines appended to the epic status log) ================="
 LOGREPO="$SANDBOX/logrepo"
 logger_case() { # $1 label  $2 fixture  $3 expected line count
   for V in full nojq; do
-    rm -rf "$LOGREPO"; mkrepo "$LOGREPO" "main"
+    sandboxed "$LOGREPO"; rm -rf "$LOGREPO"; mkrepo "$LOGREPO" "main"
     touch "$LOGREPO/.claude/signals/subagent-active-$AGENT_ID"
     CLAUDE_PROJECT_DIR="$LOGREPO" PATH="$(path_for "$V")" \
       /bin/bash "$LOGGER" < "$2" > /dev/null 2>> "$SANDBOX/logger-stderr.log"
