@@ -9,11 +9,17 @@
 # STOP/AUTONOMY-OFF/budget before touching anything, and a `--dry-run` mode
 # that prints the sequence of phases and the command each one would run.
 #
-#   THIS BUILD NEVER INVOKES CLAUDE. Not in dry-run (which only prints), and
-#   not for real either: a non-dry-run invocation refuses cleanly, naming the
-#   later item that will fill in each phase's real implementation. See
-#   `epic_loop_process_issue` below — there is exactly one place a real
-#   `claude -p` call could be added, and it is not reachable from this build.
+#   DRY-RUN NEVER INVOKES CLAUDE, GH OR ANYTHING THAT MUTATES A REPO — that
+#   guarantee is unchanged since item 1 and is still what Section C/D of the
+#   fixture suite assert. A NON-dry-run invocation is a different claim by
+#   now: item 5 gave `awaiting-verify` a real gate that runs `verify-item.sh`,
+#   which runs a cold `claude -p --agent acceptance-verifier` session via
+#   `phase-session.sh`; item 6 gives `dispatching` a real gate that runs
+#   `dispatch_repo` (bin/dispatch.sh), which runs `claude -p --agent
+#   work-item-executor` exactly as unattended-intake.sh's own L2 cycle always
+#   has. `EPIC_LOOP_INVOKES_CLAUDE` below therefore answers a narrower
+#   question than its name once did: whether a `--dry-run` invocation ever
+#   does — it never does, at any item this file has reached.
 #
 # STATES, in the order the plan (docs/epics/19-epic-loop/plan.md) declares
 # them:
@@ -23,13 +29,15 @@
 #   | blocked | refused
 #
 # `merged(item N)` either advances to `dispatching(item N+1)` — the next
-# undispatched item of the SAME epic — or to `closing` when there is none.
-# `refused` is still not reachable by this build. `blocked` became reachable
-# in item 5: a cold verifier `fail` verdict at `awaiting-verify` routes there
-# for real (`epic_loop_verify_gate` below) and is never auto-retried — a human
-# resolves it. Both states were already in this file's vocabulary before that,
-# because a reader — this file's own `epic_loop_next_state` included — had to
-# already know they are terminal.
+# undispatched item of the SAME epic, and only when `autonomy_may_chain` is
+# granted (item 6) — or to `closing` when there is none. `refused` is still
+# not reachable by this build. `blocked` is reachable two ways: a cold
+# verifier `fail` verdict at `awaiting-verify` (item 5), and an executor that
+# reports `blocked` from inside `dispatching` (item 6, via `dispatch_repo`'s
+# own `DISPATCH_STATE=blocked` — never auto-retried, same rule). Both states
+# were already in this file's vocabulary before either was reachable, because
+# a reader — this file's own `epic_loop_next_state` included — had to already
+# know they are terminal.
 #
 # PER-ISSUE STATE, one file per issue, named for the issue number, living
 # beside the reserved intake status tree so it is protected by the SAME
@@ -111,12 +119,20 @@ VERIFY_ITEM_BIN="${INTAKE_VERIFY_ITEM_BIN:-$BIN_DIR/verify-item.sh}"
 
 EPIC_LOOP_EPICS_DIR="${INTAKE_EPICS_DIR:-docs/epics}"
 
+# ITEM 6's own conventions — the SAME two env vars unattended-intake.sh already
+# reads for its own dispatch_repo call, so an operator who has one L2 runner
+# configured gets identical worktree/skill resolution from this one with no
+# new configuration to learn.
+WORKTREE_ROOT="${INTAKE_WORKTREE_ROOT:-$HOME/Source}"
+SKILL_DIR="${INTAKE_SKILL_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
+
 # ------------------------------------------------------------------- budget
 # CYCLE-WIDE, not per issue — the same shape as dispatch.sh's own
 # DISPATCH_ITEMS_DONE / DISPATCH_CYCLE_START, and for the same reason: this
 # library is loaded once per invocation, so the counters live here rather
 # than being threaded through every call.
 EPIC_LOOP_DISPATCHED_THIS_CYCLE=0
+EPIC_LOOP_MERGED_THIS_CYCLE=0
 EPIC_LOOP_CYCLE_START="$(date -u +%s 2>/dev/null || printf '0')"
 
 epic_loop_elapsed() {
@@ -559,6 +575,28 @@ Approved by epic-loop's L1 approval gate: PR #$PR merged, \`**Status:** planning
 # into a state transition, the same shape epic_loop_approval_gate already
 # uses for `awaiting-approval`.
 
+# ITEM 6's one repo-level fact: the INTEGRATION branch `dispatch_repo` and
+# `gh pr merge` both need. Read from the SPECIFIC epic's own plan.md header —
+# "**Live branch:** `main`   **Integration branch:** `dev`", exactly this
+# repo's own epic 19 header — never assumed globally, because two epics in
+# the same repo may integrate on different branches (this repo is the proof:
+# most epics integrate straight on `main`; this one scopes to `dev`). No `gh`
+# call: C9/G8's own "gh was never invoked" assertions exist because a caller
+# that queries GitHub's default branch on every phase, whether or not this
+# phase needs it, breaks that guarantee for phases that never touch a branch
+# name at all. $1=repo root $2=epic-relative plan path -> stdout branch name,
+# falling back to `main` when the header is missing or unparsable.
+epic_loop_integration_branch() {
+  local ROOT="${1:-}" PLAN_REL="${2:-}" PLAN LINE BR
+  [ -n "$PLAN_REL" ] || { printf 'main'; return 0; }
+  PLAN="$ROOT/$PLAN_REL"
+  [ -r "$PLAN" ] || { printf 'main'; return 0; }
+  LINE="$(head -20 "$PLAN" 2>/dev/null | grep -m1 -Ei 'Integration branch:')"
+  BR="$(printf '%s' "$LINE" | sed -E 's/.*Integration branch:\*\*[[:space:]]*`([^`]+)`.*/\1/')"
+  [ -n "$BR" ] && [ "$BR" != "$LINE" ] || BR=main
+  printf '%s' "$BR"
+}
+
 # The declared BRANCH of one work item, same parser/read-only sourcing as
 # epic_loop_first_item / epic_loop_next_item above. $1=repo root
 # $2=epic-relative plan path $3=item id -> stdout branch name or empty.
@@ -661,6 +699,148 @@ epic_loop_verify_gate() {
     2|3) EPIC_LOOP_VERIFY_RESULT=parked ;;
     *)   EPIC_LOOP_VERIFY_RESULT=error ;;
   esac
+  return 0
+}
+
+# ITEM 6. Real (non-dry-run) implementation of `dispatching`: hand the item to
+# `dispatch_repo` (bin/dispatch.sh) — the SAME function, same executor, same
+# denylist check unattended-intake.sh's own L2 cycle already runs; this state
+# is simply another caller of it. `dispatch_repo` discovers which item to run
+# for itself (the next undispatched item of the epic at `in flight`/`approved`
+# — the plumbing item 1-4 already built), so this gate passes it no item id.
+#
+# The ONE thing this caller decides that dispatch_repo does not: whether the
+# PR it opens carries a closing keyword. `yes` only when BOTH hold — this repo
+# has been granted `autonomy_may_merge` (an item that cannot itself be merged
+# unattended has no business closing an issue when it lands) AND this is the
+# epic's LAST undispatched item (`epic_loop_next_item` on the CURRENT item
+# returns empty). Never inferred inside dispatch.sh — see its own header
+# comment on DISPATCH_CLOSING_KEYWORD, which only carries the flag through.
+#
+# Sets, for the caller:
+#   EPIC_LOOP_DISPATCH_RESULT   pr-opened | blocked | refused | error
+#   EPIC_LOOP_DISPATCH_DETAIL   one line, for the state file and the ledger
+#
+# rc is always 0 — same contract as every other gate in this file.
+epic_loop_dispatch_gate() {
+  local REPO="${1:-}" SLUG="${2:-}" ROOT="${3:-}" EPICS_DIR="${4:-}"
+  local BASE="${5:-}" PLAN_REL="${6:-}" ITEM="${7:-}"
+  EPIC_LOOP_DISPATCH_RESULT=error
+  EPIC_LOOP_DISPATCH_DETAIL="no attempt made"
+
+  if ! command -v dispatch_repo >/dev/null 2>&1; then
+    EPIC_LOOP_DISPATCH_DETAIL="dispatch_repo is not loaded — cannot dispatch item $ITEM"
+    return 0
+  fi
+
+  local CLOSING=no NEXT_AFTER
+  if autonomy_may_merge; then
+    NEXT_AFTER="$(epic_loop_next_item "$ROOT" "$PLAN_REL" "$ITEM")"
+    [ -z "$NEXT_AFTER" ] && CLOSING=yes
+  fi
+
+  dispatch_repo "$REPO" "$SLUG" "$EPICS_DIR" "$BASE" "$WORKTREE_ROOT" no "$SKILL_DIR" "$CLOSING" || true
+
+  case "${DISPATCH_STATE:-}" in
+    pr-opened) EPIC_LOOP_DISPATCH_RESULT=pr-opened; EPIC_LOOP_DISPATCH_DETAIL="${DISPATCH_PR_URL:-opened}" ;;
+    blocked)   EPIC_LOOP_DISPATCH_RESULT=blocked;   EPIC_LOOP_DISPATCH_DETAIL="${DISPATCH_REFUSAL:-blocked}" ;;
+    refused|failed|'')
+               EPIC_LOOP_DISPATCH_RESULT=refused;   EPIC_LOOP_DISPATCH_DETAIL="${DISPATCH_REFUSAL:-dispatch did not open a PR}" ;;
+    *)         EPIC_LOOP_DISPATCH_RESULT=error;      EPIC_LOOP_DISPATCH_DETAIL="unrecognised dispatch state: ${DISPATCH_STATE:-<empty>}" ;;
+  esac
+  return 0
+}
+
+# Ticks `- [ ] item $3:` to `- [x] item $3:` in the LAST comment on issue $2
+# whose body contains "Work items:" — the same tracker comment Phase 1's
+# filing step writes and every prior land-and-reset in this epic has ticked by
+# hand via the identical `gh api ... --method PATCH` shape. Best-effort: a
+# failure here is bookkeeping lost, never a reason to treat a merge that has
+# already happened as failed. $1=slug $2=issue $3=item id.
+epic_loop_tick_checklist() {
+  local SLUG="${1:-}" ISSUE="${2:-}" ITEM="${3:-}" CID BODY NEWBODY
+  [ -n "$SLUG" ] && [ -n "$ISSUE" ] && [ -n "$ITEM" ] || return 1
+  CID="$("$GH_BIN" api "repos/$SLUG/issues/$ISSUE/comments" --paginate \
+           -q '[.[] | select(.body | contains("Work items:"))][-1].id' 2>/dev/null)"
+  case "${CID:-}" in ''|*[!0-9]*) return 1 ;; esac
+  BODY="$("$GH_BIN" api "repos/$SLUG/issues/comments/$CID" -q .body 2>/dev/null)"
+  [ -n "$BODY" ] || return 1
+  NEWBODY="$(printf '%s\n' "$BODY" | sed -E "s/- \[ \] item $ITEM:/- [x] item $ITEM:/")"
+  [ "$NEWBODY" != "$BODY" ] || return 1
+  "$GH_BIN" api "repos/$SLUG/issues/comments/$CID" --method PATCH -f "body=$NEWBODY" >/dev/null 2>&1
+}
+
+# ITEM 6. Real (non-dry-run) implementation of `awaiting-merge`: `gh pr merge
+# --merge` the item's own PR — found the SAME way epic_loop_verify_gate finds
+# it, by declared branch, never by title or number — then land-and-reset in
+# THIS repo's own main checkout (never a worktree; dispatch.sh's own
+# `_dispatch_cleanup_worktree` already removed the executor's worktree the
+# moment its PR was opened, so there is none left here to remove): switch to
+# the integration branch, pull, delete the item branch remote and local,
+# prune, tick the tracker checklist.
+#
+# Gated on `autonomy_may_merge` — below L3 this parks exactly as
+# `awaiting-verify` parks on a missing PR, and a human merges by hand.
+#
+# Sets, for the caller:
+#   EPIC_LOOP_MERGE_RESULT   merged | parked | error
+#   EPIC_LOOP_MERGE_DETAIL   one line, for the state file and the ledger
+#
+# rc is always 0 — same contract as every other gate in this file.
+epic_loop_merge_gate() {
+  local REPO="${1:-}" SLUG="${2:-}" ISSUE="${3:-}" ROOT="${4:-}"
+  local BASE="${5:-}" PLAN_REL="${6:-}" ITEM="${7:-}"
+  EPIC_LOOP_MERGE_RESULT=error
+  EPIC_LOOP_MERGE_DETAIL="no attempt made"
+
+  if ! autonomy_may_merge; then
+    EPIC_LOOP_MERGE_RESULT=parked
+    EPIC_LOOP_MERGE_DETAIL="may-merge not granted at ${AUTONOMY_LEVEL:-L0} — waiting for a human to merge item $ITEM's pull request"
+    return 0
+  fi
+
+  if [ -z "$PLAN_REL" ] || [ -z "$ITEM" ]; then
+    EPIC_LOOP_MERGE_DETAIL="no epic/item recorded for issue #$ISSUE — cannot know which PR to merge"
+    return 0
+  fi
+
+  local BR
+  BR="$(epic_loop_item_branch "$ROOT" "$PLAN_REL" "$ITEM")"
+  if [ -z "$BR" ]; then
+    EPIC_LOOP_MERGE_DETAIL="item $ITEM has no declared branch in $PLAN_REL — cannot look up its PR"
+    return 0
+  fi
+
+  "$GIT_BIN" -C "$REPO" fetch origin >/dev/null 2>&1 || true
+
+  local PR_LINE PR
+  PR_LINE="$(epic_loop_find_item_pr "$SLUG" "$BR")" || PR_LINE=""
+  PR="${PR_LINE%% *}"
+  case "$PR" in ''|*[!0-9]*) PR="" ;; esac
+  if [ -z "$PR" ]; then
+    EPIC_LOOP_MERGE_RESULT=parked
+    EPIC_LOOP_MERGE_DETAIL="no open PR found for item $ITEM's branch $BR — nothing to merge this cycle"
+    return 0
+  fi
+
+  if ! "$GH_BIN" pr merge "$PR" --repo "$SLUG" --merge >/dev/null 2>&1; then
+    EPIC_LOOP_MERGE_DETAIL="gh pr merge $PR failed — leaving item $ITEM at awaiting-merge for a later cycle or a human"
+    return 0
+  fi
+
+  if [ -n "$BASE" ]; then
+    "$GIT_BIN" -C "$REPO" switch "$BASE" >/dev/null 2>&1 || true
+  fi
+  "$GIT_BIN" -C "$REPO" pull --ff-only >/dev/null 2>&1 || true
+  "$GIT_BIN" -C "$REPO" push origin --delete "$BR" >/dev/null 2>&1 || true
+  "$GIT_BIN" -C "$REPO" branch -d "$BR" >/dev/null 2>&1 || true
+  "$GIT_BIN" -C "$REPO" worktree prune >/dev/null 2>&1 || true
+  "$GIT_BIN" -C "$REPO" fetch --prune >/dev/null 2>&1 || true
+
+  epic_loop_tick_checklist "$SLUG" "$ISSUE" "$ITEM" || true
+
+  EPIC_LOOP_MERGE_RESULT=merged
+  EPIC_LOOP_MERGE_DETAIL="item $ITEM's PR #$PR merged into ${BASE:-<integration>} via $BR; branch deleted, checklist ticked"
   return 0
 }
 
@@ -799,6 +979,14 @@ epic_loop_process_issue() { # $1=issue $2=repo-checkout $3=slug $4=state-dir $5=
       printf 'epic-loop: issue #%s — no further dispatch this cycle: %s\n' "$ISSUE" "${AUTONOMY_REFUSAL:-budget}"
       return 0
     fi
+    # ITEM 6's own budget: item PRs actually MERGED this cycle, the same
+    # cycle-wide shape as the dispatch budget just above (and for the same
+    # reason — `autonomy_budget_allows_merge` is asked only at the one phase
+    # a merge could happen, never at every bookkeeping phase).
+    if [ "$CUR_STATE" = awaiting-merge ] && ! autonomy_budget_allows_merge "$EPIC_LOOP_MERGED_THIS_CYCLE"; then
+      printf 'epic-loop: issue #%s — no further merge this cycle: %s\n' "$ISSUE" "${AUTONOMY_REFUSAL:-budget}"
+      return 0
+    fi
 
     CMD="$(epic_loop_phase_command "$CUR_STATE" "$ISSUE" "$CUR_ITEM" "$SLUG" "$CUR_EPIC")"
 
@@ -868,7 +1056,89 @@ epic_loop_process_issue() { # $1=issue $2=repo-checkout $3=slug $4=state-dir $5=
             ;;
         esac
       fi
-      printf 'epic-loop: real execution of phase "%s" is not implemented in this build (epic 19 items 2-8 fill it in) — pass --dry-run to preview the sequence. Nothing was invoked; issue #%s is unchanged.\n' \
+      # ITEM 6's first real phase. `dispatch_repo` finds the item to run for
+      # itself; a `blocked` executor is the one path that reaches `blocked`
+      # here, same rule as verify's `fail` — never auto-retried. `refused`/
+      # `error` leave the state untouched for a later cycle, the same shape
+      # verify's own `parked`/`error` cases use — a denylist refusal or a
+      # transient API failure is not this issue's permanent fate.
+      if [ "$CUR_STATE" = dispatching ]; then
+        epic_loop_dispatch_gate "$REPO" "$SLUG" "$ROOT" "$EPIC_LOOP_EPICS_DIR" "$(epic_loop_integration_branch "$ROOT" "$CUR_EPIC")" "$CUR_EPIC" "$CUR_ITEM"
+        EPIC_LOOP_DISPATCHED_THIS_CYCLE=$((EPIC_LOOP_DISPATCHED_THIS_CYCLE + 1))
+        case "$EPIC_LOOP_DISPATCH_RESULT" in
+          pr-opened)
+            printf 'epic-loop: issue #%s — dispatch: %s\n' "$ISSUE" "$EPIC_LOOP_DISPATCH_DETAIL"
+            epic_loop_state_write "$TARGET" "$ISSUE" "$SLUG" "$CUR_EPIC" awaiting-verify "$CUR_ITEM" "$EPIC_LOOP_DISPATCH_DETAIL" || true
+            epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" dispatching awaiting-verify "$EPIC_LOOP_DISPATCH_DETAIL"
+            continue
+            ;;
+          blocked)
+            printf 'epic-loop: issue #%s — dispatch BLOCKED: %s\n' "$ISSUE" "$EPIC_LOOP_DISPATCH_DETAIL" >&2
+            epic_loop_state_write "$TARGET" "$ISSUE" "$SLUG" "$CUR_EPIC" blocked "$CUR_ITEM" "$EPIC_LOOP_DISPATCH_DETAIL" || true
+            epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" dispatching blocked "$EPIC_LOOP_DISPATCH_DETAIL"
+            return 0
+            ;;
+          *)
+            printf 'epic-loop: issue #%s — dispatch %s: %s\n' "$ISSUE" "$EPIC_LOOP_DISPATCH_RESULT" "$EPIC_LOOP_DISPATCH_DETAIL" >&2
+            epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" dispatching dispatching "$EPIC_LOOP_DISPATCH_RESULT: $EPIC_LOOP_DISPATCH_DETAIL"
+            return 0
+            ;;
+        esac
+      fi
+      # ITEM 6's second real phase. `merged` advances to `merged` for real
+      # (below L3 this PARKS — waiting for may-merge or a human, the same
+      # park `awaiting-approval` and `awaiting-verify` already use for their
+      # own below-threshold case).
+      if [ "$CUR_STATE" = awaiting-merge ]; then
+        epic_loop_merge_gate "$REPO" "$SLUG" "$ISSUE" "$ROOT" "$(epic_loop_integration_branch "$ROOT" "$CUR_EPIC")" "$CUR_EPIC" "$CUR_ITEM"
+        case "$EPIC_LOOP_MERGE_RESULT" in
+          merged)
+            printf 'epic-loop: issue #%s — merge: %s\n' "$ISSUE" "$EPIC_LOOP_MERGE_DETAIL"
+            EPIC_LOOP_MERGED_THIS_CYCLE=$((EPIC_LOOP_MERGED_THIS_CYCLE + 1))
+            epic_loop_state_write "$TARGET" "$ISSUE" "$SLUG" "$CUR_EPIC" merged "$CUR_ITEM" "$EPIC_LOOP_MERGE_DETAIL" || true
+            epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" awaiting-merge merged "$EPIC_LOOP_MERGE_DETAIL"
+            continue
+            ;;
+          parked)
+            printf 'epic-loop: issue #%s — merge parked: %s\n' "$ISSUE" "$EPIC_LOOP_MERGE_DETAIL"
+            epic_loop_state_write "$TARGET" "$ISSUE" "$SLUG" "$CUR_EPIC" awaiting-merge "$CUR_ITEM" "$EPIC_LOOP_MERGE_DETAIL" || true
+            epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" awaiting-merge awaiting-merge "$EPIC_LOOP_MERGE_DETAIL"
+            return 0
+            ;;
+          *)
+            printf 'epic-loop: issue #%s — merge gate error: %s\n' "$ISSUE" "$EPIC_LOOP_MERGE_DETAIL" >&2
+            epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" awaiting-merge awaiting-merge "ERROR: $EPIC_LOOP_MERGE_DETAIL"
+            return 0
+            ;;
+        esac
+      fi
+      # ITEM 6's third real phase — the chain gate. No further item: always
+      # advances to `closing` (item 7's own concern once it is there; closing
+      # an issue is GH's own doing via the merge's closing keyword, not this
+      # state). Another item exists: only `autonomy_may_chain` (L4) advances
+      # to `dispatching` for it; below L4 this PARKS AT `merged` — the plan's
+      # own words, "parks at the item PR and waits for a human to merge" — and
+      # a later cycle (or a promoted level) picks the chain up from here.
+      if [ "$CUR_STATE" = merged ]; then
+        NEXT_ITEM="$(epic_loop_next_item "$ROOT" "$CUR_EPIC" "$CUR_ITEM")"
+        if [ -z "$NEXT_ITEM" ]; then
+          printf 'epic-loop: issue #%s — merged, no further item: closing\n' "$ISSUE"
+          epic_loop_state_write "$TARGET" "$ISSUE" "$SLUG" "$CUR_EPIC" closing "" "epic's last item merged" || true
+          epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" merged closing "epic's last item merged"
+          continue
+        fi
+        if autonomy_may_chain; then
+          printf 'epic-loop: issue #%s — merged, chaining to item %s\n' "$ISSUE" "$NEXT_ITEM"
+          epic_loop_state_write "$TARGET" "$ISSUE" "$SLUG" "$CUR_EPIC" dispatching "$NEXT_ITEM" "chained from item $CUR_ITEM" || true
+          epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" merged dispatching "chained from item $CUR_ITEM"
+          continue
+        fi
+        printf 'epic-loop: issue #%s — merged, item %s next but may-chain not granted at %s: parked\n' \
+          "$ISSUE" "$NEXT_ITEM" "${AUTONOMY_LEVEL:-L0}"
+        epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" merged merged "may-chain not granted at ${AUTONOMY_LEVEL:-L0}"
+        return 0
+      fi
+      printf 'epic-loop: real execution of phase "%s" is not implemented in this build (epic 19 items 7-8 fill it in) — pass --dry-run to preview the sequence. Nothing was invoked; issue #%s is unchanged.\n' \
         "$CUR_STATE" "$ISSUE" >&2
       return 2
     fi

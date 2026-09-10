@@ -53,9 +53,13 @@
 #
 # Usage (read-only unless --dispatch is named):
 #   bin/dispatch.sh --plan <plan.md>                    the work items it parses
-#   bin/dispatch.sh --select --repo <path> --slug <o/n> --epics-dir <dir>
+#   bin/dispatch.sh --select --repo <path> --slug <o/n> --epics-dir <dir> [--closing-keyword]
 #   bin/dispatch.sh --check  --repo <path> --slug <o/n>
 #   bin/dispatch.sh --deny   --repo <path> --slug <o/n> --worktree <wt> --base <b>
+#
+#   --closing-keyword (--select only) previews the PR linkage `dispatch_repo`
+#   would write if its own $8 were "yes" — `Closes #<n>` instead of `Part of
+#   #<n>`. Preview only; this CLI never dispatches anything (see below).
 
 # --------------------------------------------------------------- this build
 # The machine-readable contract marker, the sibling of AUTONOMY_ENFORCED and
@@ -68,6 +72,18 @@ DISPATCH_CONTRACT=1
 # before it gets here; this constant exists so the refusal can name the rung
 # rather than a level number that means nothing to a reader.
 DISPATCH_LEVEL=L2
+
+# THE ONE FLAG epic 19 item 6 adds. `no` (the default, unchanged for every
+# caller that does not set it — unattended-intake.sh's own L2-only cycle among
+# them) leaves dispatch_pr_body's linkage exactly as it always was: `Part of
+# #<n>`. `dispatch_repo`'s $8 sets this for the duration of one dispatch; it is
+# never inferred here. THE CALLER decides `yes` — bin/epic-loop.sh, item 6 —
+# only after it has independently confirmed BOTH that `autonomy_may_merge` is
+# granted for this repo AND that the item about to be dispatched is the LAST
+# undispatched item of its plan (`epic_loop_next_item` returns empty). Neither
+# of those checks lives in this file: dispatch.sh only carries the flag
+# through to the PR body it already writes.
+DISPATCH_CLOSING_KEYWORD=no
 
 # The field separator dispatch_work_items emits and every reader splits on. See
 # the comment on that function for why it is not a tab.
@@ -877,9 +893,13 @@ dispatch_read_executor_status() { # $1 = canonical repo root, $2 = epics dir
 
 # ---------------------------------------------------------- the pull request
 # THE CEILING. Against the INTEGRATION branch, always; `Part of #<n>` exactly
-# once and NEVER a closing keyword, because a closing keyword makes a merge close
-# an issue and closing an issue is a thing this runner does not do — not
-# directly, and not by leaving a fuse for someone else's merge to light.
+# once — UNLESS the caller set `DISPATCH_CLOSING_KEYWORD=yes` (epic 19 item 6),
+# in which case it is `Closes #<n>` instead. This file never decides which: a
+# closing keyword makes a merge close an issue, and deciding that an item is
+# both the epic's LAST one and cleared to merge is bin/epic-loop.sh's job
+# (`autonomy_may_merge` plus `epic_loop_next_item` returning empty), not this
+# runner's. unattended-intake.sh's own L2-only calls never set the flag, so
+# their PRs carry `Part of #<n>` exactly as before this item.
 #
 # EVERY CLAIM IN IT IS EVIDENCE THE RUNNER ACTUALLY HAS. It did not read the
 # code, it did not run the gates, and it says so rather than filling the
@@ -889,8 +909,8 @@ dispatch_read_executor_status() { # $1 = canonical repo root, $2 = epics dir
 dispatch_pr_body() { # $1 = repo slug, $2 = integration branch, $3 = worktree, $4 = base ref
   local LINKAGE=""
   case "$DISPATCH_SOURCE_KIND" in
-    gh) LINKAGE="Part of #$DISPATCH_SOURCE_NUM" ;;
-    ab) LINKAGE="Part of AB#$DISPATCH_SOURCE_NUM" ;;
+    gh) if [ "${DISPATCH_CLOSING_KEYWORD:-no}" = yes ]; then LINKAGE="Closes #$DISPATCH_SOURCE_NUM"; else LINKAGE="Part of #$DISPATCH_SOURCE_NUM"; fi ;;
+    ab) if [ "${DISPATCH_CLOSING_KEYWORD:-no}" = yes ]; then LINKAGE="Closes AB#$DISPATCH_SOURCE_NUM"; else LINKAGE="Part of AB#$DISPATCH_SOURCE_NUM"; fi ;;
   esac
   cat <<PR_EOF
 > **Opened by an unattended L2 dispatch cycle. No human has read this diff.**
@@ -1022,11 +1042,13 @@ _dispatch_cleanup_worktree() { # $1 = repo checkout
 # rc 2 = refused or failed; DISPATCH_REFUSAL says why and has been emitted
 # rc 3 = --dry-run reported what would happen and changed nothing
 dispatch_repo() { # $1 repo, $2 slug, $3 epics dir, $4 integration branch,
-                  # $5 worktree root, $6 dry-run (yes|no), $7 skill dir
+                  # $5 worktree root, $6 dry-run (yes|no), $7 skill dir,
+                  # $8 closing-keyword (yes|no, default no — epic 19 item 6)
   local REPO="${1:-}" SLUG="${2:-}" EDIR="${3:-docs/epics}" BASE="${4:-}"
   local WTROOT="${5:-}" DRY="${6:-no}" SKILL="${7:-}"
   local BASEREF="origin/$BASE" WT RC CPID WAITED HEARTBEAT ROOT
   local TOOLS=""
+  DISPATCH_CLOSING_KEYWORD="${8:-no}"
 
   DISPATCH_REFUSAL=""; DISPATCH_PR_URL=""; DISPATCH_WORKTREE=""
   DISPATCH_EXECUTOR_STATE=""; DISPATCH_EXECUTOR_DETAIL=""
@@ -1304,6 +1326,7 @@ _dispatch_cli_usage() { sed -n '1,10p' "$0"; }
 
 _dispatch_cli() {
   local MODE=check REPO_PATH="" REPO_SLUG="" EDIR="" PLAN="" WT="" BASE="" RC=0
+  local CLI_CLOSING=no
   local ID BR GT DEP TITLE
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -1316,6 +1339,10 @@ _dispatch_cli() {
       --epics-dir)  EDIR="${2-}"; shift ;;
       --worktree)   WT="${2-}"; shift ;;
       --base)       BASE="${2-}"; shift ;;
+      # Read-only preview only (epic 19 item 6): shows what `select`'s linkage
+      # WOULD read as if a caller dispatched this item with the flag set. Never
+      # dispatches anything — see the CLI's own header, unchanged by this flag.
+      --closing-keyword) CLI_CLOSING=yes ;;
       -h|--help)    _dispatch_cli_usage; return 0 ;;
       *) printf 'unknown argument: %s\n' "$1" >&2; return 1 ;;
     esac
@@ -1347,6 +1374,11 @@ CLI_ITEMS_EOF
         printf 'gate type       %s\n' "${DISPATCH_GATE_TYPE:-<all declared>}"
         printf 'source          %s%s\n' "$DISPATCH_SOURCE_KIND" \
           "$( [ -n "$DISPATCH_SOURCE_NUM" ] && printf ' #%s' "$DISPATCH_SOURCE_NUM" )"
+        case "$DISPATCH_SOURCE_KIND" in
+          gh) printf 'linkage         %s\n' "$( [ "$CLI_CLOSING" = yes ] && printf 'Closes #%s' "$DISPATCH_SOURCE_NUM" || printf 'Part of #%s' "$DISPATCH_SOURCE_NUM" )" ;;
+          ab) printf 'linkage         %s\n' "$( [ "$CLI_CLOSING" = yes ] && printf 'Closes AB#%s' "$DISPATCH_SOURCE_NUM" || printf 'Part of AB#%s' "$DISPATCH_SOURCE_NUM" )" ;;
+          *)  printf 'linkage         none (no Source: ref)\n' ;;
+        esac
         return 0
       fi
       if [ -n "$DISPATCH_REFUSAL" ]; then
