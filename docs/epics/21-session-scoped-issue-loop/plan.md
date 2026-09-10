@@ -1,6 +1,6 @@
 # Epic: session-scoped autonomous issue loop
 
-**Status:** in flight (item 3 of 6)
+**Status:** in flight (item 4 of 6)
 **Live branch:** main
 **Integration branch:** main
 **Pre-epic tag:** pre-loop-redesign
@@ -122,7 +122,7 @@ integration and live branch. Completed at filing time, 2026-09-10.
   present, force-push attempt, cross-epic collision.
 - **Rollback:** drop the branch; nothing else depends on it yet.
 
-### 3. The loop entry point — session-scoped driver
+### 3. The loop entry point — session-scoped driver — DONE (PR #108, merged e25ba20)
 - **Branch:** `feat/session-loop-driver`
 - **Depends on:** items 1, 2
 - **Scope:** A new entry (skill or slash command) that, invoked in a live session
