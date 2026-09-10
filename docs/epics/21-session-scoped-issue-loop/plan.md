@@ -1,6 +1,6 @@
 # Epic: session-scoped autonomous issue loop
 
-**Status:** approved
+**Status:** in flight (item 1 of 6)
 **Live branch:** main
 **Integration branch:** main
 **Pre-epic tag:** pre-loop-redesign
