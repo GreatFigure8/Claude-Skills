@@ -1,6 +1,6 @@
 # Epic: epic-loop — an issue becomes a closed epic without a human in the middle
 
-**Status:** in flight (item 2 of 8)
+**Status:** in flight (item 4 of 8)
 **Source:** GH #93 — report-first intake; issue created at filing
 **Live branch:** `main`   **Integration branch:** `dev` (pushed from `main`'s tip 2026-09-10, scoped to this epic's testing — this repo's own convention per `CLAUDE.md` otherwise has no per-epic integration branch; `dev` is not a repo-wide policy change, promotion `dev` → `main` stays human, see Deferred)   **Pre-epic tag:** `pre-epic-loop` — required; this epic changes what the machine may do unsupervised
 
@@ -93,7 +93,7 @@ Assumptions, not verified:
   state file unchanged.
 - **Not:** any real session; any ladder change.
 
-### 2. Ladder extension — L1 approve, L3 merge, L4 chain
+### 2. Ladder extension — L1 approve, L3 merge, L4 chain — DONE (PR #100)
 - **Branch:** `feat/autonomy-ladder-l1-l3-l4`
 - **Scope:** `AUTONOMY_CEILING=L4`. `autonomy.sh` answers `may-approve`, `may-merge`,
   `may-chain` from the granted level. Promotion records above L2 require `cycles ≥
@@ -106,7 +106,7 @@ Assumptions, not verified:
   forged `granted-by: runner` refused; `AUTONOMY-OFF` pins all three false.
 - **Not:** granting any repo a level; measuring L1.
 
-### 3. Phase-session harness and handoff bridge
+### 3. Phase-session harness and handoff bridge — DONE (PR #99)
 - **Branch:** `feat/epic-loop-phase-session`
 - **Scope:** `bin/phase-session.sh <brief-file>` runs one `claude -p` session with the brief,
   appends the `/handoff` command body as the closing instruction, and afterwards validates
@@ -239,3 +239,5 @@ it becomes the third. Epic 16 proceeds independently behind `dispatch.sh`'s inte
     "no per-epic integration branch" convention is unchanged repo-wide, this is a one-off
     exception. Every Risks/Invariants mention of "reaching main" updated to "reaching dev";
     dev → main promotion stays human and undecided (Deferred).
+- 2026-09-10: items 2 and 3 verified and merged — PR #100 (`c763da5`) and PR #99 (`c4593a3`).
+  Item 4 (approval gate) is next.
