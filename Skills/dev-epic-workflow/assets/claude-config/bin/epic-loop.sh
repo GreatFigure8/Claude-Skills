@@ -97,6 +97,11 @@ BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUTONOMY_LIB="${INTAKE_AUTONOMY_LIB:-$BIN_DIR/autonomy.sh}"
 STATUS_LIB="${INTAKE_STATUS_LIB:-$BIN_DIR/intake-status.sh}"
 DISPATCH_LIB="${INTAKE_DISPATCH_LIB:-$BIN_DIR/dispatch.sh}"
+# THE PHASE-EXECUTION SEAM (item 3). Not sourced at top level — like
+# DISPATCH_LIB above, a phase that actually calls it sources it lazily via
+# epic_loop_run_phase_session below, so a build with no reachable real phase
+# (this one) never pays for it and never risks it silently becoming reachable.
+PHASE_SESSION_BIN="${INTAKE_PHASE_SESSION:-$BIN_DIR/phase-session.sh}"
 
 EPIC_LOOP_EPICS_DIR="${INTAKE_EPICS_DIR:-docs/epics}"
 
@@ -173,6 +178,40 @@ epic_loop_phase_command() {
     *)
       printf '' ;;
   esac
+}
+
+# ---------------------------------------------------- the phase-execution seam
+# THE ONE PLACE a real `claude -p` call is wired in — item 1's header named
+# this exact spot ("there is exactly one place a real `claude -p` call could
+# be added, and it is not reachable from this build"). Item 3 fills it in:
+# given a brief file a phase-specific caller has ALREADY written (items 4-8 —
+# none of them exist yet, so nothing below calls this function today), run it
+# through phase-session.sh and hand back what it decided about
+# `docs/epics/handoff.md`. This wrapper embeds NO phase judgement of its own —
+# no drafting, no approval, no dispatch, no verify, no merge logic — it is a
+# thin pass-through to the harness item 3 actually built
+# (`phase-session.sh`), exactly item 3's own scope ("the harness that runs *a*
+# session and manages the handoff file around it").
+#
+# $1 = brief-file (already written by the caller)  $2 = repo checkout the
+# session should run in  $3 = state-file (the per-issue state JSON, for
+# phase-session.sh's fallback-handoff derivation, or "" to omit)
+# $4 = epic-relative plan path (for the fallback's Epic field, or "" to omit)
+# -> stdout phase-session.sh's own output; rc = its own exit code (0 unless a
+# usage error or a disk failure — see phase-session.sh's own header for its
+# "never fail outright on a bad session" contract).
+epic_loop_run_phase_session() {
+  local BRIEF="${1:-}" REPO="${2:-}" SF="${3:-}" EPIC="${4:-}"
+  [ -r "$PHASE_SESSION_BIN" ] || { printf 'epic-loop: cannot read phase-session harness: %s\n' "$PHASE_SESSION_BIN" >&2; return 1; }
+  if [ -n "$SF" ] && [ -n "$EPIC" ]; then
+    bash "$PHASE_SESSION_BIN" "$BRIEF" --repo "$REPO" --state-file "$SF" --epic "$EPIC"
+  elif [ -n "$SF" ]; then
+    bash "$PHASE_SESSION_BIN" "$BRIEF" --repo "$REPO" --state-file "$SF"
+  elif [ -n "$EPIC" ]; then
+    bash "$PHASE_SESSION_BIN" "$BRIEF" --repo "$REPO" --epic "$EPIC"
+  else
+    bash "$PHASE_SESSION_BIN" "$BRIEF" --repo "$REPO"
+  fi
 }
 
 # ---------------------------------------------------------- the plan lookup
