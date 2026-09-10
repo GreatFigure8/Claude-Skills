@@ -141,6 +141,19 @@ An executor that returns `blocked` is not retried. Record the issue `blocked`, q
 `status.json` detail on the tracker item, and chain to the next admitted issue: the loop
 steps past what it cannot resolve rather than stopping on it.
 
+**If the `status.json` detail names a gate failure out of the item's own scope** —
+persistent after retry, or discovered incidentally while working a different item, exactly
+the case `work-item-executor.md`'s own hard boundary already names for the interactive
+path — file it instead of only quoting it: `bin/issue-filer.sh --file --repo <path> --issue
+<N> --item <I> --check "<gate name>" --evidence "<the gate's own failure output>"`. It
+dedupes by fingerprint against open `epic-loop-filed` issues on its own (prints `skip #<n>
+...` and creates nothing if one is already open) and prints `filed <url>` otherwise — read
+its result, don't re-derive one. This is **not** a substitute for judgement: a `blocked`
+whose detail is an ambiguity for Jonathan (a `needs-decision`-shaped question, not a gate
+name and output) is still just recorded and chained past, never filed as an issue against
+itself. Filing is the terminal action here (epic 21 item 4) — this file never fixes what it
+just filed; the fix is a future loop cycle picking up the new issue.
+
 ### `verify` — the item's four deterministic gates are clean
 
 The driver has already run `verify_item_deterministic_gates` (status.json shows
@@ -251,17 +264,27 @@ epic's live-proof run (item 6) needs an issue whose diff stays outside those pat
 
 ## Where the rest of the epic attaches
 
-- **Item 4 — failure-driven issue filing.** Today a gate failure out of the item's scope
-  is reported and the loop chains past it. Item 4 makes that a filed GitHub issue,
-  deduplicated by fingerprint against open `epic-loop-filed` issues.
+- **Item 4 — failure-driven issue filing (done).** A gate failure out of the item's own
+  scope is now a filed GitHub issue rather than only a chained-past note: `bin/issue-filer.sh
+  --file` dedupes by fingerprint against open `epic-loop-filed` issues (skips if one is
+  already open) and otherwise files one naming the discovering issue/item, the failing
+  check, and the evidence. See `dispatch`'s `blocked` handling above for the call site. It
+  is a deterministic tool, not wired into `session-loop.sh`'s own state machine — the
+  judgement of *which* failures are out of scope stays with whichever live session
+  discovered them, the same seam every other judgement step in this file already follows.
 - **Item 5 — per-issue integration testing.** Today `close` runs no whole-issue check.
-  Item 5 adds one between the last merge and the close, routing a failure through item 4.
+  Item 5 adds one between the last merge and the close, routing a failure through
+  `bin/issue-filer.sh --file` the same way item 4's `dispatch` call site does.
 
 ## Files
 
 - `assets/claude-config/bin/session-loop.sh` — the deterministic driver.
+- `assets/claude-config/bin/issue-filer.sh` — fingerprint-deduplicated failure filing
+  (epic 21 item 4): `issue_filer_fingerprint`, `issue_filer_find_duplicate`,
+  `issue_filer_file`.
 - `assets/claude-config/commands/loop.md` — the `/loop` entry point.
 - `assets/claude-config/hooks/tests/session-loop-fixtures.sh` — the fixture suite.
+- `assets/claude-config/hooks/tests/issue-filer-fixtures.sh` — item 4's fixture suite.
 - `assets/claude-config/bin/autonomy.sh` — `autonomy_harm_check`, the harm floor.
 - `references/issue-intake.md` — the drafting contract this loop reuses.
 - `references/executor-control-plane.md` — the dispatch/status contract it dispatches into.
