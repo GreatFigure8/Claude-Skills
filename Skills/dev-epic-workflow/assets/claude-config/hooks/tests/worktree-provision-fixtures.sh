@@ -747,6 +747,46 @@ check "O4: ...where the shipped library refuses it"  "1" \
 chmod 600 "$E_CFG"
 
 echo
+echo "=== Q. THE INTEGRATION-TEST DECLARATION (epic 21 item 5) =================="
+# ONE command, run once per ISSUE — never a `.<type>` family the way gates.* is,
+# and never executed by this library itself (session-loop.sh's job, against the
+# canonical repo, post-merge — see worktree-provisioning.md).
+Q_CFG="$(cfg q "[$A_REPO]" "smoke = true" "integration-test = pnpm run test:e2e")"
+check "Q: a declared command is returned"            "pnpm run test:e2e" \
+      "$(pvsh "$Q_CFG" "provision_resolve '$A_REPO' ''; provision_integration_test")"
+pv "$Q_CFG" --integration-test --repo "$A_REPO"
+check "Q: the CLI mode agrees"                       "0"   "$PV_RC"
+check "Q: ...and prints the same command"            "pnpm run test:e2e" "$PV_OUT"
+check "Q: --check prints it too"                     "yes" \
+      "$(contains "$(pv "$Q_CFG" --check --repo "$A_REPO"; printf '%s' "$PV_OUT")" "integration-test  pnpm run test:e2e")"
+
+# Not declared: refused, and the refusal names the section — the same shape
+# `provision_gates` already uses for an undeclared type, never a silent "".
+Q_NOIT="$(cfg q-noit "[$A_REPO]" "smoke = true" "gates.default = echo gate-ok")"
+pv "$Q_NOIT" --integration-test --repo "$A_REPO"
+check "Q: no integration-test declared is REFUSED"   "1"   "$PV_RC"
+check "Q: ...naming the section"                     "yes" "$(contains "$PV_OUT" "no integration-test command is declared for [$A_REPO]")"
+check "Q: ...and prints no command"                  "no"  "$(contains "$PV_OUT" "pnpm")"
+# Its declared gates are UNTOUCHED and still answer their own lookup — the
+# fallback-to-gates policy belongs to the CALLER (session-loop.sh), not here.
+check "Q: gates.* still resolve independently"       "echo gate-ok" \
+      "$(pvsh "$Q_NOIT" "provision_resolve '$A_REPO' ''; provision_gates ''")"
+
+# An unconfigured repo: refused the same way as "not declared", not a crash.
+pv "$A_NONE" --integration-test --repo "$A_REPO"
+check "Q: an unconfigured repo is also REFUSED"      "1"   "$PV_RC"
+
+# The key is parsed, not a `gates.*` collision, and needs `smoke` like every
+# other declaring key (case D's own rule, exercised once more for this key).
+D_T "integration-test alone, no smoke" "no 'smoke' command" \
+    "[o/r]" "integration-test = pnpm run test:e2e"
+Q_UNK="$(cfg q-unk "[o/r]" "smoke = true" "integration-tests = x")"
+pv "$Q_UNK" --check
+check "Q: a near-miss key name is still refused"     "1"   "$PV_RC"
+check "Q: ...naming exactly what it does not know"   "yes" \
+      "$(contains "$PV_OUT" "unknown key 'integration-tests'")"
+
+echo
 echo "=== P. THE SANDBOX HELD ================================================="
 check "P: the host repo is byte-for-byte untouched"  "$HOST_BEFORE" "$(host_fingerprint)"
 check "P: the live intake config was never created"  "no" \
