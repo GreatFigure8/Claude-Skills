@@ -612,6 +612,242 @@ check_contains "G8 human-approved: epic path is the human's own numbered folder"
 check "G8 human-approved: gh was never called — nothing to list or merge" "0" \
       "$(grep -c '^gh ' "$G8/gh-calls.log" | tr -d ' ')"
 
+# ============================================================ SECTION H ===
+# The merge gate and the chain gate (item 6) — the plan's own DoD line: "a
+# synthetic two-item epic at L4 lands both with merge commits, worktrees
+# gone, checklist ticked; the same epic at L2 parks at item 1's PR."
+#
+# ONE case dir, run across several invocations in sequence — the realistic
+# cadence a real cycle also has (state advances a little each time it's
+# asked) — rather than one fresh sandbox per assertion. "Worktrees gone" is
+# not re-proven here: dispatch.sh's own `_dispatch_cleanup_worktree` already
+# removes the executor's worktree the instant its PR opens (l2-dispatch-
+# fixtures.sh owns that proof), and this gate never creates one — it is
+# git+gh in the driver's own main checkout only, per the plan's Risks line.
+#
+# The chain gate's dispatch step (H3) IS invoked for real, not stubbed out:
+# `dispatch_repo` refuses structurally, before it ever provisions a worktree
+# or could reach a `claude` invocation, because this sandbox sources no
+# `worktree-provision.sh` (dispatch.sh's own line 636/1180 refusal) — so
+# exercising it here costs nothing and risks nothing, and proves the chain
+# gate really does hand item 2 to the real dispatch path rather than to a
+# test double standing in for it.
+echo
+echo "=== H. the merge gate + chain gate (a two-item epic, L2 then L4) ="
+
+GH_STUB_H="$SANDBOX/gh-h"
+cat > "$GH_STUB_H" <<'GHSTUB'
+#!/usr/bin/env bash
+printf 'gh %s\n' "$*" >> "${EPIC_LOOP_FIX_CALLS:-/dev/null}"
+case "$1" in
+  pr)
+    case "$2" in
+      list)
+        cat "${EPIC_LOOP_FIX_OPEN_PRS:-/dev/null}" 2>/dev/null
+        exit 0 ;;
+      merge)
+        PRNUM="$3"
+        HEADBR="$(awk -v p="$PRNUM" '$1==p{print $2}' "${EPIC_LOOP_FIX_OPEN_PRS:-/dev/null}" 2>/dev/null)"
+        BASEBR="$(cat "${EPIC_LOOP_FIX_BASE_BRANCH:-/dev/null}" 2>/dev/null)"
+        [ -n "$HEADBR" ] && [ -n "$BASEBR" ] || exit 1
+        HSHA="$(git --git-dir="$EPIC_LOOP_FIX_ORIGIN_GIT" rev-parse "refs/heads/$HEADBR" 2>/dev/null)"
+        [ -n "$HSHA" ] || exit 1
+        git --git-dir="$EPIC_LOOP_FIX_ORIGIN_GIT" update-ref "refs/heads/$BASEBR" "$HSHA" || exit 1
+        # The merged PR leaves the open list, the same way a real merge
+        # closes it — so a later `pr list` in the same case reflects reality.
+        awk -v p="$PRNUM" '$1!=p' "${EPIC_LOOP_FIX_OPEN_PRS:-/dev/null}" > "${EPIC_LOOP_FIX_OPEN_PRS:-/dev/null}.tmp" 2>/dev/null \
+          && mv "${EPIC_LOOP_FIX_OPEN_PRS:-/dev/null}.tmp" "${EPIC_LOOP_FIX_OPEN_PRS:-/dev/null}"
+        exit 0 ;;
+      *) exit 0 ;;
+    esac ;;
+  api)
+    URLPATH="$2"
+    IS_PATCH=no; PREV_A=""
+    for A in "$@"; do
+      [ "$PREV_A" = --method ] && [ "$A" = PATCH ] && IS_PATCH=yes
+      PREV_A="$A"
+    done
+    case "$URLPATH" in
+      */comments/*)
+        if [ "$IS_PATCH" = yes ]; then
+          for A in "$@"; do
+            case "$A" in body=*) printf '%s' "${A#body=}" > "${EPIC_LOOP_FIX_COMMENT_OUT:-/dev/null}" ;; esac
+          done
+          exit 0
+        fi
+        cat "${EPIC_LOOP_FIX_COMMENT_BODY:-/dev/null}" 2>/dev/null
+        exit 0 ;;
+      */comments)
+        # This stub answers the LIST query directly with the seeded id rather
+        # than interpreting the real `-q` jq filter text — a test double, not
+        # a jq shim, and every case here seeds exactly one candidate comment.
+        printf '%s' "${EPIC_LOOP_FIX_COMMENT_ID:-}"
+        exit 0 ;;
+      *)
+        REF="${URLPATH##*ref=}"
+        PPATH="${URLPATH#repos/*/contents/}"
+        PPATH="${PPATH%%\?*}"
+        git --git-dir="$EPIC_LOOP_FIX_ORIGIN_GIT" show "$REF:$PPATH" 2>/dev/null
+        exit 0 ;;
+    esac ;;
+  issue) exit 0 ;;
+  *) exit 0 ;;
+esac
+GHSTUB
+chmod +x "$GH_STUB_H"
+
+H_SLUG="acme/merge-fixture"
+H_EPIC="01-two-item"
+H_BR1="feat/h-item-1"
+H_BR2="feat/h-item-2"
+
+# Writes docs/epics/$H_EPIC/plan.md (two declared work items) on main and
+# pushes it, then cuts+pushes $2 as a one-commit branch off the CURRENT main
+# tip, leaving the clone back on main. $1=case dir $2=branch.
+seed_item_branch() {
+  local D="$1" BR="$2"
+  "$REAL_GIT" -C "$D/repo" switch -q -c "$BR"
+  printf '%s\n' "$BR" >> "$D/repo/docs/epics/$H_EPIC/plan.md"
+  "$REAL_GIT" -C "$D/repo" commit -q -am "feat: $BR work"
+  "$REAL_GIT" -C "$D/repo" push -q -u origin "$BR"
+  "$REAL_GIT" -C "$D/repo" switch -q main
+}
+
+run_gate_h() { # $1=case dir $2=slug $3=issue
+  local D="$1" SLUG="$2" ISSUE="$3"
+  export HOME="$D/home"
+  export INTAKE_GIT="$REAL_GIT"
+  export INTAKE_GH="$GH_STUB_H"
+  export INTAKE_REPO_SLUG_OVERRIDE="$SLUG"
+  export INTAKE_STOP_FILE="$D/home/.config/claude-intake/STOP"
+  export INTAKE_AUTONOMY_OVERRIDE="$D/home/.config/claude-intake/AUTONOMY-OFF"
+  export INTAKE_PROMOTIONS_DIR="$D/home/.config/claude-intake/promotions"
+  export INTAKE_AUTONOMY_FILE="$D/home/.config/claude-intake/autonomy"
+  export EPIC_LOOP_FIX_OPEN_PRS="$D/open-prs.txt"
+  export EPIC_LOOP_FIX_BASE_BRANCH="$D/base-branch.txt"
+  export EPIC_LOOP_FIX_ORIGIN_GIT="$D/origin.git"
+  export EPIC_LOOP_FIX_CALLS="$D/gh-calls.log"
+  export EPIC_LOOP_FIX_COMMENT_ID="9001"
+  export EPIC_LOOP_FIX_COMMENT_BODY="$D/comment-body.txt"
+  export EPIC_LOOP_FIX_COMMENT_OUT="$D/comment-out.txt"
+  : > "$EPIC_LOOP_FIX_CALLS"
+  : > "$EPIC_LOOP_FIX_COMMENT_OUT"
+  H_OUT="$(bash "$SCRIPT" --repo "$D/repo" --once 2>&1)"; H_RC=$?
+  H_STATE="$(grep -o '"state": "[^"]*"' "$D/repo/docs/epics/.intake/loop/$ISSUE.json" 2>/dev/null \
+               | head -1 | sed -E 's/.*"([a-zA-Z-]+)"$/\1/')"
+  H_ITEM="$(grep -o '"item": "[^"]*"' "$D/repo/docs/epics/.intake/loop/$ISSUE.json" 2>/dev/null \
+               | head -1 | sed -E 's/.*"([^"]*)"$/\1/')"
+  H_CALLS="$(cat "$EPIC_LOOP_FIX_CALLS" 2>/dev/null)"
+}
+
+H="$(mkcase_g h1-two-item)"
+mkdir -p "$H/repo/docs/epics/$H_EPIC"
+{
+  printf '%s\n\n' "# Epic: two-item epic for #701"
+  printf '%s\n' "**Status:** in flight (item 1 of 2)"
+  printf '%s\n' "**Source:** GH #701"
+  printf '\n## Work items\n\n'
+  printf '%s\n' "### 1. first"
+  printf '%s\n' "- **Branch:** \`$H_BR1\`"
+  printf '%s\n' "### 2. second"
+  printf '%s\n' "- **Branch:** \`$H_BR2\`"
+} > "$H/repo/docs/epics/$H_EPIC/plan.md"
+"$REAL_GIT" -C "$H/repo" add -A
+"$REAL_GIT" -C "$H/repo" commit -q -m "docs(epic): file $H_EPIC"
+"$REAL_GIT" -C "$H/repo" push -q origin main
+seed_item_branch "$H" "$H_BR1"
+
+mkdir -p "$H/repo/docs/epics/.intake/loop"
+cat > "$H/repo/docs/epics/.intake/loop/701.json" <<EOF
+{
+  "issue": 701,
+  "repo": "$H_SLUG",
+  "epic": "docs/epics/$H_EPIC/plan.md",
+  "state": "awaiting-merge",
+  "item": "1",
+  "detail": "seed",
+  "updated": "1970-01-01T00:00:00Z"
+}
+EOF
+printf 'main\n' > "$H/base-branch.txt"
+printf '801 %s\n' "$H_BR1" > "$H/open-prs.txt"
+{
+  printf 'Epic filed: [docs/epics/%s/plan.md](https://example)\n\n' "$H_EPIC"
+  printf 'Work items:\n'
+  printf -- '- [ ] item 1: first (`%s`)\n' "$H_BR1"
+  printf -- '- [ ] item 2: second (`%s`)\n' "$H_BR2"
+} > "$H/comment-body.txt"
+
+# --- H1: L2 — may-merge not granted (L3+ only). Parks at item 1's PR. -----
+grant_level "$H" "$H_SLUG" L2
+run_gate_h "$H" "$H_SLUG" 701
+check "H1 L2: exit 0 (parked, not a crash)"                         "0" "$H_RC"
+check "H1 L2: state stays awaiting-merge"                           "awaiting-merge" "$H_STATE"
+check_contains "H1 L2: output names may-merge/level as the reason"  1 "$H_OUT" "may-merge not granted"
+check "H1 L2: gh pr merge was never called"                         "0" "$(grep -c '^gh pr merge' "$H/gh-calls.log" | tr -d ' ')"
+check "H1 L2: origin/main is still the pre-epic base (no advance)"  "0" \
+      "$("$REAL_GIT" --git-dir="$H/origin.git" log --oneline main 2>/dev/null | grep -c "$H_BR1 work" | tr -d ' ')"
+
+# --- H2/H3: promoted to L4 — item 1 merges, and the SAME invocation chains
+# straight on to dispatching(2) — `merged` is not a stopping point any more
+# than any other real transition in this file's phase loop is (section C's
+# dry-run walk already demonstrates the same cascading-per-invocation shape).
+# dispatch_repo then runs for real and refuses structurally (see the section
+# header); the assertion that matters here is the CHAIN DECISION — item
+# advances to 2 — not that a PR opened, which is dispatch.sh's own proof to
+# carry, not this gate's.
+grant_level "$H" "$H_SLUG" L4
+run_gate_h "$H" "$H_SLUG" 701
+check "H2 L4: exit 0 (merged item 1, chained, dispatch refused structurally — not a crash)" "0" "$H_RC"
+check "H2 L4: cascades all the way to dispatching(2)"                "dispatching" "$H_STATE"
+check "H2 L4: item advances to 2"                                    "2" "$H_ITEM"
+check "H2 L4: gh pr merge WAS called exactly once"                   "1" "$(grep -c '^gh pr merge' "$H/gh-calls.log" | tr -d ' ')"
+check "H2 L4: origin/main now carries item 1's commit"               "1" \
+      "$("$REAL_GIT" --git-dir="$H/origin.git" log --oneline main 2>/dev/null | grep -c "$H_BR1 work" | tr -d ' ')"
+check "H2 L4: item 1's branch is gone from origin"                   "1" \
+      "$("$REAL_GIT" --git-dir="$H/origin.git" show-ref --verify --quiet "refs/heads/$H_BR1"; echo $?)"
+check_contains "H2 L4: checklist PATCH ticks item 1"                 1 "$(cat "$H/comment-out.txt")" "- [x] item 1: first"
+check_contains "H2 L4: checklist PATCH leaves item 2 untouched"      1 "$(cat "$H/comment-out.txt")" "- [ ] item 2: second"
+check_contains "H2 L4: ledger recorded merged -> dispatching"        1 \
+      "$(cat "$H/repo/docs/epics/.intake/loop/ledger.jsonl" 2>/dev/null)" \
+      '"from":"merged","to":"dispatching"'
+cp "$H/comment-out.txt" "$H/comment-body.txt"   # the tracker now reads as PATCHed
+
+# --- H4: item 2 reaches awaiting-merge (verify's own concern, simulated by
+# seeding state directly) and merges too — "lands BOTH". -------------------
+seed_item_branch "$H" "$H_BR2"
+cat > "$H/repo/docs/epics/.intake/loop/701.json" <<EOF
+{
+  "issue": 701,
+  "repo": "$H_SLUG",
+  "epic": "docs/epics/$H_EPIC/plan.md",
+  "state": "awaiting-merge",
+  "item": "2",
+  "detail": "seed",
+  "updated": "1970-01-01T00:00:00Z"
+}
+EOF
+printf '802 %s\n' "$H_BR2" > "$H/open-prs.txt"
+run_gate_h "$H" "$H_SLUG" 701
+# Item 2 is the epic's LAST item, so this single invocation both merges it
+# AND (the very next iteration of the same phase loop — `merged` is not a
+# stopping point, exactly like every other real transition in this file)
+# advances merged -> closing, where it then hits closing's own "not
+# implemented" refusal (item 7's build, not this one's) — rc 2, same shape
+# section E already pins for any state this build has no real phase for.
+# That cascade IS "lands both with a merge commit and (once there is no
+# further item) reaches closing" in one cycle, the plan's own DoD line.
+check "H4 L4 item 2: exit 2 (merged, then closing's own not-yet-built refusal)" "2" "$H_RC"
+check "H4 L4 item 2: state advances all the way to closing"          "closing" "$H_STATE"
+check "H4 L4 item 2: origin/main now carries item 2's commit"        "1" \
+      "$("$REAL_GIT" --git-dir="$H/origin.git" log --oneline main 2>/dev/null | grep -c "$H_BR2 work" | tr -d ' ')"
+check "H4 L4 item 2: item 2's branch is gone from origin"            "1" \
+      "$("$REAL_GIT" --git-dir="$H/origin.git" show-ref --verify --quiet "refs/heads/$H_BR2"; echo $?)"
+check_contains "H4 L4 item 2: checklist PATCH ticks item 2 as well"  1 "$(cat "$H/comment-out.txt")" "- [x] item 2: second"
+check_contains "H4 L4 item 2: ledger recorded merged -> closing"     1 \
+      "$(cat "$H/repo/docs/epics/.intake/loop/ledger.jsonl" 2>/dev/null)" \
+      '"from":"merged","to":"closing"'
+
 echo
 echo "cases: $CASES   failures: $FAILURES"
 [ "$FAILURES" -eq 0 ] || exit 1
