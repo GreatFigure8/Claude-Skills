@@ -167,26 +167,7 @@ Habits that keep the orchestrator small:
 
 **Budget guard while stopping:** if the count reaches 160k with executors still running, stop waiting. Post the prompt now with those items under *In flight* as "running, branch pushed, not merged" — the next orchestrator picks them up. 165k is not passed to finish a merge.
 
-At the stopping point, write the prep-for-clear prompt (template below) and post it in chat as a single fenced block, preceded by one line: *"Orchestrator at ~<N>k — clean stopping point. Prep for clear — paste this into a fresh chat to continue:"*. Then say nothing more.
-
-**Prep-for-clear prompt template** (fill every line; omit nothing that lives only in this conversation):
-
-```
-dev-story-sprint prep-for-clear — <story-slug>
-Repo: <path or remote>   Live: <branch>   Integration: <branch> @ <short-hash>
-Story: <the one-line story, verbatim>
-Issue: #<n> (open)
-Items:
-  1. <branch> — DONE (merged <hash>)                       Sonnet 5
-  2. <branch> — DONE (merged <hash>)                       Sonnet 5
-  3. <branch> — NEXT: <scope>. Done when: <check>. Not: <exclusion>.   Opus 5
-  4. <branch> — <scope>  (depends on 3)                    Sonnet 5
-Decisions made since the plan: <bullet list, or none>
-Verified: <facts checked against the repo>
-Claimed but NOT verified: <anything believed but unchecked — the new orchestrator checks these first>
-In flight / environment: <unmerged pushed branches, running executors' branches, worktrees, env vars — or none>
-Exact next action: <one imperative sentence>
-```
+At the stopping point, invoke the `clear-prompt` skill to compose and post the handoff block — it owns the canonical prep-for-clear template and the Verified / Claimed-but-NOT-verified discipline, so dev-story-sprint doesn't carry its own copy: `Skill({skill: "clear-prompt", args: "dev-story-sprint <story-slug>"})`. Give it what this section has already gathered: the story line, issue number, branch/integration state and hash, the item list (done/next/pending with models), decisions made since the plan, and what's in flight. It posts one intro line plus a single fenced block, then says nothing more — the orchestrator adds no commentary after it.
 
 **Resuming from a prep-for-clear prompt:** the new orchestrator treats the block as a story plus a plan already made. It re-grounds from the repo (`git log`, `git status`, `git worktree list`, `git branch -r`, a grep for whatever "Claimed but NOT verified" names), verifies before building, merges anything listed *In flight* that now verifies, and dispatches every unblocked item without re-posting a plan — the prompt *is* the plan message and its model table. It reuses the issue named in the prompt for every remaining dispatch and the final close — it never opens a second issue for the same story. If the repo disagrees with the prompt, the repo wins and the orchestrator says so in one line. The new orchestrator starts its own count at zero and lives by the same 150k / 165k rule.
 
@@ -212,7 +193,7 @@ Both live pieces are **symlinks into a pinned worktree of this repo**, not into 
 Stated explicitly so nobody has to reconcile it mid-story:
 
 - **Testing:** no TDD, no coverage target (rule 3). Gates still run.
-- **Context budget:** the global "announce at 120k, checkpoint at 150k, `/handoff` then `/clear`" rule is replaced by rule 9 — enforced by `context-budget-gate.sh`, not the orchestrator noticing its own count: stop dispatching at 150k, post the prep-for-clear prompt before 165k, no `/handoff` skill involved.
+- **Context budget:** the global "announce at 120k, checkpoint at 150k, `/handoff` then `/clear`" rule is replaced by rule 9 — enforced by `context-budget-gate.sh`, not the orchestrator noticing its own count: stop dispatching at 150k, post the prep-for-clear prompt (via the `clear-prompt` skill) before 165k, no `/handoff` skill involved.
 - **Model table per spawn:** satisfied once by the plan message's table, for all waves (Step 1).
 - **Announcing what you're about to do / brief updates:** the orchestrator does not narrate (rule 5). The plan message is the announcement; the closing message is the recap.
 - **Commit at task end:** executors commit continuously and push on the first commit; the orchestrator's merges are the story's commits.
