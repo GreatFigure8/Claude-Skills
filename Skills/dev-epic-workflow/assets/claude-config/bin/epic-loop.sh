@@ -17,9 +17,12 @@
 #   `phase-session.sh`; item 6 gives `dispatching` a real gate that runs
 #   `dispatch_repo` (bin/dispatch.sh), which runs `claude -p --agent
 #   work-item-executor` exactly as unattended-intake.sh's own L2 cycle always
-#   has. `EPIC_LOOP_INVOKES_CLAUDE` below therefore answers a narrower
-#   question than its name once did: whether a `--dry-run` invocation ever
-#   does — it never does, at any item this file has reached.
+#   has; item 7 gives `closing` a real gate that runs no `claude` session at
+#   all — it is bash+git+gh bookkeeping only (Status: closed, scaffolding
+#   removal, retro comment, issue close). `EPIC_LOOP_INVOKES_CLAUDE` below
+#   therefore answers a narrower question than its name once did: whether a
+#   `--dry-run` invocation ever does — it never does, at any item this file
+#   has reached.
 #
 # STATES, in the order the plan (docs/epics/19-epic-loop/plan.md) declares
 # them:
@@ -373,24 +376,31 @@ PROPOSAL_PR_LIST_EOF
   return 1
 }
 
-# Rewrite ONLY the header's `**Status:**` line to `approved` — the same
+# Rewrite ONLY the header's `**Status:**` line to $2 — the same
 # temp-file-verify-mv shape `downgrade_plan_recommendation` in
 # unattended-intake.sh uses for its own header rewrite, so a reader who
-# already knows that function recognises this one. $1 = plan file.
-epic_loop_set_status_approved() {
-  local F="${1:-}" TMP
-  [ -f "$F" ] || return 1
-  TMP="$F.epic-loop-approve.$$"
-  awk '
+# already knows that function recognises this one. Shared by the approval
+# gate (-> approved) and, from item 7, the close gate (-> closed), rather
+# than each keeping its own copy of the same rewrite. $1 = plan file
+# $2 = new status value (a single bare word — "approved", "closed"; every
+# real header this gate writes is one of those two, never a value carrying
+# its own trailing annotation like "in flight (item N of M)").
+epic_loop_set_plan_status() {
+  local F="${1:-}" VAL="${2:-}" TMP
+  [ -f "$F" ] && [ -n "$VAL" ] || return 1
+  TMP="$F.epic-loop-status.$$"
+  awk -v val="$VAL" '
     BEGIN { done = 0 }
-    !done && /^\*\*Status:\*\*/ { print "**Status:** approved"; done = 1; next }
+    !done && /^\*\*Status:\*\*/ { print "**Status:** " val; done = 1; next }
     { print }
   ' "$F" > "$TMP" 2>/dev/null || { rm -f "$TMP"; return 1; }
   [ -s "$TMP" ] || { rm -f "$TMP"; return 1; }
   mv "$TMP" "$F" 2>/dev/null || { rm -f "$TMP"; return 1; }
-  grep -q '^\*\*Status:\*\* approved$' "$F" || return 1
+  grep -q "^\*\*Status:\*\* $VAL\$" "$F" || return 1
   return 0
 }
+
+epic_loop_set_status_approved() { epic_loop_set_plan_status "${1:-}" approved; }
 
 # THE GATE ITSELF. $1=repo checkout (the driver's OWN main checkout, per the
 # plan's Risks: "the driver works in the repo's main checkout only via gh and
@@ -844,6 +854,160 @@ epic_loop_merge_gate() {
   return 0
 }
 
+# -------------------------------------------------------------- the close gate
+# ITEM 7. Real (non-dry-run) implementation of `closing` — the plan's own
+# scope line: "set `**Status:** closed` and land it on the integration branch
+# first (Phase 5 ordering, GH #41), retro comment on the issue built from the
+# ledger, remove `status/`, `CANCEL`, `active-epic`, `handoff.md` if it names
+# this epic; `gh issue close` only if the final PR did not already close it."
+#
+# ORDER MATTERS, same reason SKILL.md's Phase 5 states it and GH #41 exists:
+# `Status: closed` is written, committed AND PUSHED to the integration
+# branch BEFORE anything is deleted, so a run that dies mid-close-out can
+# never resolve back into the epic it is closing and recreate the `status/`
+# tree it just removed. Scaffolding removal below is unreached until that
+# push has succeeded (or a human already landed it — checked first, same
+# "human may have already done this" shape epic_loop_approval_gate opens
+# with).
+#
+# THE ONE THING THIS GATE NEVER GATES ON: an autonomy predicate. Item 2 built
+# exactly three — may-approve, may-merge, may-chain — and `closing` is only
+# ever reached after `merged`, which itself required may-merge to already be
+# granted for the driver's own merge (or is a state a human's manual merge
+# produced just as well); there is no fourth predicate, and the plan's item 7
+# section names none.
+#
+# $1=repo checkout $2=repo slug $3=issue $4=repo root $5=epics-dir
+# $6=integration branch $7=epic-relative plan path $8=state-dir (the ledger
+# the retro comment is built from lives here, alongside the per-issue file).
+#
+# Sets, for the caller:
+#   EPIC_LOOP_CLOSE_RESULT   closed | error
+#   EPIC_LOOP_CLOSE_DETAIL   one line, for the state file and the ledger
+#
+# rc is always 0 — same contract as every other gate in this file.
+epic_loop_close_gate() {
+  local REPO="${1:-}" SLUG="${2:-}" ISSUE="${3:-}" ROOT="${4:-}" EPICS_DIR="${5:-}"
+  local BASE="${6:-}" PLAN_REL="${7:-}" STATE_DIR="${8:-}"
+  EPIC_LOOP_CLOSE_RESULT=error
+  EPIC_LOOP_CLOSE_DETAIL="no attempt made"
+
+  if [ -z "$PLAN_REL" ]; then
+    EPIC_LOOP_CLOSE_DETAIL="no epic recorded for issue #$ISSUE — cannot close"
+    return 0
+  fi
+
+  "$GIT_BIN" -C "$REPO" fetch origin >/dev/null 2>&1 || true
+  if [ -n "$BASE" ]; then
+    "$GIT_BIN" -C "$REPO" switch -q "$BASE" >/dev/null 2>&1 || true
+  fi
+  "$GIT_BIN" -C "$REPO" pull --ff-only >/dev/null 2>&1 || true
+
+  local PLAN="$ROOT/$PLAN_REL"
+  if [ ! -r "$PLAN" ]; then
+    EPIC_LOOP_CLOSE_DETAIL="plan not readable at $PLAN_REL — cannot close"
+    return 0
+  fi
+
+  local EPIC_DIR EPIC_NAME
+  EPIC_DIR="$(dirname "$PLAN_REL")"
+  EPIC_NAME="$(basename "$EPIC_DIR")"
+
+  # --------------------------------------------- step 1: land Status: closed
+  if grep -q '^\*\*Status:\*\* closed$' "$PLAN" 2>/dev/null; then
+    EPIC_LOOP_CLOSE_DETAIL="Status: closed already landed at $PLAN_REL — continuing close-out from there"
+  else
+    if ! epic_loop_set_plan_status "$PLAN" closed; then
+      EPIC_LOOP_CLOSE_DETAIL="could not set Status: closed on $PLAN_REL — nothing removed, retry next cycle"
+      return 0
+    fi
+    if ! "$GIT_BIN" -C "$REPO" add "$PLAN_REL" >/dev/null 2>&1 \
+       || ! "$GIT_BIN" -C "$REPO" commit -q -m "docs(epic): close $EPIC_NAME — epic-loop (issue #$ISSUE)" >/dev/null 2>&1; then
+      EPIC_LOOP_CLOSE_DETAIL="Status: closed set on $PLAN_REL but the commit failed — nothing removed, fix by hand"
+      return 0
+    fi
+    if [ -z "$BASE" ] || ! "$GIT_BIN" -C "$REPO" push -q origin "$BASE" >/dev/null 2>&1; then
+      EPIC_LOOP_CLOSE_DETAIL="Status: closed committed locally but the push to origin/${BASE:-<integration>} failed — nothing removed, retry the push"
+      return 0
+    fi
+    EPIC_LOOP_CLOSE_DETAIL="Status: closed landed on $BASE"
+  fi
+
+  # ---------------------------------------- step 2: scaffolding removal
+  # Only reached once Status: closed is confirmed landed on origin above —
+  # the ordering GH #41 exists to enforce. `status/`, `CANCEL` and the
+  # `active-epic` pointer are all repo-gitignored (`.gitignore`:
+  # `docs/epics/*/status/`, `docs/epics/*/CANCEL`, `.claude/signals/`), so
+  # their removal is a plain `rm`, never a commit. `handoff.md` is the one
+  # exception — tracked, hence `git rm` + its own commit, mirroring the real
+  # close-out precedent this repo already has (`3f8c53c`, "remove stale
+  # handoff for closed epic 20").
+  rm -rf "${REPO:?}/$EPIC_DIR/status" 2>/dev/null || true
+  rm -f "$REPO/$EPIC_DIR/CANCEL" 2>/dev/null || true
+
+  local PTR="$REPO/.claude/signals/active-epic" PVAL
+  if [ -r "$PTR" ]; then
+    PVAL="$(tr -d '[:space:]' < "$PTR" 2>/dev/null)"
+    case "$PVAL" in
+      "$EPIC_NAME"|"$EPIC_DIR"|"$REPO/$EPIC_DIR") rm -f "$PTR" 2>/dev/null || true ;;
+    esac
+  fi
+
+  local HANDOFF="$REPO/$EPICS_DIR/handoff.md" HVAL
+  if [ -r "$HANDOFF" ]; then
+    HVAL="$(grep -m1 -E '^\*\*Epic:\*\*' "$HANDOFF" 2>/dev/null | sed -E -e 's/^\*\*Epic:\*\*[[:space:]]*//' -e 's/[[:space:]]+$//')"
+    case "$HVAL" in
+      "$EPIC_DIR"|"$EPIC_DIR"[\ /]*)
+        if "$GIT_BIN" -C "$REPO" rm -q -f "$EPICS_DIR/handoff.md" >/dev/null 2>&1 \
+           && "$GIT_BIN" -C "$REPO" commit -q -m "chore(epic): remove stale handoff for closed $EPIC_NAME" >/dev/null 2>&1; then
+          [ -n "$BASE" ] && { "$GIT_BIN" -C "$REPO" push -q origin "$BASE" >/dev/null 2>&1 || true; }
+        fi
+        ;;
+    esac
+  fi
+
+  # ------------------------------------------- step 3: retro comment + close
+  local RETRO
+  RETRO="$(epic_loop_build_retro "$STATE_DIR" "$ISSUE" "$EPIC_NAME")"
+  "$GH_BIN" issue comment "$ISSUE" --repo "$SLUG" --body "$RETRO" >/dev/null 2>&1 || true
+
+  local ISTATE CLOSE_NOTE
+  ISTATE="$("$GH_BIN" issue view "$ISSUE" --repo "$SLUG" --json state -q .state 2>/dev/null)"
+  if [ "$ISTATE" = CLOSED ]; then
+    CLOSE_NOTE="issue #$ISSUE already closed (the final merged PR's own Closes #$ISSUE)"
+  else
+    "$GH_BIN" issue close "$ISSUE" --repo "$SLUG" >/dev/null 2>&1 || true
+    CLOSE_NOTE="issue #$ISSUE closed by epic-loop (no prior Closes #$ISSUE on the final PR)"
+  fi
+
+  EPIC_LOOP_CLOSE_RESULT=closed
+  EPIC_LOOP_CLOSE_DETAIL="$EPIC_LOOP_CLOSE_DETAIL; scaffolding removed; retro posted; $CLOSE_NOTE"
+  return 0
+}
+
+# A retro comment for the source issue, built from the LEDGER's own
+# transitions for THIS issue — never free prose the gate invents, so the
+# comment is exactly as auditable as the ledger it is drawn from. $1=state-dir
+# $2=issue $3=epic name (for the header line only) -> stdout comment body.
+epic_loop_build_retro() {
+  local DIR="${1:-}" ISSUE="${2:-}" EPIC_NAME="${3:-}" LEDGER="" LINE FROM TO DETAIL
+  [ -n "$DIR" ] && LEDGER="$DIR/ledger.jsonl"
+  printf 'Epic %s closed by epic-loop.\n\nTransitions recorded for issue #%s:\n' "${EPIC_NAME:-<unknown>}" "$ISSUE"
+  if [ -z "$LEDGER" ] || [ ! -r "$LEDGER" ]; then
+    printf '(no ledger entries found)\n'
+    return 0
+  fi
+  while IFS= read -r LINE; do
+    case "$LINE" in *"\"issue\":$ISSUE,"*) ;; *) continue ;; esac
+    FROM="$(printf '%s' "$LINE" | sed -n -E 's/.*"from":"([^"]*)".*/\1/p')"
+    TO="$(printf '%s' "$LINE" | sed -n -E 's/.*"to":"([^"]*)".*/\1/p')"
+    DETAIL="$(printf '%s' "$LINE" | sed -n -E 's/.*"detail":"([^"]*)".*/\1/p')"
+    [ -n "$TO" ] || continue
+    printf -- '- %s -> %s: %s\n' "${FROM:-<start>}" "$TO" "${DETAIL:-}"
+  done < "$LEDGER"
+  return 0
+}
+
 # --------------------------------------------------------------- the state tree
 # Reuses intake_status_tree for its three guarantees (leading dot, refuses a
 # plan.md ever appearing under `.intake`, self-ignoring `.gitignore`) rather
@@ -1113,9 +1277,10 @@ epic_loop_process_issue() { # $1=issue $2=repo-checkout $3=slug $4=state-dir $5=
         esac
       fi
       # ITEM 6's third real phase — the chain gate. No further item: always
-      # advances to `closing` (item 7's own concern once it is there; closing
-      # an issue is GH's own doing via the merge's closing keyword, not this
-      # state). Another item exists: only `autonomy_may_chain` (L4) advances
+      # advances to `closing` (item 7's own close gate handles it from there;
+      # closing the ISSUE on GH is usually the merge's own closing keyword,
+      # not this state — item 7's gate only calls `gh issue close` when that
+      # keyword was absent). Another item exists: only `autonomy_may_chain` (L4) advances
       # to `dispatching` for it; below L4 this PARKS AT `merged` — the plan's
       # own words, "parks at the item PR and waits for a human to merge" — and
       # a later cycle (or a promoted level) picks the chain up from here.
@@ -1138,7 +1303,31 @@ epic_loop_process_issue() { # $1=issue $2=repo-checkout $3=slug $4=state-dir $5=
         epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" merged merged "may-chain not granted at ${AUTONOMY_LEVEL:-L0}"
         return 0
       fi
-      printf 'epic-loop: real execution of phase "%s" is not implemented in this build (epic 19 items 7-8 fill it in) — pass --dry-run to preview the sequence. Nothing was invoked; issue #%s is unchanged.\n' \
+      # ITEM 7's real phase — the close gate. Always advances to `closed`
+      # once `Status: closed` is confirmed landed on the integration branch
+      # and scaffolding is removed; see epic_loop_close_gate's own header for
+      # the ordering rule (GH #41) this enforces. No park case: unlike
+      # awaiting-approval/-verify/-merge, there is no human action this state
+      # is waiting on — a failure here leaves `closing` for a later cycle to
+      # retry, the same shape every other gate's error branch already uses.
+      if [ "$CUR_STATE" = closing ]; then
+        epic_loop_close_gate "$REPO" "$SLUG" "$ISSUE" "$ROOT" "$EPIC_LOOP_EPICS_DIR" \
+          "$(epic_loop_integration_branch "$ROOT" "$CUR_EPIC")" "$CUR_EPIC" "$STATE_DIR"
+        case "$EPIC_LOOP_CLOSE_RESULT" in
+          closed)
+            printf 'epic-loop: issue #%s — close: %s\n' "$ISSUE" "$EPIC_LOOP_CLOSE_DETAIL"
+            epic_loop_state_write "$TARGET" "$ISSUE" "$SLUG" "$CUR_EPIC" closed "" "$EPIC_LOOP_CLOSE_DETAIL" || true
+            epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" closing closed "$EPIC_LOOP_CLOSE_DETAIL"
+            continue
+            ;;
+          *)
+            printf 'epic-loop: issue #%s — close gate error: %s\n' "$ISSUE" "$EPIC_LOOP_CLOSE_DETAIL" >&2
+            epic_loop_ledger "$STATE_DIR" "$ISSUE" "$SLUG" closing closing "ERROR: $EPIC_LOOP_CLOSE_DETAIL"
+            return 0
+            ;;
+        esac
+      fi
+      printf 'epic-loop: real execution of phase "%s" is not implemented in this build (epic 19 item 8 fills it in) — pass --dry-run to preview the sequence. Nothing was invoked; issue #%s is unchanged.\n' \
         "$CUR_STATE" "$ISSUE" >&2
       return 2
     fi
