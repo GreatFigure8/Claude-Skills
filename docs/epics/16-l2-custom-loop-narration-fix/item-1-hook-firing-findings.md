@@ -318,3 +318,133 @@ drwxr-xr-x@ 2 jonathanstevenson  staff   64 Aug 27 21:00 .
   conclusive answer still requires a run launched such that `CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION`,
   and any `CLAUDE_CODE_MESSAGING_*` pair are actually absent from the process environment — not merely
   reassigned to fresh values — before hook-firing evidence can be meaningfully checked.
+
+## Run 3 (epic 19 item 3's live probe — SessionStart injection, not subagent stamping)
+
+**Run date:** 2026-09-10. **HEAD at time of this run:** `34f1d1c` (this item's phase-session
+harness commit, `feat/epic-loop-phase-session`).
+
+**What this run tests, and how it differs from Runs 1-2 above.** Runs 1-2 asked whether the
+*subagent-lifecycle* hook (SubagentStart/SubagentStop, `.agents/<id>.json` stamping) fires for
+this executor's own dispatch, from *inside* a running agent that cannot observe its own
+termination. Epic 19 item 3 needs a different, narrower question answered: does the
+**SessionStart** hook — the one that injects `docs/epics/handoff.md` into context
+(`session-start-context.sh`, confirmed by reading its source: it greps for
+`docs/epics/handoff.md` under the repo root and `cat`s it into the injected block) — actually
+fire for a `claude -p` process, so that a later phase session can read a prior phase's handoff
+by injection alone (A1)? phase-session.sh (this item) does not depend on the answer being yes —
+it names the handoff path explicitly in every prompt regardless — but the plan's Grounding
+calls for the probe to be run rather than assumed either way.
+
+**Also methodologically different from Run 2:** Run 2 above was launched *as a Task/Agent-tool
+subagent* by an orchestrator that *intended* to strip nine `CLAUDE_CODE_*`/`CLAUDECODE`
+variables, and found the strip did not take — `CLAUDE_CODE_CHILD_SESSION=1` and a live messaging
+socket/token persisted, because a Task-tool agent is still a nested child of the launching
+session by construction, whatever its own `env` shows. This run instead spawned `claude -p` as a
+**literal child process of a shell command** (`env ... claude -p ...` via the Bash tool), which
+is the actual shape `dispatch.sh`, `phase-session.sh` and a launchd job all use — not a nested
+agent wearing a stripped environment.
+
+**Setup:**
+
+```
+$ mkdir /Users/jonathanstevenson/Source/probe-scratch-epic19-item3 && cd $_
+$ git init -q && git config user.email a@b.c && git config user.name probe
+$ git commit -q -m init --allow-empty  # (README.md committed)
+$ mkdir -p docs/epics
+$ cat > docs/epics/handoff.md   # seeded with a unique marker, shown below
+$ git add -A && git commit -q -m "seed handoff with probe marker"
+$ bash <skill>/assets/claude-config/install.sh   # repo-mode install, NOT --commit
+  ✓ settings merged → .claude/settings.json (added: statusLine, SessionStart, PreCompact,
+    SessionEnd, PreToolUse, PreToolUse, PostToolUse, SubagentStart, SubagentStop)
+```
+
+`docs/epics/handoff.md`, seeded content (the line under "Claimed but NOT yet verified" is the
+probe):
+
+```markdown
+**Claimed but NOT yet verified**
+- MARKER-LIVEPROBE-4471c2 this line only appears in the injected handoff, not in the prompt given to the session
+```
+
+**The env-stripped invocation, and a control proving the strip actually took** (this is the gap
+Run 2 found in itself — proving the strip BEFORE trusting what it implies):
+
+```
+$ env $(env | grep -iE '^CLAUDE|^ANTHROPIC' | cut -d= -f1 | sed 's/^/-u /' | tr '\n' ' ') \
+    ANTHROPIC_BASE_URL="$ANTHROPIC_BASE_URL" \
+    env | grep -iE '^CLAUDE|^ANTHROPIC'
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+```
+
+Unlike Run 2, this control shows the strip genuinely took: **zero** `CLAUDE_CODE_*` /
+`CLAUDECODE` / `CLAUDE_PID` / messaging-socket variables survive — only `ANTHROPIC_BASE_URL`
+(needed for the CLI to reach the API at all) was deliberately kept. `HOME`, `PATH`, `USER`,
+`SHELL`, `TERM` and the rest of the invoking shell's environment were NOT stripped (`env -i`
+with only `HOME`/`PATH`/`LANG` set was tried first and failed with an auth error — see the raw
+transcript below — so this run is "no Claude Code session vars" rather than "launchd's actual
+minimal environment"; that gap is the one honest limitation of this run, noted rather than
+papered over).
+
+**First attempt, `env -i` (fully minimal env), for the record — failed on auth, not on the
+question this run asks:**
+
+```
+$ env -i HOME="$HOME" PATH="/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin" \
+    LANG="en_US.UTF-8" "$HOME/.local/bin/claude" -p '...' --model sonnet
+Anthropic profile login expired · Run /login to use your claude.ai account instead, or
+re-authenticate the profile
+```
+
+This is a credential-resolution failure (some other env var or keychain-session dependency
+`env -i` also stripped), not evidence about hooks one way or the other — recorded so a future
+run doesn't re-waste a cycle rediscovering it. Immediate diagnostic: it means at least one of
+the variables `env -i` blanks (beyond the `CLAUDE_CODE_*`/`ANTHROPIC_*` set explicitly tested
+below) gates credential lookup — worth a future item's own investigation if a truly minimal
+launchd environment is ever required, but out of this item's scope.
+
+**The actual probe, second attempt (Claude-session vars stripped, rest of env intact):**
+
+```
+$ cd /Users/jonathanstevenson/Source/probe-scratch-epic19-item3
+$ env $(env | grep -iE '^CLAUDE|^ANTHROPIC' | cut -d= -f1 | sed 's/^/-u /' | tr '\n' ' ') \
+    ANTHROPIC_BASE_URL="$ANTHROPIC_BASE_URL" \
+    "$HOME/.local/bin/claude" -p 'Reply with EXACTLY one line: if any text beginning with
+    "MARKER-LIVEPROBE-" appears anywhere in the context you were given at the start of this
+    session (not in this message itself), quote that exact line. Otherwise reply with the
+    single word NONE. Do not explain, do not add anything else.' --model sonnet
+EXIT=0
+MARKER-LIVEPROBE-4471c2 this line only appears in the injected handoff, not in the prompt given to the session
+```
+
+**Plain answer.** The model reported the exact marker line from `docs/epics/handoff.md` —
+content it was never given in the prompt (the prompt only asked it to look for anything
+matching `MARKER-LIVEPROBE-*`, it did not supply the marker itself or the file's content) — so
+the only route that text could have reached the session's context is `session-start-context.sh`
+firing on `SessionStart` and injecting the handoff, exactly as it does for an interactive
+session. **SessionStart injection DOES fire for a `claude -p` process spawned as a plain child
+of a shell command, with every `CLAUDE_CODE_*`/`CLAUDECODE`/`ANTHROPIC_*`-except-base-url
+variable genuinely absent from its environment** — the shape `dispatch.sh` and this item's
+`phase-session.sh` both use, and a reasonable proxy for (if not identical to) a launchd job's
+own environment.
+
+**What this settles and what it still doesn't, stated plainly:**
+
+- Settled, for THIS shape (plain subprocess, Claude-session vars absent, ordinary shell env
+  otherwise intact): SessionStart hooks fire and inject `docs/epics/handoff.md`'s real content
+  into a `-p` session's context. This is a materially stronger result than Runs 1-2, which
+  tested subagent-lifecycle stamping (a different hook, a different question) from inside a
+  Task-tool agent that never achieved a genuinely stripped environment in the first place.
+- Not settled: whether a launchd job's own environment — no inherited shell variables at all,
+  a minimal `PATH`, no `TERM`, invoked by `launchd` rather than a Bash tool call — behaves
+  identically. The `env -i` attempt above hit an unrelated auth failure before it could answer
+  that, and diagnosing it is out of this item's scope.
+- **Item 3's own mitigation (A1) does not depend on this answer either way.**
+  `phase-session.sh` names `docs/epics/handoff.md`'s absolute path explicitly in every prompt it
+  builds, for both reading and writing, regardless of whether SessionStart injection also fires.
+  This run is evidence the belt is probably unnecessary in the common case — not a reason to
+  remove the suspenders.
+
+Cleanup: `/Users/jonathanstevenson/Source/probe-scratch-epic19-item3` was a sibling scratch
+directory outside this repo, removed after this run; nothing from it is referenced by path
+elsewhere in this repo.
