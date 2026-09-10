@@ -1,6 +1,6 @@
 # Epic: session-scoped autonomous issue loop
 
-**Status:** in flight (item 1 of 6)
+**Status:** approved
 **Live branch:** main
 **Integration branch:** main
 **Pre-epic tag:** pre-loop-redesign
@@ -74,7 +74,7 @@ commit as `pre-loop-redesign`, fast-forwarded `main` to `dev`'s tip, pushed, and
 `dev` (local and remote) — matching this repo's own convention that `main` is both the
 integration and live branch. Completed at filing time, 2026-09-10.
 
-### 1. Retire the promotion-ladder and daemon-trigger surface
+### 1. Retire the promotion-ladder and daemon-trigger surface — DONE (PR #106, merged ceb5c80)
 - **Branch:** `refactor/retire-autonomy-ladder`
 - **Depends on:** none (after step 0)
 - **Scope:** In `autonomy.sh`, remove the L0/L1/L3 tiers, the promotion-record
