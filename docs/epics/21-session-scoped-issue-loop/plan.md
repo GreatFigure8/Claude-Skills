@@ -1,6 +1,6 @@
 # Epic: session-scoped autonomous issue loop
 
-**Status:** in flight (item 2 of 6)
+**Status:** in flight (item 3 of 6)
 **Live branch:** main
 **Integration branch:** main
 **Pre-epic tag:** pre-loop-redesign
@@ -106,7 +106,7 @@ integration and live branch. Completed at filing time, 2026-09-10.
 - **Verification:** `grep -rn "promotion" Skills/dev-epic-workflow/assets/claude-config/bin/` returns nothing; `grep -rln "may_approve\|may_merge\|may_chain"` returns nothing.
 - **Rollback:** revert the merge commit; `pre-loop-redesign` tag restores prior state.
 
-### 2. Define the harm floor
+### 2. Define the harm floor — DONE (PR #107, merged 4569c56)
 - **Branch:** `feat/harm-floor-check`
 - **Depends on:** item 1
 - **Scope:** A single callable (e.g. `autonomy_harm_check()`) combining the surviving
