@@ -76,6 +76,40 @@ for SNAP in "${EPICS_ROOT:+$EPICS_ROOT/handoff-autosnapshot.md}" ".claude/handof
   fi
 done
 
+# Surface a prep-for-clear note left by the PREVIOUS session (a not-yet-written
+# Stop hook will drop `.claude/signals/prep-for-clear-*.md` right before the
+# user clears). Only the newest is ever printed — a stale one from an even
+# earlier session must never resurface later — but EVERY match is deleted here,
+# newest included, so none of them can be printed twice.
+# Glob-safety: `[ -e "$f" ]` guards each match, so an unmatched literal pattern
+# (nullglob is not assumed) is never treated as a real file.
+PREP_NEWEST=""
+for PREP_F in .claude/signals/prep-for-clear-*.md; do
+  [ -e "$PREP_F" ] || continue
+  if [ -z "$PREP_NEWEST" ] || [ "$PREP_F" -nt "$PREP_NEWEST" ]; then
+    PREP_NEWEST="$PREP_F"
+  fi
+done
+if [ -n "$PREP_NEWEST" ]; then
+  echo
+  echo "### Prep-for-clear from the previous session"
+  echo '```'
+  cat "$PREP_NEWEST" 2>/dev/null
+  echo '```'
+fi
+for PREP_F in .claude/signals/prep-for-clear-*.md; do
+  [ -e "$PREP_F" ] || continue
+  rm -f "$PREP_F" 2>/dev/null || true
+done
+
+# Sweep any Stop-hook gate markers from a prior session: a cleared session gets
+# a new session_id, so an old per-session marker is dead weight. No per-slug
+# matching needed -- every one is stale.
+for GATE_F in .claude/signals/handoff-stop-gate-*; do
+  [ -e "$GATE_F" ] || continue
+  rm -f "$GATE_F" 2>/dev/null || true
+done
+
 # Inject the repo's one handoff, if it exists.
 HANDOFF="${EPICS_ROOT:+$EPICS_ROOT/handoff.md}"
 if [ -n "$HANDOFF" ] && [ -f "$HANDOFF" ]; then
