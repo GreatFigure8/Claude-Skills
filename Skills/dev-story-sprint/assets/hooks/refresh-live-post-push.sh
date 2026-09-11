@@ -16,9 +16,9 @@ try:
 except Exception:
     sys.exit(0)
 cmd = (d.get("tool_input") or {}).get("command") or ""
-push = "git push" in cmd and "--dry-run" not in cmd
 cwd = str(d.get("cwd") or "")
 
+push = False
 git_dir = cwd
 try:
     tokens = shlex.split(cmd)
@@ -32,7 +32,13 @@ while i < len(tokens):
             p = tokens[j + 1]
             resolved = p if os.path.isabs(p) else os.path.join(resolved, p)
             j += 2
-        git_dir = resolved
+        k = j
+        while k < len(tokens) and tokens[k] != "git":
+            k += 1
+        args = tokens[j:k]
+        if "push" in args and "--dry-run" not in args:
+            push = True
+            git_dir = resolved
         i = j
     else:
         i += 1
