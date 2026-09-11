@@ -1,36 +1,33 @@
 {
   "sprint": "2026-09-11-001",
-  "status": "planning",
+  "status": "planned",
   "created": "2026-09-11T03:30:10Z",
-  "updated": "2026-09-11T17:17:45Z",
+  "updated": "2026-09-11T17:21:25Z",
   "branch": {
     "live": "dev",
     "integration": "sprint/2026-09-11-001"
   },
-  "claim": {
-    "by": "planner-Jonathans-MacBook-Pro.local-20260911T171745Z",
-    "at": "2026-09-11T17:17:45Z"
-  },
+  "claim": null,
   "stories": [
     {
       "slug": "list-story-counts",
       "title": "Show story counts in sprint-state list",
       "kind": "service",
-      "status": "drafted",
-      "plan": null,
+      "status": "planned",
+      "plan": "list-story-counts/list-story-counts-plan.md",
       "attempts": 0,
       "detail": "",
-      "updated": "2026-09-11T03:33:33Z"
+      "updated": "2026-09-11T17:18:34Z"
     },
     {
       "slug": "emphasize-story-counts",
       "title": "Emphasize story counts on a terminal",
       "kind": "service",
-      "status": "drafted",
-      "plan": null,
+      "status": "planned",
+      "plan": "emphasize-story-counts/emphasize-story-counts-plan.md",
       "attempts": 0,
       "detail": "",
-      "updated": "2026-09-11T03:33:34Z"
+      "updated": "2026-09-11T17:19:16Z"
     }
   ],
   "history": [
@@ -48,6 +45,11 @@
       "at": "2026-09-11T17:17:45Z",
       "status": "planning",
       "by": "planner-Jonathans-MacBook-Pro.local-20260911T171745Z"
+    },
+    {
+      "at": "2026-09-11T17:21:25Z",
+      "status": "planned",
+      "by": "Jonathans-MacBook-Pro-20260911T172125Z"
     }
   ]
 }
