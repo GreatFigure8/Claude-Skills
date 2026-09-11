@@ -1,6 +1,6 @@
 {
   "sprint": "2026-09-11-004",
-  "status": "drafting",
+  "status": "ready-to-plan",
   "created": "2026-09-11T20:46:56Z",
   "updated": "2026-09-11T20:48:14Z",
   "branch": {
@@ -32,6 +32,11 @@
     {
       "at": "2026-09-11T20:46:56Z",
       "status": "drafting",
+      "by": "creator"
+    },
+    {
+      "at": "2026-09-11T20:48:14Z",
+      "status": "ready-to-plan",
       "by": "creator"
     }
   ]
