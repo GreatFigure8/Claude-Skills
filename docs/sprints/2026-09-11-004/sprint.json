@@ -2,7 +2,7 @@
   "sprint": "2026-09-11-004",
   "status": "executing",
   "created": "2026-09-11T20:46:56Z",
-  "updated": "2026-09-11T20:50:46Z",
+  "updated": "2026-09-11T20:55:14Z",
   "branch": {
     "live": "dev",
     "integration": "sprint/2026-09-11-004"
@@ -16,11 +16,11 @@
       "slug": "fix-install-matcher-upgrade",
       "title": "install.sh settings merge must update a stale matcher on an existing hook",
       "kind": "service",
-      "status": "executing",
+      "status": "done",
       "plan": "fix-install-matcher-upgrade/fix-install-matcher-upgrade-plan.md",
       "attempts": 0,
-      "detail": "",
-      "updated": "2026-09-11T20:50:46Z"
+      "detail": "validated 2026-09-11T20:55Z",
+      "updated": "2026-09-11T20:55:14Z"
     },
     {
       "slug": "fix-refresh-live-git-c-cwd",
