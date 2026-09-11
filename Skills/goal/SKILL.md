@@ -1,6 +1,6 @@
 ---
 name: goal
-description: Pursue a stated objective with a named skill until that skill's own completion condition is met, autonomously — "/goal using <skill> <objective>". Parses the skill name after "using", loads that skill with the objective as its argument, and keeps working through its phases without asking "shall I continue?", stopping only where the skill itself stops (done, blocked on a decision only Jonathan can make, or its token-budget gate). Use whenever Jonathan types /goal, says "goal:", "using <skill> …", "keep going until …", "run <skill> until …", or "execute until all the planned sprints are completed". Do NOT use to invent a process — if no skill is named and none clearly fits the objective, say so and ask which skill to use.
+description: Pursue a stated objective with a named skill until that skill's own completion condition is met, autonomously — "/goal using SKILL OBJECTIVE". Parses the skill name after "using", loads that skill with the objective as its argument, and keeps working through its phases without asking "shall I continue?", stopping only where the skill itself stops (done, blocked on a decision only Jonathan can make, or its token-budget gate). Use whenever Jonathan types /goal, says "goal:", "using SKILL …", "keep going until …", "run SKILL until …", or "execute until all the planned sprints are completed". Do NOT use to invent a process — if no skill is named and none clearly fits the objective, say so and ask which skill to use.
 ---
 
 # Goal
