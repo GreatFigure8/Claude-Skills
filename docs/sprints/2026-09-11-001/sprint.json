@@ -1,16 +1,13 @@
 {
   "sprint": "2026-09-11-001",
-  "status": "executing",
+  "status": "complete",
   "created": "2026-09-11T03:30:10Z",
-  "updated": "2026-09-11T17:36:35Z",
+  "updated": "2026-09-11T17:37:09Z",
   "branch": {
     "live": "dev",
     "integration": "sprint/2026-09-11-001"
   },
-  "claim": {
-    "by": "coder-Jonathans-MacBook-Pro.local-20260911T172255Z",
-    "at": "2026-09-11T17:22:56Z"
-  },
+  "claim": null,
   "stories": [
     {
       "slug": "list-story-counts",
@@ -58,6 +55,11 @@
       "at": "2026-09-11T17:22:56Z",
       "status": "executing",
       "by": "coder-Jonathans-MacBook-Pro.local-20260911T172255Z"
+    },
+    {
+      "at": "2026-09-11T17:37:09Z",
+      "status": "complete",
+      "by": "Jonathans-MacBook-Pro-20260911T173709Z"
     }
   ]
 }
