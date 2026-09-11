@@ -10,23 +10,50 @@ INPUT="$(cat 2>/dev/null || true)"
 command -v python3 >/dev/null 2>&1 || exit 0
 
 PARSED="$(printf '%s' "$INPUT" | python3 -c '
-import json,sys
+import json, os, shlex, sys
 try:
-    d=json.load(sys.stdin)
+    d = json.load(sys.stdin)
 except Exception:
     sys.exit(0)
-cmd=(d.get("tool_input") or {}).get("command") or ""
-push = "git push" in cmd and "--dry-run" not in cmd
-print("|".join([str(d.get("tool_name","")), "PUSH" if push else "NOPUSH", str(d.get("cwd") or "")]))
+cmd = (d.get("tool_input") or {}).get("command") or ""
+cwd = str(d.get("cwd") or "")
+
+push = False
+git_dir = cwd
+try:
+    tokens = shlex.split(cmd)
+except ValueError:
+    tokens = []
+i = 0
+while i < len(tokens):
+    if tokens[i] == "git":
+        j, resolved = i + 1, cwd
+        while j + 1 < len(tokens) and tokens[j] == "-C":
+            p = tokens[j + 1]
+            resolved = p if os.path.isabs(p) else os.path.join(resolved, p)
+            j += 2
+        k = j
+        while k < len(tokens) and tokens[k] != "git":
+            k += 1
+        args = tokens[j:k]
+        if "push" in args and "--dry-run" not in args:
+            push = True
+            git_dir = resolved
+        i = j
+    else:
+        i += 1
+
+print("|".join([str(d.get("tool_name", "")), "PUSH" if push else "NOPUSH", cwd, git_dir]))
 ' 2>/dev/null)"
-IFS='|' read -r TOOL PUSH CWD <<<"$PARSED"
+IFS='|' read -r TOOL PUSH CWD GITDIR <<<"$PARSED"
 [ "${TOOL:-}" = "Bash" ] && [ "${PUSH:-}" = "PUSH" ] || exit 0
 [ -n "${CWD:-}" ] || CWD="${CLAUDE_PROJECT_DIR:-$PWD}"
+[ -n "${GITDIR:-}" ] || GITDIR="$CWD"
 
 # Only act when the push came from a checkout of the same repository as the live worktree.
 [ -e "$LIVE/.git" ] || exit 0
 LIVE_COMMON="$(git -C "$LIVE" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-CWD_COMMON="$(git -C "$CWD" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+CWD_COMMON="$(git -C "$GITDIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
 [ -n "$LIVE_COMMON" ] && [ "$LIVE_COMMON" = "$CWD_COMMON" ] || exit 0
 
 if git -C "$LIVE" fetch -q origin 2>/dev/null && git -C "$LIVE" merge -q --ff-only origin/main 2>/dev/null; then

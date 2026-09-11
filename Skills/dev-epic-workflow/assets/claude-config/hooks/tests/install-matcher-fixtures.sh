@@ -140,6 +140,91 @@ check "run2: context-budget-gate.sh matcher still == source ($SRC_CBG_SHAPE)" \
 check "run2: cancel-gate.sh matcher still unchanged from source ($SRC_CG_SHAPE)" \
   "$SRC_CG_SHAPE" "$(matcher_shape "$SETTINGS" "cancel-gate.sh")"
 
+# ---------------------------------------------------------- upgrade helpers --
+
+get_command() { # $1 settings.json  $2 command-basename -> full command string (or empty)
+  python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+suffix = sys.argv[2]
+for g in d.get("hooks", {}).get("PreToolUse", []):
+    for h in g.get("hooks", []):
+        if h.get("command", "").endswith(suffix):
+            print(h["command"])
+            sys.exit(0)
+' "$1" "$2"
+}
+
+count_groups_owning() { # $1 settings.json  $2 command-basename -> # PreToolUse groups owning it
+  python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+suffix = sys.argv[2]
+n = sum(
+    1 for g in d.get("hooks", {}).get("PreToolUse", [])
+    if any(h.get("command", "").endswith(suffix) for h in g.get("hooks", []))
+)
+print(n)
+' "$1" "$2"
+}
+
+seed_group() { # $1 settings.json path  $2 command  $3 matcher(literal python repr, e.g. '"Bash"')
+  python3 -c '
+import json, sys
+path, cmd, matcher_json = sys.argv[1], sys.argv[2], sys.argv[3]
+group = {"hooks": [{"type": "command", "command": cmd}]}
+group["matcher"] = json.loads(matcher_json)
+settings = {"hooks": {"PreToolUse": [group]}}
+json.dump(settings, open(path, "w"), indent=2)
+' "$1" "$2" "$3"
+}
+
+CBG_CMD="$(get_command "$SETTINGS" "context-budget-gate.sh")"
+CG_CMD="$(get_command "$SETTINGS" "cancel-gate.sh")"
+
+echo
+echo "=== install.sh --user upgrade: stale matcher reconciliation =============="
+
+FAKE_HOME2="$SANDBOX/home-upgrade"
+mkdir -p "$FAKE_HOME2/.claude"
+assert_sandboxed "FAKE_HOME2/.claude/settings.json" "$FAKE_HOME2/.claude/settings.json"
+SETTINGS2="$FAKE_HOME2/.claude/settings.json"
+seed_group "$SETTINGS2" "$CBG_CMD" '"Bash"'
+
+OUT3="$(HOME="$FAKE_HOME2" bash "$INSTALL" --user 2>&1)"
+RC3=$?
+check "upgrade: exit 0" "0" "$RC3"
+check "upgrade: context-budget-gate.sh matcher reconciled to source ($SRC_CBG_SHAPE)" \
+  "$SRC_CBG_SHAPE" "$(matcher_shape "$SETTINGS2" "context-budget-gate.sh")"
+check "upgrade: exactly one PreToolUse group owns context-budget-gate.sh" \
+  "1" "$(count_groups_owning "$SETTINGS2" "context-budget-gate.sh")"
+
+cp "$SETTINGS2" "$SANDBOX/after-upgrade1.json"
+
+# --- upgrade idempotence (second run against the same FAKE_HOME2) -----------
+OUT4="$(HOME="$FAKE_HOME2" bash "$INSTALL" --user 2>&1)"
+RC4=$?
+check "upgrade run2: exit 0" "0" "$RC4"
+check "upgrade run2: settings.json byte-identical to upgrade run1" "yes" \
+  "$(byte_identical "$SANDBOX/after-upgrade1.json" "$SETTINGS2")"
+
+echo
+echo "=== install.sh --user upgrade: absent-matcher reconciliation =============="
+
+FAKE_HOME3="$SANDBOX/home-absent"
+mkdir -p "$FAKE_HOME3/.claude"
+assert_sandboxed "FAKE_HOME3/.claude/settings.json" "$FAKE_HOME3/.claude/settings.json"
+SETTINGS3="$FAKE_HOME3/.claude/settings.json"
+seed_group "$SETTINGS3" "$CG_CMD" '"Bash"'
+
+OUT5="$(HOME="$FAKE_HOME3" bash "$INSTALL" --user 2>&1)"
+RC5=$?
+check "absent: exit 0" "0" "$RC5"
+check "absent: cancel-gate.sh matcher reconciled to source ($SRC_CG_SHAPE)" \
+  "$SRC_CG_SHAPE" "$(matcher_shape "$SETTINGS3" "cancel-gate.sh")"
+check "absent: exactly one PreToolUse group owns cancel-gate.sh" \
+  "1" "$(count_groups_owning "$SETTINGS3" "cancel-gate.sh")"
+
 echo
 echo "cases: $CASES   failures: $FAILURES"
 [ "$FAILURES" -eq 0 ] || exit 1
