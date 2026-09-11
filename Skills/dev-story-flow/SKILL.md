@@ -35,10 +35,11 @@ entry point Jonathan uses: `/goal using dev-story-flow <objective>`. Calling
 
 | Objective says… | Phase | Runs until |
 |---|---|---|
-| "create", "new story", "add a story", "new sprint", or just a pasted user story | CREATE | Jonathan says the sprint is documentation-complete (→ `ready-to-plan`); the creator then posts the `run` line and clears the session |
+| "create", "new story", "add a story", "new sprint", or just a pasted user story | CREATE | Jonathan says the sprint is documentation-complete (→ `ready-to-plan`); standalone `create` then posts the `run` line and clears the session |
 | "plan", "plan the sprints", "plan what's ready" | PLAN | no `ready-to-plan` sprint remains |
 | "execute", "run the planned sprints", "execute until all the planned sprints are completed" | EXECUTE | no `planned` sprint remains, or a sprint is `blocked`, or the budget gate fires |
-| "run", "run the flow", "plan and execute", "everything that's ready" | PLAN then EXECUTE | both of the above, in order |
+| "run", "run the flow", "everything" | **the whole pipeline in this session**: CREATE if no sprint is `drafting`/`ready-to-plan`/`planned`, then PLAN, then EXECUTE | Jonathan says "I'm done" (or any completion phrase) to end intake; nothing else is asked of him until the closing message, a `blocked` sprint, or the budget gate |
+| "run clean" | same as `run`, but CREATE ends by clearing the session and handing Jonathan the `run` line to paste | one paste from him after "I'm done"; PLAN and EXECUTE then start with an empty context |
 | "status", "where are the sprints", "what's planned" | — | prints `sprint-state.sh list` and stops |
 
 An objective that names a sprint (`… execute sprint 2026-09-10-001`) restricts the phase to
@@ -50,9 +51,12 @@ say which in one line.
 and (b) the pause between `planned` and running EXECUTE, where `impl-plan.md` can be reviewed.
 Once EXECUTE starts it does not ask "shall I continue?" — it finishes, blocks, or hands off.
 
-**Hand-off from CREATE is a clean context, not a continuation.** The creator's last act is to
-post `/goal using dev-story-flow run` and clear its own session (creator doc, step 5), so the
-planner and coder never pay for the intake conversation. Jonathan pastes that one line.
+**Hand-off from CREATE.** Under `run` (the default) the creator's completion step flows
+straight into PLAN in the same session — Jonathan says "I'm done" and says nothing more. The
+intake conversation stays in context, which is affordable for a handful of stories and is
+what the 150k/165k gate is for. Under `run clean` or a standalone `create`, the creator instead
+posts `/goal using dev-story-flow run` and clears its own session (creator doc, step 5), so the
+planner and coder start from zero at the cost of one paste.
 
 ## Rules shared by all three phases
 

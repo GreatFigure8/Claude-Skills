@@ -33,7 +33,9 @@ $SS list drafting            # any sprint still being drafted?
   `sprint/<sprint>` integration branch is recorded and the coder cuts it later.
 - Commit: `chore(sprint): open sprint <sprint>` — the manifest's first commit.
 
-All stories written in this session belong to that sprint until step 5 closes it.
+All stories written in this session belong to that sprint until step 5 closes it. Under
+`run`, when nothing is `drafting`, `ready-to-plan` or `planned`, this step runs automatically
+and the creator's first message is one line: the sprint name and "give me the first story".
 
 ### 2. Intake — one batched round of questions
 
@@ -127,9 +129,9 @@ story or for the completion phrase.
 
 ### 5. Hand off to the planner — the "documentation complete" signal
 
-Jonathan closes the sprint with any clear phrase: **"sprint complete"**, **"documentation
-complete"**, **"done with the sprint"**, **"that's all the stories"**, **"send it to
-planning"**. On that:
+Jonathan closes the sprint with any clear phrase: **"I'm done"**, **"sprint complete"**,
+**"documentation complete"**, **"done with the sprint"**, **"that's all the stories"**,
+**"send it to planning"**. On that:
 
 ```bash
 $SS set <sprint> ready-to-plan --by creator
@@ -139,9 +141,16 @@ git add docs/sprints/<sprint>/sprint.json && git commit -m "chore(sprint): <spri
 That status change **is** the hand-off. The planner discovers work by `sprint-state.sh list
 ready-to-plan`; nothing else needs to be told anything.
 
-**Then kick off the next phases in a clean context.** The intake conversation is dead weight
-for the planner and coder — every one of their turns would re-bill it. So the creator's last
-turn does three things and nothing more:
+**Then kick off the next phases.** How depends on the objective that started this phase:
+
+**Under `run` (default):** continue directly. One line — "Sprint <sprint> ready: <slugs>.
+Planning." — then start the planner procedure in this same turn, and the coder after it.
+Jonathan is asked nothing further; the next thing he reads is the planner's model table.
+The intake context rides along; the 150k/165k gate is the safety net if the sprint is large.
+
+**Under `run clean`, or a standalone `create`:** hand off into an empty context, because the
+intake conversation is dead weight for the planner and coder. The creator's last turn does
+three things and nothing more:
 
 1. Confirms the working tree is clean and pushed (`git status --short` empty, `git log
    origin/main..HEAD` empty).
