@@ -97,7 +97,9 @@ planner and coder start from zero at the cost of one paste.
     doc has a "Stopping point at 160k" subsection), make `sprint.json` truthful, commit, and call
     `Skill({skill: "clear-prompt", args: "dev-story-flow <phase> <sprint>"})`. At 165k the gate
     hard-denies further tool calls. Because state is on disk, resumption is the same objective
-    again in a fresh chat.
+    again in a fresh chat. Past the stop threshold, a Stop hook (`handoff-stop-gate.sh`) won't
+    let the turn end until the `clear-prompt` skill has posted the hand-off block, and
+    `clear-prompt` clears the session itself once it has posted.
 11. **Never guess.** Read the manifest, the plan, the repo. "Not verified" is a complete
     sentence and a non-`done` story.
 
