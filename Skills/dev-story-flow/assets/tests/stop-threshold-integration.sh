@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
-# Integration test for the dev-epic-workflow context-budget gate's STOP band
-# ([STOP, HARD)) in SPRINT mode — runs the repo's real gate script
-# (../../../dev-epic-workflow/assets/claude-config/hooks/context-budget-gate.sh)
-# against a throwaway git repo, no network. Usage: bash stop-threshold-integration.sh
-# (exit 0 = pass). This is integration-only: it exercises the gate end to end
-# through real PreToolUse JSON on stdin and a real context-usage sentinel, and
-# does not duplicate or modify the sibling unit-fixture harness
+# Integration test for dev-story-flow's own context-budget gate's STOP band
+# ([STOP, HARD)) in SPRINT mode — runs this skill's own gate script
+# (../claude-config/hooks/context-budget-gate.sh) against a throwaway git
+# repo, no network. Usage: bash stop-threshold-integration.sh (exit 0 = pass).
+# This is integration-only: it exercises the gate end to end through real
+# PreToolUse JSON on stdin and a real context-usage sentinel, and does not
+# duplicate or modify the sibling unit-fixture harness
 # (context-budget-gate-fixtures.sh), which owns synthetic-PATH/parser-engine
 # coverage.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$HERE/../../../.." && pwd)"
-GATE="$REPO_ROOT/Skills/dev-epic-workflow/assets/claude-config/hooks/context-budget-gate.sh"
+GATE="$HERE/../claude-config/hooks/context-budget-gate.sh"
 [ -f "$GATE" ] || { echo "ERROR: not found: $GATE" >&2; exit 1; }
 
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT

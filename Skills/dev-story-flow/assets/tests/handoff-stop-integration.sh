@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
-# Integration test for the dev-epic-workflow Stop-hook hand-off gate
-# (handoff-stop-gate.sh) working end to end through a REAL --user install,
-# a real Stop-hook JSON payload, and a real SessionStart(source=clear) call
-# into session-start-context.sh. No network, no jq/python assumptions beyond
-# what the hooks themselves already require. Usage:
+# Integration test for dev-story-flow's own Stop-hook hand-off gate
+# (handoff-stop-gate.sh) working end to end through a REAL install of this
+# skill's assets/install.sh and a real Stop-hook JSON payload. No network, no
+# jq/python assumptions beyond what the hooks themselves already require.
+# Usage:
 #   bash handoff-stop-integration.sh   (exit 0 = pass)
 #
 # This is integration-only: the decision table (allow/block rows) is owned
 # exhaustively by a sibling fixture suite. This proves the pieces installed
-# together actually cooperate.
+# together actually cooperate. dev-story-flow does not install or depend on
+# a SessionStart grounding hook (that is dev-epic-workflow's own concern), so
+# this test does not exercise one.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_SH="$HERE/../../../dev-epic-workflow/assets/claude-config/install.sh"
+INSTALL_SH="$HERE/../install.sh"
 
 TMP_HOME="$(mktemp -d)"
 TMP_REPO="$(mktemp -d)"
@@ -22,18 +24,16 @@ ok()  { PASS=$((PASS+1)); }
 bad() { FAIL=$((FAIL+1)); echo "FAIL: $1" >&2; }
 check(){ if eval "$2"; then ok; else bad "$1"; fi; }
 
-# --- Step 1: real --user install into a throwaway HOME. ----------------------
+# --- Step 1: real install into a throwaway HOME. ------------------------------
 INSTALL_OUT="$(mktemp "${TMPDIR:-/tmp}/handoff-stop-install-out.XXXXXX")"
-if ! HOME="$TMP_HOME" bash "$INSTALL_SH" --user >"$INSTALL_OUT" 2>&1; then
-  bad "install.sh --user exited nonzero"
+if ! HOME="$TMP_HOME" bash "$INSTALL_SH" >"$INSTALL_OUT" 2>&1; then
+  bad "install.sh exited nonzero"
   cat "$INSTALL_OUT" >&2
 fi
 rm -f "$INSTALL_OUT"
 HOOK_STOP="$TMP_HOME/.claude/hooks/handoff-stop-gate.sh"
-HOOK_START="$TMP_HOME/.claude/hooks/session-start-context.sh"
 HOOK_LIB="$TMP_HOME/.claude/hooks/context-budget-lib.sh"
 check "handoff-stop-gate.sh installed"        '[ -x "$HOOK_STOP" ]'
-check "session-start-context.sh installed"     '[ -x "$HOOK_START" ]'
 check "context-budget-lib.sh installed"        '[ -f "$HOOK_LIB" ]'
 
 # --- Step 2: temp git repo + sprint-mode signals. -----------------------------
@@ -95,21 +95,6 @@ OUT3="$(printf '%s' "$PAYLOAD" | CLAUDE_PROJECT_DIR="$TMP_REPO" "$HOOK_STOP")"
 RC3=$?
 check "step5: hook exits 0"                    '[ "$RC3" = 0 ]'
 check "step5: allow is still silent"           '[ -z "$OUT3" ]'
-
-# --- Step 6: SessionStart(source=clear) surfaces a FRESH prep-for-clear note
-# and deletes it. ---------------------------------------------------------------
-FRESH_SLUG="demo-session-2"
-FRESH_CONTENT="Fresh handoff body for the session-start surfacing check."
-FRESH_FILE="$TMP_REPO/.claude/signals/prep-for-clear-$FRESH_SLUG.md"
-printf '%s\n' "$FRESH_CONTENT" > "$FRESH_FILE"
-
-START_PAYLOAD='{"source":"clear","session_id":"'"$SESSION_ID"'"}'
-OUT4="$(printf '%s' "$START_PAYLOAD" | CLAUDE_PROJECT_DIR="$TMP_REPO" "$HOOK_START")"
-check "step6: output has the prep-for-clear heading" \
-  'printf "%s" "$OUT4" | grep -qF "### Prep-for-clear from the previous session"'
-check "step6: output contains the fresh content"     \
-  'printf "%s" "$OUT4" | grep -qF "$FRESH_CONTENT"'
-check "step6: the prep-for-clear file is gone afterward" '[ ! -e "$FRESH_FILE" ]'
 
 echo "handoff-stop integration: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
