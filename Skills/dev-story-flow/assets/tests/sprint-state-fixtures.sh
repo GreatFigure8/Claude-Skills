@@ -26,6 +26,7 @@ check "integration none honoured"           '[ "$(field "$S2" "m[\"branch\"][\"i
 check "list shows both"                     '[ "$("$SS" list | wc -l | tr -d " ")" = 2 ]'
 check "list filters by status"              '[ "$("$SS" list drafting | wc -l | tr -d " ")" = 2 ] && [ -z "$("$SS" list planned)" ]'
 check "list rejects unknown status"         '! "$SS" list bogus 2>/dev/null'
+check "list fresh sprint trailing 0/0"      '[ "$("$SS" list | grep "^$S1" | cut -f5)" = "0/0" ]'
 
 # --- story add -----------------------------------------------------------------------------
 check "story add ok"                        '"$SS" story add "$S1" create-home-page --title "Create the home page" --kind interactive >/dev/null'
@@ -34,6 +35,7 @@ check "story add rejects --issue"           '! "$SS" story add "$S1" other --tit
 check "story add rejects dup slug"          '! "$SS" story add "$S1" create-home-page --title x --kind service 2>/dev/null'
 check "story add rejects bad kind"          '! "$SS" story add "$S1" other --title x --kind ui 2>/dev/null'
 check "story add rejects bad slug"          '! "$SS" story add "$S1" Bad_Slug --title x --kind service 2>/dev/null'
+check "list after 2 story adds shows 0/2"   '[ "$("$SS" list | grep "^$S1" | cut -f5)" = "0/2" ]'
 
 # --- sprint transitions --------------------------------------------------------------------
 check "illegal jump refused"                '! "$SS" set "$S1" complete 2>/dev/null'
@@ -56,6 +58,7 @@ check "validating -> executing bumps"       '"$SS" story set "$S1" create-home-p
 check "detail recorded"                     '[ "$(field "$S1" "m[\"stories\"][0][\"detail\"]")" = "AC-B1 failed" ]'
 check "story illegal jump refused"          '! "$SS" story set "$S1" create-home-page done 2>/dev/null'
 check "story --force allows jump"           '"$SS" story set "$S1" create-home-page done --force >/dev/null'
+check "list after one forced done shows 1/2" '[ "$("$SS" list | grep "^$S1" | cut -f5)" = "1/2" ]'
 check "story set unknown slug refused"      '! "$SS" story set "$S1" nope done 2>/dev/null'
 
 # --- completion / blocked / force ----------------------------------------------------------
