@@ -93,7 +93,10 @@ def cmd_list(base, args):
         with open(p) as f: m = json.load(f)
         if want and m.get("status") != want: continue
         c = m.get("claim") or {}
-        print("\t".join([m["sprint"], m["status"], c.get("by", "-"), c.get("at", "-")]))
+        stories = m.get("stories", [])
+        total = len(stories)
+        done = sum(1 for s in stories if s["status"] == "done")
+        print("\t".join([m["sprint"], m["status"], c.get("by", "-"), c.get("at", "-"), f"{done}/{total}"]))
 
 def cmd_get(base, args):
     if len(args) != 1: die("get <sprint>")

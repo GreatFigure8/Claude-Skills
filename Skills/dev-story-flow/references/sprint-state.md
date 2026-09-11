@@ -103,7 +103,7 @@ creator from the story's title.
 
 ```
 sprint-state.sh new [--live <branch>] [--integration <branch>|none]   → prints the new sprint name
-sprint-state.sh list [<status>]                                         → name  status  claim-by  claim-at
+sprint-state.sh list [<status>]                                         → name  status  claim-by  claim-at  done/total
 sprint-state.sh get <sprint>                                            → the manifest JSON
 sprint-state.sh set <sprint> <status> [--by <id>] [--force]             → transition (+claim/unclaim)
 sprint-state.sh story add <sprint> <slug> --title <t> --kind <k>
