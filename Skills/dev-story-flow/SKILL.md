@@ -134,15 +134,15 @@ stories specified once and shipped unattended — is this flow.
 ## Install (once per machine)
 
 ```bash
-bash ~/Source/claude-skills-main/Skills/dev-story-flow/assets/install.sh
+bash ~/Source/claude-skills/Skills/dev-story-flow/assets/install.sh
 ```
 
-Symlinks `~/.claude/skills/dev-story-flow` and `~/.claude/skills/goal` into the live worktree
-(`~/Source/claude-skills-main`, detached at `origin/main` — see dev-story-sprint's Install for
-why the dev checkout is never linked). Requires dev-story-sprint's install (for
-`story-item-executor`) and dev-epic-workflow's user-level install (cancel gate, lifecycle hook,
-context-budget gate); the installer warns when either is missing. Going live is automatic on
-push via dev-story-sprint's refresh hook. Tests: `bash assets/tests/sprint-state-fixtures.sh`.
+Symlinks `~/.claude/skills/dev-story-flow` and `~/.claude/skills/goal` into the claude-skills
+checkout; whatever branch is checked out there is what Claude Code loads (develop on `dev`,
+merge to `main` to go live — see the repo's `CLAUDE.md`). Requires dev-story-sprint's install
+(for `story-item-executor`) and dev-epic-workflow's user-level install (cancel gate, lifecycle
+hook, context-budget gate); the installer warns when either is missing. Tests:
+`bash assets/tests/sprint-state-fixtures.sh`.
 
 ## What this skill overrides from the global rules
 

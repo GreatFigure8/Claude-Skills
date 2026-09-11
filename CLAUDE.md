@@ -1,19 +1,17 @@
 # claude-skills — repo conventions
 
-## Branching: we work against `main`
+## Branching: `dev` integrates, `main` is live
 
-`main` is the branch we work against. There is **no per-story or per-epic integration
-branch** in this repo.
-
-- Cut every work-item branch from `origin/main`.
-- Merge it back to `main` when it verifies — one merge commit per item.
-- `main` is therefore both the integration point and the live branch: the skills that
-  Claude Code actually loads are a worktree detached at `origin/main`
-  (`~/Source/claude-skills-main`), so merging to `main` *is* going live.
+- Cut every work-item branch from `origin/dev`.
+- Merge it back to `dev` when it verifies — one merge commit per item.
+- Merge `dev` into `main` (`--no-ff`) when the work is ready to go live, and push both.
+- `main` is the live branch: `~/.claude/skills/*` and `~/.claude/agents/story-item-executor.md`
+  are symlinks **into this checkout** (`~/Source/claude-skills`), so whatever branch is checked
+  out here is what Claude Code loads. Keep `main` checked out when not actively developing.
+  There is no separate live worktree any more (retired 2026-09-11).
 
 In a `dev-story-sprint` plan message this means the branch line reads
-`live=main  integration=none`, and the story closes on the last item's merge rather than
-on a separate cutover merge.
+`live=main  integration=dev`.
 
 ## The checkout is shared
 

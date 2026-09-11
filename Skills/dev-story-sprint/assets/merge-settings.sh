@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# merge-settings.sh [--quiet] <settings-path> <allow-json-path> <hook-command-path>
+# merge-settings.sh [--quiet] <settings-path> <allow-json-path> [<hook-command-path>]
 #
-# Merges an allowlist (permissions.allow, set union) and a PostToolUse(Bash) hook
-# registration into a Claude settings.json, preserving every other key. Atomic
+# Merges an allowlist (permissions.allow, set union) and — only when a third argument is
+# given — a PostToolUse(Bash) hook registration into a Claude settings.json, preserving every other key. Atomic
 # write via tempfile + os.replace. Without --quiet, prints "ok:" lines when
 # already up to date, or a "merged:" line when it changed. With --quiet, prints
 # the "merged:" line on change and nothing otherwise. Exits non-zero only on a
@@ -15,14 +15,14 @@ if [ "${1:-}" = "--quiet" ]; then
   shift
 fi
 
-if [ $# -ne 3 ]; then
-  echo "usage: merge-settings.sh [--quiet] <settings-path> <allow-json-path> <hook-command-path>" >&2
+if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+  echo "usage: merge-settings.sh [--quiet] <settings-path> <allow-json-path> [<hook-command-path>]" >&2
   exit 1
 fi
 
 SETTINGS="$1"
 ALLOW_SRC="$2"
-HOOK_CMD="$3"
+HOOK_CMD="${3:-}"
 
 if ! command -v python3 >/dev/null 2>&1; then
   echo "error: python3 not found — cannot merge settings.json" >&2
@@ -50,15 +50,15 @@ if missing:
 elif not quiet:
     print(f"ok:        permissions.allow has all {len(wanted)} sprint entries")
 
-# hooks.PostToolUse — one Bash-matcher entry for the refresh hook, keyed on its command path
+# hooks.PostToolUse — one Bash-matcher entry for the given hook, keyed on its command path (skipped when none given)
 hooks = dict(settings.get("hooks", {}))
 post = list(hooks.get("PostToolUse", []))
-present = any(h.get("command") == hook_cmd for e in post for h in e.get("hooks", []))
+present = (not hook_cmd) or any(h.get("command") == hook_cmd for e in post for h in e.get("hooks", []))
 if not present:
     post = post + [{"matcher": "Bash", "hooks": [{"type": "command", "command": hook_cmd}]}]
     hooks = {**hooks, "PostToolUse": post}
-    changed.append("PostToolUse refresh-live hook")
-elif not quiet:
+    changed.append("PostToolUse hook")
+elif hook_cmd and not quiet:
     print(f"ok:        PostToolUse hook registered: {hook_cmd}")
 
 if not changed:
