@@ -2,7 +2,7 @@
   "sprint": "2026-09-11-002",
   "status": "drafting",
   "created": "2026-09-11T17:23:23Z",
-  "updated": "2026-09-11T17:29:14Z",
+  "updated": "2026-09-11T18:00:46Z",
   "branch": {
     "live": "dev",
     "integration": "sprint/2026-09-11-002"
@@ -12,6 +12,15 @@
     {
       "slug": "flow-stopping-point-160k",
       "title": "dev-story-flow finds a stopping point at 160k tokens",
+      "kind": "service",
+      "status": "drafted",
+      "plan": null,
+      "attempts": 0,
+      "detail": ""
+    },
+    {
+      "slug": "auto-clear-prompt-at-stop",
+      "title": "System runs clear-prompt at a token-limit stopping point",
       "kind": "service",
       "status": "drafted",
       "plan": null,
