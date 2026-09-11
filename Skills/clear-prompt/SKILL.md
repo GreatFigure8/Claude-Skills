@@ -1,6 +1,6 @@
 ---
 name: clear-prompt
-description: Compose and post a "prep-for-clear" prompt — a single chat-posted, fenced block that lets a coding session hand off cleanly to a fresh context window without losing state. Use this whenever an orchestrating session (dev-story-sprint calls it via its rule 9 token-budget gate; dev-epic-workflow calls it right after filing an approved plan and linking the tracker, before anything is dispatched, to post the "epic filed" block Jonathan pastes to start the coding session; any other long-running orchestrator can call it too) has decided it needs to stop and move to a new chat — approaching its token budget, finishing a clean unit of work mid-story, or Jonathan asking to "clear", "prep for clear", "wrap this context", "move to a new window", or "what do I paste into the next session". This is NOT the on-disk /handoff used by dev-epic-workflow mid-epic (docs/epics/handoff.md, committed to the repo) — clear-prompt never touches disk or git; it produces a copy-paste resumption prompt Jonathan pastes straight into a fresh chat. Always reach for this instead of improvising an ad hoc summary — the Verified / Claimed-but-NOT-verified split is what makes the next session trustworthy instead of guessing.
+description: Compose and post a "prep-for-clear" prompt — a single chat-posted, fenced block that lets a coding session hand off cleanly to a fresh context window without losing state. Use this whenever an orchestrating session (dev-story-sprint calls it via its rule 9 token-budget gate; dev-epic-workflow calls it right after filing an approved plan and linking the tracker, before anything is dispatched, to post the "epic filed" block Jonathan pastes to start the coding session; any other long-running orchestrator can call it too) has decided it needs to stop and move to a new chat — approaching its token budget, finishing a clean unit of work mid-story, or Jonathan asking to "clear", "prep for clear", "wrap this context", "move to a new window", or "what do I paste into the next session". This is NOT the on-disk /handoff used by dev-epic-workflow mid-epic (docs/epics/handoff.md, committed to the repo) — it produces a copy-paste resumption prompt Jonathan pastes straight into a fresh chat, and touches disk only for a token/context-budget-triggered stop, when it also writes the same block verbatim to a gitignored `.claude/signals/prep-for-clear-<session-slug>.md` so the Stop hook and the next session's start hook can find it; a Jonathan-requested clear touches nothing. Always reach for this instead of improvising an ad hoc summary — the Verified / Claimed-but-NOT-verified split is what makes the next session trustworthy instead of guessing.
 ---
 
 # Clear Prompt
@@ -22,7 +22,7 @@ It is deliberately **not** the same mechanism as `/handoff`:
 | Medium | Posted in chat, one fenced block | Written to `docs/epics/handoff.md`, committed |
 | Persists how | Jonathan pastes it into a new chat himself | Lives in the repo; next session's SessionStart hook auto-injects it |
 | Owns | Any orchestrator that needs a resume prompt — `dev-story-sprint` mid-sprint, `dev-epic-workflow` right after filing, before anything is dispatched | `dev-epic-workflow` epics mid-flight, once items are already dispatched |
-| Touches git/disk | Never | Yes — commits and pushes as part of checkpointing |
+| Touches git/disk | Only on a budget-triggered stop — writes the block to a gitignored signal file, never commits | Yes — commits and pushes as part of checkpointing |
 
 For `dev-epic-workflow`, which one to use is a distinction, not a refusal. **Mid-epic, with items already dispatched and in flight**, use `/handoff` — the epic folder exists and the next session needs the committed, hook-injected record. **End of intake, with a plan just filed and the tracker linked but nothing dispatched yet**, use `clear-prompt` — there's no in-flight dispatch state to checkpoint, only a fresh plan to hand into a coding session; see the "epic filed, nothing dispatched" shape below. For anything else — a sprint, an ad hoc coding session, or any orchestrator without an epic folder to write into — always use `clear-prompt`.
 
@@ -120,6 +120,11 @@ One line immediately before the block, naming the trigger honestly (a token coun
 
 Then the fenced block, complete, nothing abbreviated. Then **say nothing else** — no summary after it, no "let me know if you want changes." The block is a deliverable, not a conversation opener; anything after it just costs the very tokens the handoff exists to save.
 
+**When the trigger is a token/context budget stop** (not Jonathan asking mid-work to "prep for clear," "clear," or similar — that path stops here, unchanged), two more actions follow the posted block, in the same turn:
+
+1. Write the same block, verbatim, to `.claude/signals/prep-for-clear-<session-slug>.md` at the git top level. `<session-slug>` is derived exactly the way `context-budget-gate.sh`/`context-budget-lib.sh` derive it for their own `context-usage-<session-slug>` sentinel: `session_slug_for()` takes the session id and runs it through `tr -c 'A-Za-z0-9._-' '-'` then `cut -c1-64` — same input, same transform, same slug. This file is already covered by the repo's `.claude/signals/` gitignore rule, so it never touches a commit.
+2. Call `mcp__ccd_session_mgmt__clear_session` with `session_id: "self"` when that tool is available in the current environment. When it isn't (a plain CLI session), say `/clear` on its own line instead — the same fallback `dev-story-flow`'s creator uses for its `run clean` path.
+
 ## Resuming from a posted prompt
 
 When a fresh session receives a pasted `<caller> prep-for-clear` block, it treats the block as a plan that's already been made and approved — it does not re-derive or re-ask for one:
@@ -132,7 +137,7 @@ When a fresh session receives a pasted `<caller> prep-for-clear` block, it treat
 
 ## Install
 
-This skill is stateless markdown — no scripts, hooks, or bundled agents. To make it loadable by name, symlink it into the same pinned worktree the other orchestration skills use, so a `git switch` in the dev checkout never changes what Claude Code loads:
+This skill is markdown — no scripts, hooks, or bundled agents — except for the single gitignored signal file it writes on a budget-triggered stop (see "Posting it"). To make it loadable by name, symlink it into the same pinned worktree the other orchestration skills use, so a `git switch` in the dev checkout never changes what Claude Code loads:
 
 ```bash
 ln -s ~/Source/claude-skills-main/Skills/clear-prompt ~/.claude/skills/clear-prompt
