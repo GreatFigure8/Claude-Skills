@@ -35,7 +35,7 @@ entry point Jonathan uses: `/goal using dev-story-flow <objective>`. Calling
 
 | Objective says… | Phase | Runs until |
 |---|---|---|
-| "create", "new story", "add a story", "new sprint", or just a pasted user story | CREATE | Jonathan says the sprint is documentation-complete (→ `ready-to-plan`) |
+| "create", "new story", "add a story", "new sprint", or just a pasted user story | CREATE | Jonathan says the sprint is documentation-complete (→ `ready-to-plan`); the creator then posts the `run` line and clears the session |
 | "plan", "plan the sprints", "plan what's ready" | PLAN | no `ready-to-plan` sprint remains |
 | "execute", "run the planned sprints", "execute until all the planned sprints are completed" | EXECUTE | no `planned` sprint remains, or a sprint is `blocked`, or the budget gate fires |
 | "run", "run the flow", "plan and execute", "everything that's ready" | PLAN then EXECUTE | both of the above, in order |
@@ -49,6 +49,10 @@ say which in one line.
 **No go-ahead in PLAN or EXECUTE.** The human gates are (a) Jonathan closing a sprint in CREATE
 and (b) the pause between `planned` and running EXECUTE, where `impl-plan.md` can be reviewed.
 Once EXECUTE starts it does not ask "shall I continue?" — it finishes, blocks, or hands off.
+
+**Hand-off from CREATE is a clean context, not a continuation.** The creator's last act is to
+post `/goal using dev-story-flow run` and clear its own session (creator doc, step 5), so the
+planner and coder never pay for the intake conversation. Jonathan pastes that one line.
 
 ## Rules shared by all three phases
 

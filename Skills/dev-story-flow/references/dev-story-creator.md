@@ -137,8 +137,24 @@ git add docs/sprints/<sprint>/sprint.json && git commit -m "chore(sprint): <spri
 ```
 
 That status change **is** the hand-off. The planner discovers work by `sprint-state.sh list
-ready-to-plan`; nothing else needs to be told anything. Close with one line naming the sprint,
-its stories, and the next command (`/goal using dev-story-flow plan`).
+ready-to-plan`; nothing else needs to be told anything.
+
+**Then kick off the next phases in a clean context.** The intake conversation is dead weight
+for the planner and coder — every one of their turns would re-bill it. So the creator's last
+turn does three things and nothing more:
+
+1. Confirms the working tree is clean and pushed (`git status --short` empty, `git log
+   origin/main..HEAD` empty).
+2. Posts exactly this, as the last visible text: the sprint name, its story slugs, and the
+   line to paste — `/goal using dev-story-flow run` — with one sentence saying the chat is
+   about to clear.
+3. Calls the desktop app's clear tool on itself: `mcp__ccd_session_mgmt__clear_session` with
+   `session_id: "self"`. The transcript empties when the turn ends; Jonathan pastes the one
+   line and PLAN then EXECUTE run with nothing else in context. When that tool is not
+   available (plain CLI), say `/clear` then paste the line — same effect, one extra keystroke.
+
+A session cannot queue a message to itself after clearing, so one paste is the floor here.
+`run` means PLAN then EXECUTE (see SKILL.md); EXECUTE loops until no sprint is `planned`.
 
 **Alternatives considered for this signal:** a `.ready` marker file (no metadata, can coexist
 with stale flags), a line in a central index (merge conflicts across sessions), a GitHub label
