@@ -109,6 +109,7 @@ sprint-state.sh set <sprint> <status> [--by <id>] [--force]             → tran
 sprint-state.sh story add <sprint> <slug> --title <t> --kind <k>
 sprint-state.sh story set <sprint> <slug> <status> [--detail <text>] [--plan <relpath>] [--bump-attempts]
 sprint-state.sh stale <sprint> [<hours>]                                → exit 0 if the claim is stale
+sprint-state.sh assert-branch <sprint> [--target integration|live]  → exit 0 if current branch matches; exit 1 + stderr naming both otherwise
 ```
 
 `SPRINTS_DIR` overrides `docs/sprints` (relative to the git top level). Every write is atomic
