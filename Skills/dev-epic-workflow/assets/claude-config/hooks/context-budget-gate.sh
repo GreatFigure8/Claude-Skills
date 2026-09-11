@@ -42,6 +42,21 @@
 # work because it could not read a file is a broken gate, not a strict one.
 
 set -u
+
+# Resolve the shared lib RELATIVE TO THIS SCRIPT, and do it before the cd below
+# moves us to the project dir. Builtins only (`cd`/`pwd`, not `dirname`): this
+# runs before the PATH is known to hold anything, and a hook that needs a
+# coreutil to find its own library is a hook that breaks on a thin PATH.
+# A missing or unreadable lib is a misconfigured install, and a misconfigured
+# gate never blocks work: fail open.
+LIB_SRC="${BASH_SOURCE[0]:-$0}"
+LIB_DIR="${LIB_SRC%/*}"
+[ "$LIB_DIR" = "$LIB_SRC" ] && LIB_DIR="."
+LIB_DIR="$(cd "$LIB_DIR" 2> /dev/null && pwd)" || exit 0
+[ -n "$LIB_DIR" ] && [ -r "$LIB_DIR/context-budget-lib.sh" ] || exit 0
+# shellcheck source=./context-budget-lib.sh
+. "$LIB_DIR/context-budget-lib.sh" || exit 0
+
 cd "${CLAUDE_PROJECT_DIR:-$(pwd)}" 2> /dev/null || exit 0
 
 # Read (never discard) the hook input JSON, and always drain stdin fully.
@@ -104,7 +119,7 @@ SIGNALS_DIR=".claude/signals"
 # Fast path 3: resolve the sentinel for THIS session (never another's).
 SESSION_ID="$(json_field session_id)"
 if [ -n "$SESSION_ID" ]; then
-  SESSION_SLUG="$(printf '%s' "$SESSION_ID" | tr -c 'A-Za-z0-9._-' '-' | cut -c1-64 2> /dev/null || true)"
+  SESSION_SLUG="$(session_slug_for "$SESSION_ID")"
   [ -n "$SESSION_SLUG" ] || exit 0
   SENTINEL="$SIGNALS_DIR/context-usage-$SESSION_SLUG"
 else
@@ -112,25 +127,8 @@ else
 fi
 [ -f "$SENTINEL" ] && [ -r "$SENTINEL" ] || exit 0
 
-# --- Parse the sentinel: plain key=value lines, last wins, keys we know only. -
-EPOCH=""; USED_TOKENS=""; MAX_TOKENS=""; USED_PCT=""
-while IFS= read -r LINE || [ -n "$LINE" ]; do
-  LINE="${LINE%$'\r'}"
-  case "$LINE" in
-    epoch=*) EPOCH="${LINE#epoch=}" ;;
-    used_tokens=*) USED_TOKENS="${LINE#used_tokens=}" ;;
-    max_tokens=*) MAX_TOKENS="${LINE#max_tokens=}" ;;
-    used_percentage=*) USED_PCT="${LINE#used_percentage=}" ;;
-  esac
-done < "$SENTINEL"
-
-# A bare integer, nothing else — `case` keeps this parser-free and locale-safe.
-is_int() {
-  case "${1:-}" in
-    '' | *[!0-9]*) return 1 ;;
-    *) return 0 ;;
-  esac
-}
+# --- Parse the sentinel (see read_sentinel in context-budget-lib.sh). ---------
+read_sentinel "$SENTINEL"
 
 is_int "$EPOCH" || exit 0
 
@@ -161,86 +159,11 @@ else
   exit 0
 fi
 
-# --- MODE: sprint (dev-story-sprint) vs epic (dev-epic-workflow). -------------
-MODE=epic
-ACTIVE_EPIC="$SIGNALS_DIR/active-epic"
-if [ -f "$ACTIVE_EPIC" ] && [ -r "$ACTIVE_EPIC" ]; then
-  while IFS= read -r LINE || [ -n "$LINE" ]; do
-    LINE="${LINE%$'\r'}"
-    LINE="${LINE#"${LINE%%[![:space:]]*}"}"
-    LINE="${LINE%"${LINE##*[![:space:]]}"}"
-    [ -n "$LINE" ] || continue
-    case "$LINE" in *".claude/stories/"*) MODE=sprint ;; esac
-    break
-  done < "$ACTIVE_EPIC"
-fi
-
-if [ "$MODE" = sprint ]; then
-  DEF_SOFT=150000; DEF_HARD=165000
-  RULE="dev-story-sprint rule 9"
-  HANDOFF="the dev-story-sprint prep-for-clear prompt"
-  STATE="sprint.json, with every in-flight story's pushed branch in its detail field"
-else
-  DEF_SOFT=120000; DEF_HARD=150000
-  RULE="dev-epic-workflow context budget"
-  HANDOFF="the dev-epic-workflow handoff at docs/epics/handoff.md"
-  STATE="each in-flight item's status/<branch-slug>.json record, with its pushed branch in the detail field"
-fi
-
-# --- Thresholds: env, then .claude/context-budget, then mode defaults. --------
-SOFT=""; HARD=""; STOP=""
-if [ -n "${CONTEXT_BUDGET_SOFT_TOKENS:-}" ] || [ -n "${CONTEXT_BUDGET_HARD_TOKENS:-}" ]; then
-  SOFT="${CONTEXT_BUDGET_SOFT_TOKENS:-}"
-  HARD="${CONTEXT_BUDGET_HARD_TOKENS:-}"
-fi
-if [ -n "${CONTEXT_BUDGET_STOP_TOKENS:-}" ]; then
-  STOP="${CONTEXT_BUDGET_STOP_TOKENS:-}"
-fi
-
-SOFT_HARD_FROM_ENV=1
-if [ -z "$SOFT" ] || [ -z "$HARD" ]; then
-  SOFT_HARD_FROM_ENV=0
-fi
-if [ -z "$SOFT" ] || [ -z "$HARD" ] || [ -z "$STOP" ]; then
-  BUDGET_FILE=".claude/context-budget"
-  if [ -f "$BUDGET_FILE" ] && [ -r "$BUDGET_FILE" ]; then
-    F_SOFT=""; F_HARD=""; F_STOP=""
-    while IFS= read -r LINE || [ -n "$LINE" ]; do
-      LINE="${LINE%$'\r'}"
-      LINE="${LINE#"${LINE%%[![:space:]]*}"}"
-      LINE="${LINE%"${LINE##*[![:space:]]}"}"
-      case "$LINE" in '' | '#'*) continue ;; esac
-      case "$LINE" in *=*) ;; *) continue ;; esac
-      KEY="${LINE%%=*}"; VALUE="${LINE#*=}"
-      KEY="${KEY%"${KEY##*[![:space:]]}"}"
-      VALUE="${VALUE#"${VALUE%%[![:space:]]*}"}"
-      VALUE="${VALUE%"${VALUE##*[![:space:]]}"}"
-      case "$KEY" in
-        soft) F_SOFT="$VALUE" ;;
-        hard) F_HARD="$VALUE" ;;
-        stop) F_STOP="$VALUE" ;;
-      esac
-    done < "$BUDGET_FILE"
-    if [ "$SOFT_HARD_FROM_ENV" -eq 0 ] && [ -n "$F_SOFT" ] && [ -n "$F_HARD" ]; then
-      SOFT="$F_SOFT"; HARD="$F_HARD"
-    fi
-    if [ -z "$STOP" ] && [ -n "$F_STOP" ]; then
-      STOP="$F_STOP"
-    fi
-  fi
-fi
-
-if [ -z "$SOFT" ] || [ -z "$HARD" ]; then
-  SOFT="$DEF_SOFT"; HARD="$DEF_HARD"
-fi
-
-if [ -z "$STOP" ]; then
-  if [ "$MODE" = sprint ]; then
-    STOP=160000
-  else
-    STOP="$HARD"
-  fi
-fi
+# --- MODE + thresholds (see context-budget-lib.sh). ---------------------------
+# resolve_mode sets MODE/DEF_SOFT/DEF_HARD/RULE/HANDOFF/STATE; resolve_thresholds
+# then reads those defaults and sets SOFT/HARD/STOP.
+resolve_mode "$SIGNALS_DIR"
+resolve_thresholds
 
 # A misconfigured gate never blocks work.
 is_int "$SOFT" || exit 0
