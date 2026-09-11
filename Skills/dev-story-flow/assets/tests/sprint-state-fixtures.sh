@@ -86,5 +86,24 @@ check "complete is terminal"                '! "$SS" set "$S2" executing 2>/dev/
 check "get prints json"                     '"$SS" get "$S1" | python3 -c "import json,sys; json.load(sys.stdin)"'
 check "get unknown sprint exits 2"          '"$SS" get nope 2>/dev/null; [ $? = 2 ]'
 
+# --- assert-branch ---------------------------------------------------------------------------
+git commit --allow-empty -q -m init
+S3="$("$SS" new --live main)"
+INTEG3="$(field "$S3" "m[\"branch\"][\"integration\"]")"
+LIVE3="$(field "$S3" "m[\"branch\"][\"live\"]")"
+git checkout -q -b "$INTEG3"
+check "assert-branch exit 0 on integration branch"          '"$SS" assert-branch "$S3" >/dev/null 2>&1'
+git checkout -q -b other-branch
+ERR="$("$SS" assert-branch "$S3" 2>&1 1>/dev/null)"
+check "assert-branch exit 1 off expected branch"            '! "$SS" assert-branch "$S3" >/dev/null 2>&1'
+check "assert-branch stderr names expected branch"          '[[ "$ERR" == *"$INTEG3"* ]]'
+check "assert-branch stderr names actual branch"            '[[ "$ERR" == *"other-branch"* ]]'
+git checkout -q "$LIVE3"
+check "assert-branch --target live exit 0 on live branch"   '"$SS" assert-branch "$S3" --target live >/dev/null 2>&1'
+git checkout -q other-branch
+check "assert-branch --target live exit 1 elsewhere"        '! "$SS" assert-branch "$S3" --target live >/dev/null 2>&1'
+git checkout -q "$LIVE3"
+check "assert-branch default target resolves to live for --integration none" '"$SS" assert-branch "$S2" >/dev/null 2>&1'
+
 echo "sprint-state fixtures: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]
