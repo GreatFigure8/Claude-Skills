@@ -26,6 +26,24 @@ check "integration none honoured"           '[ "$(field "$S2" "m[\"branch\"][\"i
 check "list shows both"                     '[ "$("$SS" list | wc -l | tr -d " ")" = 2 ]'
 check "list filters by status"              '[ "$("$SS" list drafting | wc -l | tr -d " ")" = 2 ] && [ -z "$("$SS" list planned)" ]'
 check "list rejects unknown status"         '! "$SS" list bogus 2>/dev/null'
+check "list fresh sprint trailing 0/0"      '[ "$("$SS" list | grep "^$S1" | cut -f5)" = "0/0" ]'
+
+esc_count() { "$SS" list | python3 -c 'import sys; sys.stdout.write(str(sys.stdin.buffer.read().count(b"\x1b")))'; }
+field5_styled() {
+  DSF_FORCE_STYLE=1 "$SS" list | python3 -c '
+import sys
+for line in sys.stdin:
+    fields = line.rstrip("\n").split("\t")
+    if len(fields) != 5: sys.exit(1)
+    for f in fields[:4]:
+        if "\x1b" in f: sys.exit(1)
+    counts = fields[4]
+    if not (counts.startswith("\x1b[1m") and counts.endswith("\x1b[0m")): sys.exit(1)
+'
+}
+check "piped list (no env) has zero escape bytes"        '[ "$(esc_count)" = 0 ]'
+check "DSF_FORCE_STYLE styles field 5 only"               'field5_styled'
+check "NO_COLOR beats DSF_FORCE_STYLE (byte-identical)"    'cmp -s <(NO_COLOR=1 DSF_FORCE_STYLE=1 "$SS" list) <("$SS" list | cat)'
 
 # --- story add -----------------------------------------------------------------------------
 check "story add ok"                        '"$SS" story add "$S1" create-home-page --title "Create the home page" --kind interactive >/dev/null'
@@ -34,6 +52,7 @@ check "story add rejects --issue"           '! "$SS" story add "$S1" other --tit
 check "story add rejects dup slug"          '! "$SS" story add "$S1" create-home-page --title x --kind service 2>/dev/null'
 check "story add rejects bad kind"          '! "$SS" story add "$S1" other --title x --kind ui 2>/dev/null'
 check "story add rejects bad slug"          '! "$SS" story add "$S1" Bad_Slug --title x --kind service 2>/dev/null'
+check "list after 2 story adds shows 0/2"   '[ "$("$SS" list | grep "^$S1" | cut -f5)" = "0/2" ]'
 
 # --- sprint transitions --------------------------------------------------------------------
 check "illegal jump refused"                '! "$SS" set "$S1" complete 2>/dev/null'
@@ -56,6 +75,7 @@ check "validating -> executing bumps"       '"$SS" story set "$S1" create-home-p
 check "detail recorded"                     '[ "$(field "$S1" "m[\"stories\"][0][\"detail\"]")" = "AC-B1 failed" ]'
 check "story illegal jump refused"          '! "$SS" story set "$S1" create-home-page done 2>/dev/null'
 check "story --force allows jump"           '"$SS" story set "$S1" create-home-page done --force >/dev/null'
+check "list after one forced done shows 1/2" '[ "$("$SS" list | grep "^$S1" | cut -f5)" = "1/2" ]'
 check "story set unknown slug refused"      '! "$SS" story set "$S1" nope done 2>/dev/null'
 
 # --- completion / blocked / force ----------------------------------------------------------
@@ -65,6 +85,25 @@ check "forced flag recorded when illegal"   '"$SS" set "$S2" complete --force >/
 check "complete is terminal"                '! "$SS" set "$S2" executing 2>/dev/null'
 check "get prints json"                     '"$SS" get "$S1" | python3 -c "import json,sys; json.load(sys.stdin)"'
 check "get unknown sprint exits 2"          '"$SS" get nope 2>/dev/null; [ $? = 2 ]'
+
+# --- assert-branch ---------------------------------------------------------------------------
+git commit --allow-empty -q -m init
+S3="$("$SS" new --live main)"
+INTEG3="$(field "$S3" "m[\"branch\"][\"integration\"]")"
+LIVE3="$(field "$S3" "m[\"branch\"][\"live\"]")"
+git checkout -q -b "$INTEG3"
+check "assert-branch exit 0 on integration branch"          '"$SS" assert-branch "$S3" >/dev/null 2>&1'
+git checkout -q -b other-branch
+ERR="$("$SS" assert-branch "$S3" 2>&1 1>/dev/null)"
+check "assert-branch exit 1 off expected branch"            '! "$SS" assert-branch "$S3" >/dev/null 2>&1'
+check "assert-branch stderr names expected branch"          '[[ "$ERR" == *"$INTEG3"* ]]'
+check "assert-branch stderr names actual branch"            '[[ "$ERR" == *"other-branch"* ]]'
+git checkout -q "$LIVE3"
+check "assert-branch --target live exit 0 on live branch"   '"$SS" assert-branch "$S3" --target live >/dev/null 2>&1'
+git checkout -q other-branch
+check "assert-branch --target live exit 1 elsewhere"        '! "$SS" assert-branch "$S3" --target live >/dev/null 2>&1'
+git checkout -q "$LIVE3"
+check "assert-branch default target resolves to live for --integration none" '"$SS" assert-branch "$S2" >/dev/null 2>&1'
 
 echo "sprint-state fixtures: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

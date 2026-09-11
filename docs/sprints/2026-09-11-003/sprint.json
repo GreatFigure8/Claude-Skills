@@ -1,0 +1,55 @@
+{
+  "sprint": "2026-09-11-003",
+  "status": "complete",
+  "created": "2026-09-11T18:00:19Z",
+  "updated": "2026-09-11T18:32:25Z",
+  "branch": {
+    "live": "dev",
+    "integration": "sprint/2026-09-11-003"
+  },
+  "claim": null,
+  "stories": [
+    {
+      "slug": "assert-branch-before-merge",
+      "title": "Guard merges into a shared branch with a branch-identity check",
+      "kind": "service",
+      "status": "done",
+      "plan": "assert-branch-before-merge/assert-branch-before-merge-plan.md",
+      "attempts": 0,
+      "detail": "validated 2026-09-11T18:40Z",
+      "updated": "2026-09-11T18:31:53Z"
+    }
+  ],
+  "history": [
+    {
+      "at": "2026-09-11T18:00:19Z",
+      "status": "drafting",
+      "by": "creator"
+    },
+    {
+      "at": "2026-09-11T18:10:27Z",
+      "status": "ready-to-plan",
+      "by": "creator"
+    },
+    {
+      "at": "2026-09-11T18:17:15Z",
+      "status": "planning",
+      "by": "planner-Jonathans-MacBook-Pro.local-20260911T181715Z"
+    },
+    {
+      "at": "2026-09-11T18:19:53Z",
+      "status": "planned",
+      "by": "Jonathans-MacBook-Pro-20260911T181953Z"
+    },
+    {
+      "at": "2026-09-11T18:21:12Z",
+      "status": "executing",
+      "by": "coder-Jonathans-MacBook-Pro.local-20260911T182112Z"
+    },
+    {
+      "at": "2026-09-11T18:32:25Z",
+      "status": "complete",
+      "by": "Jonathans-MacBook-Pro-20260911T183225Z"
+    }
+  ]
+}

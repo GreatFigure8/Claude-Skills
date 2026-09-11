@@ -9,6 +9,7 @@
 #   sprint-state.sh story add <sprint> <slug> --title <t> --kind interactive|service
 #   sprint-state.sh story set <sprint> <slug> <status> [--detail <t>] [--plan <relpath>] [--bump-attempts] [--force]
 #   sprint-state.sh stale <sprint> [<hours>]        exit 0 = claim older than <hours> (default $DSF_STALE_HOURS or 6)
+#   sprint-state.sh assert-branch <sprint> [--target integration|live]   exit 0 = on expected branch
 #
 # SPRINTS_DIR overrides docs/sprints (relative to the git top level). Exit 2 on any usage/state error.
 set -euo pipefail
@@ -19,7 +20,7 @@ DEFAULT_LIVE="$( (git -C "$ROOT" symbolic-ref --short refs/remotes/origin/HEAD 2
 export DSF_DEFAULT_LIVE="${DEFAULT_LIVE:-main}"
 export DSF_HOSTNAME="$(hostname -s 2>/dev/null || hostname)"
 exec python3 - "$DIR" "$@" <<'PY'
-import json, os, sys, glob, re, tempfile
+import json, os, sys, glob, re, tempfile, subprocess
 from datetime import datetime, timezone, timedelta
 
 SPRINT_STATES = ["drafting", "ready-to-plan", "planning", "planned", "executing", "complete", "blocked"]
@@ -89,11 +90,17 @@ def cmd_new(base, args):
 def cmd_list(base, args):
     want = args[0] if args else None
     if want and want not in SPRINT_STATES: die(f"unknown status {want}")
+    no_color = os.environ.get("NO_COLOR") is not None
+    styled = not no_color and (sys.stdout.isatty() or os.environ.get("DSF_FORCE_STYLE") == "1")
     for p in sorted(glob.glob(os.path.join(base, "*", "sprint.json"))):
         with open(p) as f: m = json.load(f)
         if want and m.get("status") != want: continue
         c = m.get("claim") or {}
-        print("\t".join([m["sprint"], m["status"], c.get("by", "-"), c.get("at", "-")]))
+        stories = m.get("stories", [])
+        total = len(stories)
+        done = sum(1 for s in stories if s["status"] == "done")
+        counts = f"\033[1m{done}/{total}\033[0m" if styled else f"{done}/{total}"
+        print("\t".join([m["sprint"], m["status"], c.get("by", "-"), c.get("at", "-"), counts]))
 
 def cmd_get(base, args):
     if len(args) != 1: die("get <sprint>")
@@ -163,11 +170,28 @@ def cmd_stale(base, args):
     print(f"{'stale' if stale else 'fresh'}\t{c['by']}\tage={int(age.total_seconds())}s")
     sys.exit(0 if stale else 1)
 
+def cmd_assert_branch(base, args):
+    target, args = opt(args, "--target", "integration")
+    if len(args) != 1: die("assert-branch <sprint> [--target integration|live]")
+    if target not in {"integration", "live"}: die("--target must be integration or live")
+    name = args[0]
+    m = load(base, name)
+    branch = m.get("branch", {})
+    resolved = target
+    if resolved == "integration" and branch.get("integration") == "none":
+        resolved = "live"
+    expected = branch.get(resolved)
+    if not expected: die(f"{name}: no {resolved} branch configured")
+    actual = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True).stdout.strip()
+    if actual == expected: return
+    print(f"assert-branch: expected on '{name}' {resolved} branch '{expected}', but currently on '{actual}'", file=sys.stderr)
+    sys.exit(1)
+
 def main():
     base, args = sys.argv[1], sys.argv[2:]
-    if not args: die("usage: new|list|get|set|story|stale (see header)")
+    if not args: die("usage: new|list|get|set|story|stale|assert-branch (see header)")
     cmd, rest = args[0], args[1:]
-    {"new": cmd_new, "list": cmd_list, "get": cmd_get, "set": cmd_set, "story": cmd_story, "stale": cmd_stale}.get(cmd, lambda b, a: die(f"unknown command {cmd}"))(base, rest)
+    {"new": cmd_new, "list": cmd_list, "get": cmd_get, "set": cmd_set, "story": cmd_story, "stale": cmd_stale, "assert-branch": cmd_assert_branch}.get(cmd, lambda b, a: die(f"unknown command {cmd}"))(base, rest)
 
 main()
 PY

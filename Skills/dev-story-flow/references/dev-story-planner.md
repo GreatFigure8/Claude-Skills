@@ -33,6 +33,13 @@ $SS set <sprint> planning --by "$ID"
 git add docs/sprints/<sprint>/sprint.json && git commit -qm "chore(sprint): <sprint> planning" && git push -q
 ```
 
+Also write the active-epic signal, the same mechanism `dev-story-coder.md` uses on its claim:
+
+```bash
+mkdir -p .claude/signals
+printf '.claude/stories/<sprint>\n' > .claude/signals/active-epic
+```
+
 ### 2. Read the stories, decide precedence and model
 
 Read each `story.md` once — frontmatter, *Dependencies*, *Specification* headings, AC list.
@@ -168,6 +175,7 @@ Stories: <k>   Items: <total>   Waves: <n>
 ```bash
 $SS set <sprint> planned
 git add docs/sprints/<sprint> && git commit -qm "docs(sprint): <sprint> planned — <k> stories, <n> items" && git push -q
+rm -f .claude/signals/active-epic
 ```
 
 That status change **is** the hand-off; the coder discovers work with `sprint-state.sh list
@@ -184,6 +192,19 @@ index, a GitHub label — rejected for the reasons in sprint-state.md. The manif
 per-story `plan` paths too, so the coder never has to guess file names.
 
 ### 7. Repeat for the next `ready-to-plan` sprint, then end.
+
+### Stopping point at 160k
+
+At 160k, stop launching planner sub-agents and wait for none to still be running. For each
+story whose plan file already exists on disk, mark it `planned` at the story level:
+
+```bash
+$SS story set <sprint> <slug> planned --plan <slug>/<slug>-plan.md
+```
+
+The sprint itself stays `planning`, its claim intact — a resuming planner reuses the same
+`--by` id from the prompt, or takes over a stale claim. Commit, push, then `Skill({skill:
+"clear-prompt", args: "dev-story-flow plan <sprint>"})`.
 
 ## Rules
 
