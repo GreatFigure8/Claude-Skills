@@ -28,6 +28,23 @@ check "list filters by status"              '[ "$("$SS" list drafting | wc -l | 
 check "list rejects unknown status"         '! "$SS" list bogus 2>/dev/null'
 check "list fresh sprint trailing 0/0"      '[ "$("$SS" list | grep "^$S1" | cut -f5)" = "0/0" ]'
 
+esc_count() { "$SS" list | python3 -c 'import sys; sys.stdout.write(str(sys.stdin.buffer.read().count(b"\x1b")))'; }
+field5_styled() {
+  DSF_FORCE_STYLE=1 "$SS" list | python3 -c '
+import sys
+for line in sys.stdin:
+    fields = line.rstrip("\n").split("\t")
+    if len(fields) != 5: sys.exit(1)
+    for f in fields[:4]:
+        if "\x1b" in f: sys.exit(1)
+    counts = fields[4]
+    if not (counts.startswith("\x1b[1m") and counts.endswith("\x1b[0m")): sys.exit(1)
+'
+}
+check "piped list (no env) has zero escape bytes"        '[ "$(esc_count)" = 0 ]'
+check "DSF_FORCE_STYLE styles field 5 only"               'field5_styled'
+check "NO_COLOR beats DSF_FORCE_STYLE (byte-identical)"    'cmp -s <(NO_COLOR=1 DSF_FORCE_STYLE=1 "$SS" list) <("$SS" list | cat)'
+
 # --- story add -----------------------------------------------------------------------------
 check "story add ok"                        '"$SS" story add "$S1" create-home-page --title "Create the home page" --kind interactive >/dev/null'
 check "second story add ok"                 '"$SS" story add "$S1" add-chat-endpoint --title "Chat endpoint" --kind service >/dev/null'
