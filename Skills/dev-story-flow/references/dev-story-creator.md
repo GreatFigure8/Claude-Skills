@@ -174,6 +174,28 @@ with stale flags), a line in a central index (merge conflicts across sessions), 
 The creator does not plan and does not code. A story added after the sprint is
 `ready-to-plan` starts a **new** sprint (step 1 will find no `drafting` sprint and create one).
 
+### Stopping point at 160k
+
+At 160k, finish writing and committing the story currently in hand — do not start intake of
+another one. Then:
+
+- **The sprint has ≥ 1 story:** close it the way step 5's `run clean` variant does. Set it
+  `ready-to-plan`, commit, and push:
+  ```bash
+  $SS set <sprint> ready-to-plan --by creator
+  git add docs/sprints/<sprint>/sprint.json && git commit -m "chore(sprint): <sprint> ready to plan (<k> stories)" && git push
+  ```
+  then post that same variant's hand-off, in its own voice: confirm the working tree is clean
+  and pushed, and post exactly the sprint name, its story slugs, and the line to paste —
+  `/goal using dev-story-flow run` — with one sentence saying the chat is about to clear.
+- **The sprint has zero stories:** leave it `drafting` — no status change, nothing to commit
+  on `sprint.json` — and post the existing `create` line instead: the sprint name (still
+  drafting) and the line to paste, `/goal using dev-story-flow create`, with the same
+  one-sentence notice that the chat is about to clear.
+
+Either way the session then clears: `mcp__ccd_session_mgmt__clear_session` with
+`session_id: "self"` when available, else say `/clear` and paste the line.
+
 ## Rules
 
 - Requirements and acceptance criteria Jonathan states are recorded **verbatim** before being
