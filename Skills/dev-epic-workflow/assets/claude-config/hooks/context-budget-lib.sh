@@ -113,6 +113,81 @@ resolve_thresholds() {
   fi
 }
 
+# --- Final handoff sentence for the STOP-band nudge and the HARD-band deny. --
+# $1 = signals dir (same convention as resolve_mode). Prints the sentence on
+# stdout; sets nothing. Self-contained — does NOT read MODE/HANDOFF from a
+# prior resolve_mode call, so it gives the same answer whenever it runs.
+#
+# UNIT: the story-sprint slug named by .claude/signals/active-epic's first
+# non-empty line, when that line names a path under .claude/stories/ — the
+# path segment immediately after that marker, same trim/first-line rule
+# resolve_mode uses to decide MODE=sprint. No such line -> epic mode, no UNIT.
+#
+# Sprint mode (UNIT resolved): which /clear-prompt invocation matches the
+# phase recorded in docs/sprints/<UNIT>/sprint.json's top-level "status"
+# (planning -> plan, executing -> execute); no matching manifest, or any
+# other status, falls back to the plain dev-story-sprint caller.
+handoff_sentence() {
+  HS_SIGNALS_DIR="${1:-.claude/signals}"
+  HS_SPRINT_LINE=no
+  HS_UNIT=""
+  HS_ACTIVE_EPIC="$HS_SIGNALS_DIR/active-epic"
+  if [ -f "$HS_ACTIVE_EPIC" ] && [ -r "$HS_ACTIVE_EPIC" ]; then
+    while IFS= read -r HS_LINE || [ -n "$HS_LINE" ]; do
+      HS_LINE="${HS_LINE%$'\r'}"
+      HS_LINE="${HS_LINE#"${HS_LINE%%[![:space:]]*}"}"
+      HS_LINE="${HS_LINE%"${HS_LINE##*[![:space:]]}"}"
+      [ -n "$HS_LINE" ] || continue
+      case "$HS_LINE" in
+        *".claude/stories/"*)
+          HS_SPRINT_LINE=yes
+          HS_REST="${HS_LINE#*.claude/stories/}"
+          HS_UNIT="${HS_REST%%/*}"
+          ;;
+      esac
+      break
+    done < "$HS_ACTIVE_EPIC"
+  fi
+
+  # Genuinely no sprint signal at all -> epic mode.
+  if [ "$HS_SPRINT_LINE" = no ]; then
+    printf '%s' "Then write docs/epics/handoff.md per dev-epic-workflow's /handoff and commit it."
+    return 0
+  fi
+
+  # Sprint signal present but no usable unit segment after it — neither the
+  # sprint case nor the epic case resolves cleanly. Do not invent wording:
+  # repeat the gate's own already-resolved generic reference.
+  if [ -z "$HS_UNIT" ]; then
+    printf '%s' "${HANDOFF:-}"
+    return 0
+  fi
+
+  # Canonical repo root — same resolution subagent-lifecycle.sh uses, so a
+  # linked worktree still finds the manifest at the MAIN checkout's root.
+  HS_REPO_ROOT="$(git rev-parse --path-format=absolute --git-common-dir 2> /dev/null || true)"
+  if [ -n "$HS_REPO_ROOT" ]; then
+    HS_REPO_ROOT="$(dirname "$HS_REPO_ROOT" 2> /dev/null || true)"
+  else
+    HS_REPO_ROOT="$(git rev-parse --show-toplevel 2> /dev/null || true)"
+  fi
+  [ -n "$HS_REPO_ROOT" ] && [ -d "$HS_REPO_ROOT" ] || HS_REPO_ROOT="$(pwd)"
+
+  HS_CALLER="dev-story-sprint"
+  HS_MANIFEST="$HS_REPO_ROOT/docs/sprints/$HS_UNIT/sprint.json"
+  if [ -f "$HS_MANIFEST" ] && [ -r "$HS_MANIFEST" ]; then
+    HS_STATUS="$(grep -m1 -E '^  "status"[[:space:]]*:' "$HS_MANIFEST" 2> /dev/null \
+      | sed -E 's/.*:[[:space:]]*"([^"]*)".*/\1/' 2> /dev/null || true)"
+    case "$HS_STATUS" in
+      planning) HS_CALLER="dev-story-flow plan" ;;
+      executing) HS_CALLER="dev-story-flow execute" ;;
+      *) HS_CALLER="dev-story-sprint" ;;
+    esac
+  fi
+
+  printf '%s' "Then call Skill({skill: \"clear-prompt\", args: \"${HS_CALLER} ${HS_UNIT}\"}) — it posts the hand-off and clears this session."
+}
+
 # --- Parse the sentinel: plain key=value lines, last wins, keys we know only. -
 # $1 = sentinel path. Sets EPOCH, USED_TOKENS, MAX_TOKENS, USED_PCT (each ""
 # when the file omits it — the sentinel OMITS unknowns, never empties them).
