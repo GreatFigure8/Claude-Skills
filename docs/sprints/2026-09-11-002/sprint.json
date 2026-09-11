@@ -1,16 +1,13 @@
 {
   "sprint": "2026-09-11-002",
-  "status": "executing",
+  "status": "complete",
   "created": "2026-09-11T17:23:23Z",
-  "updated": "2026-09-11T19:10:51Z",
+  "updated": "2026-09-11T19:12:36Z",
   "branch": {
     "live": "dev",
     "integration": "sprint/2026-09-11-002"
   },
-  "claim": {
-    "by": "coder-Jonathans-MacBook-Pro-20260911T182120Z",
-    "at": "2026-09-11T18:21:20Z"
-  },
+  "claim": null,
   "stories": [
     {
       "slug": "flow-stopping-point-160k",
@@ -58,6 +55,11 @@
       "at": "2026-09-11T18:21:20Z",
       "status": "executing",
       "by": "coder-Jonathans-MacBook-Pro-20260911T182120Z"
+    },
+    {
+      "at": "2026-09-11T19:12:36Z",
+      "status": "complete",
+      "by": "Jonathans-MacBook-Pro-20260911T191236Z"
     }
   ]
 }
