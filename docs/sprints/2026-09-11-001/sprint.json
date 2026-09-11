@@ -2,13 +2,36 @@
   "sprint": "2026-09-11-001",
   "status": "drafting",
   "created": "2026-09-11T03:30:10Z",
-  "updated": "2026-09-11T03:30:10Z",
+  "updated": "2026-09-11T03:33:34Z",
   "branch": {
     "live": "main",
     "integration": "none"
   },
   "claim": null,
-  "stories": [],
+  "stories": [
+    {
+      "slug": "list-story-counts",
+      "title": "Show story counts in sprint-state list",
+      "kind": "service",
+      "issue": 112,
+      "status": "drafted",
+      "plan": null,
+      "attempts": 0,
+      "detail": "",
+      "updated": "2026-09-11T03:33:33Z"
+    },
+    {
+      "slug": "emphasize-story-counts",
+      "title": "Emphasize story counts on a terminal",
+      "kind": "service",
+      "issue": 113,
+      "status": "drafted",
+      "plan": null,
+      "attempts": 0,
+      "detail": "",
+      "updated": "2026-09-11T03:33:34Z"
+    }
+  ],
   "history": [
     {
       "at": "2026-09-11T03:30:10Z",
