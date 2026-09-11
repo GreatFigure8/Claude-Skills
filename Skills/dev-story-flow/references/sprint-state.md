@@ -114,3 +114,6 @@ sprint-state.sh stale <sprint> [<hours>]                                → exit
 `SPRINTS_DIR` overrides `docs/sprints` (relative to the git top level). Every write is atomic
 (temp file + `mv`) and is followed by a commit by the calling phase — a manifest change that
 is not committed does not exist to the next session.
+
+`list`'s `done/total` field is bold when stdout is a TTY or `DSF_FORCE_STYLE=1` is set, unless
+`NO_COLOR` is set, which always wins.
