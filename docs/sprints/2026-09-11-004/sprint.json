@@ -1,0 +1,65 @@
+{
+  "sprint": "2026-09-11-004",
+  "status": "complete",
+  "created": "2026-09-11T20:46:56Z",
+  "updated": "2026-09-11T21:14:00Z",
+  "branch": {
+    "live": "dev",
+    "integration": "sprint/2026-09-11-004"
+  },
+  "claim": null,
+  "stories": [
+    {
+      "slug": "fix-install-matcher-upgrade",
+      "title": "install.sh settings merge must update a stale matcher on an existing hook",
+      "kind": "service",
+      "status": "done",
+      "plan": "fix-install-matcher-upgrade/fix-install-matcher-upgrade-plan.md",
+      "attempts": 0,
+      "detail": "validated 2026-09-11T20:55Z",
+      "updated": "2026-09-11T20:55:14Z"
+    },
+    {
+      "slug": "fix-refresh-live-git-c-cwd",
+      "title": "refresh-live-post-push.sh must recognize git -C <worktree> push",
+      "kind": "service",
+      "status": "done",
+      "plan": "fix-refresh-live-git-c-cwd/fix-refresh-live-git-c-cwd-plan.md",
+      "attempts": 1,
+      "detail": "validated 2026-09-11T21:10Z, attempts=1",
+      "updated": "2026-09-11T21:13:25Z"
+    }
+  ],
+  "history": [
+    {
+      "at": "2026-09-11T20:46:56Z",
+      "status": "drafting",
+      "by": "creator"
+    },
+    {
+      "at": "2026-09-11T20:48:14Z",
+      "status": "ready-to-plan",
+      "by": "creator"
+    },
+    {
+      "at": "2026-09-11T20:48:26Z",
+      "status": "planning",
+      "by": "planner-Jonathans-MacBook-Pro.local-20260911T204825Z"
+    },
+    {
+      "at": "2026-09-11T20:50:02Z",
+      "status": "planned",
+      "by": "Jonathans-MacBook-Pro-20260911T205002Z"
+    },
+    {
+      "at": "2026-09-11T20:50:28Z",
+      "status": "executing",
+      "by": "coder-Jonathans-MacBook-Pro.local-20260911T205028Z"
+    },
+    {
+      "at": "2026-09-11T21:14:00Z",
+      "status": "complete",
+      "by": "Jonathans-MacBook-Pro-20260911T211400Z"
+    }
+  ]
+}

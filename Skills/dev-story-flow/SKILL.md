@@ -1,6 +1,6 @@
 ---
 name: dev-story-flow
-description: Jonathan's three-phase, file-driven pipeline for shipping a whole sprint of user stories autonomously — CREATE (conversational intake that turns each story into a specification-grade story.md under docs/sprints/<sprint>/), PLAN (silent parallel sub-agents write one execution plan per story plus a sprint impl-plan.md), EXECUTE (silent parallel executors build every planned sprint, validate each story's acceptance criteria against the running result, fix and re-validate, merge to live, mark the sprint complete — no go-ahead awaited). Phases hand off through a committed sprint.json state machine (drafting → ready-to-plan → planning → planned → executing → complete), so any phase can run in any session and pick up where the last left off. Use whenever Jonathan says "dev-story-flow", "/goal using dev-story-flow …", "new sprint", "add a story to the sprint", "sprint complete / documentation complete / send it to planning", "plan the sprints", "execute the planned sprints", "run the flow until all planned sprints are complete", or asks what state a sprint is in. Do NOT use for a single story with no sprint folder (that is dev-story-sprint) or for issue-tracker intake and epic planning (dev-epic-workflow).
+description: Jonathan's three-phase, file-driven pipeline for shipping a whole sprint of user stories autonomously — CREATE (intake turns each story into a story.md file under docs/sprints), PLAN (parallel sub-agents write each story's plan plus a sprint impl-plan.md), EXECUTE (parallel executors build every planned story, validate acceptance criteria, fix and re-validate, merge to live, mark complete — no go-ahead awaited). Phases hand off through a committed sprint.json state machine (drafting → ready-to-plan → planning → planned → executing → complete), so any phase can run in any session. Use whenever Jonathan says "dev-story-flow", "/goal using dev-story-flow …", "new sprint", "add a story to the sprint", "sprint/documentation complete", "plan the sprints", "execute the planned sprints", "run the flow until all planned sprints are complete", or asks what state a sprint is in. Do NOT use for a single story with no sprint folder (dev-story-sprint) or issue-tracker intake and epic planning (dev-epic-workflow).
 ---
 
 # Dev Story Flow
@@ -77,8 +77,10 @@ planner and coder start from zero at the cost of one paste.
 5. **Maximum parallelism.** Planners: every story of a sprint in one message. Executors: every
    dependency-met item across all stories of the sprint in one message, waves not queues.
 6. **Executors run through `story-item-executor`** with `isolation: "worktree"`, always, using
-   `dev-story-sprint`'s dispatch template, control plane (`status.json`, cancel sentinel) and
-   land-and-reset merge. This skill adds no new agents or hooks.
+   this skill's own dispatch template, control plane (`status.json`, cancel sentinel) and
+   land-and-reset merge — see [references/dev-story-coder.md](references/dev-story-coder.md).
+   The agent and its supporting hooks are this skill's own assets (`assets/agents`,
+   `assets/claude-config`), installed by `assets/install.sh`.
 7. **Acceptance criteria are proven, not asserted.** A story is `done` only when every row of
    its plan's Validation table passed against the integration branch and the results are in
    `<slug>/validation.md`. Service stories: unit gate + integration script against the running
@@ -92,14 +94,15 @@ planner and coder start from zero at the cost of one paste.
    reading of the global TDD rule; executors otherwise follow `story-item-executor`'s no-TDD
    instruction because their tests arrive as their own items.
 10. **Budget: stop dispatching at 150k, find a stopping point at 160k, never pass 165k** —
-    `context-budget-gate.sh` enforces it. At 150k, land what is in flight and stop dispatching
-    new work. At 160k, run the per-phase stopping-point procedure below (each phase's reference
-    doc has a "Stopping point at 160k" subsection), make `sprint.json` truthful, commit, and call
-    `Skill({skill: "clear-prompt", args: "dev-story-flow <phase> <sprint>"})`. At 165k the gate
-    hard-denies further tool calls. Because state is on disk, resumption is the same objective
-    again in a fresh chat. Past the stop threshold, a Stop hook (`handoff-stop-gate.sh`) won't
-    let the turn end until the `clear-prompt` skill has posted the hand-off block, and
-    `clear-prompt` clears the session itself once it has posted.
+    this skill's own `context-budget-gate.sh` (`assets/claude-config/hooks/`) enforces it. At
+    150k, land what is in flight and stop dispatching new work. At 160k, run the per-phase
+    stopping-point procedure below (each phase's reference doc has a "Stopping point at 160k"
+    subsection), make `sprint.json` truthful, commit, and call `Skill({skill: "clear-prompt",
+    args: "dev-story-flow <phase> <sprint>"})`. At 165k the gate hard-denies further tool
+    calls. Because state is on disk, resumption is the same objective again in a fresh chat.
+    Past the stop threshold, this skill's own Stop hook (`handoff-stop-gate.sh`) won't let the
+    turn end until the `clear-prompt` skill has posted the hand-off block, and `clear-prompt`
+    clears the session itself once it has posted.
 11. **Never guess.** Read the manifest, the plan, the repo. "Not verified" is a complete
     sentence and a non-`done` story.
 
@@ -129,25 +132,32 @@ Helper, from any repo:
 | Unit | one story, planned in chat | many stories, planned to files, executed as sprints | epics with tracked work items |
 | Documents | none | `docs/sprints/<sprint>/…` | `docs/epics/<NN>-…/plan.md`, handoff |
 | Human gate | "go" before wave 1 | sprint close in CREATE; review before EXECUTE | plan approval, PR review |
-| Executor | story-item-executor | story-item-executor (reused) | work-item-executor |
+| Executor | story-item-executor | story-item-executor (own copy) | work-item-executor |
 | Resume | prep-for-clear prompt | manifest on disk (+ prep-for-clear) | handoff.md |
 
 If a story is one-off and Jonathan wants it now, that is a sprint. If it needs issue intake,
 epic numbering, PR ceremony, or a retro, that is an epic. Everything in between — a batch of
 stories specified once and shipped unattended — is this flow.
 
-## Install (once per machine)
+## Install (once per machine, and again after any change you want live)
 
 ```bash
-bash ~/Source/claude-skills-main/Skills/dev-story-flow/assets/install.sh
+bash ~/Source/claude-skills/Skills/dev-story-flow/assets/install.sh
 ```
 
-Symlinks `~/.claude/skills/dev-story-flow` and `~/.claude/skills/goal` into the live worktree,
-which is permanently checked out on `main` (claude-skills `CLAUDE.md` rule 3; dev-story-sprint's
-Install explains the worktree and the post-push hook that keeps it current). Requires
-dev-story-sprint's install (for `story-item-executor`) and dev-epic-workflow's user-level
-install (cancel gate, lifecycle hook, context-budget gate); the installer warns when either is
-missing. Tests: `bash assets/tests/sprint-state-fixtures.sh`.
+Symlinks `~/.claude/skills/dev-story-flow` and `~/.claude/skills/goal` into the working
+checkout. There is no separate worktree pinned to `main` — whatever branch is checked out in
+`~/Source/claude-skills` (and any uncommitted edit) is what every repo on the machine loads
+through these symlinks (claude-skills `CLAUDE.md` rule 3), and nothing refreshes that
+automatically, so re-run this script whenever you want the global copy to pick up a change.
+The installer also copies this skill's own `story-item-executor` agent to `~/.claude/agents/`
+and its own control-plane hooks (cancel gate, subagent lifecycle, context-budget gate,
+hand-off-stop gate, statusline) to `~/.claude/hooks/`, merging their wiring into
+`~/.claude/settings.json` — no separate install of `dev-story-sprint` or `dev-epic-workflow`
+is required. If either sibling skill is also installed, their same-named files are
+functionally interchangeable with these (same shared conventions); whichever installer ran
+last simply wins at the shared destination path.
+Tests: `bash assets/tests/sprint-state-fixtures.sh`.
 
 ## What this skill overrides from the global rules
 

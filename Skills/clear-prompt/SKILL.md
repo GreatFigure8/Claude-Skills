@@ -1,6 +1,6 @@
 ---
 name: clear-prompt
-description: Compose and post a "prep-for-clear" prompt — a single chat-posted, fenced block that lets a coding session hand off cleanly to a fresh context window without losing state. Use this whenever an orchestrating session (dev-story-sprint calls it via its rule 9 token-budget gate; dev-epic-workflow calls it right after filing an approved plan and linking the tracker, before anything is dispatched, to post the "epic filed" block Jonathan pastes to start the coding session; any other long-running orchestrator can call it too) has decided it needs to stop and move to a new chat — approaching its token budget, finishing a clean unit of work mid-story, or Jonathan asking to "clear", "prep for clear", "wrap this context", "move to a new window", or "what do I paste into the next session". This is NOT the on-disk /handoff used by dev-epic-workflow mid-epic (docs/epics/handoff.md, committed to the repo) — it produces a copy-paste resumption prompt Jonathan pastes straight into a fresh chat, and touches disk only for a token/context-budget-triggered stop, when it also writes the same block verbatim to a gitignored `.claude/signals/prep-for-clear-<session-slug>.md` so the Stop hook and the next session's start hook can find it; a Jonathan-requested clear touches nothing. Always reach for this instead of improvising an ad hoc summary — the Verified / Claimed-but-NOT-verified split is what makes the next session trustworthy instead of guessing.
+description: Compose and post a "prep-for-clear" prompt — a single chat-posted, fenced block that lets a coding session hand off cleanly to a fresh context window without losing state. Use this whenever an orchestrating session (dev-story-sprint calls it via its rule 9 token-budget gate; dev-epic-workflow calls it right after filing an approved plan and linking the tracker, before anything is dispatched, to post the "epic filed" block Jonathan pastes to start the coding session; any other long-running orchestrator can call it too) has decided it needs to stop and move to a new chat — approaching its token budget, finishing a clean unit of work mid-story, or Jonathan asking to "clear", "prep for clear", "wrap this context", "move to a new window", or "what do I paste into the next session". This is NOT the on-disk /handoff used by dev-epic-workflow mid-epic (docs/epics/handoff.md, committed to the repo) — it produces a copy-paste resumption prompt Jonathan pastes straight into a fresh chat, and touches disk only for a token/context-budget-triggered stop, when it also writes the same block verbatim to a gitignored `.claude/signals/prep-for-clear-SESSION-SLUG.md` so the Stop hook and the next session's start hook can find it; a Jonathan-requested clear touches nothing. Always reach for this instead of improvising an ad hoc summary — the Verified / Claimed-but-NOT-verified split is what makes the next session trustworthy instead of guessing.
 ---
 
 # Clear Prompt
@@ -137,10 +137,12 @@ When a fresh session receives a pasted `<caller> prep-for-clear` block, it treat
 
 ## Install
 
-This skill is markdown — no scripts, hooks, or bundled agents — except for the single gitignored signal file it writes on a budget-triggered stop (see "Posting it"). To make it loadable by name, symlink it into the same pinned worktree the other orchestration skills use, so a `git switch` in the dev checkout never changes what Claude Code loads:
+This skill is markdown — no scripts, hooks, or bundled agents — except for the single gitignored signal file it writes on a budget-triggered stop (see "Posting it"). To make it loadable by name, symlink it into the working checkout the same way the other orchestration skills do:
 
 ```bash
-ln -s ~/Source/claude-skills-main/Skills/clear-prompt ~/.claude/skills/clear-prompt
+ln -s ~/Source/claude-skills/Skills/clear-prompt ~/.claude/skills/clear-prompt
 ```
 
-Run once per machine, from a checkout where `~/Source/claude-skills-main` already exists as a worktree detached at `origin/main` (see `dev-story-sprint`'s Install section if it doesn't yet). No separate install script is needed — there's nothing here that needs merging into `settings.json` or registering as a hook.
+There is no separate worktree pinned to `main` — this symlink follows whatever is currently
+checked out in `~/Source/claude-skills` (`CLAUDE.md` rule 3). No separate install script is
+needed — there's nothing here that needs merging into `settings.json` or registering as a hook.
