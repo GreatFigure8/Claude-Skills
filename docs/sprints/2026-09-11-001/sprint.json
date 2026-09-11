@@ -1,8 +1,8 @@
 {
   "sprint": "2026-09-11-001",
-  "status": "drafting",
+  "status": "ready-to-plan",
   "created": "2026-09-11T03:30:10Z",
-  "updated": "2026-09-11T03:33:34Z",
+  "updated": "2026-09-11T03:33:35Z",
   "branch": {
     "live": "main",
     "integration": "none"
@@ -36,6 +36,11 @@
     {
       "at": "2026-09-11T03:30:10Z",
       "status": "drafting",
+      "by": "creator"
+    },
+    {
+      "at": "2026-09-11T03:33:35Z",
+      "status": "ready-to-plan",
       "by": "creator"
     }
   ]
