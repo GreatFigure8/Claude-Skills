@@ -83,9 +83,16 @@ Dispatch **every ready item in one message**, one `Agent` call each:
   owned / Gates* from the plan row verbatim.
 
 As each executor returns: cold verify (`git log`/`git diff --stat` against the plan row, grep
-for promised symbols), merge with `--no-ff` into integration, delete the branch, prune, remove
-the status file, then dispatch whatever that merge unblocked — `dev-story-sprint` Step 3,
-unchanged. Conflicts go to a one-line Sonnet rebase item, never resolved in the main checkout.
+for promised symbols), then merge into integration:
+
+```bash
+$SS assert-branch <sprint> || exit 1        # abort/fix — do not merge on failure
+git fetch -q && git merge --no-ff -m "merge(<slug>): item <n> <branch>" origin/<branch> && git push origin <integration>
+```
+
+Delete the branch, prune, remove the status file, then dispatch whatever that merge unblocked —
+`dev-story-sprint` Step 3, unchanged. Conflicts go to a one-line Sonnet rebase item, never
+resolved in the main checkout.
 Mark the story `executing` on its first dispatch:
 
 ```bash
@@ -151,6 +158,7 @@ When every story is `done`: run the stack gates once on the integration branch a
 then merge to live (skip when `integration=none` — the last story's merge was the close):
 
 ```bash
+$SS assert-branch <sprint> --target live
 git fetch -q && git merge --no-ff -m "merge(sprint): <sprint> — <k> stories" origin/sprint/<sprint> && git push origin <live>
 git push origin --delete sprint/<sprint>
 ```
