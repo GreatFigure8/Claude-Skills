@@ -2,7 +2,7 @@
   "sprint": "2026-09-11-002",
   "status": "executing",
   "created": "2026-09-11T17:23:23Z",
-  "updated": "2026-09-11T18:21:20Z",
+  "updated": "2026-09-11T18:21:43Z",
   "branch": {
     "live": "dev",
     "integration": "sprint/2026-09-11-002"
@@ -16,11 +16,11 @@
       "slug": "flow-stopping-point-160k",
       "title": "dev-story-flow finds a stopping point at 160k tokens",
       "kind": "service",
-      "status": "planned",
+      "status": "executing",
       "plan": "flow-stopping-point-160k/flow-stopping-point-160k-plan.md",
       "attempts": 0,
       "detail": "",
-      "updated": "2026-09-11T18:12:36Z"
+      "updated": "2026-09-11T18:21:43Z"
     },
     {
       "slug": "auto-clear-prompt-at-stop",
