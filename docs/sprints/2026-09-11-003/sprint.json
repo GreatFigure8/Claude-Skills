@@ -2,7 +2,7 @@
   "sprint": "2026-09-11-003",
   "status": "executing",
   "created": "2026-09-11T18:00:19Z",
-  "updated": "2026-09-11T18:30:52Z",
+  "updated": "2026-09-11T18:31:53Z",
   "branch": {
     "live": "dev",
     "integration": "sprint/2026-09-11-003"
@@ -16,11 +16,11 @@
       "slug": "assert-branch-before-merge",
       "title": "Guard merges into a shared branch with a branch-identity check",
       "kind": "service",
-      "status": "validating",
+      "status": "done",
       "plan": "assert-branch-before-merge/assert-branch-before-merge-plan.md",
       "attempts": 0,
-      "detail": "",
-      "updated": "2026-09-11T18:30:52Z"
+      "detail": "validated 2026-09-11T18:40Z",
+      "updated": "2026-09-11T18:31:53Z"
     }
   ],
   "history": [
