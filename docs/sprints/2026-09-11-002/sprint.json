@@ -1,34 +1,33 @@
 {
   "sprint": "2026-09-11-002",
-  "status": "planning",
+  "status": "planned",
   "created": "2026-09-11T17:23:23Z",
-  "updated": "2026-09-11T18:09:02Z",
+  "updated": "2026-09-11T18:16:50Z",
   "branch": {
     "live": "dev",
     "integration": "sprint/2026-09-11-002"
   },
-  "claim": {
-    "by": "planner-Jonathans-MacBook-Pro.local-20260911T180902Z",
-    "at": "2026-09-11T18:09:02Z"
-  },
+  "claim": null,
   "stories": [
     {
       "slug": "flow-stopping-point-160k",
       "title": "dev-story-flow finds a stopping point at 160k tokens",
       "kind": "service",
-      "status": "drafted",
-      "plan": null,
+      "status": "planned",
+      "plan": "flow-stopping-point-160k/flow-stopping-point-160k-plan.md",
       "attempts": 0,
-      "detail": ""
+      "detail": "",
+      "updated": "2026-09-11T18:12:36Z"
     },
     {
       "slug": "auto-clear-prompt-at-stop",
       "title": "System runs clear-prompt at a token-limit stopping point",
       "kind": "service",
-      "status": "drafted",
-      "plan": null,
+      "status": "planned",
+      "plan": "auto-clear-prompt-at-stop/auto-clear-prompt-at-stop-plan.md",
       "attempts": 0,
-      "detail": ""
+      "detail": "",
+      "updated": "2026-09-11T18:16:50Z"
     }
   ],
   "history": [
@@ -46,6 +45,11 @@
       "at": "2026-09-11T18:09:02Z",
       "status": "planning",
       "by": "planner-Jonathans-MacBook-Pro.local-20260911T180902Z"
+    },
+    {
+      "at": "2026-09-11T18:16:50Z",
+      "status": "planned",
+      "by": "Jonathans-MacBook-Pro-20260911T181650Z"
     }
   ]
 }
