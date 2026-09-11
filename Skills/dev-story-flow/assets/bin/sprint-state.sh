@@ -89,11 +89,17 @@ def cmd_new(base, args):
 def cmd_list(base, args):
     want = args[0] if args else None
     if want and want not in SPRINT_STATES: die(f"unknown status {want}")
+    no_color = os.environ.get("NO_COLOR") is not None
+    styled = not no_color and (sys.stdout.isatty() or os.environ.get("DSF_FORCE_STYLE") == "1")
     for p in sorted(glob.glob(os.path.join(base, "*", "sprint.json"))):
         with open(p) as f: m = json.load(f)
         if want and m.get("status") != want: continue
         c = m.get("claim") or {}
-        print("\t".join([m["sprint"], m["status"], c.get("by", "-"), c.get("at", "-")]))
+        stories = m.get("stories", [])
+        total = len(stories)
+        done = sum(1 for s in stories if s["status"] == "done")
+        counts = f"\033[1m{done}/{total}\033[0m" if styled else f"{done}/{total}"
+        print("\t".join([m["sprint"], m["status"], c.get("by", "-"), c.get("at", "-"), counts]))
 
 def cmd_get(base, args):
     if len(args) != 1: die("get <sprint>")

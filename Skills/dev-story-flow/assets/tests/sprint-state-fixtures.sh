@@ -26,6 +26,24 @@ check "integration none honoured"           '[ "$(field "$S2" "m[\"branch\"][\"i
 check "list shows both"                     '[ "$("$SS" list | wc -l | tr -d " ")" = 2 ]'
 check "list filters by status"              '[ "$("$SS" list drafting | wc -l | tr -d " ")" = 2 ] && [ -z "$("$SS" list planned)" ]'
 check "list rejects unknown status"         '! "$SS" list bogus 2>/dev/null'
+check "list fresh sprint trailing 0/0"      '[ "$("$SS" list | grep "^$S1" | cut -f5)" = "0/0" ]'
+
+esc_count() { "$SS" list | python3 -c 'import sys; sys.stdout.write(str(sys.stdin.buffer.read().count(b"\x1b")))'; }
+field5_styled() {
+  DSF_FORCE_STYLE=1 "$SS" list | python3 -c '
+import sys
+for line in sys.stdin:
+    fields = line.rstrip("\n").split("\t")
+    if len(fields) != 5: sys.exit(1)
+    for f in fields[:4]:
+        if "\x1b" in f: sys.exit(1)
+    counts = fields[4]
+    if not (counts.startswith("\x1b[1m") and counts.endswith("\x1b[0m")): sys.exit(1)
+'
+}
+check "piped list (no env) has zero escape bytes"        '[ "$(esc_count)" = 0 ]'
+check "DSF_FORCE_STYLE styles field 5 only"               'field5_styled'
+check "NO_COLOR beats DSF_FORCE_STYLE (byte-identical)"    'cmp -s <(NO_COLOR=1 DSF_FORCE_STYLE=1 "$SS" list) <("$SS" list | cat)'
 
 # --- story add -----------------------------------------------------------------------------
 check "story add ok"                        '"$SS" story add "$S1" create-home-page --title "Create the home page" --kind interactive >/dev/null'
@@ -34,6 +52,7 @@ check "story add rejects --issue"           '! "$SS" story add "$S1" other --tit
 check "story add rejects dup slug"          '! "$SS" story add "$S1" create-home-page --title x --kind service 2>/dev/null'
 check "story add rejects bad kind"          '! "$SS" story add "$S1" other --title x --kind ui 2>/dev/null'
 check "story add rejects bad slug"          '! "$SS" story add "$S1" Bad_Slug --title x --kind service 2>/dev/null'
+check "list after 2 story adds shows 0/2"   '[ "$("$SS" list | grep "^$S1" | cut -f5)" = "0/2" ]'
 
 # --- sprint transitions --------------------------------------------------------------------
 check "illegal jump refused"                '! "$SS" set "$S1" complete 2>/dev/null'
@@ -56,6 +75,7 @@ check "validating -> executing bumps"       '"$SS" story set "$S1" create-home-p
 check "detail recorded"                     '[ "$(field "$S1" "m[\"stories\"][0][\"detail\"]")" = "AC-B1 failed" ]'
 check "story illegal jump refused"          '! "$SS" story set "$S1" create-home-page done 2>/dev/null'
 check "story --force allows jump"           '"$SS" story set "$S1" create-home-page done --force >/dev/null'
+check "list after one forced done shows 1/2" '[ "$("$SS" list | grep "^$S1" | cut -f5)" = "1/2" ]'
 check "story set unknown slug refused"      '! "$SS" story set "$S1" nope done 2>/dev/null'
 
 # --- completion / blocked / force ----------------------------------------------------------
