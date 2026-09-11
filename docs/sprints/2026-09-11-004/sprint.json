@@ -2,7 +2,7 @@
   "sprint": "2026-09-11-004",
   "status": "executing",
   "created": "2026-09-11T20:46:56Z",
-  "updated": "2026-09-11T20:55:14Z",
+  "updated": "2026-09-11T21:10:25Z",
   "branch": {
     "live": "dev",
     "integration": "sprint/2026-09-11-004"
@@ -28,9 +28,9 @@
       "kind": "service",
       "status": "executing",
       "plan": "fix-refresh-live-git-c-cwd/fix-refresh-live-git-c-cwd-plan.md",
-      "attempts": 0,
-      "detail": "",
-      "updated": "2026-09-11T20:50:46Z"
+      "attempts": 1,
+      "detail": "item1's push-detection substring check ('git push' in cmd) is defeated when -C <path> sits between git and push; dispatching fix",
+      "updated": "2026-09-11T21:10:25Z"
     }
   ],
   "history": [
