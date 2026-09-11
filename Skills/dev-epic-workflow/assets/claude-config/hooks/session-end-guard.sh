@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
 # SessionEnd hook — dev-epic-workflow uncommitted-work guard.
 # SessionEnd cannot block termination; instead it leaves a durable warning that
-# the next SessionStart injection will surface (then delete). Deliberately NOT
-# implemented as a Stop hook: Stop fires on every turn end and would fight
-# normal iterative flow / risk hook loops. Never fail: exit 0 always.
+# the next SessionStart injection will surface (then delete). A separate Stop
+# hook, handoff-stop-gate.sh, DOES block a turn from ending — once, past the
+# context-budget STOP threshold — safely, because it has three independent
+# loop guards: Claude Code's own `stop_hook_active` flag on the retry, a
+# once-per-session `.claude/signals/handoff-stop-gate-<slug>` marker written
+# before the block is ever printed, and Claude Code's hard cap of 8
+# consecutive blocks. This hook sweeps that marker on session end so a new
+# session starts with a clean slate. Never fail: exit 0 always.
 
 set -u
 cd "${CLAUDE_PROJECT_DIR:-$(pwd)}" 2>/dev/null || exit 0
 
 # Drain stdin.
 cat >/dev/null 2>&1 || true
+
+rm -f .claude/signals/handoff-stop-gate-* 2>/dev/null || true
 
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
 
