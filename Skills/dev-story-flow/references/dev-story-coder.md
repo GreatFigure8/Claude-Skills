@@ -207,7 +207,9 @@ $SS story set <sprint> <slug> executing --detail "branch <b> pushed, not merged"
 Substitute the real branch name for `<b>`. Use `validating` in place of `executing` if that
 story was already in `validating` when the trigger hit. Leave the sprint itself `executing`
 with its claim intact — do not touch `sprint.json`'s sprint-level status or claim. Commit,
-push, then `Skill({skill: "clear-prompt", args: "dev-story-flow execute <sprint>"})`.
+push, then `Skill({skill: "clear-prompt", args: "dev-story-flow execute <sprint>"})`. Past that
+threshold, a Stop hook (`handoff-stop-gate.sh`) won't let the turn end until `clear-prompt` has
+posted the hand-off block, and `clear-prompt` clears the session itself once it has posted.
 
 ## Rules
 
