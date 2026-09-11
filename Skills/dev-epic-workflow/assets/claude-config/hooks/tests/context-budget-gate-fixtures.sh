@@ -423,7 +423,7 @@ This session is past its context budget. Do NOT retry or route around this: disp
 another agent from here re-bills the whole context on every remaining turn.
 Stop dispatching immediately. Land what is already in flight (let running items finish,
 merge or record what they returned), then produce the dev-epic-workflow handoff at docs/epics/handoff.md, per dev-epic-workflow context budget.
-Everything already pushed is safe. Clear the session and resume from the handoff.
+Everything already pushed is safe. Clear the session and resume from the handoff. Then write docs/epics/handoff.md per dev-epic-workflow's /handoff and commit it.
 EOF
 
 : > "$GOLDEN/200000.out"
@@ -433,7 +433,7 @@ This session is past its context budget. Do NOT retry or route around this: disp
 another agent from here re-bills the whole context on every remaining turn.
 Stop dispatching immediately. Land what is already in flight (let running items finish,
 merge or record what they returned), then produce the dev-epic-workflow handoff at docs/epics/handoff.md, per dev-epic-workflow context budget.
-Everything already pushed is safe. Clear the session and resume from the handoff.
+Everything already pushed is safe. Clear the session and resume from the handoff. Then write docs/epics/handoff.md per dev-epic-workflow's /handoff and commit it.
 EOF
 
 for USED in 120000 149999 150000 200000; do
@@ -537,6 +537,55 @@ for FIX in agent-subagent bash-subagent; do
     check "L: $FIX used=$USED -> untouched [stdout]" empty "$(stdout_state)" full
   done
 done
+
+# =========================================================================
+# M: handoff_sentence — the appended last sentence on the STOP-band nudge
+#    (and, by construction, the HARD-band deny). Sprint mode with a matching
+#    docs/sprints/<UNIT>/sprint.json names the /clear-prompt phase that
+#    matches the manifest's status; sprint mode with no matching manifest
+#    falls back to the plain dev-story-sprint caller; epic mode names the
+#    dev-epic-workflow handoff file instead of any Skill() call.
+# =========================================================================
+echo
+echo "=== M: handoff_sentence appended to STOP-band / HARD-band text ==========="
+NOW="$(date +%s)"
+
+# M1: sprint mode, docs/sprints/<UNIT>/sprint.json present, status=executing.
+PROJ="$(newproj)"; sprint_signal "$PROJ"
+mkdir -p "$PROJ/docs/sprints/context-budget-gate"
+printf '{\n  "sprint": "context-budget-gate",\n  "status": "executing"\n}\n' \
+  > "$PROJ/docs/sprints/context-budget-gate/sprint.json"
+write_sentinel "$PROJ/.claude/signals/context-usage" "epoch=$NOW" "used_tokens=160000"
+run_gate "$PROJ" "$FX/bash-main-nosession.json" full
+check "M1: sprint+executing manifest -> allow [exit]" 0 "$RC" full
+case "$(cat "$SANDBOX/out")" in \
+  *'Skill({skill: \"clear-prompt\", args: \"dev-story-flow execute context-budget-gate\"})'*) M=ok ;; \
+  *) M=bad ;; \
+esac
+check "M1: stop-band text ends with dev-story-flow execute Skill() call" ok "$M" full
+
+# M2: sprint mode, no matching manifest at all -> plain dev-story-sprint.
+PROJ="$(newproj)"; sprint_signal "$PROJ"
+write_sentinel "$PROJ/.claude/signals/context-usage" "epoch=$NOW" "used_tokens=160000"
+run_gate "$PROJ" "$FX/bash-main-nosession.json" full
+check "M2: sprint, no manifest -> allow [exit]" 0 "$RC" full
+case "$(cat "$SANDBOX/out")" in \
+  *'Skill({skill: \"clear-prompt\", args: \"dev-story-sprint context-budget-gate\"})'*) M=ok ;; \
+  *) M=bad ;; \
+esac
+check "M2: stop-band text ends with dev-story-sprint Skill() call" ok "$M" full
+
+# M3: epic mode (no active-epic naming .claude/stories/) -> HARD-band deny
+# ends with the docs/epics/handoff.md sentence, not a Skill() call.
+PROJ="$(newproj)"
+write_sentinel "$PROJ/.claude/signals/context-usage" "epoch=$NOW" "used_tokens=200000"
+run_gate "$PROJ" "$FX/agent-main-nosession.json" full
+check "M3: epic mode, hard band -> deny [exit]" 2 "$RC" full
+case "$(cat "$SANDBOX/err")" in \
+  *"Then write docs/epics/handoff.md per dev-epic-workflow's /handoff and commit it."*) M=ok ;; \
+  *) M=bad ;; \
+esac
+check "M3: deny stderr ends with docs/epics/handoff.md sentence" ok "$M" full
 
 echo
 echo "cases: $CASES   failures: $FAILURES"

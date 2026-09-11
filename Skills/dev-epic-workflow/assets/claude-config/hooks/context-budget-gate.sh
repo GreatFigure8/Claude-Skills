@@ -195,7 +195,9 @@ print(json.dumps({"hookSpecificOutput":{"hookEventName":"PreToolUse","additional
   exit 0
 }
 
-STOP_TEXT="Context budget: this session is at ${MEASURE}, past the STOP threshold of ${STOP} (hard stop ${HARD}). Find a stopping point now, per ${RULE}: do not wait for running agents, do not start any new step. Make the on-disk state truthful (${STATE}), commit, push, then produce ${HANDOFF}. Everything already pushed is safe."
+HANDOFF_SENTENCE="$(handoff_sentence "$SIGNALS_DIR")"
+
+STOP_TEXT="Context budget: this session is at ${MEASURE}, past the STOP threshold of ${STOP} (hard stop ${HARD}). Find a stopping point now, per ${RULE}: do not wait for running agents, do not start any new step. Make the on-disk state truthful (${STATE}), commit, push, then produce ${HANDOFF}. Everything already pushed is safe. ${HANDOFF_SENTENCE}"
 
 if [ "$USED" -lt "$STOP" ]; then
   # Soft band [SOFT, STOP): only a dispatch tool gets the nudge; every other
@@ -222,6 +224,6 @@ fi
   echo "another agent from here re-bills the whole context on every remaining turn."
   echo "Stop dispatching immediately. Land what is already in flight (let running items finish,"
   echo "merge or record what they returned), then produce ${HANDOFF}, per ${RULE}."
-  echo "Everything already pushed is safe. Clear the session and resume from the handoff."
+  echo "Everything already pushed is safe. Clear the session and resume from the handoff. ${HANDOFF_SENTENCE}"
 } >&2
 exit 2
