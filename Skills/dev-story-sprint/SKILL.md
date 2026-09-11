@@ -124,11 +124,14 @@ The orchestrator never shared the executor's context, so it checks the summary t
 
 ```bash
 git fetch -q origin && git pull --ff-only                          # main checkout is on <integration>; verify with git branch --show-current
+sprint-state.sh assert-branch <sprint>
 git merge --no-ff -m "merge(<slug>): item <n> <branch> (#<n>)" origin/<branch> && git push origin <integration>
 git push origin --delete <branch>; git branch -d <branch> 2>/dev/null; git fetch --prune
 git worktree prune                                 # Agent-created worktrees are removed by the tool; this clears stale entries
 rm -f .claude/stories/<slug>/status/<branch-slug>.json
 ```
+
+`assert-branch` only fires when a `sprint.json` manifest exists — a bare `dev-story-sprint` run without one skips it.
 
 No pull request by default — the merge commit is the record, and skipping `gh pr create` / `gh pr merge` saves a round trip per item. When the dispatch said `PR: yes`, `gh pr merge <pr> --merge --delete-branch` replaces the first two lines.
 
@@ -144,7 +147,14 @@ No pull request by default — the merge commit is the record, and skipping `gh 
 
 ## Step 4 — Story done
 
-When every item is verified and merged: run the gates once on the integration branch as a whole, merge to live as a drop-in replacement — the merge commit message includes `Closes #<n>` — and tag if the story warranted a `pre-` tag. Then finish the issue — **comment first, then close**: `gh issue comment <n> --body "<what shipped: merge hashes/tag>"`, then `gh issue close <n>`. GitHub's auto-close on `Closes #<n>` fires only for merges to the repo's default branch, so the explicit close is the reliable half when live is not default; and when live *is* default, the issue is already closed by the time you get here and `gh issue close --comment` refuses with "already closed" and silently drops the comment. Commenting first is correct in both cases, and `gh issue close` on an already-closed issue is a harmless no-op. Then **one** closing message: what shipped (merge commits or PR links, tag), anything deferred, anything claimed-but-unverified. Then `rm -rf .claude/stories/<slug> .claude/signals/active-epic`. That's the whole retro.
+When every item is verified and merged: run the gates once on the integration branch as a whole, merge to live as a drop-in replacement:
+
+```bash
+sprint-state.sh assert-branch <sprint> --target live
+git merge --no-ff -m "merge(sprint): <sprint> — done" origin/<integration-or-branch> && git push origin <live>
+```
+
+— the merge commit message includes `Closes #<n>` — and tag if the story warranted a `pre-` tag. Then finish the issue — **comment first, then close**: `gh issue comment <n> --body "<what shipped: merge hashes/tag>"`, then `gh issue close <n>`. GitHub's auto-close on `Closes #<n>` fires only for merges to the repo's default branch, so the explicit close is the reliable half when live is not default; and when live *is* default, the issue is already closed by the time you get here and `gh issue close --comment` refuses with "already closed" and silently drops the comment. Commenting first is correct in both cases, and `gh issue close` on an already-closed issue is a harmless no-op. Then **one** closing message: what shipped (merge commits or PR links, tag), anything deferred, anything claimed-but-unverified. Then `rm -rf .claude/stories/<slug> .claude/signals/active-epic`. That's the whole retro.
 
 ## The token budget: stop dispatching at 150k, never pass 165k
 
