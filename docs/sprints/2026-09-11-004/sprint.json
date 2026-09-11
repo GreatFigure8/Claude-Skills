@@ -1,13 +1,16 @@
 {
   "sprint": "2026-09-11-004",
-  "status": "ready-to-plan",
+  "status": "planning",
   "created": "2026-09-11T20:46:56Z",
-  "updated": "2026-09-11T20:48:14Z",
+  "updated": "2026-09-11T20:48:26Z",
   "branch": {
     "live": "dev",
     "integration": "sprint/2026-09-11-004"
   },
-  "claim": null,
+  "claim": {
+    "by": "planner-Jonathans-MacBook-Pro.local-20260911T204825Z",
+    "at": "2026-09-11T20:48:26Z"
+  },
   "stories": [
     {
       "slug": "fix-install-matcher-upgrade",
@@ -38,6 +41,11 @@
       "at": "2026-09-11T20:48:14Z",
       "status": "ready-to-plan",
       "by": "creator"
+    },
+    {
+      "at": "2026-09-11T20:48:26Z",
+      "status": "planning",
+      "by": "planner-Jonathans-MacBook-Pro.local-20260911T204825Z"
     }
   ]
 }
