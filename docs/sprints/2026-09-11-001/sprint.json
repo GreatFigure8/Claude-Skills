@@ -2,7 +2,7 @@
   "sprint": "2026-09-11-001",
   "status": "executing",
   "created": "2026-09-11T03:30:10Z",
-  "updated": "2026-09-11T17:30:30Z",
+  "updated": "2026-09-11T17:30:36Z",
   "branch": {
     "live": "dev",
     "integration": "sprint/2026-09-11-001"
@@ -26,11 +26,11 @@
       "slug": "emphasize-story-counts",
       "title": "Emphasize story counts on a terminal",
       "kind": "service",
-      "status": "planned",
+      "status": "executing",
       "plan": "emphasize-story-counts/emphasize-story-counts-plan.md",
       "attempts": 0,
       "detail": "",
-      "updated": "2026-09-11T17:19:16Z"
+      "updated": "2026-09-11T17:30:36Z"
     }
   ],
   "history": [
