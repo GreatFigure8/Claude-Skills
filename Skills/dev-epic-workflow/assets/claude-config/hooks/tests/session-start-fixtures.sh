@@ -810,6 +810,40 @@ HOOK_UNDER_TEST="$HOOK"
 check "M: nothing on stderr through all of it" "" "$(cat "$SANDBOX/stderr.log")" "full"
 fi
 
+# ============================================================================
+echo
+echo "=== N. prep-for-clear sweep: printed once, then removed ================"
+echo "    (a not-yet-written Stop hook drops .claude/signals/prep-for-clear-*.md"
+echo "     right before a clear; only the newest is ever printed, and EVERY"
+echo "     match -- newest included -- is deleted so none can resurface later)"
+
+# --- N1. two files present: newest (by mtime) printed, both gone afterward ---
+R="$SANDBOX/N1"; mkrepo "$R"
+mkdir -p "$R/.claude/signals"
+sandboxed "$R/.claude/signals/prep-for-clear-aaa.md"
+printf 'older note, should not print\n' > "$R/.claude/signals/prep-for-clear-aaa.md"
+sleep 1
+printf 'newer note, should print\n' > "$R/.claude/signals/prep-for-clear-bbb.md"
+OUT="$(run_hook "$R" full)"
+check "N1: heading present exactly once" "1" \
+      "$(printf '%s' "$OUT" | grep -c '^### Prep-for-clear from the previous session' | tr -d ' ')" "full"
+check "N1: newest file's content is printed" "1" \
+      "$(printf '%s' "$OUT" | grep -c 'newer note, should print' | tr -d ' ')" "full"
+check "N1: the older file's content is NOT printed" "0" \
+      "$(printf '%s' "$OUT" | grep -c 'older note, should not print' | tr -d ' ')" "full"
+check "N1: both prep-for-clear files are deleted afterward" "gone" \
+      "$([ -e "$R/.claude/signals/prep-for-clear-aaa.md" ] || [ -e "$R/.claude/signals/prep-for-clear-bbb.md" ] \
+         && echo present || echo gone)" "full"
+
+# --- N2. none present: nothing related printed, no error --------------------
+R="$SANDBOX/N2"; mkrepo "$R"
+printf 'hello\n' > "$R/README.md"; commit_all "$R"
+OUT="$(run_hook "$R" full)"; RC=$?
+check "N2: exit status 0" "0" "$RC" "full"
+check "N2: no heading at all" "0" \
+      "$(printf '%s' "$OUT" | grep -c '^### Prep-for-clear from the previous session' | tr -d ' ')" "full"
+check "N2: rest of the injection still emitted" "1" \
+      "$(printf '%s' "$OUT" | grep -c '^## Session grounding' | tr -d ' ')" "full"
 
 echo
 echo "=== hook stderr (empty unless the hook errored on its own) ============="
