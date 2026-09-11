@@ -47,7 +47,7 @@
         ]
       },
       {
-        "matcher": "Agent",
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
