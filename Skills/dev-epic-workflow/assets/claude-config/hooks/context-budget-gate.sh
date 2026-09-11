@@ -29,6 +29,9 @@
 #   1. env CONTEXT_BUDGET_SOFT_TOKENS / CONTEXT_BUDGET_HARD_TOKENS
 #   2. .claude/context-budget            (`soft = 150000` / `hard = 165000`)
 #   3. defaults by MODE: sprint 150000/165000, epic 120000/150000
+# STOP resolves independently, same source order (env CONTEXT_BUDGET_STOP_TOKENS
+# -> .claude/context-budget `stop=` -> mode default): sprint 160000; epic
+# defaults to the resolved HARD, i.e. an empty/disabled STOP..HARD band.
 # MODE is `sprint` when .claude/signals/active-epic points at .claude/stories/,
 # else `epic`; it also picks which handoff the denial demands.
 #
@@ -78,11 +81,14 @@ except Exception: pass' 2> /dev/null || true ;;
   esac
 }
 
-# Fast path 1: wired without a matcher → only gate agent dispatch.
+# Fast path 1: wired without a matcher → any tool reaches the decide block
+# below, but only agent dispatch (Agent/Task, or no tool_name at all) counts
+# as a dispatch for the soft-band nudge and the hard-band deny; every other
+# tool only ever sees the stop-band nudge (allow) in the STOP..HARD band.
 TOOL_NAME="$(json_field tool_name)"
 case "$TOOL_NAME" in
-  '' | Agent | Task) ;;
-  *) exit 0 ;;
+  '' | Agent | Task) IS_DISPATCH=yes ;;
+  *) IS_DISPATCH=no ;;
 esac
 
 # Fast path 2: MAIN SESSION ONLY. Cheap pre-filter, then the real extraction —
@@ -173,23 +179,28 @@ if [ "$MODE" = sprint ]; then
   DEF_SOFT=150000; DEF_HARD=165000
   RULE="dev-story-sprint rule 9"
   HANDOFF="the dev-story-sprint prep-for-clear prompt"
+  STATE="sprint.json, with every in-flight story's pushed branch in its detail field"
 else
   DEF_SOFT=120000; DEF_HARD=150000
   RULE="dev-epic-workflow context budget"
   HANDOFF="the dev-epic-workflow handoff at docs/epics/handoff.md"
+  STATE="each in-flight item's status/<branch-slug>.json record, with its pushed branch in the detail field"
 fi
 
 # --- Thresholds: env, then .claude/context-budget, then mode defaults. --------
-SOFT=""; HARD=""
+SOFT=""; HARD=""; STOP=""
 if [ -n "${CONTEXT_BUDGET_SOFT_TOKENS:-}" ] || [ -n "${CONTEXT_BUDGET_HARD_TOKENS:-}" ]; then
   SOFT="${CONTEXT_BUDGET_SOFT_TOKENS:-}"
   HARD="${CONTEXT_BUDGET_HARD_TOKENS:-}"
 fi
+if [ -n "${CONTEXT_BUDGET_STOP_TOKENS:-}" ]; then
+  STOP="${CONTEXT_BUDGET_STOP_TOKENS:-}"
+fi
 
-if [ -z "$SOFT" ] || [ -z "$HARD" ]; then
+if [ -z "$SOFT" ] || [ -z "$HARD" ] || [ -z "$STOP" ]; then
   BUDGET_FILE=".claude/context-budget"
   if [ -f "$BUDGET_FILE" ] && [ -r "$BUDGET_FILE" ]; then
-    F_SOFT=""; F_HARD=""
+    F_SOFT=""; F_HARD=""; F_STOP=""
     while IFS= read -r LINE || [ -n "$LINE" ]; do
       LINE="${LINE%$'\r'}"
       LINE="${LINE#"${LINE%%[![:space:]]*}"}"
@@ -203,10 +214,14 @@ if [ -z "$SOFT" ] || [ -z "$HARD" ]; then
       case "$KEY" in
         soft) F_SOFT="$VALUE" ;;
         hard) F_HARD="$VALUE" ;;
+        stop) F_STOP="$VALUE" ;;
       esac
     done < "$BUDGET_FILE"
     if [ -n "$F_SOFT" ] && [ -n "$F_HARD" ]; then
       SOFT="$F_SOFT"; HARD="$F_HARD"
+    fi
+    if [ -z "$STOP" ] && [ -n "$F_STOP" ]; then
+      STOP="$F_STOP"
     fi
   fi
 fi
@@ -215,12 +230,23 @@ if [ -z "$SOFT" ] || [ -z "$HARD" ]; then
   SOFT="$DEF_SOFT"; HARD="$DEF_HARD"
 fi
 
+if [ -z "$STOP" ]; then
+  if [ "$MODE" = sprint ]; then
+    STOP=160000
+  else
+    STOP="$HARD"
+  fi
+fi
+
 # A misconfigured gate never blocks work.
 is_int "$SOFT" || exit 0
 is_int "$HARD" || exit 0
+is_int "$STOP" || exit 0
 [ "$SOFT" -gt 0 ] || exit 0
 [ "$HARD" -gt 0 ] || exit 0
 [ "$SOFT" -lt "$HARD" ] || exit 0
+[ "$SOFT" -le "$STOP" ] || exit 0
+[ "$STOP" -le "$HARD" ] || exit 0
 
 # --- Decide. ------------------------------------------------------------------
 [ "$USED" -lt "$SOFT" ] && exit 0
@@ -231,20 +257,38 @@ else
   MEASURE="${USED} tokens"
 fi
 
-if [ "$USED" -lt "$HARD" ]; then
-  # Soft band: ALLOW, but say so — this is the ONLY case that writes stdout.
-  TEXT="Context budget: this session is at ${MEASURE}, past the soft threshold of ${SOFT} (hard stop ${HARD}). That is ${RULE}'s stop-dispatching threshold: land what is already in flight, then hand off — do not start new work or dispatch further items."
+emit_context() {
   if [ "$JSON_ENGINE" = jq ]; then
-    jq -cn --arg t "$TEXT" \
+    jq -cn --arg t "$1" \
       '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$t}}' 2> /dev/null || exit 0
   else
-    T="$TEXT" python3 -c 'import json,os
+    T="$1" python3 -c 'import json,os
 print(json.dumps({"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":os.environ["T"]}},separators=(",",":"),ensure_ascii=False))' 2> /dev/null || exit 0
   fi
   exit 0
+}
+
+STOP_TEXT="Context budget: this session is at ${MEASURE}, past the STOP threshold of ${STOP} (hard stop ${HARD}). Find a stopping point now, per ${RULE}: do not wait for running agents, do not start any new step. Make the on-disk state truthful (${STATE}), commit, push, then produce ${HANDOFF}. Everything already pushed is safe."
+
+if [ "$USED" -lt "$STOP" ]; then
+  # Soft band [SOFT, STOP): only a dispatch tool gets the nudge; every other
+  # tool in the main session stays silent.
+  [ "$IS_DISPATCH" = yes ] || exit 0
+  TEXT="Context budget: this session is at ${MEASURE}, past the soft threshold of ${SOFT} (hard stop ${HARD}). That is ${RULE}'s stop-dispatching threshold: land what is already in flight, then hand off — do not start new work or dispatch further items."
+  emit_context "$TEXT"
 fi
 
-# Hard band: DENY. Same voice as cancel-gate.sh's deny().
+if [ "$USED" -lt "$HARD" ]; then
+  # Stop band [STOP, HARD): ALLOW for every tool, dispatch or not, but say so.
+  emit_context "$STOP_TEXT"
+fi
+
+if [ "$IS_DISPATCH" != yes ]; then
+  # Hard band [HARD, ...), non-dispatch tool: still ALLOW, still the stop nudge.
+  emit_context "$STOP_TEXT"
+fi
+
+# Hard band, dispatch: DENY. Same voice as cancel-gate.sh's deny().
 {
   echo "BLOCKED by the dev-epic-workflow context budget gate (used: ${MEASURE}; hard threshold: ${HARD})."
   echo "This session is past its context budget. Do NOT retry or route around this: dispatching"
