@@ -120,43 +120,50 @@ run_hook() { # $1 hook script  $2 live dir  $3 payload (may be empty) -> sets OU
 # ------------------------------------------------------- throwaway git repos -
 
 ORIGIN_BARE="$SANDBOX/origin.git"
-SEED="$SANDBOX/seed"
 LIVE="$SANDBOX/live"
 LIVE_DEMO="$SANDBOX/live-demo"
 CALLER="$SANDBOX/caller"
 UNRELATED_BARE="$SANDBOX/unrelated-origin.git"
-UNRELATED_SEED="$SANDBOX/unrelated-seed"
-UNRELATED_CLONE="$SANDBOX/unrelated-clone"
+UNRELATED="$SANDBOX/unrelated"
 
-for p in "$ORIGIN_BARE" "$SEED" "$LIVE" "$LIVE_DEMO" "$CALLER" "$UNRELATED_BARE" "$UNRELATED_SEED" "$UNRELATED_CLONE"; do
+for p in "$ORIGIN_BARE" "$LIVE" "$LIVE_DEMO" "$CALLER" "$UNRELATED_BARE" "$UNRELATED"; do
   assert_sandboxed "repo path" "$p"
 done
 
+# `--git-common-dir` only matches across *linked worktrees of one shared .git* — never across
+# independent `git clone`s of the same remote (each clone gets its own private .git directory).
+# This mirrors the real claude-skills setup (main checkout + claude-skills-main worktree share
+# one .git) per repo CLAUDE.md: LIVE is the primary (non-bare) checkout on branch main; CALLER
+# and LIVE_DEMO are `git worktree add` worktrees of that *same* repo, so their --git-common-dir
+# resolves to LIVE's .git, exactly like a real "push from a scratch worktree" would.
+
+git init -q -b main "$LIVE"
+init_repo_identity "$LIVE"
+new_commit "$LIVE" "seed.txt" "seed"
+
 git init --bare -q -b main "$ORIGIN_BARE"
 git -C "$ORIGIN_BARE" symbolic-ref HEAD refs/heads/main
+git -C "$LIVE" remote add origin "$ORIGIN_BARE"
+git -C "$LIVE" push -q -u origin main
 
-mkdir -p "$SEED"
-git -C "$SEED" init -q -b main
-init_repo_identity "$SEED"
-git -C "$SEED" remote add origin "$ORIGIN_BARE"
-new_commit "$SEED" "seed.txt" "seed"
-git -C "$SEED" push -q -u origin main
-
-git clone -q "$ORIGIN_BARE" "$LIVE"
-git clone -q "$ORIGIN_BARE" "$LIVE_DEMO"
-git clone -q "$ORIGIN_BARE" "$CALLER"
+git -C "$LIVE" worktree add -q -b caller "$CALLER" main
 init_repo_identity "$CALLER"
+# push.default=upstream: plain `git push` follows the tracked branch even though the local
+# branch name ("caller") differs from the remote one ("main") — matches the git-worktree
+# scratch-branch pattern this repo's own CLAUDE.md recommends.
+git -C "$CALLER" config push.default upstream
+git -C "$CALLER" push -q -u origin caller:main
 
+git -C "$LIVE" worktree add -q --detach "$LIVE_DEMO" main
+
+# A third, wholly unrelated repo (its own origin) for AC4 — distinct --git-common-dir from LIVE.
+git init -q -b main "$UNRELATED"
+init_repo_identity "$UNRELATED"
+new_commit "$UNRELATED" "seed.txt" "unrelated-seed"
 git init --bare -q -b main "$UNRELATED_BARE"
 git -C "$UNRELATED_BARE" symbolic-ref HEAD refs/heads/main
-mkdir -p "$UNRELATED_SEED"
-git -C "$UNRELATED_SEED" init -q -b main
-init_repo_identity "$UNRELATED_SEED"
-git -C "$UNRELATED_SEED" remote add origin "$UNRELATED_BARE"
-new_commit "$UNRELATED_SEED" "seed.txt" "unrelated-seed"
-git -C "$UNRELATED_SEED" push -q -u origin main
-git clone -q "$UNRELATED_BARE" "$UNRELATED_CLONE"
-init_repo_identity "$UNRELATED_CLONE"
+git -C "$UNRELATED" remote add origin "$UNRELATED_BARE"
+git -C "$UNRELATED" push -q -u origin main
 
 BASELINE_HEAD="$(head_of "$LIVE")"
 check "setup: LIVE and LIVE_DEMO start identical" "$BASELINE_HEAD" "$(head_of "$LIVE_DEMO")"
@@ -234,9 +241,9 @@ check "AC3: live HEAD matches origin main" "$ORIGIN_HEAD_3" "$AFTER_3"
 check "AC3: exit 0" "0" "$RC"
 
 # --- AC4: -C <unrelated repo>, cwd unrelated -> must NOT advance -----------
-new_commit "$UNRELATED_CLONE" "ac4.txt" "ac4"
-git -C "$UNRELATED_CLONE" push -q
-PAYLOAD_AC4="$(json_payload "Bash" "git -C $UNRELATED_CLONE push" "$REAL_HOME")"
+new_commit "$UNRELATED" "ac4.txt" "ac4"
+git -C "$UNRELATED" push -q
+PAYLOAD_AC4="$(json_payload "Bash" "git -C $UNRELATED push" "$REAL_HOME")"
 
 BEFORE_4="$(head_of "$LIVE")"
 run_hook "$HOOK" "$LIVE" "$PAYLOAD_AC4"
@@ -245,37 +252,34 @@ check "AC4: -C <unrelated repo> does NOT advance live" "no" "$(advanced "$BEFORE
 check "AC4: stdout empty (identity check silently fails)" "" "$OUT"
 check "AC4: exit 0" "0" "$RC"
 
-# --- AC5a: tool_name != Bash -> exit 0, no output, no advance --------------
-new_commit "$CALLER" "ac5a.txt" "ac5a"
+# --- AC5: three guard clauses, all proven against ONE real gap ------------
+# Push one genuine new commit from CALLER (a real, fetchable advance sitting on origin/main
+# that LIVE has not picked up yet), then show three different guard clauses each independently
+# keep LIVE from fetching it — a stronger proof than "nothing happened because nothing was
+# pushed" would be.
+new_commit "$CALLER" "ac5.txt" "ac5"
 git -C "$CALLER" push -q
-PAYLOAD_AC5A="$(json_payload "Read" "git -C $CALLER push" "$REAL_HOME")"
+GAP_BEFORE="$(head_of "$LIVE")"
 
-BEFORE_5A="$(head_of "$LIVE")"
+# AC5a: tool_name != Bash -> exit 0, no output, no advance.
+PAYLOAD_AC5A="$(json_payload "Read" "git -C $CALLER push" "$REAL_HOME")"
 run_hook "$HOOK" "$LIVE" "$PAYLOAD_AC5A"
-AFTER_5A="$(head_of "$LIVE")"
-check "AC5a: tool_name!=Bash does NOT advance live" "no" "$(advanced "$BEFORE_5A" "$AFTER_5A")"
+check "AC5a: tool_name!=Bash does NOT advance live" "no" "$(advanced "$GAP_BEFORE" "$(head_of "$LIVE")")"
 check "AC5a: stdout empty" "" "$OUT"
 check "AC5a: stderr empty" "" "$ERR"
 check "AC5a: exit 0" "0" "$RC"
 
-# --- AC5b: --dry-run -> exit 0, no output, no advance ----------------------
-new_commit "$CALLER" "ac5b.txt" "ac5b"
-git -C "$CALLER" push -q --dry-run
+# AC5b: --dry-run in the command -> exit 0, no output, no advance (same unfetched gap).
 PAYLOAD_AC5B="$(json_payload "Bash" "git -C $CALLER push --dry-run" "$REAL_HOME")"
-
-BEFORE_5B="$(head_of "$LIVE")"
 run_hook "$HOOK" "$LIVE" "$PAYLOAD_AC5B"
-AFTER_5B="$(head_of "$LIVE")"
-check "AC5b: --dry-run does NOT advance live" "no" "$(advanced "$BEFORE_5B" "$AFTER_5B")"
+check "AC5b: --dry-run does NOT advance live" "no" "$(advanced "$GAP_BEFORE" "$(head_of "$LIVE")")"
 check "AC5b: stdout empty" "" "$OUT"
 check "AC5b: stderr empty" "" "$ERR"
 check "AC5b: exit 0" "0" "$RC"
 
-# --- AC5c: empty stdin -> exit 0, no output, no advance --------------------
-BEFORE_5C="$(head_of "$LIVE")"
+# AC5c: empty stdin -> exit 0, no output, no advance (same unfetched gap).
 run_hook "$HOOK" "$LIVE" ""
-AFTER_5C="$(head_of "$LIVE")"
-check "AC5c: empty stdin does NOT advance live" "no" "$(advanced "$BEFORE_5C" "$AFTER_5C")"
+check "AC5c: empty stdin does NOT advance live" "no" "$(advanced "$GAP_BEFORE" "$(head_of "$LIVE")")"
 check "AC5c: stdout empty" "" "$OUT"
 check "AC5c: stderr empty" "" "$ERR"
 check "AC5c: exit 0" "0" "$RC"
