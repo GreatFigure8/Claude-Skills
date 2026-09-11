@@ -2,13 +2,32 @@
   "sprint": "2026-09-11-004",
   "status": "drafting",
   "created": "2026-09-11T20:46:56Z",
-  "updated": "2026-09-11T20:46:56Z",
+  "updated": "2026-09-11T20:48:14Z",
   "branch": {
     "live": "dev",
     "integration": "sprint/2026-09-11-004"
   },
   "claim": null,
-  "stories": [],
+  "stories": [
+    {
+      "slug": "fix-install-matcher-upgrade",
+      "title": "install.sh settings merge must update a stale matcher on an existing hook",
+      "kind": "service",
+      "status": "drafted",
+      "plan": null,
+      "attempts": 0,
+      "detail": ""
+    },
+    {
+      "slug": "fix-refresh-live-git-c-cwd",
+      "title": "refresh-live-post-push.sh must recognize git -C <worktree> push",
+      "kind": "service",
+      "status": "drafted",
+      "plan": null,
+      "attempts": 0,
+      "detail": ""
+    }
+  ],
   "history": [
     {
       "at": "2026-09-11T20:46:56Z",
