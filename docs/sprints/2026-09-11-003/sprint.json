@@ -1,13 +1,16 @@
 {
   "sprint": "2026-09-11-003",
-  "status": "planned",
+  "status": "executing",
   "created": "2026-09-11T18:00:19Z",
-  "updated": "2026-09-11T18:19:53Z",
+  "updated": "2026-09-11T18:21:12Z",
   "branch": {
     "live": "dev",
     "integration": "sprint/2026-09-11-003"
   },
-  "claim": null,
+  "claim": {
+    "by": "coder-Jonathans-MacBook-Pro.local-20260911T182112Z",
+    "at": "2026-09-11T18:21:12Z"
+  },
   "stories": [
     {
       "slug": "assert-branch-before-merge",
@@ -40,6 +43,11 @@
       "at": "2026-09-11T18:19:53Z",
       "status": "planned",
       "by": "Jonathans-MacBook-Pro-20260911T181953Z"
+    },
+    {
+      "at": "2026-09-11T18:21:12Z",
+      "status": "executing",
+      "by": "coder-Jonathans-MacBook-Pro.local-20260911T182112Z"
     }
   ]
 }
