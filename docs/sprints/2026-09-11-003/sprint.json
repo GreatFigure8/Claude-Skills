@@ -1,0 +1,19 @@
+{
+  "sprint": "2026-09-11-003",
+  "status": "drafting",
+  "created": "2026-09-11T18:00:19Z",
+  "updated": "2026-09-11T18:00:19Z",
+  "branch": {
+    "live": "dev",
+    "integration": "sprint/2026-09-11-003"
+  },
+  "claim": null,
+  "stories": [],
+  "history": [
+    {
+      "at": "2026-09-11T18:00:19Z",
+      "status": "drafting",
+      "by": "creator"
+    }
+  ]
+}
