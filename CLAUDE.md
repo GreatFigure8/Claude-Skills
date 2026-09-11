@@ -9,13 +9,16 @@
    For dev-story-flow this means `sprint-state.sh new --live dev` (integration defaults to
    `sprint/<sprint>`); in a `dev-story-sprint` plan message the branch line reads
    `live=dev  integration=sprint/<slug>`.
-3. **Skill symlinks always point at `main`.** `~/.claude/skills/*` and
-   `~/.claude/agents/story-item-executor.md` link into `~/Source/claude-skills-main`, a worktree
-   permanently checked out on branch `main` and never switched. A push to `main` fast-forwards it
-   automatically (dev-story-sprint's post-push hook). `~/Source/claude-skills` is the working
-   checkout (`dev` and sprint branches) and its branch never affects what Claude Code loads.
-   Only when Jonathan explicitly says so, during a sprint, do the symlinks move to test
-   something — rare, because changes are tested after they land on `dev` and `main`.
+3. **Skill symlinks point at the working checkout.** `~/.claude/skills/*` and
+   `~/.claude/agents/story-item-executor.md` link directly into `~/Source/claude-skills` — there
+   is no separate worktree pinned to `main`. This means whatever is currently checked out there
+   (branch, and any uncommitted edit) is what every repo on the machine loads, live, the moment
+   it's on disk. Nothing refreshes this automatically on push — re-run each skill's
+   `assets/install.sh` (or the plain `ln -s` for a markdown-only skill) whenever you want the
+   global copies to pick up a change. Land work on `dev`/`main` before relying on it being
+   stable in other repos; a feature branch or a mid-edit file is visible everywhere the instant
+   it's saved. See "The checkout is shared" below — the same caution applies to what other
+   sessions load, not just to what they commit.
 
 ## The checkout is shared
 

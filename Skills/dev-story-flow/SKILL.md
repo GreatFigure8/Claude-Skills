@@ -139,21 +139,24 @@ If a story is one-off and Jonathan wants it now, that is a sprint. If it needs i
 epic numbering, PR ceremony, or a retro, that is an epic. Everything in between — a batch of
 stories specified once and shipped unattended — is this flow.
 
-## Install (once per machine)
+## Install (once per machine, and again after any change you want live)
 
 ```bash
-bash ~/Source/claude-skills-main/Skills/dev-story-flow/assets/install.sh
+bash ~/Source/claude-skills/Skills/dev-story-flow/assets/install.sh
 ```
 
-Symlinks `~/.claude/skills/dev-story-flow` and `~/.claude/skills/goal` into the live worktree,
-which is permanently checked out on `main` (claude-skills `CLAUDE.md` rule 3; the post-push
-hook that keeps the worktree current lives in that same rule). The installer also copies this
-skill's own `story-item-executor` agent to `~/.claude/agents/` and its own control-plane hooks
-(cancel gate, subagent lifecycle, context-budget gate, hand-off-stop gate, statusline) to
-`~/.claude/hooks/`, merging their wiring into `~/.claude/settings.json` — no separate install
-of `dev-story-sprint` or `dev-epic-workflow` is required. If either sibling skill is also
-installed, their same-named files are functionally interchangeable with these (same shared
-conventions); whichever installer ran last simply wins at the shared destination path.
+Symlinks `~/.claude/skills/dev-story-flow` and `~/.claude/skills/goal` into the working
+checkout. There is no separate worktree pinned to `main` — whatever branch is checked out in
+`~/Source/claude-skills` (and any uncommitted edit) is what every repo on the machine loads
+through these symlinks (claude-skills `CLAUDE.md` rule 3), and nothing refreshes that
+automatically, so re-run this script whenever you want the global copy to pick up a change.
+The installer also copies this skill's own `story-item-executor` agent to `~/.claude/agents/`
+and its own control-plane hooks (cancel gate, subagent lifecycle, context-budget gate,
+hand-off-stop gate, statusline) to `~/.claude/hooks/`, merging their wiring into
+`~/.claude/settings.json` — no separate install of `dev-story-sprint` or `dev-epic-workflow`
+is required. If either sibling skill is also installed, their same-named files are
+functionally interchangeable with these (same shared conventions); whichever installer ran
+last simply wins at the shared destination path.
 Tests: `bash assets/tests/sprint-state-fixtures.sh`.
 
 ## What this skill overrides from the global rules

@@ -109,10 +109,12 @@ Ask exactly: **"Do you want to release this to prod?"**
 
 ## Install
 
-Stateless markdown, no scripts or hooks. Symlink into the pinned worktree the same way as
-the other orchestration skills, so a `git switch` in the dev checkout never changes what
-Claude Code loads:
+Stateless markdown, no scripts or hooks. Symlink it into the working checkout the same way as
+the other orchestration skills:
 
 ```bash
-ln -s ~/Source/claude-skills-main/Skills/release ~/.claude/skills/release
+ln -s ~/Source/claude-skills/Skills/release ~/.claude/skills/release
 ```
+
+There is no separate worktree pinned to `main` — this symlink follows whatever is currently
+checked out in `~/Source/claude-skills` (`CLAUDE.md` rule 3).

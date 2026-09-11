@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# dev-story-flow installer — idempotent, user-level only. Run it FROM THE LIVE WORKTREE
-# (~/Source/claude-skills-main, checked out on main), because the symlinks point at
-# wherever this file lives.
+# dev-story-flow installer — idempotent, user-level only. Symlinks point at wherever this
+# file lives — normally the single working checkout, ~/Source/claude-skills. There is no
+# separate worktree pinned to `main`: whatever branch is checked out here (and any
+# uncommitted edit) is what every repo on the machine loads. Re-run this after merging to
+# `main`, or whenever you want the global copies refreshed to match what's on disk here —
+# nothing does that automatically. See CLAUDE.md rule 3.
 #   1. symlink Skills/dev-story-flow into ~/.claude/skills
 #   2. symlink Skills/goal (the `/goal using <skill> <objective>` entry point) into ~/.claude/skills
 #   3. install this skill's OWN copies of the story-item-executor agent and the executor
@@ -19,10 +22,6 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"        # Skills/dev-stor
 GOAL="$(cd "$HERE/../goal" 2>/dev/null && pwd || true)"
 SKILLS_DEST="${HOME}/.claude/skills"
 mkdir -p "$SKILLS_DEST" "${HOME}/.claude/agents" "${HOME}/.claude/hooks"
-case "$HERE" in
-  *claude-skills-main*) ;;
-  *) echo "note: running from $HERE — symlinks will point here, not at the live worktree on main. See CLAUDE.md rule 3." >&2 ;;
-esac
 chmod +x "$HERE"/assets/*.sh "$HERE"/assets/bin/*.sh "$HERE"/assets/tests/*.sh "$HERE"/assets/claude-config/hooks/*.sh 2>/dev/null || true
 
 link() { # link <target> <linkpath>

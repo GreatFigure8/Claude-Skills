@@ -137,10 +137,12 @@ When a fresh session receives a pasted `<caller> prep-for-clear` block, it treat
 
 ## Install
 
-This skill is markdown — no scripts, hooks, or bundled agents — except for the single gitignored signal file it writes on a budget-triggered stop (see "Posting it"). To make it loadable by name, symlink it into the same pinned worktree the other orchestration skills use, so a `git switch` in the dev checkout never changes what Claude Code loads:
+This skill is markdown — no scripts, hooks, or bundled agents — except for the single gitignored signal file it writes on a budget-triggered stop (see "Posting it"). To make it loadable by name, symlink it into the working checkout the same way the other orchestration skills do:
 
 ```bash
-ln -s ~/Source/claude-skills-main/Skills/clear-prompt ~/.claude/skills/clear-prompt
+ln -s ~/Source/claude-skills/Skills/clear-prompt ~/.claude/skills/clear-prompt
 ```
 
-Run once per machine, from a checkout where `~/Source/claude-skills-main` already exists as a worktree detached at `origin/main` (see `dev-story-sprint`'s Install section if it doesn't yet). No separate install script is needed — there's nothing here that needs merging into `settings.json` or registering as a hook.
+There is no separate worktree pinned to `main` — this symlink follows whatever is currently
+checked out in `~/Source/claude-skills` (`CLAUDE.md` rule 3). No separate install script is
+needed — there's nothing here that needs merging into `settings.json` or registering as a hook.
