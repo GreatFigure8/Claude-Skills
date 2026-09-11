@@ -73,7 +73,7 @@ says so in one line; a fresh one is skipped. `planned`, `complete` and `blocked`
 ```
 
 - `kind` is `interactive` (UI, browser-tested) or `service` (backend, DB, API, MCP, CLI — curl/bash-tested). It decides the acceptance-criteria shape.
-- `branch.integration` is `sprint/<sprint>` by default, or `"none"` in repos whose `CLAUDE.md` says to work directly against live (this repo does).
+- `branch.integration` is `sprint/<sprint>` by default, or `"none"` in repos whose `CLAUDE.md` says to work directly against live. `branch.live` is the branch the completed sprint merges into — `dev` in repos with a dev/main model (pass `--live dev`).
 - Story `status`: `drafted → planned → executing → validating → done`, with `blocked` as the exceptional terminal. `attempts` counts validate→fix cycles; the coder stops at 3.
 - `history` is append-only. Never rewrite it; `--force` transitions are recorded with `"forced": true`.
 

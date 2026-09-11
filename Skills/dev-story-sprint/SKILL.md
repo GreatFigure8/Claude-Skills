@@ -173,29 +173,34 @@ At the stopping point, invoke the `clear-prompt` skill to compose and post the h
 
 ## Permissions — a prompt is talking
 
-An executor that stops on a permission prompt has broken the silence rule and stalled the wave. Sprints run under `permissions.defaultMode: "auto"` (or bypass), **and** the executor toolchain is pre-allowed at user level so the classifier never has to think: `assets/permissions-allow.json` holds the `Bash(...)` prefixes the executor uses (git, gh, uv, pnpm, and the read-only shell basics), folded into `~/.claude/settings.json` by the shared `assets/merge-settings.sh`. If an executor is ever prompted anyway, the fix is one line in that JSON followed by `bash assets/install.sh`, which re-runs the merge; Claude Code watches its settings files and reloads `permissions` without a restart (https://code.claude.com/docs/en/settings.md). The merge is additive — a set union — so an entry *removed* from `permissions-allow.json` is not removed from `settings.json` by the merge; pruning a revoked prefix is still a manual edit. The allowlist is prefix-based, so it also admits `git push --force` and `git branch -D`; the executor is prompt-bound to `--force-with-lease` and `-d`, and that is the accepted trade for speed.
+An executor that stops on a permission prompt has broken the silence rule and stalled the wave. Sprints run under `permissions.defaultMode: "auto"` (or bypass), **and** the executor toolchain is pre-allowed at user level so the classifier never has to think: `assets/permissions-allow.json` holds the `Bash(...)` prefixes the executor uses (git, gh, uv, pnpm, and the read-only shell basics), folded into `~/.claude/settings.json` by the shared `assets/merge-settings.sh`. If an executor is ever prompted anyway, the fix is one line in that JSON and a push — the post-push hook (see Install) fast-forwards the live worktree and re-merges the allowlist; Claude Code watches its settings files and reloads `permissions` without a restart (https://code.claude.com/docs/en/settings.md). The merge is additive — a set union — so an entry *removed* from `permissions-allow.json` is not removed from `settings.json` by the merge; pruning a revoked prefix is still a manual edit. The allowlist is prefix-based, so it also admits `git push --force` and `git branch -D`; the executor is prompt-bound to `--force-with-lease` and `-d`, and that is the accepted trade for speed.
 
 ## Install (once per machine)
 
-Both live pieces are **symlinks into the claude-skills checkout** (`~/Source/claude-skills`):
+Both live pieces are **symlinks into a worktree of this repo that is permanently checked out on
+`main`**, never into the working checkout:
 
-- `~/.claude/skills/dev-story-sprint` → `~/Source/claude-skills/Skills/dev-story-sprint`
-- `~/.claude/agents/story-item-executor.md` → `~/Source/claude-skills/Skills/dev-story-sprint/assets/agents/story-item-executor.md`
+- `~/.claude/skills/dev-story-sprint` → `~/Source/claude-skills-main/Skills/dev-story-sprint`
+- `~/.claude/agents/story-item-executor.md` → `~/Source/claude-skills-main/Skills/dev-story-sprint/assets/agents/story-item-executor.md`
 
-Whatever branch that checkout has checked out is what Claude Code loads. The repo's
-`CLAUDE.md` therefore says: develop on `dev`, merge `dev` into `main` to go live, and keep
-`main` checked out when not actively developing. (A separate detached worktree,
-`~/Source/claude-skills-main`, used to hold the live copy; Jonathan retired it on 2026-09-11.)
+`~/Source/claude-skills-main` is a `git worktree` on branch `main`. Nobody commits there and
+nothing switches it, so a `git switch` in the working checkout (`~/Source/claude-skills`, on
+`dev` or a sprint branch) can never change what Claude Code loads — the repo's `CLAUDE.md` rule
+3. The symlinks move only when Jonathan explicitly asks to test a sprint's skills.
 
-- **Install once:** `bash ~/Source/claude-skills/Skills/dev-story-sprint/assets/install.sh` —
-  creates both symlinks idempotently (a pre-existing plain copy is moved aside as `.bak`) and
-  calls the shared `assets/merge-settings.sh` to fold the executor permission allowlist into
-  `~/.claude/settings.json`. It is also the repair path if a symlink goes missing.
-- **Going live** is a merge to `main` with `main` checked out — edits are live on disk the
-  moment the checkout has them. The control plane (cancel gate, subagent lifecycle,
-  statusline) comes from the `dev-epic-workflow` user-level install — run that first if
-  `~/.claude/hooks/cancel-gate.sh` is missing. When Claude has shell access it checks and
-  installs rather than describing the steps.
+- **Create once:** `git worktree add ~/Source/claude-skills-main main` (run from the working
+  checkout while it is on any branch other than `main`).
+- **Install once:** `bash ~/Source/claude-skills-main/Skills/dev-story-sprint/assets/install.sh`
+  — creates both symlinks idempotently (a pre-existing plain copy is moved aside as `.bak`),
+  folds the executor permission allowlist into `~/.claude/settings.json` via the shared
+  `assets/merge-settings.sh`, and registers the hook below. Run it from the worktree path.
+- **Going live is automatic.** `assets/hooks/refresh-live-post-push.sh` is a PostToolUse hook
+  on Bash: after any `git push` from a checkout of this repo it fetches and fast-forwards the
+  live worktree to `origin/main`, then re-merges the allowlist into settings, and prints one
+  line saying so. Edits are live once they are on `origin/main`. If the hook is missing, run
+  `assets/refresh-live.sh` and re-run `install.sh`. The control plane (cancel gate, subagent
+  lifecycle, statusline) comes from the `dev-epic-workflow` user-level install — run that first
+  if `~/.claude/hooks/cancel-gate.sh` is missing.
 
 ## What this skill overrides from the global rules
 

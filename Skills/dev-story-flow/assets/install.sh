@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# dev-story-flow installer — idempotent. Run it from the claude-skills checkout (~/Source/claude-skills);
-# the symlinks point at wherever this file lives, so the checked-out branch is what Claude Code loads.
+# dev-story-flow installer — idempotent. Run it FROM THE LIVE WORKTREE (~/Source/claude-skills-main,
+# checked out on main), because the symlinks point at wherever this file lives.
 #   1. symlink Skills/dev-story-flow into ~/.claude/skills
 #   2. symlink Skills/goal (the `/goal using <skill> <objective>` entry point) into ~/.claude/skills
 #   3. make assets/bin and assets/tests executable
@@ -11,6 +11,10 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"        # Skills/dev-stor
 GOAL="$(cd "$HERE/../goal" 2>/dev/null && pwd || true)"
 SKILLS_DEST="${HOME}/.claude/skills"
 mkdir -p "$SKILLS_DEST"
+case "$HERE" in
+  *claude-skills-main*) ;;
+  *) echo "note: running from $HERE — symlinks will point here, not at the live worktree on main. See CLAUDE.md rule 3." >&2 ;;
+esac
 chmod +x "$HERE"/assets/*.sh "$HERE"/assets/bin/*.sh "$HERE"/assets/tests/*.sh 2>/dev/null || true
 
 link() { # link <target> <linkpath>
