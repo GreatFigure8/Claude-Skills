@@ -2,13 +2,23 @@
   "sprint": "2026-09-11-003",
   "status": "drafting",
   "created": "2026-09-11T18:00:19Z",
-  "updated": "2026-09-11T18:00:19Z",
+  "updated": "2026-09-11T18:04:20Z",
   "branch": {
     "live": "dev",
     "integration": "sprint/2026-09-11-003"
   },
   "claim": null,
-  "stories": [],
+  "stories": [
+    {
+      "slug": "assert-branch-before-merge",
+      "title": "Guard merges into a shared branch with a branch-identity check",
+      "kind": "service",
+      "status": "drafted",
+      "plan": null,
+      "attempts": 0,
+      "detail": ""
+    }
+  ],
   "history": [
     {
       "at": "2026-09-11T18:00:19Z",
