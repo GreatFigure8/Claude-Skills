@@ -126,6 +126,26 @@ for event, src_groups in src["hooks"].items():
     for group in src_groups:
         cmds = {h.get("command") for h in group.get("hooks", [])}
         if cmds <= existing_cmds:
+            # Already installed — still reconcile a stale/missing matcher on
+            # whichever existing group(s) own these commands, in place.
+            matcher_changed = False
+            for g in dst_groups:
+                if not isinstance(g, dict):
+                    continue
+                g_cmds = {
+                    h.get("command") for h in g.get("hooks", []) if isinstance(h, dict)
+                }
+                if not (g_cmds & cmds):
+                    continue
+                if "matcher" not in group:
+                    if "matcher" in g:
+                        g.pop("matcher", None)
+                        matcher_changed = True
+                elif g.get("matcher") != group["matcher"]:
+                    g["matcher"] = group["matcher"]
+                    matcher_changed = True
+            if matcher_changed:
+                changed.append(f"{event} (matcher)")
             continue  # already installed
         dst_groups.append(group)
         changed.append(event)
