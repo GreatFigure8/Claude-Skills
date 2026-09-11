@@ -197,6 +197,10 @@ if [ -n "${CONTEXT_BUDGET_STOP_TOKENS:-}" ]; then
   STOP="${CONTEXT_BUDGET_STOP_TOKENS:-}"
 fi
 
+SOFT_HARD_FROM_ENV=1
+if [ -z "$SOFT" ] || [ -z "$HARD" ]; then
+  SOFT_HARD_FROM_ENV=0
+fi
 if [ -z "$SOFT" ] || [ -z "$HARD" ] || [ -z "$STOP" ]; then
   BUDGET_FILE=".claude/context-budget"
   if [ -f "$BUDGET_FILE" ] && [ -r "$BUDGET_FILE" ]; then
@@ -217,7 +221,7 @@ if [ -z "$SOFT" ] || [ -z "$HARD" ] || [ -z "$STOP" ]; then
         stop) F_STOP="$VALUE" ;;
       esac
     done < "$BUDGET_FILE"
-    if [ -n "$F_SOFT" ] && [ -n "$F_HARD" ]; then
+    if [ "$SOFT_HARD_FROM_ENV" -eq 0 ] && [ -n "$F_SOFT" ] && [ -n "$F_HARD" ]; then
       SOFT="$F_SOFT"; HARD="$F_HARD"
     fi
     if [ -z "$STOP" ] && [ -n "$F_STOP" ]; then
