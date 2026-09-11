@@ -2,7 +2,7 @@
   "sprint": "2026-09-11-002",
   "status": "executing",
   "created": "2026-09-11T17:23:23Z",
-  "updated": "2026-09-11T19:08:42Z",
+  "updated": "2026-09-11T19:10:51Z",
   "branch": {
     "live": "dev",
     "integration": "sprint/2026-09-11-002"
@@ -26,11 +26,11 @@
       "slug": "auto-clear-prompt-at-stop",
       "title": "System runs clear-prompt at a token-limit stopping point",
       "kind": "service",
-      "status": "validating",
+      "status": "done",
       "plan": "auto-clear-prompt-at-stop/auto-clear-prompt-at-stop-plan.md",
       "attempts": 0,
-      "detail": "",
-      "updated": "2026-09-11T19:08:42Z"
+      "detail": "validated 2026-09-11T19:10:30Z",
+      "updated": "2026-09-11T19:10:51Z"
     }
   ],
   "history": [
