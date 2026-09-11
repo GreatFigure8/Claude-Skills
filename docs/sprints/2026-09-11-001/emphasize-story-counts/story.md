@@ -3,7 +3,6 @@ title: Emphasize story counts on a terminal
 slug: emphasize-story-counts
 sprint: 2026-09-11-001
 kind: service
-issue: 113
 created: 2026-09-11T03:33:32Z
 ---
 

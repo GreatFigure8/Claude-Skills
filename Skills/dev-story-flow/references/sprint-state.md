@@ -12,7 +12,7 @@ Git is the audit trail; the repo is the queue.
 | **Per-sprint `sprint.json` with a `status` field** (chosen) | One source of truth per sprint, committed, greppable, carries metadata (claims, story states, issue numbers), no cross-sprint merge conflicts, survives `/clear` and machine changes. |
 | Marker files (`.ready-to-plan`, `.planned`, `.complete`) | Trivial to test with `ls`, but no metadata, flags can coexist inconsistently, nowhere to record a claim or a story's state. |
 | Central `docs/sprints/index.md` | One glance shows everything, but every session and executor writes the same file — a merge-conflict magnet with parallel work. |
-| GitHub labels / project board | Network-dependent, invisible to `grep`, and the coder already tracks per-story issues; sprint state belongs beside the stories. |
+| GitHub labels / project board | Network-dependent, invisible to `grep`; this flow deliberately files no GitHub issues, and sprint state belongs beside the stories. |
 
 ## The state machine
 
@@ -59,7 +59,6 @@ says so in one line; a fresh one is skipped. `planned`, `complete` and `blocked`
       "slug": "create-home-page",
       "title": "Create the home page",
       "kind": "interactive",
-      "issue": 42,
       "status": "planned",
       "plan": "create-home-page/create-home-page-plan.md",
       "attempts": 0,
@@ -107,7 +106,7 @@ sprint-state.sh new [--live <branch>] [--integration <branch>|none]   → prints
 sprint-state.sh list [<status>]                                         → name  status  claim-by  claim-at
 sprint-state.sh get <sprint>                                            → the manifest JSON
 sprint-state.sh set <sprint> <status> [--by <id>] [--force]             → transition (+claim/unclaim)
-sprint-state.sh story add <sprint> <slug> --title <t> --kind <k> [--issue <n>]
+sprint-state.sh story add <sprint> <slug> --title <t> --kind <k>
 sprint-state.sh story set <sprint> <slug> <status> [--detail <text>] [--plan <relpath>] [--bump-attempts]
 sprint-state.sh stale <sprint> [<hours>]                                → exit 0 if the claim is stale
 ```

@@ -6,8 +6,8 @@
 #   sprint-state.sh list [<status>]
 #   sprint-state.sh get <sprint>
 #   sprint-state.sh set <sprint> <status> [--by <id>] [--force]
-#   sprint-state.sh story add <sprint> <slug> --title <t> --kind interactive|service [--issue <n>]
-#   sprint-state.sh story set <sprint> <slug> <status> [--detail <t>] [--plan <relpath>] [--issue <n>] [--bump-attempts] [--force]
+#   sprint-state.sh story add <sprint> <slug> --title <t> --kind interactive|service
+#   sprint-state.sh story set <sprint> <slug> <status> [--detail <t>] [--plan <relpath>] [--bump-attempts] [--force]
 #   sprint-state.sh stale <sprint> [<hours>]        exit 0 = claim older than <hours> (default $DSF_STALE_HOURS or 6)
 #
 # SPRINTS_DIR overrides docs/sprints (relative to the git top level). Exit 2 on any usage/state error.
@@ -123,21 +123,21 @@ def cmd_story(base, args):
     if not args or args[0] not in {"add", "set"}: die("story add|set ...")
     sub, args = args[0], args[1:]
     if sub == "add":
-        title, args = opt(args, "--title", None); kind, args = opt(args, "--kind", None); issue, args = opt(args, "--issue", None)
-        if len(args) != 2 or not title or not kind: die("story add <sprint> <slug> --title <t> --kind interactive|service [--issue <n>]")
+        title, args = opt(args, "--title", None); kind, args = opt(args, "--kind", None)
+        if len(args) != 2 or not title or not kind: die("story add <sprint> <slug> --title <t> --kind interactive|service")
         name, slug = args
         if kind not in KINDS: die(f"kind must be one of {sorted(KINDS)}")
         if not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", slug): die("slug must be lower-case, dash-separated")
         m = load(base, name)
         if m["status"] != "drafting": die(f"{name} is {m['status']}; stories can only be added while drafting")
         if find_story(m, slug)[1]: die(f"story {slug} already exists in {name}")
-        story = {"slug": slug, "title": title, "kind": kind, "issue": int(issue) if issue else None,
+        story = {"slug": slug, "title": title, "kind": kind,
                  "status": "drafted", "plan": None, "attempts": 0, "detail": ""}
         save(base, name, {**m, "updated": now(), "stories": [*m["stories"], story]}); print(f"{name}\t{slug}\tdrafted")
         return
-    detail, args = opt(args, "--detail", None); plan, args = opt(args, "--plan", None); issue, args = opt(args, "--issue", None)
+    detail, args = opt(args, "--detail", None); plan, args = opt(args, "--plan", None)
     bump, args = opt(args, "--bump-attempts", False, has_value=False); force, args = opt(args, "--force", False, has_value=False)
-    if len(args) != 3: die("story set <sprint> <slug> <status> [--detail <t>] [--plan <p>] [--issue <n>] [--bump-attempts] [--force]")
+    if len(args) != 3: die("story set <sprint> <slug> <status> [--detail <t>] [--plan <p>] [--bump-attempts] [--force]")
     name, slug, status = args
     if status not in STORY_STATES: die(f"unknown story status {status}; one of {STORY_STATES}")
     m = load(base, name); i, s = find_story(m, slug)
@@ -148,7 +148,6 @@ def cmd_story(base, args):
     ns = {**s, "status": status, "updated": now()}
     if detail is not None: ns["detail"] = detail
     if plan is not None: ns["plan"] = plan
-    if issue is not None: ns["issue"] = int(issue)
     if bump: ns["attempts"] = s.get("attempts", 0) + 1
     stories = [*m["stories"][:i], ns, *m["stories"][i+1:]]
     save(base, name, {**m, "updated": ns["updated"], "stories": stories}); print(f"{name}\t{slug}\t{cur} -> {status}\tattempts={ns['attempts']}")

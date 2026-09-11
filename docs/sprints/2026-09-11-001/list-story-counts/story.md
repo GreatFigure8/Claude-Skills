@@ -3,7 +3,6 @@ title: Show story counts in sprint-state list
 slug: list-story-counts
 sprint: 2026-09-11-001
 kind: service
-issue: 112
 created: 2026-09-11T03:33:32Z
 ---
 

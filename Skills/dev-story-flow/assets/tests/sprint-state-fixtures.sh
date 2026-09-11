@@ -29,8 +29,8 @@ check "list rejects unknown status"         '! "$SS" list bogus 2>/dev/null'
 
 # --- story add -----------------------------------------------------------------------------
 check "story add ok"                        '"$SS" story add "$S1" create-home-page --title "Create the home page" --kind interactive >/dev/null'
-check "story add with issue"                '"$SS" story add "$S1" add-chat-endpoint --title "Chat endpoint" --kind service --issue 42 >/dev/null'
-check "story issue stored as int"           '[ "$(field "$S1" "m[\"stories\"][1][\"issue\"]")" = 42 ]'
+check "second story add ok"                 '"$SS" story add "$S1" add-chat-endpoint --title "Chat endpoint" --kind service >/dev/null'
+check "story add rejects --issue"           '! "$SS" story add "$S1" other --title x --kind service --issue 4 2>/dev/null'
 check "story add rejects dup slug"          '! "$SS" story add "$S1" create-home-page --title x --kind service 2>/dev/null'
 check "story add rejects bad kind"          '! "$SS" story add "$S1" other --title x --kind ui 2>/dev/null'
 check "story add rejects bad slug"          '! "$SS" story add "$S1" Bad_Slug --title x --kind service 2>/dev/null'

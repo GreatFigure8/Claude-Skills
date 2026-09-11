@@ -13,7 +13,7 @@ questions, because this is where ambiguity is cheapest to remove.
 
 - **In:** Jonathan's story text, in chat. Optionally an existing sprint in `drafting`.
 - **Out:** `docs/sprints/<sprint>/<story-slug>/story.md` per story, `sprint.json` with the
-  story registered, one GitHub issue per story (when `gh` and a remote exist), and — when
+  story registered, and — when
   Jonathan says the sprint is documentation-complete — the sprint set to `ready-to-plan`.
 
 ## Process
@@ -64,7 +64,6 @@ title: <one line>
 slug: <slug>
 sprint: <sprint>
 kind: interactive | service
-issue: <n or none>
 created: <UTC ISO-8601>
 ---
 
@@ -113,20 +112,17 @@ changes to any public contract and the migration path. Build/typing/packaging co
 The `Specification` and `Acceptance criteria` sections are where the value is. Spend the
 tokens there, not on prose.
 
-### 4. Register the story and open its issue
+### 4. Register the story
 
 ```bash
 $SS story add <sprint> <slug> --title "<title>" --kind <interactive|service>
-gh issue create --title "<title>" --body-file docs/sprints/<sprint>/<slug>/story.md   # if gh + remote
-$SS story set <sprint> <slug> drafted --issue <n>                # records the issue on the story
 git add docs/sprints/<sprint> && git commit -m "docs(sprint): <sprint> — story <slug>"
 ```
 
-One issue per story, opened once here; the coder threads `Refs #<n>` through every commit and
-closes it at story completion. No remote or no `gh`: say so in one line, set `issue: none`,
-proceed. Write the issue number back into the story's frontmatter.
+**No GitHub issues.** dev-story-flow never runs `gh issue create`; the story file and the
+manifest are the record, and the sprint's merge commits are the trail.
 
-Then post one short confirmation: sprint, slug, kind, issue, path — and wait for the next
+Then post one short confirmation: sprint, slug, kind, path — and wait for the next
 story or for the completion phrase.
 
 ### 5. Hand off to the planner — the "documentation complete" signal

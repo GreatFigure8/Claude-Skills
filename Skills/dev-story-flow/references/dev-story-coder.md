@@ -78,7 +78,7 @@ Dispatch **every ready item in one message**, one `Agent` call each:
 - `subagent_type: "story-item-executor"`, `model` from the plan (explicit), `isolation:
   "worktree"`, `run_in_background: true` when more than one is in flight.
 - `prompt`: the `dev-story-sprint` dispatch template, with `Status dir:
-  .claude/stories/<sprint>/status/`, `Issue: #<story issue>`, and the first line reading
+  .claude/stories/<sprint>/status/`, no `Issue:` line (this flow files no issues), and the first line reading
   `dev-story-flow dispatch — <sprint> / <slug> item <n>`. Copy *Scope / Done when / Not / Files
   owned / Gates* from the plan row verbatim.
 
@@ -122,8 +122,6 @@ closing message points at.
 
 ```bash
 $SS story set <sprint> <slug> done --detail "validated <UTC>"
-gh issue comment <n> --body "Shipped in sprint <sprint>: <merge hashes>. Validation: docs/sprints/<sprint>/<slug>/validation.md"
-gh issue close <n>
 git add docs/sprints/<sprint> && git commit -qm "docs(sprint): <sprint>/<slug> done" && git push -q
 ```
 
@@ -153,7 +151,7 @@ When every story is `done`: run the stack gates once on the integration branch a
 then merge to live (skip when `integration=none` — the last story's merge was the close):
 
 ```bash
-git fetch -q && git merge --no-ff -m "merge(sprint): <sprint> — <k> stories (Closes #a, #b, …)" origin/sprint/<sprint> && git push origin <live>
+git fetch -q && git merge --no-ff -m "merge(sprint): <sprint> — <k> stories" origin/sprint/<sprint> && git push origin <live>
 git push origin --delete sprint/<sprint>
 ```
 
@@ -167,8 +165,8 @@ rm -rf .claude/stories/<sprint> .claude/signals/active-epic
 
 `status: complete` in the committed manifest **is** the completion mark — `sprint-state.sh
 list complete` shows history, `list planned` shows what is left, and the manifest's `history`
-array is the timeline. Post **one** closing message per sprint: stories shipped (merge hashes,
-issues closed), validation files, anything deferred, anything claimed-but-unverified.
+array is the timeline. Post **one** closing message per sprint: stories shipped (merge hashes),
+validation files, anything deferred, anything claimed-but-unverified.
 
 Any story `blocked` instead → `$SS set <sprint> blocked`, commit, and one message naming each
 blocked story, its last failing AC, and the fix paths tried. Jonathan resolves and re-admits

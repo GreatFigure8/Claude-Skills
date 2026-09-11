@@ -96,7 +96,7 @@ under *Open questions* in the plan and in the summary, not a conversation.
 ```markdown
 # <slug> — execution plan
 
-Sprint: <sprint>   Story: <slug>   Kind: <interactive|service>   Issue: #<n or none>
+Sprint: <sprint>   Story: <slug>   Kind: <interactive|service>
 Grounded: <files read>   Assumed: <what was not verifiable, or none>
 
 ## Items
@@ -158,7 +158,7 @@ Stories: <k>   Items: <total>   Waves: <n>
 <Aggregated from the story plans. Each with the default the coder will take if unanswered.>
 
 ## Definition of sprint-complete
-- every story `done` in sprint.json, its Validation table all-pass, its issue closed
+- every story `done` in sprint.json, its Validation table all-pass
 - sprint gates green on the integration branch; integration merged to live (or, with
   integration=none, the last story's merge is the close)
 ```
