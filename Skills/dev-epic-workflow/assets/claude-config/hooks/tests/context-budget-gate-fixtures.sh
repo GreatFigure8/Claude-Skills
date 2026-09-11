@@ -98,6 +98,20 @@ printf 'not json at all\n' > "$FX/garbage.json"
 printf '%s' '{"session_id":"sess-1","hook_event_name":"PreToolUse","tool_name":"Agent"' \
   > "$FX/truncated.json"
 
+# Main-session, non-dispatch tool (Bash), no session id in the payload.
+cat > "$FX/bash-main-nosession.json" <<'EOF'
+{"hook_event_name":"PreToolUse","tool_name":"Bash",
+ "tool_input":{"command":"ls"}}
+EOF
+
+# A SUBAGENT (agent_id present) calling a non-dispatch tool (Bash). Out of
+# scope for this gate no matter what the sentinel says, same as Agent.
+cat > "$FX/bash-subagent.json" <<'EOF'
+{"session_id":"sess-1","hook_event_name":"PreToolUse","tool_name":"Bash",
+ "agent_id":"sub-item-7-xyz","agent_type":"work-item-executor",
+ "tool_input":{"command":"ls"}}
+EOF
+
 # ---------------------------------------------------------------- helpers ----
 
 run_gate() { # $1=proj  $2=fixture  $3=variant  $4..=EXTRA_ENV KEY=VALUE
@@ -314,6 +328,215 @@ TXT="$(command -v jq > /dev/null 2>&1 && jq -r '.hookSpecificOutput.additionalCo
   || python3 -c 'import json;print(json.load(open("'"$SANDBOX"'/out"))["hookSpecificOutput"]["additionalContext"])')"
 case "$TXT" in *"dev-story-sprint rule 9"*) M=ok ;; *) M=bad ;; esac
 check "F: sprint mode default names rule 9" ok "$M" full
+
+
+# =========================================================================
+# G: STOP band boundaries — sprint mode, no stop= configured anywhere ->
+#    STOP defaults to 160000 (soft=150000 hard=165000 also defaults). Both
+#    dispatch (Agent) and non-dispatch (Bash) tools, across the soft/stop/
+#    hard boundaries. Proves the STOP default resolves to 160000 (not HARD)
+#    in sprint mode, and that the stop-band nudge is tool-agnostic while the
+#    soft-band nudge and the hard-band deny are dispatch-only.
+# =========================================================================
+echo
+echo "=== G: STOP band boundaries, sprint mode default (STOP=160000) ==========="
+NOW="$(date +%s)"
+sprint_signal() { printf '.claude/stories/context-budget-gate/status\n' > "$1/.claude/signals/active-epic"; }
+
+# 159999: soft band [150000,160000). Bash (non-dispatch): silent.
+PROJ="$(newproj)"; sprint_signal "$PROJ"
+write_sentinel "$PROJ/.claude/signals/context-usage" "epoch=$NOW" "used_tokens=159999"
+run_gate "$PROJ" "$FX/bash-main-nosession.json" full
+check "G: Bash used=159999 (soft band) -> silent [exit]" 0 "$RC" full
+check "G: Bash used=159999 (soft band) -> silent [stdout]" empty "$(stdout_state)" full
+
+# 159999: soft band. Agent (dispatch): soft nudge, not stop text.
+PROJ="$(newproj)"; sprint_signal "$PROJ"
+write_sentinel "$PROJ/.claude/signals/context-usage" "epoch=$NOW" "used_tokens=159999"
+run_gate "$PROJ" "$FX/agent-main-nosession.json" full
+check "G: Agent used=159999 (soft band) -> allow [exit]" 0 "$RC" full
+check "G: Agent used=159999 (soft band) -> allow [stdout]" nonempty "$(stdout_state)" full
+case "$(cat "$SANDBOX/out")" in *"soft threshold of 150000"*) M=ok ;; *) M=bad ;; esac
+check "G: Agent used=159999 names soft threshold, not STOP" ok "$M" full
+
+# 160000: stop band [160000,165000) starts here. Bash: allow, STOP text.
+PROJ="$(newproj)"; sprint_signal "$PROJ"
+write_sentinel "$PROJ/.claude/signals/context-usage" "epoch=$NOW" "used_tokens=160000"
+run_gate "$PROJ" "$FX/bash-main-nosession.json" full
+check "G: Bash used=160000 (stop band) -> allow [exit]" 0 "$RC" full
+check "G: Bash used=160000 (stop band) -> allow [stdout]" nonempty "$(stdout_state)" full
+case "$(cat "$SANDBOX/out")" in *"STOP threshold of 160000"*) M=ok ;; *) M=bad ;; esac
+check "G: Bash used=160000 names STOP threshold of 160000" ok "$M" full
+
+# 160000: stop band. Agent: also allow, STOP text (not silent, not denied).
+PROJ="$(newproj)"; sprint_signal "$PROJ"
+write_sentinel "$PROJ/.claude/signals/context-usage" "epoch=$NOW" "used_tokens=160000"
+run_gate "$PROJ" "$FX/agent-main-nosession.json" full
+check "G: Agent used=160000 (stop band) -> allow, not denied [exit]" 0 "$RC" full
+check "G: Agent used=160000 (stop band) -> allow [stdout]" nonempty "$(stdout_state)" full
+case "$(cat "$SANDBOX/out")" in *"STOP threshold of 160000"*) M=ok ;; *) M=bad ;; esac
+check "G: Agent used=160000 names STOP threshold of 160000" ok "$M" full
+
+# 165000: hard band starts here. Agent (dispatch): DENY.
+PROJ="$(newproj)"; sprint_signal "$PROJ"
+write_sentinel "$PROJ/.claude/signals/context-usage" "epoch=$NOW" "used_tokens=165000"
+run_gate "$PROJ" "$FX/agent-main-nosession.json" full
+check "G: Agent used=165000 (hard band) -> deny [exit]" 2 "$RC" full
+[ -s "$SANDBOX/err" ] && grep -q BLOCKED "$SANDBOX/err" && S=ok || S=bad
+check "G: Agent used=165000 -> stderr has BLOCKED" ok "$S" full
+
+# 165000: hard band. Bash (non-dispatch): allow, still STOP text.
+PROJ="$(newproj)"; sprint_signal "$PROJ"
+write_sentinel "$PROJ/.claude/signals/context-usage" "epoch=$NOW" "used_tokens=165000"
+run_gate "$PROJ" "$FX/bash-main-nosession.json" full
+check "G: Bash used=165000 (hard band) -> allow, not denied [exit]" 0 "$RC" full
+check "G: Bash used=165000 -> allow [stdout]" nonempty "$(stdout_state)" full
+case "$(cat "$SANDBOX/out")" in *"STOP threshold of 160000"*) M=ok ;; *) M=bad ;; esac
+check "G: Bash used=165000 names STOP threshold of 160000" ok "$M" full
+
+# =========================================================================
+# H: epic mode default (no active-epic naming .claude/stories/, no stop=
+#    configured anywhere) -> STOP resolves to HARD, i.e. an empty/disabled
+#    STOP..HARD band. Golden bytes captured from THIS branch's merged gate
+#    script (already has the STOP band; no fixture changes at capture time)
+#    at 120000/149999/150000/200000, tool_name=Agent. Byte-identical output
+#    proves the epic default is unaffected by the STOP feature.
+# =========================================================================
+echo
+echo "=== H: epic mode default (STOP==HARD, disabled band) — golden diff ======="
+GOLDEN="$SANDBOX/golden"; mkdir -p "$GOLDEN"
+
+cat > "$GOLDEN/120000.out" <<'EOF'
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"Context budget: this session is at 120000 tokens, past the soft threshold of 120000 (hard stop 150000). That is dev-epic-workflow context budget's stop-dispatching threshold: land what is already in flight, then hand off — do not start new work or dispatch further items."}}
+EOF
+: > "$GOLDEN/120000.err"
+
+cat > "$GOLDEN/149999.out" <<'EOF'
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"Context budget: this session is at 149999 tokens, past the soft threshold of 120000 (hard stop 150000). That is dev-epic-workflow context budget's stop-dispatching threshold: land what is already in flight, then hand off — do not start new work or dispatch further items."}}
+EOF
+: > "$GOLDEN/149999.err"
+
+: > "$GOLDEN/150000.out"
+cat > "$GOLDEN/150000.err" <<'EOF'
+BLOCKED by the dev-epic-workflow context budget gate (used: 150000 tokens; hard threshold: 150000).
+This session is past its context budget. Do NOT retry or route around this: dispatching
+another agent from here re-bills the whole context on every remaining turn.
+Stop dispatching immediately. Land what is already in flight (let running items finish,
+merge or record what they returned), then produce the dev-epic-workflow handoff at docs/epics/handoff.md, per dev-epic-workflow context budget.
+Everything already pushed is safe. Clear the session and resume from the handoff.
+EOF
+
+: > "$GOLDEN/200000.out"
+cat > "$GOLDEN/200000.err" <<'EOF'
+BLOCKED by the dev-epic-workflow context budget gate (used: 200000 tokens; hard threshold: 150000).
+This session is past its context budget. Do NOT retry or route around this: dispatching
+another agent from here re-bills the whole context on every remaining turn.
+Stop dispatching immediately. Land what is already in flight (let running items finish,
+merge or record what they returned), then produce the dev-epic-workflow handoff at docs/epics/handoff.md, per dev-epic-workflow context budget.
+Everything already pushed is safe. Clear the session and resume from the handoff.
+EOF
+
+for USED in 120000 149999 150000 200000; do
+  PROJ="$(newproj)"
+  write_sentinel "$PROJ/.claude/signals/context-usage" "epoch=$NOW" "used_tokens=$USED"
+  run_gate "$PROJ" "$FX/agent-main-nosession.json" full
+  EXP_RC=0; [ "$USED" -ge 150000 ] && EXP_RC=2
+  check "H: epic default used=$USED [exit]" "$EXP_RC" "$RC" full
+  diff -q "$GOLDEN/$USED.out" "$SANDBOX/out" > /dev/null 2>&1 && D=ok || D=bad
+  check "H: epic default used=$USED [stdout byte-identical to golden]" ok "$D" full
+  diff -q "$GOLDEN/$USED.err" "$SANDBOX/err" > /dev/null 2>&1 && D=ok || D=bad
+  check "H: epic default used=$USED [stderr byte-identical to golden]" ok "$D" full
+done
+
+# =========================================================================
+# I: stop= set via the .claude/context-budget file. soft/hard also via the
+#    file (env unset), stop=1500 between them. Boundary at 1499 (soft text)
+#    vs 1500 (STOP text) proves the file value is what took effect.
+# =========================================================================
+echo
+echo "=== I: stop= via .claude/context-budget file =============================="
+NOW="$(date +%s)"
+
+PROJ="$(newproj)"
+printf 'soft = 1000\nhard = 2000\nstop = 1500\n' > "$PROJ/.claude/context-budget"
+write_sentinel "$PROJ/.claude/signals/context-usage" "epoch=$NOW" "used_tokens=1499"
+run_gate "$PROJ" "$FX/agent-main-nosession.json" full
+check "I: file stop=1500, used=1499 -> soft band [exit]" 0 "$RC" full
+case "$(cat "$SANDBOX/out")" in *"soft threshold of 1000"*) M=ok ;; *) M=bad ;; esac
+check "I: file stop=1500, used=1499 names soft, not STOP" ok "$M" full
+
+PROJ="$(newproj)"
+printf 'soft = 1000\nhard = 2000\nstop = 1500\n' > "$PROJ/.claude/context-budget"
+write_sentinel "$PROJ/.claude/signals/context-usage" "epoch=$NOW" "used_tokens=1500"
+run_gate "$PROJ" "$FX/agent-main-nosession.json" full
+check "I: file stop=1500, used=1500 -> stop band [exit]" 0 "$RC" full
+case "$(cat "$SANDBOX/out")" in *"STOP threshold of 1500"*) M=ok ;; *) M=bad ;; esac
+check "I: file stop=1500, used=1500 names STOP threshold of 1500" ok "$M" full
+
+# =========================================================================
+# J: stop= set via env CONTEXT_BUDGET_STOP_TOKENS (soft/hard also via env).
+#    Same boundary proof as section I, different source.
+# =========================================================================
+echo
+echo "=== J: stop= via env CONTEXT_BUDGET_STOP_TOKENS ============================"
+NOW="$(date +%s)"
+
+PROJ="$(newproj)"
+write_sentinel "$PROJ/.claude/signals/context-usage" "epoch=$NOW" "used_tokens=1499"
+run_gate "$PROJ" "$FX/agent-main-nosession.json" full \
+  CONTEXT_BUDGET_SOFT_TOKENS=1000 CONTEXT_BUDGET_HARD_TOKENS=2000 CONTEXT_BUDGET_STOP_TOKENS=1500
+check "J: env stop=1500, used=1499 -> soft band [exit]" 0 "$RC" full
+case "$(cat "$SANDBOX/out")" in *"soft threshold of 1000"*) M=ok ;; *) M=bad ;; esac
+check "J: env stop=1500, used=1499 names soft, not STOP" ok "$M" full
+
+PROJ="$(newproj)"
+write_sentinel "$PROJ/.claude/signals/context-usage" "epoch=$NOW" "used_tokens=1500"
+run_gate "$PROJ" "$FX/agent-main-nosession.json" full \
+  CONTEXT_BUDGET_SOFT_TOKENS=1000 CONTEXT_BUDGET_HARD_TOKENS=2000 CONTEXT_BUDGET_STOP_TOKENS=1500
+check "J: env stop=1500, used=1500 -> stop band [exit]" 0 "$RC" full
+case "$(cat "$SANDBOX/out")" in *"STOP threshold of 1500"*) M=ok ;; *) M=bad ;; esac
+check "J: env stop=1500, used=1500 names STOP threshold of 1500" ok "$M" full
+
+# =========================================================================
+# K: invalid STOP ordering (stop < soft, or stop > hard) -> fail open, same
+#    as the existing soft/hard invalid-ordering behavior: exit 0, no stdout.
+# =========================================================================
+echo
+echo "=== K: invalid stop ordering -> fail open =================================="
+NOW="$(date +%s)"
+
+# stop < soft.
+PROJ="$(newproj)"
+write_sentinel "$PROJ/.claude/signals/context-usage" "epoch=$NOW" "used_tokens=1500"
+run_gate "$PROJ" "$FX/agent-main-nosession.json" full \
+  CONTEXT_BUDGET_SOFT_TOKENS=1000 CONTEXT_BUDGET_HARD_TOKENS=2000 CONTEXT_BUDGET_STOP_TOKENS=500
+check "K: stop(500) < soft(1000) -> fail open [exit]" 0 "$RC" full
+check "K: stop(500) < soft(1000) -> fail open [stdout]" empty "$(stdout_state)" full
+
+# stop > hard.
+PROJ="$(newproj)"
+write_sentinel "$PROJ/.claude/signals/context-usage" "epoch=$NOW" "used_tokens=1500"
+run_gate "$PROJ" "$FX/agent-main-nosession.json" full \
+  CONTEXT_BUDGET_SOFT_TOKENS=1000 CONTEXT_BUDGET_HARD_TOKENS=2000 CONTEXT_BUDGET_STOP_TOKENS=2500
+check "K: stop(2500) > hard(2000) -> fail open [exit]" 0 "$RC" full
+check "K: stop(2500) > hard(2000) -> fail open [stdout]" empty "$(stdout_state)" full
+
+# =========================================================================
+# L: subagent present (agent_id set) -> untouched (silent) regardless of
+#    tool name or how far past STOP/HARD the sentinel says this session is.
+# =========================================================================
+echo
+echo "=== L: subagent (agent_id present) untouched at any STOP/HARD count ======"
+NOW="$(date +%s)"
+for FIX in agent-subagent bash-subagent; do
+  for USED in 160000 165000; do
+    PROJ="$(newproj)"; sprint_signal "$PROJ"
+    write_sentinel "$PROJ/.claude/signals/context-usage-sess-1" "epoch=$NOW" "used_tokens=$USED"
+    run_gate "$PROJ" "$FX/$FIX.json" full
+    check "L: $FIX used=$USED -> untouched [exit]" 0 "$RC" full
+    check "L: $FIX used=$USED -> untouched [stdout]" empty "$(stdout_state)" full
+  done
+done
 
 echo
 echo "cases: $CASES   failures: $FAILURES"
