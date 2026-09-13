@@ -1,47 +1,40 @@
 #!/usr/bin/env bash
 # Integration test for dev-story-flow's own Stop-hook hand-off gate
-# (handoff-stop-gate.sh) working end to end through a REAL install of this
-# skill's assets/install.sh and a real Stop-hook JSON payload. No network, no
-# jq/python assumptions beyond what the hooks themselves already require.
+# (handoff-stop-gate.sh) working end to end against a real Stop-hook JSON
+# payload, run directly from the plugin's own hooks/ directory (no install
+# step — the plugin ships hooks/hooks.json pointing Claude Code at these same
+# scripts via ${CLAUDE_PLUGIN_ROOT}). No network, no jq/python assumptions
+# beyond what the hooks themselves already require.
 # Usage:
 #   bash handoff-stop-integration.sh   (exit 0 = pass)
 #
 # This is integration-only: the decision table (allow/block rows) is owned
-# exhaustively by a sibling fixture suite. This proves the pieces installed
-# together actually cooperate. dev-story-flow does not install or depend on
-# a SessionStart grounding hook (that is dev-epic-workflow's own concern), so
-# this test does not exercise one.
+# exhaustively by a sibling fixture suite. dev-story-flow does not ship or
+# depend on a SessionStart grounding hook (that is dev-epic-workflow's own
+# concern), so this test does not exercise one.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_SH="$HERE/../install.sh"
+HOOK_STOP="$HERE/../../hooks/handoff-stop-gate.sh"
+HOOK_LIB="$HERE/../../hooks/context-budget-lib.sh"
 
-TMP_HOME="$(mktemp -d)"
 TMP_REPO="$(mktemp -d)"
-trap 'rm -rf "$TMP_HOME" "$TMP_REPO"' EXIT
+trap 'rm -rf "$TMP_REPO"' EXIT
 
 PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); }
 bad() { FAIL=$((FAIL+1)); echo "FAIL: $1" >&2; }
 check(){ if eval "$2"; then ok; else bad "$1"; fi; }
 
-# --- Step 1: real install into a throwaway HOME. ------------------------------
-INSTALL_OUT="$(mktemp "${TMPDIR:-/tmp}/handoff-stop-install-out.XXXXXX")"
-if ! HOME="$TMP_HOME" bash "$INSTALL_SH" >"$INSTALL_OUT" 2>&1; then
-  bad "install.sh exited nonzero"
-  cat "$INSTALL_OUT" >&2
-fi
-rm -f "$INSTALL_OUT"
-HOOK_STOP="$TMP_HOME/.claude/hooks/handoff-stop-gate.sh"
-HOOK_LIB="$TMP_HOME/.claude/hooks/context-budget-lib.sh"
-check "handoff-stop-gate.sh installed"        '[ -x "$HOOK_STOP" ]'
-check "context-budget-lib.sh installed"        '[ -f "$HOOK_LIB" ]'
+# --- Step 1: the shipped scripts are present and executable. -----------------
+check "handoff-stop-gate.sh present and executable"  '[ -x "$HOOK_STOP" ]'
+check "context-budget-lib.sh present"                '[ -f "$HOOK_LIB" ]'
 
 # --- Step 2: temp git repo + sprint-mode signals. -----------------------------
 git -C "$TMP_REPO" init -q
 UNIT="demo-sprint"
 SESSION_ID="demo-session-1"
 
-# Source the INSTALLED lib to derive the session slug the exact same way the
+# Source the shipped lib to derive the session slug the exact same way the
 # gate does — no reimplementation of session_slug_for() in this test.
 # shellcheck source=/dev/null
 . "$HOOK_LIB"

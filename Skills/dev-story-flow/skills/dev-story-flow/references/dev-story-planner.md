@@ -19,7 +19,7 @@ State moves `ready-to-plan → planning → planned`; see [sprint-state.md](spri
 ### 1. Pick up unplanned sprints
 
 ```bash
-SS=~/.claude/skills/dev-story-flow/assets/bin/sprint-state.sh
+SS=${CLAUDE_PLUGIN_ROOT}/assets/bin/sprint-state.sh
 git fetch -q && git pull --ff-only          # manifests are committed; read the latest
 $SS list ready-to-plan
 ```
@@ -86,7 +86,7 @@ dev-story-flow plan — sprint <sprint>, story <slug>
 Read: docs/sprints/<sprint>/<slug>/story.md (whole), then ground in the repo with grep -n / sed -n
       on the files the Specification names and their direct callers. Not a repo tour.
 Write: docs/sprints/<sprint>/<slug>/<slug>-plan.md using the plan template in
-       ~/.claude/skills/dev-story-flow/references/dev-story-planner.md (section "Plan template").
+       ${CLAUDE_PLUGIN_ROOT}/skills/dev-story-flow/references/dev-story-planner.md (section "Plan template").
 Rules: silent — no text between tool calls, never address Jonathan. Decompose along file
        ownership so no two items in a wave touch the same files. Every AC in the story maps to
        a row in the Validation table with an exact command or browser step. Pick Sonnet 5 per

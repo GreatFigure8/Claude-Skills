@@ -84,8 +84,8 @@ planner and coder start from zero at the cost of one paste.
 6. **Executors run through `story-item-executor`** with `isolation: "worktree"`, always, using
    this skill's own dispatch template, control plane (`status.json`, cancel sentinel) and
    land-and-reset merge — see [references/dev-story-coder.md](references/dev-story-coder.md).
-   The agent and its supporting hooks are this skill's own assets (`assets/agents`,
-   `assets/claude-config`), installed by `assets/install.sh`.
+   The agent and its supporting hooks are this skill's own plugin assets (`agents/`,
+   `hooks/`), wired in automatically on plugin install — see "Install" below.
 7. **Acceptance criteria are proven, not asserted.** A story is `done` only when every row of
    its plan's Validation table passed against the integration branch and the results are in
    `<slug>/validation.md`. Service stories: unit gate + integration script against the running
@@ -99,7 +99,7 @@ planner and coder start from zero at the cost of one paste.
    reading of the global TDD rule; executors otherwise follow `story-item-executor`'s no-TDD
    instruction because their tests arrive as their own items.
 10. **Budget: stop dispatching at 150k, find a stopping point at 160k, never pass 165k** —
-    this skill's own `context-budget-gate.sh` (`assets/claude-config/hooks/`) enforces it. At
+    this skill's own `context-budget-gate.sh` (`hooks/`) enforces it. At
     150k, land what is in flight and stop dispatching new work. At 160k, run the per-phase
     stopping-point procedure below (each phase's reference doc has a "Stopping point at 160k"
     subsection), make `sprint.json` truthful, commit, and call `Skill({skill: "clear-prompt",
@@ -123,12 +123,15 @@ docs/sprints/2026-09-10-001/
     └── validation.md                coder — per-AC evidence from the final passing run
 ```
 
-Helper, from any repo:
+Helper, from any repo, inside a Claude Code session (the plugin sets `CLAUDE_PLUGIN_ROOT`):
 
 ```bash
-~/.claude/skills/dev-story-flow/assets/bin/sprint-state.sh list          # every sprint and its state
-~/.claude/skills/dev-story-flow/assets/bin/sprint-state.sh get <sprint>  # one manifest
+${CLAUDE_PLUGIN_ROOT}/assets/bin/sprint-state.sh list          # every sprint and its state
+${CLAUDE_PLUGIN_ROOT}/assets/bin/sprint-state.sh get <sprint>  # one manifest
 ```
+
+Running it from your own shell outside a session: find the live path with `claude plugin list`
+(plugins install to a versioned directory under `~/.claude/plugins/cache/`).
 
 ## Relationship to the siblings
 
@@ -144,24 +147,34 @@ If a story is one-off and Jonathan wants it now, that is a sprint. If it needs i
 epic numbering, PR ceremony, or a retro, that is an epic. Everything in between — a batch of
 stories specified once and shipped unattended — is this flow.
 
-## Install (once per machine, and again after any change you want live)
+## Install (once — via the Claude Code plugin manager)
+
+This skill ships as a plugin, `dev-story-flow`, from a local marketplace at the root of this
+repo (`.claude-plugin/marketplace.json`, `pluginRoot: ./Skills`). Add the marketplace once,
+then install and update the plugin like any other — through the Claude Code UI's plugin
+manager, or from the CLI:
 
 ```bash
-bash ~/Source/claude-skills/Skills/dev-story-flow/assets/install.sh
+claude plugin marketplace add ~/Source/claude-skills
+claude plugin install dev-story-flow@claude-skills
 ```
 
-Symlinks `~/.claude/skills/dev-story-flow` and `~/.claude/skills/goal` into the working
-checkout. There is no separate worktree pinned to `main` — whatever branch is checked out in
-`~/Source/claude-skills` (and any uncommitted edit) is what every repo on the machine loads
-through these symlinks (claude-skills `CLAUDE.md` rule 3), and nothing refreshes that
-automatically, so re-run this script whenever you want the global copy to pick up a change.
-The installer also copies this skill's own `story-item-executor` agent to `~/.claude/agents/`
-and its own control-plane hooks (cancel gate, subagent lifecycle, context-budget gate,
-hand-off-stop gate, statusline) to `~/.claude/hooks/`, merging their wiring into
-`~/.claude/settings.json` — no separate install of `dev-story-sprint` or `dev-epic-workflow`
-is required. If either sibling skill is also installed, their same-named files are
-functionally interchangeable with these (same shared conventions); whichever installer ran
-last simply wins at the shared destination path.
+A local-path marketplace re-reads the checkout on `claude plugin marketplace update` (or the
+UI's Update action), so committing a change here and updating from the UI is enough — no
+symlinks, no `install.sh`, no manual copy into `~/.claude/agents` or `~/.claude/hooks`. The
+plugin bundles its own `story-item-executor` agent (`agents/`) and control-plane hooks
+(`hooks/hooks.json` plus the scripts it points at); Claude Code wires both in on install.
+
+**Not bundled:** `Skills/goal` is shared by dev-story-flow, dev-story-sprint, and
+dev-epic-workflow, so it stays on its own standalone symlink into `~/.claude/skills/goal` —
+out of this plugin's scope.
+
+**Not carried over:** the old installer also set the main-session statusline (branch | model |
+context usage) when none was configured. A plugin's own `settings.json` can only wire a
+`subagentStatusLine`, not the primary session one, so `hooks/statusline.sh` ships for
+reference but isn't auto-wired — pointing your own `~/.claude/settings.json` at it (via
+`claude plugin list` for the live path) is a manual, one-time step if you want it.
+
 Tests: `bash assets/tests/sprint-state-fixtures.sh`.
 
 ## What this skill overrides from the global rules

@@ -21,7 +21,7 @@ questions, because this is where ambiguity is cheapest to remove.
 ### 1. Find or create the sprint
 
 ```bash
-SS=~/.claude/skills/dev-story-flow/assets/bin/sprint-state.sh
+SS=${CLAUDE_PLUGIN_ROOT}/assets/bin/sprint-state.sh
 $SS list drafting            # any sprint still being drafted?
 ```
 

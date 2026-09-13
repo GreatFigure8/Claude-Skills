@@ -1,0 +1,6 @@
+{
+  "name": "dev-story-flow",
+  "description": "Three-phase, file-driven pipeline for shipping a sprint of user stories autonomously: CREATE intake, PLAN with parallel sub-agents, EXECUTE with parallel executors — validated and merged with no go-ahead awaited.",
+  "version": "1.0.0",
+  "author": { "name": "Jonathan Stevenson" }
+}

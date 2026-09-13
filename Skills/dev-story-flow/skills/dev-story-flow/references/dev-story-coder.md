@@ -22,7 +22,7 @@ moves `planned → executing → complete` (or `blocked`); see [sprint-state.md]
 ### 1. Find sprints that are planned and not being executed
 
 ```bash
-SS=~/.claude/skills/dev-story-flow/assets/bin/sprint-state.sh
+SS=${CLAUDE_PLUGIN_ROOT}/assets/bin/sprint-state.sh
 git fetch -q && git pull --ff-only
 $SS list planned                          # candidates, oldest first
 $SS list executing                        # anyone else's? for each: $SS stale <sprint> && echo reclaimable

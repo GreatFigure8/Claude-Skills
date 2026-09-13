@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Integration test for dev-story-flow's own context-budget gate's STOP band
 # ([STOP, HARD)) in SPRINT mode — runs this skill's own gate script
-# (../claude-config/hooks/context-budget-gate.sh) against a throwaway git
+# (../../hooks/context-budget-gate.sh) against a throwaway git
 # repo, no network. Usage: bash stop-threshold-integration.sh (exit 0 = pass).
 # This is integration-only: it exercises the gate end to end through real
 # PreToolUse JSON on stdin and a real context-usage sentinel, and does not
@@ -10,7 +10,7 @@
 # coverage.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GATE="$HERE/../claude-config/hooks/context-budget-gate.sh"
+GATE="$HERE/../../hooks/context-budget-gate.sh"
 [ -f "$GATE" ] || { echo "ERROR: not found: $GATE" >&2; exit 1; }
 
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
