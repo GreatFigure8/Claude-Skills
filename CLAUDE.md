@@ -19,6 +19,13 @@
    stable in other repos; a feature branch or a mid-edit file is visible everywhere the instant
    it's saved. See "The checkout is shared" below — the same caution applies to what other
    sessions load, not just to what they commit.
+   **Exception: dev-story-flow.** It ships as a plugin (`Skills/dev-story-flow/.claude-plugin/`)
+   from this repo's own local marketplace (`.claude-plugin/marketplace.json` at repo root) —
+   installed and updated through the Claude Code plugin manager (UI or `claude plugin`),
+   not a raw `~/.claude/skills` symlink. A local-path marketplace still re-reads this checkout
+   live on update, so the "land on dev/main before relying on it" caution still applies; there
+   is just no `install.sh` and no manual copy into `~/.claude/agents` or `~/.claude/hooks` for
+   this one skill.
 
 ## The checkout is shared
 
