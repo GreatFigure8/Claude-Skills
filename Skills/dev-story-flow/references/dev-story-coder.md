@@ -273,8 +273,11 @@ posted the hand-off block, and `clear-prompt` clears the session itself once it 
 
 ## Rules
 
-- Silent between the sprint's table message and its closing message, except: a model change on
-  re-dispatch (one line), a stale-claim takeover (one line), a `blocked` story (one message).
+- **Silence is non-negotiable** (SKILL.md rule 3): silent between the sprint's table message
+  and its closing message, except a model change on re-dispatch (one line), a stale-claim
+  takeover (one line), or a `blocked` story (one message). Every executor and verifier
+  sub-agent returns only its summary. Stay quiet and keep every sub-agent quiet unless
+  something genuinely needs Jonathan's attention.
 - Never resolve a merge conflict in the main checkout. Never switch its branch.
 - Never mark `done` without a `validation.md` that shows every AC row passing. "Not verified"
   is a `validating` story, not a `done` one.

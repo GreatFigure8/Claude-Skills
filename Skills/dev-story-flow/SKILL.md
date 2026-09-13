@@ -66,10 +66,15 @@ planner and coder start from zero at the cost of one paste.
 2. **Claims prevent double work.** `planning` and `executing` record who holds the sprint.
    Fresh claims are skipped by other sessions; stale ones (default 6 h) may be taken over with
    one line saying so. See sprint-state.md.
-3. **Silence.** CREATE is conversational. PLAN and EXECUTE speak per sprint exactly: the model
-   table, a genuine blocker, the closing message — plus one line on a re-dispatch model change
-   or a stale-claim takeover. Sub-agents and executors say nothing but their return summary
-   (≤ 20 lines, never addressed to Jonathan; a question is a `blocked` state).
+3. **Silence — non-negotiable.** CREATE is conversational; nothing else is. PLAN and EXECUTE
+   speak per sprint exactly: the model table, a genuine blocker, the closing message — plus one
+   line on a re-dispatch model change or a stale-claim takeover. Every sub-agent and executor,
+   in every phase, says nothing but its return summary (≤ 20 lines, never addressed to
+   Jonathan; a question is a `blocked` state, not a message). No progress narration, no
+   restated plans, no "done with step N", from the orchestrator or from anything it spawns.
+   Stay quiet and keep every sub-agent quiet unless there is a genuine issue that needs
+   Jonathan's attention — a blocker, a stale-claim takeover, or the closing message. This
+   overrides any instinct to explain, summarize progress, or narrate what a tool call found.
 4. **Every spawn is announced with a model table first**, one table per sprint covering every
    sub-agent or item, with a **Model** column. `model:` is always explicit — `"sonnet"`
    (Sonnet 5) by default, `"opus"` (Opus 5) only past the complexity bar stated in the phase

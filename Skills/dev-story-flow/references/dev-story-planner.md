@@ -208,8 +208,10 @@ The sprint itself stays `planning`, its claim intact — a resuming planner reus
 
 ## Rules
 
-- The orchestrator is quiet: the table message, a genuine blocker, the closing line. Nothing
-  between.
+- **Silence is non-negotiable** (SKILL.md rule 3): the orchestrator speaks only the table
+  message, a genuine blocker, the closing line — nothing between. Every planner sub-agent
+  returns only its summary. Stay quiet and keep every sub-agent quiet unless something
+  genuinely needs Jonathan's attention.
 - Every spawn is announced in a table with a **Model** column before it starts. Never let
   `model` inherit.
 - Never edit `story.md`. If a story is wrong, the plan's *Open questions* says so.
