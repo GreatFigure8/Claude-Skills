@@ -1,20 +1,28 @@
-# dev-story-creator — phase 1 of dev-story-flow
+---
+name: dev-story-intake
+description: Jonathan's conversational intake for dev-story-flow — turns each user story he gives in chat into a specification-grade story.md under docs/sprints/SPRINT/SLUG/, registers it in the committed sprint.json, and when he says the sprint is documentation-complete sets it ready-to-plan and hands him the one line that starts dev-story-flow. This is the only conversational phase of the story pipeline; it never plans and never codes. Use whenever Jonathan says "dev-story-intake", "intake a story", "new story", "add a story", "new sprint", "create a story", "/goal using dev-story-intake …", or pastes a user story with no other instruction. Do NOT use for a single story with no sprint folder (dev-story-sprint), for planning or executing sprints (dev-story-flow), or for issue-tracker intake and epic planning (dev-epic-workflow / intake).
+---
+
+# dev-story-intake — phase 1 of the story pipeline
 
 Intakes user stories from Jonathan in chat and turns each into a detailed, specification-grade
 `story.md`. A story can arrive as one loose sentence ("as a user I want a chat process that
 uses an LLM…") or as a full statement with acceptance criteria. Either way the output is the
 same shape, and the sprint it lands in is tracked by the manifest described in
-[sprint-state.md](sprint-state.md).
+[sprint-state.md](../dev-story-flow/references/sprint-state.md) — the same manifest the
+`dev-story-flow` skill later picks up. Intake is a separate skill so that the intake
+conversation never rides along in the planner's or coder's context: this session writes
+files, `dev-story-flow` reads them, and nothing passes between them but `sprint.json`.
 
-This is the **only conversational phase**. The planner and coder run silent; the creator asks
-questions, because this is where ambiguity is cheapest to remove.
+This is the **only conversational phase**. The planner and coder (in `dev-story-flow`) run
+silent; intake asks questions, because this is where ambiguity is cheapest to remove.
 
 ## Inputs and outputs
 
 - **In:** Jonathan's story text, in chat. Optionally an existing sprint in `drafting`.
 - **Out:** `docs/sprints/<sprint>/<story-slug>/story.md` per story, `sprint.json` with the
-  story registered, and — when
-  Jonathan says the sprint is documentation-complete — the sprint set to `ready-to-plan`.
+  story registered, and — when Jonathan says the sprint is documentation-complete — the
+  sprint set to `ready-to-plan` plus the one line that starts `dev-story-flow`.
 
 ## Process
 
@@ -22,6 +30,7 @@ questions, because this is where ambiguity is cheapest to remove.
 
 ```bash
 SS=${CLAUDE_PLUGIN_ROOT}/assets/bin/sprint-state.sh
+git fetch -q && git pull --ff-only
 $SS list drafting            # any sprint still being drafted?
 ```
 
@@ -30,12 +39,14 @@ $SS list drafting            # any sprint still being drafted?
 - **None exists** → `$SS new` creates `docs/sprints/YYYY-MM-DD-NNN/` with `sprint.json` in
   `drafting`, the index being the next unused one for today. Pass `--integration none` when the
   repo's `CLAUDE.md` says work goes straight against live; otherwise the default
-  `sprint/<sprint>` integration branch is recorded and the coder cuts it later.
+  `sprint/<sprint>` integration branch is recorded and the coder cuts it later. Pass
+  `--live <branch>` when the repo's `CLAUDE.md` names a live branch other than the default
+  (this repo: `--live dev`).
 - Commit: `chore(sprint): open sprint <sprint>` — the manifest's first commit.
 
-All stories written in this session belong to that sprint until step 5 closes it. Under
-`run`, when nothing is `drafting`, `ready-to-plan` or `planned`, this step runs automatically
-and the creator's first message is one line: the sprint name and "give me the first story".
+All stories written in this session belong to that sprint until step 5 closes it. When the
+objective carried no story text, the first message is one line: the sprint name and "give me
+the first story".
 
 ### 2. Intake — one batched round of questions
 
@@ -86,7 +97,9 @@ same thing.>
 ## Dependencies, risks, and breaking changes
 <Other stories this depends on (by slug). External services and credentials. Breaking
 changes to any public contract and the migration path. Build/typing/packaging concerns
-(new deps, lockfile, mypy/tsc strictness). Anything the model judges critical.>
+(new deps, lockfile, mypy/tsc strictness). Anything the model judges critical. Name any
+auth, user-input, database, filesystem-path, external-call, crypto or money surface the
+story touches — the coder's review step uses this to pick its review model.>
 
 ## Acceptance criteria
 <Numbered AC1, AC2, … — each one a check with a yes/no answer. Shape depends on `kind`:>
@@ -121,13 +134,13 @@ $SS story add <sprint> <slug> --title "<title>" --kind <interactive|service>
 git add docs/sprints/<sprint> && git commit -m "docs(sprint): <sprint> — story <slug>"
 ```
 
-**No GitHub issues.** dev-story-flow never runs `gh issue create`; the story file and the
+**No GitHub issues.** The story pipeline never runs `gh issue create`; the story file and the
 manifest are the record, and the sprint's merge commits are the trail.
 
 Then post one short confirmation: sprint, slug, kind, path — and wait for the next
 story or for the completion phrase.
 
-### 5. Hand off to the planner — the "documentation complete" signal
+### 5. Hand off to dev-story-flow — the "documentation complete" signal
 
 Jonathan closes the sprint with any clear phrase: **"I'm done"**, **"sprint complete"**,
 **"documentation complete"**, **"done with the sprint"**, **"that's all the stories"**,
@@ -138,32 +151,31 @@ $SS set <sprint> ready-to-plan --by creator
 git add docs/sprints/<sprint>/sprint.json && git commit -m "chore(sprint): <sprint> ready to plan (<k> stories)" && git push
 ```
 
-That status change **is** the hand-off. The planner discovers work by `sprint-state.sh list
-ready-to-plan`; nothing else needs to be told anything.
+That status change **is** the hand-off. `dev-story-flow` discovers work by `sprint-state.sh
+list ready-to-plan`; nothing else needs to be told anything.
 
-**Then kick off the next phases.** How depends on the objective that started this phase:
-
-**Under `run` (default):** continue directly. One line — "Sprint <sprint> ready: <slugs>.
-Planning." — then start the planner procedure in this same turn, and the coder after it.
-Jonathan is asked nothing further; the next thing he reads is the planner's model table.
-The intake context rides along; the 150k/165k gate is the safety net if the sprint is large.
-
-**Under `run clean`, or a standalone `create`:** hand off into an empty context, because the
-intake conversation is dead weight for the planner and coder. The creator's last turn does
-three things and nothing more:
+**Then hand the session over.** The intake conversation is dead weight for the planner and
+coder, so by default intake ends here and the flow starts in an empty context. The last turn
+does three things and nothing more:
 
 1. Confirms the working tree is clean and pushed (`git status --short` empty, `git log
-   origin/main..HEAD` empty).
+   origin/<live>..HEAD` empty).
 2. Posts exactly this, as the last visible text: the sprint name, its story slugs, and the
    line to paste — `/goal using dev-story-flow run` — with one sentence saying the chat is
    about to clear.
 3. Calls the desktop app's clear tool on itself: `mcp__ccd_session_mgmt__clear_session` with
    `session_id: "self"`. The transcript empties when the turn ends; Jonathan pastes the one
-   line and PLAN then EXECUTE run with nothing else in context. When that tool is not
-   available (plain CLI), say `/clear` then paste the line — same effect, one extra keystroke.
+   line and `dev-story-flow` plans and executes with nothing else in context. When that tool
+   is not available (plain CLI), say `/clear` then paste the line — same effect, one extra
+   keystroke.
 
 A session cannot queue a message to itself after clearing, so one paste is the floor here.
-`run` means PLAN then EXECUTE (see SKILL.md); EXECUTE loops until no sprint is `planned`.
+
+**Same-session variant.** If the completion phrase itself asks for it — "I'm done, run it",
+"done, go", "that's all, execute" — skip the clear and call
+`Skill({skill: "dev-story-flow:dev-story-flow", args: "run"})` in the same turn instead. The
+intake context rides along; `dev-story-flow`'s 150k/165k gate is the safety net if the sprint
+is large. One line first: "Sprint <sprint> ready: <slugs>. Starting dev-story-flow."
 
 **Alternatives considered for this signal:** a `.ready` marker file (no metadata, can coexist
 with stale flags), a line in a central index (merge conflicts across sessions), a GitHub label
@@ -171,27 +183,29 @@ with stale flags), a line in a central index (merge conflicts across sessions), 
 
 ### 6. End
 
-The creator does not plan and does not code. A story added after the sprint is
-`ready-to-plan` starts a **new** sprint (step 1 will find no `drafting` sprint and create one).
+Intake does not plan and does not code. A story added after the sprint is `ready-to-plan`
+starts a **new** sprint (step 1 will find no `drafting` sprint and create one). If Jonathan
+asks intake to plan or execute, answer with the one line to run — `/goal using dev-story-flow
+run` — and stop.
 
 ### Stopping point at 160k
 
 At 160k, finish writing and committing the story currently in hand — do not start intake of
 another one. Then:
 
-- **The sprint has ≥ 1 story:** close it the way step 5's `run clean` variant does. Set it
+- **The sprint has ≥ 1 story:** close it the way step 5's default does. Set it
   `ready-to-plan`, commit, and push:
   ```bash
   $SS set <sprint> ready-to-plan --by creator
   git add docs/sprints/<sprint>/sprint.json && git commit -m "chore(sprint): <sprint> ready to plan (<k> stories)" && git push
   ```
-  then post that same variant's hand-off, in its own voice: confirm the working tree is clean
-  and pushed, and post exactly the sprint name, its story slugs, and the line to paste —
+  then post that same hand-off: confirm the working tree is clean and pushed, and post
+  exactly the sprint name, its story slugs, and the line to paste —
   `/goal using dev-story-flow run` — with one sentence saying the chat is about to clear.
 - **The sprint has zero stories:** leave it `drafting` — no status change, nothing to commit
-  on `sprint.json` — and post the existing `create` line instead: the sprint name (still
-  drafting) and the line to paste, `/goal using dev-story-flow create`, with the same
-  one-sentence notice that the chat is about to clear.
+  on `sprint.json` — and post the intake line instead: the sprint name (still drafting) and
+  the line to paste, `/goal using dev-story-intake`, with the same one-sentence notice that
+  the chat is about to clear.
 
 Either way the session then clears: `mcp__ccd_session_mgmt__clear_session` with
 `session_id: "self"` when available, else say `/clear` and paste the line.
@@ -205,3 +219,5 @@ Either way the session then clears: `mcp__ccd_session_mgmt__clear_session` with
 - Never guess repo facts — read them. A story that names a file that does not exist is a bug in
   the story.
 - Commit after every story; the manifest and the stories travel together.
+- State lives in `sprint.json`, committed, written only by `sprint-state.sh` — the shared
+  rules in [dev-story-flow's SKILL.md](../dev-story-flow/SKILL.md) apply here too.

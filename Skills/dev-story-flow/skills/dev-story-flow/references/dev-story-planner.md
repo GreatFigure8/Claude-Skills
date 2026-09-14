@@ -1,6 +1,6 @@
 # dev-story-planner — phase 2 of dev-story-flow
 
-Finds every sprint the creator marked `ready-to-plan`, claims it, and produces an execution
+Finds every sprint `dev-story-intake` marked `ready-to-plan`, claims it, and produces an execution
 plan per story plus one sprint-level `impl-plan.md`. Planning is delegated to **silent
 sub-agents**, one per story, running in parallel. The orchestrator speaks only to announce
 the model table and to close — or when a story genuinely cannot be planned without Jonathan.
@@ -180,8 +180,9 @@ rm -f .claude/signals/active-epic
 
 That status change **is** the hand-off; the coder discovers work with `sprint-state.sh list
 planned`. Then one closing line per sprint: stories, items, waves, any open questions, and
-where `impl-plan.md` is so Jonathan can review before running
-`/goal using dev-story-flow execute until all planned sprints are completed`.
+where `impl-plan.md` is. Under the `run` loop the coder procedure starts in the same turn
+with no pause; under a standalone `plan` objective Jonathan can read `impl-plan.md` before
+running `/goal using dev-story-flow execute until all planned sprints are completed`.
 
 **Open questions do not block planning.** They are written down with the default the coder
 will take. Only a story that cannot be planned at all (spec contradicts the repo, dependency

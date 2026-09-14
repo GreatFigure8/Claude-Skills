@@ -1,6 +1,8 @@
 {
   "name": "dev-story-flow",
-  "description": "Three-phase, file-driven pipeline for shipping a sprint of user stories autonomously: CREATE intake, PLAN with parallel sub-agents, EXECUTE with parallel executors — validated and merged with no go-ahead awaited.",
-  "version": "1.0.0",
-  "author": { "name": "Jonathan Stevenson" }
+  "description": "File-driven pipeline for shipping sprints of user stories autonomously. Two skills: dev-story-intake (conversational — turns Jonathan's stories into story.md files and closes a sprint ready-to-plan) and dev-story-flow (the silent loop — plans every ready-to-plan sprint with parallel sub-agents, executes every planned sprint with parallel executors, reviews each story's diff with a code-review sub-agent, validates acceptance criteria, merges to live, and rescans for the next sprint; no go-ahead awaited).",
+  "version": "1.1.0",
+  "author": {
+    "name": "Jonathan Stevenson"
+  }
 }

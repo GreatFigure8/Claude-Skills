@@ -1,6 +1,6 @@
 # Sprint state — the contract the three phases share
 
-The creator, planner and coder never talk to each other. They hand work forward through
+The creator (the `dev-story-intake` skill), planner and coder never talk to each other. They hand work forward through
 **one committed file per sprint**: `docs/sprints/<sprint>/sprint.json`. Whoever runs next
 scans those manifests, picks the ones in its input state, claims them, and advances them.
 Git is the audit trail; the repo is the queue.
@@ -74,7 +74,7 @@ says so in one line; a fresh one is skipped. `planned`, `complete` and `blocked`
 
 - `kind` is `interactive` (UI, browser-tested) or `service` (backend, DB, API, MCP, CLI — curl/bash-tested). It decides the acceptance-criteria shape.
 - `branch.integration` is `sprint/<sprint>` by default, or `"none"` in repos whose `CLAUDE.md` says to work directly against live. `branch.live` is the branch the completed sprint merges into — `dev` in repos with a dev/main model (pass `--live dev`).
-- Story `status`: `drafted → planned → executing → validating → done`, with `blocked` as the exceptional terminal. `attempts` counts validate→fix cycles; the coder stops at 3.
+- Story `status`: `drafted → planned → executing → reviewing → validating → done`, with `blocked` as the exceptional terminal. `reviewing` is the code-review step between the last item merge and validation; a review `FIX` verdict goes back to `executing` exactly like a failed AC does. `attempts` counts every review→fix and validate→fix cycle; the coder stops at 3.
 - `history` is append-only. Never rewrite it; `--force` transitions are recorded with `"forced": true`.
 
 ## Folder layout
@@ -85,8 +85,9 @@ docs/sprints/
     ├── sprint.json                          ← the manifest above
     ├── impl-plan.md                         ← planner: story order, dependencies, gotchas
     ├── create-home-page/
-    │   ├── story.md                         ← creator
+    │   ├── story.md                         ← creator (dev-story-intake)
     │   ├── create-home-page-plan.md         ← planner: item table + validation procedure
+    │   ├── review.md                        ← reviewer: lenses run, findings, verdict
     │   └── validation.md                    ← coder: per-criterion results of the final pass
     └── add-chat-endpoint/
         ├── story.md

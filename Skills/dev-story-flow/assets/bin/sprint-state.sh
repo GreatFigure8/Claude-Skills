@@ -34,11 +34,12 @@ SPRINT_NEXT = {
     "blocked": {"planned", "executing"},
 }
 CLAIMING = {"planning", "executing"}
-STORY_STATES = ["drafted", "planned", "executing", "validating", "done", "blocked"]
+STORY_STATES = ["drafted", "planned", "executing", "reviewing", "validating", "done", "blocked"]
 STORY_NEXT = {
     "drafted": {"planned"},
     "planned": {"executing"},
-    "executing": {"validating", "blocked"},
+    "executing": {"reviewing", "validating", "blocked"},
+    "reviewing": {"validating", "executing", "blocked"},
     "validating": {"done", "executing", "blocked"},
     "done": set(),
     "blocked": {"executing"},
