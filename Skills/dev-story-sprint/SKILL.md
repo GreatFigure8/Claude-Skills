@@ -81,7 +81,7 @@ The last line matters in repos that also run `dev-epic-workflow`: its subagent-l
 
 **One `Agent` call per item, all of a wave's items in one message.** Each call:
 
-- `subagent_type: "story-item-executor"`
+- `subagent_type: "dev-story-flow:story-item-executor"` — the agent bundled by the `dev-story-flow` plugin; this skill installs no agent of its own
 - `model: "sonnet"` or `model: "opus"` — from the plan table, always explicit
 - `isolation: "worktree"` — always
 - `run_in_background: true` when the wave has more than one item, so each return wakes the orchestrator to verify and merge that item while the others keep running. A single-item wave may run in the foreground.
@@ -187,10 +187,14 @@ An executor that stops on a permission prompt has broken the silence rule and st
 
 ## Install (once per machine)
 
-Both live pieces are **symlinks into the working checkout**, `~/Source/claude-skills`:
+The live skill is a **symlink into the working checkout**, `~/Source/claude-skills`:
 
 - `~/.claude/skills/dev-story-sprint` → `~/Source/claude-skills/Skills/dev-story-sprint`
-- `~/.claude/agents/story-item-executor.md` → `~/Source/claude-skills/Skills/dev-story-sprint/assets/agents/story-item-executor.md`
+
+The executor agent is not installed by this skill: it is `dev-story-flow:story-item-executor`,
+bundled by the `dev-story-flow` plugin (install that plugin once — see its SKILL.md). Nothing
+is placed in `~/.claude/agents/` any more; a bare `story-item-executor.md` there would shadow
+the plugin's copy.
 
 There is no separate worktree pinned to `main` — whatever is currently checked out in
 `~/Source/claude-skills` (branch, and any uncommitted edit) is what every repo on the machine

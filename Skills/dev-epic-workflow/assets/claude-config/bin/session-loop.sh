@@ -7,7 +7,7 @@
 # GitHub issues end to end — draft, dispatch, verify, harm-check, merge, chain,
 # close, next issue — with no approval stop, because STARTING THE LOOP IS THE
 # APPROVAL. It runs until he says stop or the session ends. The prose contract
-# a session follows is `references/session-loop.md`; the `/loop` command is the
+# a session follows is `references/session-loop.md`; the `/issue-loop` command is the
 # entry point; THIS FILE is the part of it that must not depend on a model
 # remembering to do the right thing.
 #

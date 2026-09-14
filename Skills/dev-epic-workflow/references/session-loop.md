@@ -41,7 +41,7 @@ inside the live, already-authenticated session. `unattended-intake.sh` and
 ## Starting
 
 ```
-/loop <repo>                      # or: "start the loop on <repo>"
+/issue-loop <repo>                      # or: "start the loop on <repo>"
 ```
 
 The session then, once:
@@ -320,7 +320,7 @@ epic's live-proof run (item 6) needs an issue whose diff stays outside those pat
 - `assets/claude-config/bin/issue-filer.sh` — fingerprint-deduplicated failure filing
   (epic 21 item 4): `issue_filer_fingerprint`, `issue_filer_find_duplicate`,
   `issue_filer_file`.
-- `assets/claude-config/commands/loop.md` — the `/loop` entry point.
+- `assets/claude-config/commands/issue-loop.md` — the `/issue-loop` entry point.
 - `assets/claude-config/hooks/tests/session-loop-fixtures.sh` — the fixture suite.
 - `assets/claude-config/hooks/tests/issue-filer-fixtures.sh` — item 4's fixture suite.
 - `assets/claude-config/bin/autonomy.sh` — `autonomy_harm_check`, the harm floor.

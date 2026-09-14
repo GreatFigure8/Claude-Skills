@@ -9,8 +9,8 @@
    For dev-story-flow this means `sprint-state.sh new --live dev` (integration defaults to
    `sprint/<sprint>`); in a `dev-story-sprint` plan message the branch line reads
    `live=dev  integration=sprint/<slug>`.
-3. **Skill symlinks point at the working checkout.** `~/.claude/skills/*` and
-   `~/.claude/agents/story-item-executor.md` link directly into `~/Source/claude-skills` — there
+3. **Skill symlinks point at the working checkout.** `~/.claude/skills/*` link directly into
+   `~/Source/claude-skills` (no agent symlinks: executors ship inside the dev-story-flow plugin) — there
    is no separate worktree pinned to `main`. This means whatever is currently checked out there
    (branch, and any uncommitted edit) is what every repo on the machine loads, live, the moment
    it's on disk. Nothing refreshes this automatically on push — re-run each skill's
