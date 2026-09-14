@@ -1,6 +1,6 @@
 ---
 name: dev-story-flow
-description: Jonathan's silent, file-driven loop for shipping sprints of user stories autonomously — PLAN (parallel sub-agents write each story's plan plus a sprint impl-plan.md) then EXECUTE (parallel executors build every planned story, a code-review sub-agent reviews each story's diff, acceptance criteria are validated, failures fixed and re-validated, the sprint merged to live and marked complete), then rescan for the next sprint until nothing is ready-to-plan or planned. Stories are created by the separate dev-story-intake skill; this one never talks to Jonathan beyond a model table, a blocker, and a closing message. Phases hand off through a committed sprint.json state machine (ready-to-plan → planning → planned → executing → complete), so any phase can run in any session. Use whenever Jonathan says "dev-story-flow", "/goal using dev-story-flow …", "plan the sprints", "execute the planned sprints", "run the flow", "run the flow until all planned sprints are complete", or asks what state a sprint is in. Do NOT use to create or intake a story (dev-story-intake), for a single story with no sprint folder (dev-story-sprint), or for issue-tracker intake and epic planning (dev-epic-workflow).
+description: Jonathan's silent, file-driven loop for shipping sprints of user stories autonomously — PLAN (parallel sub-agents write each story's plan plus a sprint impl-plan.md) then EXECUTE (parallel executors build every planned story, a code-review sub-agent reviews each story's diff, acceptance criteria are validated, failures fixed and re-validated, a pull request opened from the sprint branch to live, the sprint marked complete), then rescan for the next sprint. Jonathan runs it as `/loop /goal using dev-story-flow run` — each firing is one pass, and the skill re-arms the loop itself, so it keeps picking up new sprints until he stops it. Stories are created by the separate dev-story-intake skill; this one never talks to Jonathan beyond a model table, a blocker, and a closing message. Phases hand off through a committed sprint.json state machine (ready-to-plan → planning → planned → executing → complete), so any phase can run in any session. Use whenever Jonathan says "dev-story-flow", "/goal using dev-story-flow …", "plan the sprints", "execute the planned sprints", "run the flow", "run the flow until all planned sprints are complete", or asks what state a sprint is in. Do NOT use to create or intake a story (dev-story-intake), for a single story with no sprint folder (dev-story-sprint), or for issue-tracker intake and epic planning (dev-epic-workflow).
 ---
 
 # Dev Story Flow
@@ -18,9 +18,10 @@ change nothing.
                                                    │
                        PLAN ◄──── list ready-to-plan ┘ ──► planning ──► planned
                                                                            │
-                    EXECUTE ◄──── list planned ────────────────────────────┘ ──► executing ──► complete
+                    EXECUTE ◄──── list planned ────────────────────────────┘ ──► executing ──► complete (PR to live open)
                      (per story: build → review → validate → done)                          └──► blocked
-                     (rescans ready-to-plan + planned after every sprint; ends when both are empty)
+                     (rescans ready-to-plan + planned after every sprint; a pass ends when both are empty —
+                      under /loop the skill re-arms itself and the next firing scans again)
 ```
 
 Phase documents (read the one you are running — each is the full procedure):
@@ -38,7 +39,7 @@ entry point Jonathan uses: `/goal using dev-story-flow <objective>`. Calling
 
 | Objective says… | Phase | Runs until |
 |---|---|---|
-| "run", "run the flow", "everything", "execute until all the planned sprints are completed", or no objective at all | **the loop**: PLAN every `ready-to-plan` sprint, EXECUTE every `planned` sprint, then rescan both states and repeat | nothing is `ready-to-plan` or `planned`, or a sprint is `blocked`, or the budget gate fires |
+| "run", "run the flow", "everything", "execute until all the planned sprints are completed", or no objective at all | **one pass**: PLAN every `ready-to-plan` sprint, EXECUTE every `planned` sprint (build → review → validate → PR to live), then rescan both states and repeat within the pass | nothing is `ready-to-plan` or `planned`, or the budget gate fires. Under `/loop` (below) the pass then re-arms the loop instead of ending; a `blocked` sprint is reported and the loop continues |
 | "plan", "plan the sprints", "plan what's ready" | PLAN only | no `ready-to-plan` sprint remains |
 | "execute", "run the planned sprints" | EXECUTE only | no `planned` sprint remains, or a sprint is `blocked`, or the budget gate fires |
 | "status", "where are the sprints", "what's planned" | — | prints `sprint-state.sh list` and stops |
@@ -50,12 +51,42 @@ or `planned`, run the loop and say which sprint it starts with in one line; if n
 say so in one line ("Nothing to plan or execute — `dev-story-intake` creates stories.") and
 stop.
 
-**No go-ahead, ever.** The only human gate in this skill is the pause between `planned` and
-EXECUTE when the loop is run as `plan` alone, where `impl-plan.md` can be read. Under the loop
-there is no pause: `planned` **is** the approval. Once a phase starts it does not ask "shall
-I continue?" — it finishes, blocks, or hands off. Stories enter through `dev-story-intake`,
-which closes a sprint `ready-to-plan` and posts `/goal using dev-story-flow run`; that paste
-is the whole hand-off, and this skill starts from an empty context.
+**No go-ahead, ever.** The only human gates are outside this skill: `dev-story-intake` closing
+a sprint, and Jonathan merging the PR each sprint opens against live. Under `plan` alone there
+is a pause between `planned` and EXECUTE where `impl-plan.md` can be read; under `run` there is
+none — `planned` **is** the approval. Once a phase starts it does not ask "shall I continue?"
+— it finishes, blocks, or hands off. Stories enter through `dev-story-intake`, which closes a
+sprint `ready-to-plan`; a running loop picks it up on its next firing with nothing pasted.
+
+## Running it as a loop — Jonathan drives, the skill re-arms
+
+The flow is meant to run unattended for as long as Jonathan wants, inside one session, as a
+Claude Code `/loop`. He starts it (nothing else starts it — no daemon, no script, no cron):
+
+```
+/loop /goal using dev-story-flow run
+```
+
+Each firing runs **one pass** of the `run` objective above. At the end of every pass — after
+the closing line, whether or not anything was found — the skill calls `ScheduleWakeup` with
+`prompt: "/goal using dev-story-flow run"` (the same text, verbatim, every time) and:
+
+| The pass… | `noop` | `delaySeconds` | `reason` |
+|---|---|---|---|
+| planned or executed at least one sprint | `false` | 60 — something may have been queued while it ran | "sprint <id> done, PR #<n>; rescanning" |
+| found nothing `ready-to-plan` or `planned` | `true` | 1200–1800 | "no sprints queued; next scan in 20 min" |
+| left a sprint `blocked` | `false` | 1200 | "sprint <id> blocked on <one line>; other sprints still flow" |
+
+The skill never calls `ScheduleWakeup` with `stop: true` on its own. Only Jonathan ends the
+loop (Esc while it waits, or `/clear`), and only the budget gate interrupts it: at 160k the
+stopping-point procedure (rule 11) posts the `clear-prompt` hand-off and clears the session,
+which ends the loop — the hand-off block tells Jonathan to paste `/loop /goal using
+dev-story-flow run` again, and state on disk makes the restart the same as any firing. Idle
+firings cost one `sprint-state.sh list` and one `ScheduleWakeup`, so an idle loop is cheap;
+a firing that executes a sprint costs what that sprint costs.
+
+Outside a `/loop` (Jonathan typed `/goal using dev-story-flow run` directly), the pass ends
+with its closing line and nothing is scheduled — one pass is what he asked for.
 
 ## Rules shared by both phases
 
@@ -87,7 +118,14 @@ is the whole hand-off, and this skill starts from an empty context.
    land-and-reset merge — see [references/dev-story-coder.md](references/dev-story-coder.md).
    The agents and their supporting hooks are this plugin's own assets (`agents/`, `hooks/`),
    wired in automatically on plugin install — see "Install" below.
-7. **Every story is code-reviewed before it is validated.** When a story's items have all
+7. **Every sprint ends in a PR to live, not a merge.** When every story is `done`, the coder
+   runs the sprint gates on `sprint/<sprint>`, opens one pull request against live with the
+   per-story review and validation evidence in its body, records the PR in the manifest, and
+   marks the sprint `complete`. It never merges the PR and never deletes the sprint branch;
+   both are Jonathan's. (`integration=none` sprints, where intake was told the repo takes work
+   straight on live, are the exception: their items already landed and there is nothing to
+   PR.)
+8. **Every story is code-reviewed before it is validated.** When a story's items have all
    merged into integration, the coder dispatches one `story-code-reviewer` sub-agent
    (`isolation: "worktree"`) on the story's diff against live. It runs `/code-review` at max
    effort, applies `nextjs-fullstack-standards` to TypeScript and the `python-library-quality`
@@ -97,21 +135,21 @@ is the whole hand-off, and this skill starts from an empty context.
    set `DSF_ULTRA_REVIEW=1` in the environment — never by default. Model: Sonnet 5, or Opus 5
    when the story's risk surfaces name auth, user input, database queries, filesystem paths,
    external calls, crypto, or money.
-8. **Acceptance criteria are proven, not asserted.** A story is `done` only when its review
+9. **Acceptance criteria are proven, not asserted.** A story is `done` only when its review
    verdict is `PASS` and every row of its plan's Validation table passed against the
    integration branch, with the results in `<slug>/validation.md`. Service stories: unit gate
    + integration script against the running app. Interactive stories: TDD tests + browser
    checks by a verifier sub-agent.
-9. **Fix loop capped at 3, shared by review and validation.** Review `FIX` or a failed AC →
+10. **Fix loop capped at 3, shared by review and validation.** Review `FIX` or a failed AC →
    one fix item (Opus on attempt 3) → re-review / re-validate. After three failed attempts the
    story is `blocked`, the rest of the sprint continues, and the sprint closes `blocked` with
    one message naming what and why.
-10. **Testing is items, not ceremony.** The planner puts an interactive story's tests in wave 1
+11. **Testing is items, not ceremony.** The planner puts an interactive story's tests in wave 1
     (before its implementation items) and gives every service story an integration-test item.
     No coverage number is chased. Existing suites stay green as a gate. This is the flow's
     reading of the global TDD rule; executors otherwise follow `story-item-executor`'s no-TDD
     instruction because their tests arrive as their own items.
-11. **Budget: stop dispatching at 150k, find a stopping point at 160k, never pass 165k** —
+12. **Budget: stop dispatching at 150k, find a stopping point at 160k, never pass 165k** —
     this skill's own `context-budget-gate.sh` (`hooks/`) enforces it. At
     150k, land what is in flight and stop dispatching new work. At 160k, run the per-phase
     stopping-point procedure below (each phase's reference doc has a "Stopping point at 160k"
@@ -120,8 +158,9 @@ is the whole hand-off, and this skill starts from an empty context.
     calls. Because state is on disk, resumption is the same objective again in a fresh chat.
     Past the stop threshold, this skill's own Stop hook (`handoff-stop-gate.sh`) won't let the
     turn end until the `clear-prompt` skill has posted the hand-off block, and `clear-prompt`
-    clears the session itself once it has posted.
-12. **Never guess.** Read the manifest, the plan, the repo. "Not verified" is a complete
+    clears the session itself once it has posted. Clearing ends a running `/loop`; the
+    hand-off block names the `/loop /goal using dev-story-flow run` line to restart it.
+13. **Never guess.** Read the manifest, the plan, the repo. "Not verified" is a complete
     sentence and a non-`done` story.
 
 ## The sprint folder, at a glance
@@ -153,7 +192,7 @@ Running it from your own shell outside a session: find the live path with `claud
 |---|---|---|---|
 | Unit | one story, planned in chat | many stories, specified in intake, planned to files, executed as sprints | epics with tracked work items |
 | Documents | none | `docs/sprints/<sprint>/…` | `docs/epics/<NN>-…/plan.md`, handoff |
-| Human gate | "go" before wave 1 | sprint close in intake; nothing after | plan approval, PR review |
+| Human gate | "go" before wave 1 | sprint close in intake; merging the sprint PR | plan approval, PR review |
 | Code review | none | `story-code-reviewer` per story, before validation | PR review |
 | Executor | story-item-executor | story-item-executor (own copy) | work-item-executor |
 | Resume | prep-for-clear prompt | manifest on disk (+ prep-for-clear) | handoff.md |
@@ -200,11 +239,11 @@ Tests: `bash assets/tests/sprint-state-fixtures.sh`.
 
 - **Announce / brief updates:** PLAN and EXECUTE do not narrate (rule 3). The model table is
   the announcement; the closing message is the recap.
-- **Context budget:** the 120k/150k `/handoff` rule is replaced by rule 11.
+- **Context budget:** the 120k/150k `/handoff` rule is replaced by rule 12.
 - **Model table per spawn:** satisfied once per sprint per phase (rule 4).
-- **TDD / coverage:** read as rule 10.
-- **Code review before commit to a shared branch:** read as rule 7 — per story, before
-  validation, on the integration branch; the sprint's merge to live carries only reviewed
+- **TDD / coverage:** read as rule 11.
+- **Code review before commit to a shared branch:** read as rule 8 — per story, before
+  validation, on the integration branch; the sprint's PR to live carries only reviewed
   stories.
 - **Commit at task end:** every manifest change and every merge is a commit; executors commit
   continuously.

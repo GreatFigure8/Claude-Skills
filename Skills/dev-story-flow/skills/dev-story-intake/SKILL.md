@@ -1,6 +1,6 @@
 ---
 name: dev-story-intake
-description: Jonathan's conversational intake for dev-story-flow — turns each user story he gives in chat into a specification-grade story.md under docs/sprints/SPRINT/SLUG/, registers it in the committed sprint.json, and when he says the sprint is documentation-complete sets it ready-to-plan and hands him the one line that starts dev-story-flow. This is the only conversational phase of the story pipeline; it never plans and never codes. Use whenever Jonathan says "dev-story-intake", "intake a story", "new story", "add a story", "new sprint", "create a story", "/goal using dev-story-intake …", or pastes a user story with no other instruction. Do NOT use for a single story with no sprint folder (dev-story-sprint), for planning or executing sprints (dev-story-flow), or for issue-tracker intake and epic planning (dev-epic-workflow / intake).
+description: Jonathan's conversational intake for dev-story-flow — turns each user story he gives in chat into a specification-grade story.md under docs/sprints/SPRINT/SLUG/, registers it in the committed sprint.json, and when he says the sprint is documentation-complete sets it ready-to-plan — a running dev-story-flow loop picks it up on its next firing, otherwise intake hands him the one line that starts that loop. This is the only conversational phase of the story pipeline; it never plans and never codes. Use whenever Jonathan says "dev-story-intake", "intake a story", "new story", "add a story", "new sprint", "create a story", "/goal using dev-story-intake …", or pastes a user story with no other instruction. Do NOT use for a single story with no sprint folder (dev-story-sprint), for planning or executing sprints (dev-story-flow), or for issue-tracker intake and epic planning (dev-epic-workflow / intake).
 ---
 
 # dev-story-intake — phase 1 of the story pipeline
@@ -152,7 +152,10 @@ git add docs/sprints/<sprint>/sprint.json && git commit -m "chore(sprint): <spri
 ```
 
 That status change **is** the hand-off. `dev-story-flow` discovers work by `sprint-state.sh
-list ready-to-plan`; nothing else needs to be told anything.
+list ready-to-plan`; nothing else needs to be told anything. When Jonathan already has the
+flow running as a `/loop` in another session, that loop's next firing picks the sprint up —
+intake posts one line ("Sprint <sprint> ready: <slugs>. The flow loop will pick it up.") and
+ends, no clear, no paste.
 
 **Then hand the session over.** The intake conversation is dead weight for the planner and
 coder, so by default intake ends here and the flow starts in an empty context. The last turn
@@ -161,8 +164,8 @@ does three things and nothing more:
 1. Confirms the working tree is clean and pushed (`git status --short` empty, `git log
    origin/<live>..HEAD` empty).
 2. Posts exactly this, as the last visible text: the sprint name, its story slugs, and the
-   line to paste — `/goal using dev-story-flow run` — with one sentence saying the chat is
-   about to clear.
+   line to paste — `/loop /goal using dev-story-flow run` (or `/goal using dev-story-flow
+   run` for a single pass) — with one sentence saying the chat is about to clear.
 3. Calls the desktop app's clear tool on itself: `mcp__ccd_session_mgmt__clear_session` with
    `session_id: "self"`. The transcript empties when the turn ends; Jonathan pastes the one
    line and `dev-story-flow` plans and executes with nothing else in context. When that tool
@@ -173,9 +176,10 @@ A session cannot queue a message to itself after clearing, so one paste is the f
 
 **Same-session variant.** If the completion phrase itself asks for it — "I'm done, run it",
 "done, go", "that's all, execute" — skip the clear and call
-`Skill({skill: "dev-story-flow:dev-story-flow", args: "run"})` in the same turn instead. The
-intake context rides along; `dev-story-flow`'s 150k/165k gate is the safety net if the sprint
-is large. One line first: "Sprint <sprint> ready: <slugs>. Starting dev-story-flow."
+`Skill({skill: "dev-story-flow:dev-story-flow", args: "run"})` in the same turn instead: one
+pass, no loop. The intake context rides along; `dev-story-flow`'s 150k/165k gate is the safety
+net if the sprint is large. One line first: "Sprint <sprint> ready: <slugs>. Starting
+dev-story-flow."
 
 **Alternatives considered for this signal:** a `.ready` marker file (no metadata, can coexist
 with stale flags), a line in a central index (merge conflicts across sessions), a GitHub label
@@ -185,8 +189,8 @@ with stale flags), a line in a central index (merge conflicts across sessions), 
 
 Intake does not plan and does not code. A story added after the sprint is `ready-to-plan`
 starts a **new** sprint (step 1 will find no `drafting` sprint and create one). If Jonathan
-asks intake to plan or execute, answer with the one line to run — `/goal using dev-story-flow
-run` — and stop.
+asks intake to plan or execute, answer with the one line to run — `/loop /goal using
+dev-story-flow run` — and stop.
 
 ### Stopping point at 160k
 
@@ -201,7 +205,7 @@ another one. Then:
   ```
   then post that same hand-off: confirm the working tree is clean and pushed, and post
   exactly the sprint name, its story slugs, and the line to paste —
-  `/goal using dev-story-flow run` — with one sentence saying the chat is about to clear.
+  `/loop /goal using dev-story-flow run` — with one sentence saying the chat is about to clear.
 - **The sprint has zero stories:** leave it `drafting` — no status change, nothing to commit
   on `sprint.json` — and post the intake line instead: the sprint name (still drafting) and
   the line to paste, `/goal using dev-story-intake`, with the same one-sentence notice that

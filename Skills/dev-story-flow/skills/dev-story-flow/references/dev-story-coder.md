@@ -264,28 +264,56 @@ $SS story set <sprint> <slug> blocked --detail "AC-<x> still failing after 3 att
 
 Continue with every other story in the sprint — one blocked story does not stop the others.
 
-### 7. Mark the sprint complete
+### 7. Mark the sprint complete — open the PR to live
 
 When every story is `done`: run the stack gates once on the integration branch as a whole,
-then merge to live (skip when `integration=none` — the last story's merge was the close):
+make sure every `review.md` and `validation.md` is committed on it, then open **one pull
+request** from the sprint branch to live. The sprint branch is not merged and not deleted by
+this flow — merging the PR is Jonathan's, and the branch must survive until he does:
 
 ```bash
-$SS assert-branch <sprint> --target live
-git fetch -q && git merge --no-ff -m "merge(sprint): <sprint> — <k> stories" origin/sprint/<sprint> && git push origin <live>
-git push origin --delete sprint/<sprint>
+$SS assert-branch <sprint>
+git fetch -q && git rebase origin/<live> 2>/dev/null || git rebase --abort   # only if it is conflict-free; otherwise leave it
+git push origin sprint/<sprint>
+gh pr create --base <live> --head sprint/<sprint> \
+  --title "sprint <sprint>: <k> stories — <slugs>" \
+  --body-file - <<'PR'
+## Sprint <sprint>
+
+| Story | Review | Validation |
+|---|---|---|
+| <slug> | docs/sprints/<sprint>/<slug>/review.md — PASS, <n> notes | docs/sprints/<sprint>/<slug>/validation.md — <m>/<m> AC |
+
+<one line per story on what shipped; anything deferred; anything claimed-but-unverified>
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+PR
 ```
 
-then
+If `gh pr create` reports a PR already exists for the branch (a previous session opened it),
+use that one. If the rebase hits a conflict, do not resolve it in the main checkout: dispatch
+a one-line Sonnet rebase item as in step 3, then push and open the PR when it returns. Then:
 
 ```bash
-$SS set <sprint> complete
-git add docs/sprints/<sprint>/sprint.json && git commit -qm "chore(sprint): <sprint> complete" && git push -q
+$SS set <sprint> complete --detail "PR #<n> <url>"
+git add docs/sprints/<sprint>/sprint.json && git commit -qm "chore(sprint): <sprint> complete — PR #<n>" && git push -q
 rm -rf .claude/stories/<sprint> .claude/signals/active-epic
 ```
 
+The manifest commit lands on the sprint branch, so it is part of the PR too.
+
+**`integration=none`** (intake was told the repo takes work straight on live): every item
+already merged to live, there is no branch to PR from, and the last story's merge was the
+close. Run the gates, then `$SS set <sprint> complete` and the same commit — no PR.
+
+**The next sprint cuts from live, not from an unmerged PR.** Until Jonathan merges the PR, a
+later sprint's branch does not contain this sprint's code. A story that depends on an
+unmerged sprint reports `blocked` from its first executor ("symbol X not on
+origin/<live>"); the fix is merging the PR, not re-dispatching.
+
 `status: complete` in the committed manifest **is** the completion mark — `sprint-state.sh
 list complete` shows history, `list planned` shows what is left, and the manifest's `history`
-array is the timeline. Post **one** closing message per sprint: stories shipped (merge hashes),
+array is the timeline. Post **one** closing message per sprint: the PR URL, stories shipped (merge hashes on the sprint branch),
 review and validation files, NOTE-level findings left in `review.md`, anything deferred,
 anything claimed-but-unverified.
 
@@ -298,14 +326,21 @@ history, no per-story detail), deleting or archiving the folder (destroys the ev
 closing a GitHub milestone (external, invisible to the next phase's `list`). The manifest
 status won — see sprint-state.md.
 
-### 8. Next sprint, or end
+### 8. Next sprint, or end the pass
 
-Go back to step 1. Under the `run` loop, step 1 also runs `$SS list ready-to-plan` after every
-sprint: `dev-story-intake` may have closed a new sprint in another session while this one was
+Go back to step 1. Under `run`, step 1 also runs `$SS list ready-to-plan` after every sprint:
+`dev-story-intake` may have closed a new sprint in another session while this one was
 executing, and that sprint goes through the planner procedure before it is picked up here.
-When both `list ready-to-plan` (under `run`) and `list planned` are empty, one final line:
-sprints completed this session, sprints blocked, and that the flow is idle. That line
-satisfies "execute until all the planned sprints are completed".
+When both `list ready-to-plan` (under `run`) and `list planned` are empty, the pass is over:
+one final line — sprints completed this pass (with PR URLs), sprints blocked, and that the
+flow is idle. That line satisfies "execute until all the planned sprints are completed".
+
+**When this pass is one firing of Jonathan's `/loop`** (SKILL.md, "Running it as a loop"),
+the pass does not end the loop. After the final line, re-arm it exactly as SKILL.md says —
+`ScheduleWakeup` with the same loop prompt, `noop: false` and a short delay when a sprint was
+processed this firing, `noop: true` and a long delay when nothing was found. A `blocked`
+sprint is reported and the loop still re-arms; other sprints keep flowing while Jonathan
+resolves it.
 
 ## Budget — 150k / 165k
 
@@ -313,8 +348,8 @@ satisfies "execute until all the planned sprints are completed".
 in flight (merge what verifies), make `sprint.json` truthful (stories `executing` with
 `detail` naming pushed-but-unmerged branches), commit, push, then `Skill({skill:
 "clear-prompt", args: "dev-story-flow execute <sprint>"})`. Because all state is on disk, the
-resumption prompt is short: the next orchestrator runs `/goal using dev-story-flow execute
-until all planned sprints are completed`, reclaims the sprint (its own claim is stale-or-own
+resumption prompt is short: Jonathan pastes `/loop /goal using dev-story-flow run` (the
+clear ended the loop), the next orchestrator reclaims the sprint (its own claim is stale-or-own
 by definition — pass the same `--by` id from the prompt, or `--force`), merges any pushed
 branches named in `detail`, and continues from step 3 (or from step 4 for a story whose `detail` says its review was
 pending).

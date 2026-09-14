@@ -86,7 +86,8 @@ check "story set unknown slug refused"      '! "$SS" story set "$S1" nope done 2
 # --- completion / blocked / force ----------------------------------------------------------
 check "executing -> blocked clears claim"   '"$SS" set "$S1" blocked >/dev/null && [ "$(field "$S1" "m[\"claim\"]")" = None ]'
 check "blocked -> planned re-admits"        '"$SS" set "$S1" planned --force >/dev/null'
-check "forced flag recorded when illegal"   '"$SS" set "$S2" complete --force >/dev/null && [ "$(field "$S2" "m[\"history\"][-1].get(\"forced\")")" = True ]'
+check "forced flag recorded when illegal"   '"$SS" set "$S2" complete --force --detail "PR #7 https://x/pull/7" >/dev/null && [ "$(field "$S2" "m[\"history\"][-1].get(\"forced\")")" = True ]'
+check "sprint detail recorded"              '[ "$(field "$S2" "m[\"detail\"]")" = "PR #7 https://x/pull/7" ] && [ "$(field "$S2" "m[\"history\"][-1][\"detail\"]")" = "PR #7 https://x/pull/7" ]'
 check "complete is terminal"                '! "$SS" set "$S2" executing 2>/dev/null'
 check "get prints json"                     '"$SS" get "$S1" | python3 -c "import json,sys; json.load(sys.stdin)"'
 check "get unknown sprint exits 2"          '"$SS" get nope 2>/dev/null; [ $? = 2 ]'

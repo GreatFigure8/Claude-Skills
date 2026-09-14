@@ -30,7 +30,7 @@ drafting ──► ready-to-plan ──► planning ──► planned ──► 
 | `planning` | planner, on claim | A planner owns it; other planners skip it. |
 | `planned` | planner, when every story has a plan and `impl-plan.md` exists | Coder input state. Jonathan may review `impl-plan.md` here. |
 | `executing` | coder, on claim | A coder owns it; other coders skip it unless the claim is stale. |
-| `complete` | coder, after every story is done, sprint gates pass, and integration is merged to live | Terminal. |
+| `complete` | coder, after every story is done, sprint gates pass, and the pull request from `sprint/<sprint>` to live is open (`detail` holds the PR URL; Jonathan merges it) — or, with `integration=none`, the last story's merge landed on live | Terminal. |
 | `blocked` | coder | At least one story exhausted its fix attempts or needs a decision. Jonathan resolves, then `set <sprint> planned --force` to re-admit. |
 
 Transitions are enforced by `assets/bin/sprint-state.sh` — an out-of-order `set` fails unless
