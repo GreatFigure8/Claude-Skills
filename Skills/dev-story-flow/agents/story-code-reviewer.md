@@ -25,7 +25,7 @@ Files owned: <paths the story's items were allowed to touch>
 Risk surfaces: <from story.md "Dependencies, risks, and breaking changes", or none>
 Gates: <the repo's type-check / lint / test commands, or "stack default">
 Write review to: <absolute path>/docs/sprints/<sprint>/<slug>/review.md   (repo root, not your worktree)
-Attempt: <k> of 3
+Attempt: <k>
 No edits to source. No narration. Return the summary and end.
 ```
 

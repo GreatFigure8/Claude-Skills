@@ -6,7 +6,7 @@ by a silent `story-code-reviewer`, every acceptance criterion validated against 
 result, failures fixed and re-reviewed or re-validated, the sprint merged to live. Then the
 next planned sprint — and, under the `run` loop, anything `dev-story-intake` has since closed
 `ready-to-plan` goes back through the planner first. It stops only when nothing is `planned`
-(or `ready-to-plan`, under `run`), when a story exhausts its fix attempts, or at the token
+(or `ready-to-plan`, under `run`), when a story needs a decision only Jonathan can make, or at the token
 budget.
 
 Dispatch, cold-verify, merge and reset the way `story-item-executor` items are always run in
@@ -183,7 +183,7 @@ Files owned: <union of the story's items' Files owned>
 Risk surfaces: <from story.md "Dependencies, risks, and breaking changes", or none>
 Gates: <the repo's type-check / lint / test commands, or "stack default">
 Write review to: <repo root>/docs/sprints/<sprint>/<slug>/review.md   (repo root, not your worktree)
-Attempt: <attempts + 1> of 3
+Attempt: <attempts + 1>
 No edits to source. No narration. Return the summary and end.
 ```
 
@@ -198,8 +198,7 @@ checks Jonathan's global review rules, runs `claude ultrareview` only when
   `$SS story set <sprint> <slug> executing --bump-attempts --detail "review FIX: <first finding, one line>"`
   and dispatch the fix item exactly as step 6 describes (branch `fix/<slug>-attempt-<k>`, the
   findings verbatim in *Scope*, same *Files owned*). Merge it, then re-dispatch the reviewer
-  from the top of this step. The attempt counter is shared with validation; the cap of 3
-  applies to both together.
+  from the top of this step. The attempt counter is shared with validation and is only a counter — there is no cap.
 - **`blocked`** → the reviewer could not review (empty diff, a gate it cannot run). If the
   plan or the repo answers it, fix the dispatch and re-run; otherwise one short message to
   Jonathan, as for a blocked executor.
@@ -250,19 +249,12 @@ $SS story set <sprint> <slug> executing --bump-attempts --detail "AC-<x> failed:
 then dispatch **one fix item** — `fix/<slug>-attempt-<k>`, `isolation: "worktree"`, the
 failing AC rows and the observed output verbatim in *Scope* (or, when the fix comes from step
 4, the reviewer's CRITICAL/HIGH lines verbatim), the same *Files owned* as the items that
-produced the behaviour. Model: Sonnet 5 for attempts 1–2, **Opus 5 for attempt 3** (the cause
+produced the behaviour. Model: Sonnet 5 for attempts 1–2, **Opus 5 from attempt 3** (the cause
 is by then genuinely unclear, which is the Opus bar). One line in chat when the model changes.
 Merge it as any item, then go back to step 4 — a fix is reviewed again before it is
 validated again.
 
-**Attempt cap: 3, shared by review and validation.** After the third failed attempt the
-story is `blocked`:
-
-```bash
-$SS story set <sprint> <slug> blocked --detail "AC-<x> still failing after 3 attempts: <one line>"
-```
-
-Continue with every other story in the sprint — one blocked story does not stop the others.
+**No attempt cap.** Keep fixing and re-reviewing until the story passes; never `blocked` on attempt count, never `--force`. Block only for a decision Jonathan must make, or when the same finding survives two consecutive fixes (say so).
 
 ### 7. Mark the sprint complete — open the PR to live
 

@@ -140,10 +140,11 @@ with its closing line and nothing is scheduled — one pass is what he asked for
    integration branch, with the results in `<slug>/validation.md`. Service stories: unit gate
    + integration script against the running app. Interactive stories: TDD tests + browser
    checks by a verifier sub-agent.
-10. **Fix loop capped at 3, shared by review and validation.** Review `FIX` or a failed AC →
-   one fix item (Opus on attempt 3) → re-review / re-validate. After three failed attempts the
-   story is `blocked`, the rest of the sprint continues, and the sprint closes `blocked` with
-   one message naming what and why.
+10. **Fix loop is uncapped, shared by review and validation.** Review `FIX` or a failed AC →
+   one fix item (Opus from attempt 3) → re-review / re-validate, as many rounds as it takes. A
+   fix that uncovers new findings is normal progress, not a stall. Never `blocked` on attempt
+   count and never `--force`; `attempts` is only a counter. Stop only for a decision Jonathan
+   must make, or if the same finding survives two consecutive fixes — then say so.
 11. **Testing is items, not ceremony.** The planner puts an interactive story's tests in wave 1
     (before its implementation items) and gives every service story an integration-test item.
     No coverage number is chased. Existing suites stay green as a gate. This is the flow's
