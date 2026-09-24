@@ -1,6 +1,6 @@
 ---
 name: dev-story-intake
-description: Jonathan's conversational intake for dev-story-flow — turns each user story he gives in chat into a specification-grade story.md under docs/sprints/SPRINT/SLUG/, registers it in the committed sprint.json, and when he says the sprint is documentation-complete sets it ready-to-plan — a running dev-story-flow loop picks it up on its next firing, otherwise intake hands him the one line that starts that loop. This is the only conversational phase of the story pipeline; it never plans and never codes. Use whenever Jonathan says "dev-story-intake", "intake a story", "new story", "add a story", "new sprint", "create a story", "/goal using dev-story-intake …", or pastes a user story with no other instruction. Do NOT use for a single story with no sprint folder (dev-story-sprint), for planning or executing sprints (dev-story-flow), or for issue-tracker intake and epic planning (dev-epic-workflow / intake).
+description: Jonathan's conversational intake for dev-story-flow — turns each user story he gives in chat into a specification-grade story.md under docs/sprints/SPRINT/SLUG/, registers it in the committed sprint.json, and when he says the sprint is documentation-complete sets it ready-to-plan — a running dev-story-flow loop picks it up on its next firing, otherwise intake hands him the one line that starts that loop. Default is assume-and-ship: no question rounds — intake grounds in the repo, decides every open point itself, records the assumptions in each story, closes the sprint and starts dev-story-flow in the same turn, so a loose paragraph from Jonathan becomes stories, plans and working code without him answering anything. Use whenever Jonathan says "dev-story-intake", "intake a story", "new story", "add a story", "new sprint", "create a story", "/goal using dev-story-intake …", or pastes a user story with no other instruction. Do NOT use for a single story with no sprint folder (dev-story-sprint), for planning or executing sprints (dev-story-flow), or for issue-tracker intake and epic planning (dev-epic-workflow / intake).
 ---
 
 # dev-story-intake — phase 1 of the story pipeline
@@ -14,8 +14,13 @@ same shape, and the sprint it lands in is tracked by the manifest described in
 conversation never rides along in the planner's or coder's context: this session writes
 files, `dev-story-flow` reads them, and nothing passes between them but `sprint.json`.
 
-This is the **only conversational phase**. The planner and coder (in `dev-story-flow`) run
-silent; intake asks questions, because this is where ambiguity is cheapest to remove.
+**Jonathan's standing instruction (2026-09-24): don't question him — story it, plan it,
+implement it.** He gives information (often one long paragraph); intake turns it into stories
+with every ambiguity resolved by a stated assumption, then hands straight to `dev-story-flow`
+to plan and build. "We can always change things later, but at least we get a working version
+of the system." A working version with listed assumptions beats a perfect spec that waits on
+answers. Intake is still the only phase that talks to Jonathan, but it talks in statements,
+not questions.
 
 ## Inputs and outputs
 
@@ -48,22 +53,29 @@ All stories written in this session belong to that sprint until step 5 closes it
 objective carried no story text, the first message is one line: the sprint name and "give me
 the first story".
 
-### 2. Intake — one batched round of questions
+### 2. Intake — ground, decide, write. No questions.
 
-Ground first, cheaply: `grep -n` / `sed -n` the modules the story obviously touches, `git log
---oneline -10`, the stack's config files. Then ask **everything at once, in one message**,
-grouped:
+Ground first, in a sub-agent: the modules the input obviously touches, `git log --oneline
+-10`, the stack's config files. Split Jonathan's input into stories (one per independently
+shippable capability). Then **decide** — do not ask — each of:
 
 - **Behaviour:** what exactly happens, for whom, triggered how; the failure and empty states.
-- **Boundaries:** what is explicitly out of scope; what must not change.
-- **Kind:** is it `interactive` (a UI Jonathan will click through in a browser) or `service`
-  (backend, database, API, MCP, CLI)? Infer it and state the inference; only ask if unsure.
-- **Acceptance criteria:** confirm the ones given verbatim; propose the ones missing.
-- **Dependencies:** external services, credentials, migrations, other stories in this sprint.
+- **Boundaries:** what is out of scope; what must not change.
+- **Kind:** `interactive` (a UI clicked through in a browser) or `service` (backend, database,
+  API, MCP, CLI).
+- **Acceptance criteria:** his verbatim; add the ones missing.
+- **Dependencies:** external services, credentials, migrations, other stories in the sprint.
 
-A second round is allowed only when an answer opens a genuinely new ambiguity. Do not ask
-about things the repo can answer — read the repo instead. If Jonathan says "just write it",
-write it with every assumption listed under *Open questions* in the story.
+Pick the simplest default that yields a working system and is easy to change later. Record
+every decision you made on his behalf under the story's *Open questions* as `Assumed: …` so he
+can overrule it after the fact. Do not post a list of questions, do not offer options to
+choose from, do not ask for confirmation of the split — he has said, more than once, that
+question rounds are the thing he does not want.
+
+The only things intake may raise are facts it cannot supply itself: a credential or account
+only Jonathan holds. Even then it does not stop: it writes the story against a stub or an
+env var, lists the missing value in *Open questions*, and mentions it in one line in the
+hand-off.
 
 ### 3. Write `story.md`
 
@@ -140,9 +152,18 @@ manifest are the record, and the sprint's merge commits are the trail.
 Then post one short confirmation: sprint, slug, kind, path — and wait for the next
 story or for the completion phrase.
 
-### 5. Hand off to dev-story-flow — the "documentation complete" signal
+### 5. Hand off to dev-story-flow — automatic by default
 
-Jonathan closes the sprint with any clear phrase: **"I'm done"**, **"sprint complete"**,
+**Default (assume-and-ship):** once every story from Jonathan's input is written and
+committed, the sprint is documentation-complete — no completion phrase needed. Set it
+`ready-to-plan`, commit, push, post one line ("Sprint <sprint> ready: <slugs>. Starting
+dev-story-flow."), and run the **same-session variant** below:
+`Skill({skill: "dev-story-flow:dev-story-flow", args: "run"})`. Plan, build, review, validate
+and the PR to live follow without Jonathan answering anything. Only when he explicitly says he
+wants to keep adding stories ("more coming", "don't run yet", "hold") does the sprint stay
+`drafting` and wait for the phrases below.
+
+Jonathan can also close the sprint explicitly with any clear phrase: **"I'm done"**, **"sprint complete"**,
 **"documentation complete"**, **"done with the sprint"**, **"that's all the stories"**,
 **"send it to planning"**. On that:
 
@@ -220,6 +241,8 @@ Either way the session then clears: `mcp__ccd_session_mgmt__clear_session` with
   restated. His words are the contract; the restatement is the specifier's reading of it.
 - Every AC must be checkable by a command or a browser step. "Works correctly" is not an AC.
 - Never invent scope. Anything not asked for is *Out of scope* or an *Open question*.
+- Never run a question round. Decide, record the assumption, ship. (See the standing
+  instruction at the top.)
 - Never guess repo facts — read them. A story that names a file that does not exist is a bug in
   the story.
 - Commit after every story; the manifest and the stories travel together.

@@ -43,13 +43,17 @@ entry point Jonathan uses: `/goal using dev-story-flow <objective>`. Calling
 | "plan", "plan the sprints", "plan what's ready" | PLAN only | no `ready-to-plan` sprint remains |
 | "execute", "run the planned sprints" | EXECUTE only | no `planned` sprint remains, or a sprint is `blocked`, or the budget gate fires |
 | "status", "where are the sprints", "what's planned" | — | prints `sprint-state.sh list` and stops |
-| "create", "new story", "add a story", "new sprint", or a pasted user story | — | hands off in one call: `Skill({skill: "dev-story-flow:dev-story-intake", args: "<the objective>"})`. Intake is conversational and belongs in its own session; this skill does not run it inline |
+| "create", "new story", "add a story", "new sprint", or a pasted user story / requirements paragraph | intake → PLAN → EXECUTE | hands off in one call: `Skill({skill: "dev-story-flow:dev-story-intake", args: "<the objective>"})`. Intake writes the stories with its own assumptions (no question round), closes the sprint and calls back into `run` in the same turn — Jonathan's paragraph goes to working code with nothing asked of him |
 
 An objective that names a sprint (`… execute sprint 2026-09-10-001`) restricts the phase to
 that sprint. Ambiguous objective → run `sprint-state.sh list`; if anything is `ready-to-plan`
 or `planned`, run the loop and say which sprint it starts with in one line; if nothing is,
 say so in one line ("Nothing to plan or execute — `dev-story-intake` creates stories.") and
 stop.
+
+**Jonathan's standing instruction (2026-09-24): story it, plan it, implement it — don't question
+him.** Ambiguity is resolved by a recorded assumption, never by a question; a working version
+that he changes later beats a stalled one. This applies to every phase and every sub-agent.
 
 **No go-ahead, ever.** The only human gates are outside this skill: `dev-story-intake` closing
 a sprint, and Jonathan merging the PR each sprint opens against live. Under `plan` alone there
