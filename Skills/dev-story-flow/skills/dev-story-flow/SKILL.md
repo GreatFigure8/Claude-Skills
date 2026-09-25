@@ -111,7 +111,7 @@ with its closing line and nothing is scheduled — one pass is what he asked for
    explain, summarize progress, or narrate what a tool call found.
 4. **Every spawn is announced with a model table first**, one table per sprint covering every
    sub-agent, item and reviewer, with a **Model** column. `model:` is always explicit —
-   `"sonnet"` (Sonnet 5) by default, `"opus"` (Opus 5) only past the complexity bar stated in
+   `"sonnet"` (Sonnet 5) by default, `"opus"` (Opus 5.5) only past the complexity bar stated in
    the phase doc. Never inherited.
 5. **Maximum parallelism.** Planners: every story of a sprint in one message. Executors: every
    dependency-met item across all stories of the sprint in one message, waves not queues.
@@ -136,7 +136,7 @@ with its closing line and nothing is scheduled — one pass is what he asked for
    skills to Python, checks Jonathan's global review rules, and writes `<slug>/review.md`.
    A CRITICAL or HIGH finding is a fix item, through the same fix loop as a failed AC; NOTEs
    are recorded, not chased. `claude ultrareview` (billed, cloud) runs only when Jonathan has
-   set `DSF_ULTRA_REVIEW=1` in the environment — never by default. Model: Sonnet 5, or Opus 5
+   set `DSF_ULTRA_REVIEW=1` in the environment — never by default. Model: Sonnet 5, or Opus 5.5
    when the story's risk surfaces name auth, user input, database queries, filesystem paths,
    external calls, crypto, or money.
 9. **Acceptance criteria are proven, not asserted.** A story is `done` only when its review

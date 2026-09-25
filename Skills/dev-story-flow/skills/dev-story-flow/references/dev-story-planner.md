@@ -67,7 +67,7 @@ Planning sprint 2026-09-10-001 — 3 stories
 |---|---|---|
 | add-chat-endpoint | 1 | Sonnet 5 |
 | create-home-page (depends on add-chat-endpoint) | 2 | Sonnet 5 |
-| migrate-sessions-table | 1 | Opus 5 |
+| migrate-sessions-table | 1 | Opus 5.5 |
 ```
 
 Then, in the **same message**, one `Agent` call per story — all of them, so they run
