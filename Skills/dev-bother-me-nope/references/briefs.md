@@ -12,9 +12,11 @@ Run folder: docs/sprints/{run}/. Stack: see docs/sprints/{run}/stack.md.
 Rules — no exceptions:
 - Never ask a question. Decide, record the decision under "Assumptions" in the file you own,
   continue.
-- NEVER deploy: no vercel deploy/--prod/promote, no push to main/master/production.
-- NEVER change a remote Supabase database (dev or main): no db push, no remote migration,
-  no remote DDL/DML, no functions deploy, no secrets. Local `supabase start` only.
+- NEVER deploy to Vercel (dev included): no vercel deploy/--prod/--target/promote, no push to
+  main/master/production, never remove or weaken git.deploymentEnabled in vercel.json.
+- NEVER touch Supabase MAIN. Supabase DEV only via the DB-SYNC brief (migrations, db push).
+  No remote DDL/DML otherwise, no functions deploy, no secrets. Tests use local
+  `supabase start` only.
 - A tool call blocked by the deploy guard is final — record why you needed it and stop that
   path; do not work around it.
 - Load these skills with the Skill tool before touching code: {routed_skills}.
@@ -34,12 +36,17 @@ Input story: docs/sprints/{run}/input.md. Inspect the repo (manifests, dirs, CI,
 supabase/). Also report: default branch, whether `dev` exists on origin, test runner,
 lint/type-check commands, whether Docker + supabase CLI + playwright are available.
 Set dev_push_deploys=true if pushing `dev` would itself deploy: a .github/workflows (or other
-CI) job triggered by push to dev that runs supabase db push / migration up / functions
-deploy / vercel deploy; supabase/config.toml or docs showing Supabase GitHub
-integration/branching on dev; vercel.json or docs making dev a production branch. Cite the
-file for whatever you find.
+CI) job triggered by push to dev that runs vercel deploy, or anything aimed at Supabase main.
+Cite the file for whatever you find.
+List every vercel.json (and every dir with .vercel/project.json) as vercel_json[], with its
+current git.deploymentEnabled value.
+Supabase refs: find the dev and main project refs (supabase/.temp/project-ref, .env.example /
+.env.development / .env.production SUPABASE_URL = https://<ref>.supabase.co, README/docs).
+Report supabase_dev_ref / supabase_main_ref only when the evidence labels each one
+unambiguously; else null. Cite evidence. Never print keys or passwords.
 Write nothing. Return JSON: {kind, ui, supabase, vercel, llm, dev_push_deploys,
-dev_push_deploys_evidence, routed_build_skills[],
+dev_push_deploys_evidence, vercel_json[], supabase_dev_ref, supabase_main_ref, ref_evidence,
+routed_build_skills[],
 routed_review_lenses[], test_surfaces[], gates{lint,types,test}, has_dev_branch,
 default_branch, tooling{docker,supabase_cli,playwright}, assumptions[]}.
 ```
@@ -137,6 +144,21 @@ Merge {integration} into dev. Load python-library-quality:keeping-git-repos-clea
    `git pull --ff-only && git merge --no-ff {integration} -m "<conventional title>" && git push origin dev`.
 Audit tracked files for .env / secrets / artifacts before pushing. Never touch main.
 Return: merge commit sha, gate results, conflicts resolved.
+```
+
+## db-sync (sonnet)
+
+```
+Apply dev's new Supabase migrations to the DEV project ONLY (ref {dev_ref}; main is
+{main_ref} and must never be touched). On a fresh worktree of origin/dev:
+1. List migrations not in {already_applied}. Hold back any that DROP TABLE/COLUMN, TRUNCATE,
+   or DELETE/UPDATE without WHERE — report them, don't push them.
+2. If anything remains, run in ONE command:
+   `supabase link --project-ref {dev_ref} && supabase db push --linked`.
+   If this needs a credential that isn't already configured (access token / DB password),
+   STOP — never enter one — and report "not authenticated".
+3. `supabase migration list --linked` to confirm.
+Return JSON: {applied[], held_back[{file, reason}], error}.
 ```
 
 ## tester (sonnet, one per surface)

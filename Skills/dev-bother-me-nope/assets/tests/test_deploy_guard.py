@@ -144,3 +144,72 @@ def test_supabase_sql_detected_by_project_id_on_uuid_named_server():
 def test_vercel_mcp_read_tools_allowed():
     assert mcp("mcp__vercel__get_deployment").returncode == 0
     assert mcp("mcp__vercel__list_deployments").returncode == 0
+
+
+# ---- Supabase DEV project is writable by the skill; MAIN never is ----
+
+DEV_REF, MAIN_REF = "devref111", "mainref222"
+
+
+@pytest.fixture
+def repo(tmp_path):
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "bmn.config.json").write_text(
+        json.dumps({"supabase": {"dev_ref": DEV_REF, "main_ref": MAIN_REF}}))
+    return tmp_path
+
+
+def bash_in(cwd, command):
+    return run_guard({"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(cwd)})
+
+
+def link(cwd, ref):
+    (cwd / "supabase" / ".temp").mkdir(parents=True, exist_ok=True)
+    (cwd / "supabase" / ".temp" / "project-ref").write_text(ref + "\n")
+
+
+def test_db_push_allowed_when_linked_to_dev(repo):
+    link(repo, DEV_REF)
+    assert bash_in(repo, "supabase db push --linked").returncode == 0
+    assert bash_in(repo, "supabase db push").returncode == 0
+
+
+def test_db_push_blocked_when_linked_to_main(repo):
+    link(repo, MAIN_REF)
+    assert bash_in(repo, "supabase db push --linked").returncode == 2
+
+
+def test_link_in_same_command_decides_the_target(repo):
+    link(repo, MAIN_REF)
+    assert bash_in(repo, f"supabase link --project-ref {DEV_REF} && supabase db push --linked").returncode == 0
+    link(repo, DEV_REF)
+    assert bash_in(repo, f"supabase link --project-ref={MAIN_REF} && supabase db push").returncode == 2
+
+
+def test_db_url_must_name_the_dev_ref(repo):
+    dev_url = f"postgresql://postgres.{DEV_REF}:pw@aws-0-us-east-1.pooler.supabase.com:6543/postgres"
+    main_url = dev_url.replace(DEV_REF, MAIN_REF)
+    assert bash_in(repo, f"supabase db push --db-url '{dev_url}'").returncode == 0
+    assert bash_in(repo, f"supabase db push --db-url '{main_url}'").returncode == 2
+
+
+def test_other_remote_supabase_changes_stay_blocked_even_on_dev(repo):
+    link(repo, DEV_REF)
+    for command in ("supabase functions deploy x", "supabase secrets set A=b",
+                    "supabase db reset --linked", "supabase migration repair 1 --status applied"):
+        assert bash_in(repo, command).returncode == 2, command
+
+
+def test_db_push_blocked_without_config_or_link(repo, tmp_path_factory):
+    assert bash_in(repo, "supabase db push").returncode == 2  # config but no link
+    bare = tmp_path_factory.mktemp("bare")
+    link(bare, DEV_REF)
+    assert bash_in(bare, "supabase db push").returncode == 2  # link but no config
+
+
+def test_misconfigured_same_ref_for_dev_and_main_blocks(repo):
+    (repo / ".claude" / "bmn.config.json").write_text(
+        json.dumps({"supabase": {"dev_ref": DEV_REF, "main_ref": DEV_REF}}))
+    link(repo, DEV_REF)
+    assert bash_in(repo, "supabase db push").returncode == 2
