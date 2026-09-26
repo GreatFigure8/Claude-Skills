@@ -1,0 +1,8 @@
+{
+  "name": "dev-bother-me-nope",
+  "description": "Zero-question build pipeline: one long story in, merged-to-dev code plus a report out. Splits the story into stories, plans each, builds them with TDD using the right python skill set, code-reviews, merges to dev, tests (pytest plus headless Playwright), fixes, and reviews/merges/tests again, then reports and alerts. Never deploys to Vercel (not even dev). Merges to dev never build. Migrations go to the Supabase DEV database only; MAIN waits for Jonathan. A deploy-guard hook enforces this while a run is active.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Jonathan Stevenson"
+  }
+}

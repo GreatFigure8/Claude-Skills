@@ -7,6 +7,10 @@ BMN_USER_APPROVED_DEPLOY=1 (set only when Jonathan said "deploy" in chat). One e
 `supabase db push` / `migration up` may target the Supabase DEV project named in the repo's
 .claude/bmn.config.json — never MAIN. Anything it cannot parse is allowed — this is an
 accident guard, not a sandbox.
+
+Shipped as a plugin hook, so it fires in every session; it only acts inside a git repo with a
+dev-bother-me-nope run in progress (docs/sprints/bmn-*/bmn.json whose phase isn't done or
+blocked), checked in the current worktree and in the repo's main worktree.
 Rules and rationale: ../../references/deploy-guards.md
 """
 import json
@@ -52,6 +56,8 @@ SUPABASE_ALWAYS_BLOCKED = {
 SUPABASE_BLOCKED_WHEN_REMOTE = {("db", "reset"), ("migration", "up")}
 SUPABASE_DEV_ALLOWED = {("db", "push"), ("migration", "up")}
 CONFIG_PATH = (".claude", "bmn.config.json")
+RUN_STATE_GLOB = "docs/sprints/bmn-*/bmn.json"
+FINISHED_PHASES = frozenset({"done", "blocked"})
 LINKED_REF_PATH = ("supabase", ".temp", "project-ref")
 
 REMOTE_DB_HOST = re.compile(r"supabase\.(co|com)\b")
@@ -255,6 +261,32 @@ def repo_root(cwd):
         return Path(cwd or ".")
 
 
+def git_roots(cwd):
+    """The current worktree's root and the main worktree's root; empty outside git."""
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"],
+            cwd=cwd or None, capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    lines = out.stdout.split()
+    if out.returncode != 0 or len(lines) != 2:
+        return []
+    return list(dict.fromkeys([Path(lines[0]), Path(lines[1]).parent]))
+
+
+def run_in_progress(cwd):
+    for root in git_roots(cwd):
+        for state in root.glob(RUN_STATE_GLOB):
+            try:
+                phase = json.loads(state.read_text()).get("phase")
+            except (OSError, ValueError, AttributeError):
+                phase = None
+            if phase not in FINISHED_PHASES:
+                return True
+    return False
+
+
 def read_text(path):
     try:
         return path.read_text().strip()
@@ -335,6 +367,10 @@ def main():
         return 0
     tool_name = payload.get("tool_name") or ""
     tool_input = payload.get("tool_input") or {}
+    if tool_name != "Bash" and not tool_name.startswith("mcp__"):
+        return 0
+    if not run_in_progress(payload.get("cwd")):
+        return 0
     if tool_name == "Bash":
         reason = check_bash(tool_input.get("command") or "", load_context(payload.get("cwd")))
     elif tool_name.startswith("mcp__"):
