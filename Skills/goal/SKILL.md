@@ -12,7 +12,11 @@ sprints are completed` into a call to the `dev-story-flow` skill with the object
 ## Procedure
 
 1. **Parse.** The argument is `[using <skill-name>] <objective>`. The skill name is the single
-   token after `using`; the objective is everything else, verbatim. Without `using`, match the
+   token after `using`; the objective is everything else, verbatim. A `/<skill-name>` token
+   anywhere in the argument (`/goal execute /dev-bother-me-nope for …`) names the skill the
+   same way — but only when it exactly matches a loaded skill's name (so `/api/users` in an
+   objective is never a skill); the objective is the argument with that token removed.
+   Without either, match the
    objective's nouns against the loaded skills' descriptions ("sprint", "story" → dev-story-flow
    when `docs/sprints` exists, else dev-story-sprint; "epic", "issue" → dev-epic-workflow;
    "release" → release). State the choice in one line. No clear match → ask, in one line.
