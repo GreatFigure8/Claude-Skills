@@ -2,6 +2,7 @@
 import json
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -9,7 +10,26 @@ import pytest
 GUARD = Path(__file__).resolve().parents[1] / "bin" / "deploy-guard.py"
 
 
+def start_run(root, phase="build"):
+    """Mark `root` as a repo with a dev-bother-me-nope run in progress."""
+    run = root / "docs" / "sprints" / "bmn-demo"
+    run.mkdir(parents=True, exist_ok=True)
+    (run / "bmn.json").write_text(json.dumps({"run": "bmn-demo", "phase": phase}))
+
+
+def new_repo(active=True):
+    root = Path(tempfile.mkdtemp())
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    if active:
+        start_run(root)
+    return root
+
+
+ACTIVE_REPO = new_repo()
+
+
 def run_guard(payload):
+    payload = {"cwd": str(ACTIVE_REPO), **payload}
     return subprocess.run(
         [sys.executable, str(GUARD)], input=json.dumps(payload), capture_output=True, text=True
     )
@@ -154,6 +174,7 @@ DEV_REF, MAIN_REF = "devref111", "mainref222"
 @pytest.fixture
 def repo(tmp_path):
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    start_run(tmp_path)
     (tmp_path / ".claude").mkdir()
     (tmp_path / ".claude" / "bmn.config.json").write_text(
         json.dumps({"supabase": {"dev_ref": DEV_REF, "main_ref": MAIN_REF}}))
@@ -204,6 +225,8 @@ def test_other_remote_supabase_changes_stay_blocked_even_on_dev(repo):
 def test_db_push_blocked_without_config_or_link(repo, tmp_path_factory):
     assert bash_in(repo, "supabase db push").returncode == 2  # config but no link
     bare = tmp_path_factory.mktemp("bare")
+    subprocess.run(["git", "init", "-q", str(bare)], check=True)
+    start_run(bare)
     link(bare, DEV_REF)
     assert bash_in(bare, "supabase db push").returncode == 2  # link but no config
 
@@ -213,3 +236,37 @@ def test_misconfigured_same_ref_for_dev_and_main_blocks(repo):
         json.dumps({"supabase": {"dev_ref": DEV_REF, "main_ref": DEV_REF}}))
     link(repo, DEV_REF)
     assert bash_in(repo, "supabase db push").returncode == 2
+
+
+# ---- the guard only acts while a dev-bother-me-nope run is active in the repo ----
+
+def guard_in(cwd, command):
+    return run_guard({"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(cwd)})
+
+
+def test_inactive_repo_is_not_guarded():
+    idle = new_repo(active=False)
+    assert guard_in(idle, "vercel --prod").returncode == 0
+    assert run_guard({"tool_name": "mcp__supabase__apply_migration", "cwd": str(idle)}).returncode == 0
+
+
+@pytest.mark.parametrize("phase", ["done", "blocked"])
+def test_finished_run_is_not_guarded(phase):
+    root = new_repo(active=False)
+    start_run(root, phase)
+    assert guard_in(root, "vercel --prod").returncode == 0
+
+
+def test_worktree_of_active_repo_is_guarded():
+    root = new_repo()
+    subprocess.run(["git", "-C", str(root), "commit", "-q", "--allow-empty", "-m", "init"],
+                   check=True, env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                                    "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+                                    "PATH": "/usr/bin:/bin:/opt/homebrew/bin"})
+    tree = Path(tempfile.mkdtemp()) / "wt"
+    subprocess.run(["git", "-C", str(root), "worktree", "add", "-q", "--detach", str(tree)], check=True)
+    assert guard_in(tree, "vercel --prod").returncode == 2
+
+
+def test_non_git_dir_is_not_guarded(tmp_path):
+    assert guard_in(tmp_path, "vercel --prod").returncode == 0

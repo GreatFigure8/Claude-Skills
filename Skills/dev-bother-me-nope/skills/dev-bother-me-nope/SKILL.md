@@ -1,12 +1,6 @@
 ---
 name: dev-bother-me-nope
 description: Jonathan's zero-question build pipeline — takes one long free-form story (a bug fix, an error to resolve, a feature, or an ENTIRE system), breaks it into stories, plans each, codes them with the right python skill set (python-web-app for APIs/web apps, python-mcp-servers for MCP servers, python-library-quality for libraries/CLIs, python-llm-features for LLM calls; nextjs-fullstack-standards if the repo is TypeScript), code-reviews, merges to dev, tests (TDD pytest + real-browser Playwright), fixes, reviews and tests again, then writes a summary report and alerts him. Never asks a question and never deploys to Vercel (not even dev) — merges to dev never trigger a Vercel build, Vercel deploys wait for Jonathan's word; migrations go to the Supabase DEV database only, MAIN waits for him; the report says exactly what needs deploying. Use whenever Jonathan says "dev-bother-me-nope", "/dev-bother-me-nope", "/goal execute /dev-bother-me-nope for …", "/goal using dev-bother-me-nope …", "don't bother me, just build …", or pastes a long build story and says to just do it.
-hooks:
-  PreToolUse:
-    - matcher: "Bash|mcp__.*"
-      hooks:
-        - type: command
-          command: "python3 \"$HOME/.claude/skills/dev-bother-me-nope/assets/bin/deploy-guard.py\""
 ---
 
 # dev-bother-me-nope
@@ -35,9 +29,11 @@ INTAKE → SPLIT → PLAN → BUILD → REVIEW① → MERGE→dev → TEST① �
 3. **No questions.** Ambiguity → pick the conservative, conventional answer, log it under
    *Assumptions*, keep going. A real blocker (below) is the only thing that ends a run early.
 
-These are enforced three times: the `deploy-guard.py` hook in this skill's frontmatter
-(main session), the same hook in the `bmn-worker` agent definition (every subagent), and the
-rules pasted into every brief. Harness blocks are final — never try to route around one.
+These rules are enforced twice. First, the plugin's `deploy-guard.py` PreToolUse hook
+covers the main session and every subagent. It only acts in a repo with a run in progress,
+meaning a `docs/sprints/bmn-*/bmn.json` whose phase isn't `done` or `blocked`. That's why
+INTAKE writes `bmn.json` before anything else. Second, the rules are pasted into every
+brief. A block from the harness is final, so never try to route around one.
 
 ## Merging never builds
 
@@ -109,9 +105,10 @@ re-read `bmn.json` and continue from `phase`, trusting only what's on disk.
 The main thread decides and dispatches. It doesn't read source, run test suites, or grep
 the codebase. That work is done by subagents, which report back conclusions.
 
-- Every subagent is `subagent_type: "bmn-worker"`. It runs with the deploy guard active.
-  Briefs come from [references/briefs.md](references/briefs.md) and are filled in, not
-  paraphrased.
+- Every subagent is `subagent_type: "dev-bother-me-nope:bmn-worker"`. Briefs come from
+  [references/briefs.md](references/briefs.md) and are filled in, not paraphrased.
+  `{skill_dir}` in a brief is this skill's base directory, the path shown when the skill
+  loads.
 - Every spawn is announced with the model table (Item | Branch | Model), one row per agent,
   and the model named explicitly: `model: "opus"` for SPLIT, PLAN, REVIEW and any FIX
   whose root cause is unclear; `model: "sonnet"` for BUILD, TEST, merges and mechanical fixes.
@@ -129,7 +126,8 @@ the codebase. That work is done by subagents, which report back conclusions.
 ### 0 · INTAKE (orchestrator)
 1. Resume check (above). Then `git fetch`, and record the branch that's checked out.
 2. Pick `<run-slug>`, a descriptive kebab-case summary of the story's intent. Write
-   `input.md` verbatim.
+   `input.md` verbatim, and write `bmn.json` with `phase: intake` **right away**. The
+   deploy guard is only active once this file exists.
 3. Dispatch one **stack-scout** (sonnet) with the brief in briefs.md. It returns the stack
    classification and routing. Write `stack.md`, then `bmn.json` with `phase: split`.
    If the scout identified **both** Supabase refs, and each one is unambiguously labelled
