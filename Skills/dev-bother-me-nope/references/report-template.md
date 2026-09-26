@@ -4,24 +4,24 @@
 **Stack:** {kind} · skills used: {routed skills}
 **Merged to dev:** {merge shas}
 
-## Deploy checklist — nothing below has been deployed
+## Deploy checklist — nothing was deployed to Vercel; Supabase MAIN untouched
 
-> Omit this section only when `deploy_pending` is empty; then write
-> "No deploys pending — nothing touches Supabase or needs a Vercel release."
+**Vercel:** `dev` is ready for a Vercel **dev** deploy when you say so —
+`vercel deploy --target=<dev env>`. Merges to `dev` did not build (git.deploymentEnabled).
+{if first run in this repo: "The first push may have built once; also set the rule in
+Vercel → Project → Settings → Git."}
 
-**Supabase — apply to DEV first, verify, then MAIN**
-| # | Change | Files | Why it matters |
-| - | --- | --- | --- |
-| 1 | {e.g. new table `invoices` + RLS} | `supabase/migrations/…sql` | {feature X fails on dev until applied} |
+**Supabase**
+| # | Migration | DEV | MAIN | Why it matters |
+| - | --- | --- | --- | --- |
+| 1 | `supabase/migrations/…sql` — {e.g. new table `invoices` + RLS} | ✅ applied / ⏸ held back: {why} | ⏳ waiting | {feature X fails on main until applied} |
 
-Commands, when you say go (dev, then main):
+MAIN, when you say go:
 ```bash
-supabase link --project-ref <dev-ref> && supabase db push --linked
+supabase link --project-ref <main-ref> && supabase db push --linked
 ```
 
 **Env vars / secrets to add (names only):** {NAME → dev, main}
-**Vercel:** {project} is ready to deploy when you say so — `{command}`.
-**Heads-up:** the push to `dev` may have triggered a Vercel preview build via git integration.
 
 ## Summary
 {3–6 sentences: what was asked, what was built, what state it's in.}

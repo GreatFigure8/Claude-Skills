@@ -5,7 +5,8 @@ hook blocks, and how the report hands the decision back to him.
 
 ## Never, without Jonathan saying so in chat this session
 
-**Vercel**
+**Vercel** — every deploy is Jonathan's, dev included ("deploy to dev" = a real Vercel
+deployment to the dev environment, e.g. `vercel deploy --target=<dev env>`).
 - `vercel` with no subcommand (it deploys), `vercel deploy`, `vercel --prod`, `vercel promote`,
   `vercel rollback`, `vercel redeploy`, `vercel alias`, `vercel env add|rm` (changes a live
   project), `vercel remove`.
@@ -15,9 +16,21 @@ hook blocks, and how the report hands the decision back to him.
 Allowed: `vercel dev`, `vercel build`, `vercel pull`, `vercel env pull`, `vercel ls`,
 `vercel inspect`, `vercel logs`, `vercel whoami`, `vercel link`, `vercel --version`.
 
-**Supabase** — there are always two projects, `dev` and `main`. Both are remote; both are
-off limits.
-- `supabase db push`, `supabase migration up` against a linked or remote db, any
+- A git push that makes Vercel build. The run pushes `dev` and `bmn/**` often, so INTAKE
+  sets `git.deploymentEnabled: {"dev": false, "bmn/**": false}` in every Vercel app's
+  `vercel.json` before the first push. The guard can't see Vercel's git integration. This
+  setting is what enforces it.
+
+**Supabase** — there are always two projects, `dev` and `main`.
+- **DEV (allowed, migrations only):** `supabase db push` / `migration up` is allowed when
+  the target is provably the dev ref. That means the repo's `.claude/bmn.config.json` names
+  both `dev_ref` and `main_ref`, they differ, and either the linked ref
+  (`supabase/.temp/project-ref`, or a `supabase link --project-ref` earlier in the same
+  command) equals `dev_ref`, or `--db-url` contains `dev_ref` and not `main_ref`. Otherwise
+  it's blocked. DB-SYNC also holds back migrations that destroy data (a procedure rule, not
+  something the guard checks).
+- **MAIN (never)** and **both projects** for everything else:
+- `supabase db push`, `supabase migration up` against anything but the dev ref, any
   `--linked` / `--db-url` mutation (`db reset --linked`, `migration repair`), `supabase
   functions deploy`, `supabase secrets set|unset`, `supabase config push`,
   `supabase branches create|delete`.
@@ -39,13 +52,11 @@ orchestrator may, and only after Jonathan's chat instruction.
 
 ## How the work stays testable without deploying
 
-- Migrations are written to `supabase/migrations/` and applied only to a **local**
-  Supabase (`supabase start`, then `supabase db reset`). No Docker → unit/integration tests
-  use the repo's test DB fixture, and TEST notes that DB-level validation ran locally-only
-  or not at all.
-- Browser tests run against the app served locally, not a Vercel URL.
-- A push to `dev` may trigger a Vercel **preview** build through the host's git
-  integration; the report says so. It is never used as the thing under test.
+- Migrations are written to `supabase/migrations/` and tested on a **local** Supabase
+  (`supabase start`, then `supabase db reset`). DB-SYNC then applies them to the dev
+  project. Tests never run against the dev database. Without Docker, unit and integration
+  tests use the repo's test DB fixture, and TEST notes that DB-level validation didn't run.
+- Browser tests run against the app served locally, never a Vercel URL.
 
 ## Hand-back — the report's Deploy checklist
 
@@ -54,15 +65,16 @@ Whenever a run creates or changes any of the following, add an entry to
 
 | Change | Entry says |
 | --- | --- |
-| new/changed file in `supabase/migrations/` | "Apply to Supabase **dev**, verify, then **main**" + file list + `supabase db push --linked` per project (after `supabase link --project-ref <dev-ref>` / `<main-ref>`) |
+| new/changed file in `supabase/migrations/` | "✅ applied to **dev**" (or "⏸ held back from dev: <why>") + "⏳ waiting for **main**" + file list + `supabase link --project-ref <main-ref> && supabase db push --linked` |
 | RLS policy, function, trigger, extension | same as above, called out separately — these change security behaviour |
 | edge function | `supabase functions deploy <name>` per project |
 | new env var / secret | the name (never a value) and which project(s) need it |
-| app code on a Vercel project | "Ready to deploy when you say so" + `vercel --prod` or the promote command |
+| app code on a Vercel project | "`dev` is ready for a Vercel **dev** deploy when you say so" + `vercel deploy --target=<dev env>`; prod listed separately |
+| first `deploymentEnabled` commit | "The first push may have built once; also set the rule in Vercel → Project → Settings → Git" |
 
-Order is always **dev before main** for Supabase. The checklist says plainly: *"Nothing
-above has been deployed. The app on dev expects migrations X, Y — until they're applied to
-the dev database, features A, B will fail there."*
+Supabase is always **dev before main**. The checklist says plainly which migrations the
+code on `dev` depends on, and which features will fail on an environment until they're
+applied there.
 
 ## When approved
 

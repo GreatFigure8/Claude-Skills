@@ -3,8 +3,10 @@
 
 Blocks (exit 2, reason on stderr) any Vercel deploy, any push to a production branch, and any
 change to a remote Supabase database, unless the Bash segment is prefixed with
-BMN_USER_APPROVED_DEPLOY=1 (set only when Jonathan said "deploy" in chat). Anything it cannot
-parse is allowed — this is an accident guard, not a sandbox.
+BMN_USER_APPROVED_DEPLOY=1 (set only when Jonathan said "deploy" in chat). One exception:
+`supabase db push` / `migration up` may target the Supabase DEV project named in the repo's
+.claude/bmn.config.json — never MAIN. Anything it cannot parse is allowed — this is an
+accident guard, not a sandbox.
 Rules and rationale: ../../references/deploy-guards.md
 """
 import json
@@ -12,6 +14,7 @@ import re
 import shlex
 import subprocess
 import sys
+from pathlib import Path
 
 APPROVAL_VAR = "BMN_USER_APPROVED_DEPLOY"
 PROTECTED_BRANCHES = frozenset({"main", "master", "prod", "production", "release"})
@@ -47,6 +50,9 @@ SUPABASE_ALWAYS_BLOCKED = {
     ("projects", "delete"),
 }
 SUPABASE_BLOCKED_WHEN_REMOTE = {("db", "reset"), ("migration", "up")}
+SUPABASE_DEV_ALLOWED = {("db", "push"), ("migration", "up")}
+CONFIG_PATH = (".claude", "bmn.config.json")
+LINKED_REF_PATH = ("supabase", ".temp", "project-ref")
 
 REMOTE_DB_HOST = re.compile(r"supabase\.(co|com)\b")
 REMOTE_DB_VAR = re.compile(r"\$\{?\w*(SUPABASE|PROD|MAIN|REMOTE)\w*", re.I)
@@ -163,9 +169,31 @@ def check_vercel(args):
     return f"`vercel {' '.join(words[:2])}` deploys or changes a live Vercel project"
 
 
-def check_supabase(args):
+def flag_value(args, flag):
+    for i, arg in enumerate(args):
+        if arg == flag and i + 1 < len(args):
+            return args[i + 1]
+        if arg.startswith(flag + "="):
+            return arg.split("=", 1)[1]
+    return None
+
+
+def targets_dev_only(args, ctx):
+    """True when this db push / migration up provably targets the DEV project, not MAIN."""
+    dev, main = ctx["refs"]
+    if not dev or not main or dev == main:
+        return False
+    db_url = flag_value(args, "--db-url")
+    if db_url is not None:
+        return dev in db_url and main not in db_url
+    return ctx["linked_ref"] == dev
+
+
+def check_supabase(args, ctx):
     words = positional(args, SUPABASE_VALUE_FLAGS)
     pairs = set(zip(words, words[1:]))
+    if pairs & SUPABASE_DEV_ALLOWED and targets_dev_only(args, ctx):
+        return None
     blocked = pairs & SUPABASE_ALWAYS_BLOCKED
     if blocked:
         return f"`supabase {' '.join(sorted(blocked)[0])}` changes a remote Supabase project"
@@ -218,27 +246,62 @@ def check_git(args, cwd):
     return None
 
 
-def check_segment(tokens, cwd):
+def repo_root(cwd):
+    try:
+        out = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=cwd or None,
+                             capture_output=True, text=True, timeout=5)
+        return Path(out.stdout.strip()) if out.returncode == 0 else Path(cwd or ".")
+    except (OSError, subprocess.SubprocessError):
+        return Path(cwd or ".")
+
+
+def read_text(path):
+    try:
+        return path.read_text().strip()
+    except OSError:
+        return ""
+
+
+def load_context(cwd):
+    root = repo_root(cwd)
+    try:
+        refs = json.loads(read_text(root.joinpath(*CONFIG_PATH)) or "{}").get("supabase") or {}
+    except ValueError:
+        refs = {}
+    return {"cwd": cwd, "refs": (refs.get("dev_ref"), refs.get("main_ref")),
+            "linked_ref": read_text(root.joinpath(*LINKED_REF_PATH))}
+
+
+def with_link(ctx, prog, args):
+    """`supabase link --project-ref X` earlier in the same command re-targets later segments."""
+    if prog != "supabase" or positional(args, SUPABASE_VALUE_FLAGS)[:1] != ["link"]:
+        return ctx
+    ref = flag_value(args, "--project-ref")
+    return {**ctx, "linked_ref": ref} if ref else ctx
+
+
+def check_segment(tokens, ctx):
     approved, tokens = unwrap(tokens)
     if approved or not tokens:
-        return None
+        return None, ctx
     prog, args = program_name(tokens[0]), tokens[1:]
+    next_ctx = with_link(ctx, prog, args)
     if prog in SHELLS and "-c" in args[:-1]:
-        return check_bash(args[args.index("-c") + 1], cwd)
+        return check_bash(args[args.index("-c") + 1], ctx), next_ctx
     if prog == "vercel":
-        return check_vercel(args)
+        return check_vercel(args), next_ctx
     if prog == "supabase":
-        return check_supabase(args)
+        return check_supabase(args, ctx), next_ctx
     if prog in ("psql", "pg_restore"):
-        return check_remote_sql_client(prog, args)
+        return check_remote_sql_client(prog, args), next_ctx
     if prog == "git":
-        return check_git(args, cwd)
-    return None
+        return check_git(args, ctx["cwd"]), next_ctx
+    return None, next_ctx
 
 
-def check_bash(command, cwd):
+def check_bash(command, ctx):
     for segment in split_segments(command):
-        reason = check_segment(segment, cwd)
+        reason, ctx = check_segment(segment, ctx)
         if reason:
             return reason
     return None
@@ -273,7 +336,7 @@ def main():
     tool_name = payload.get("tool_name") or ""
     tool_input = payload.get("tool_input") or {}
     if tool_name == "Bash":
-        reason = check_bash(tool_input.get("command") or "", payload.get("cwd"))
+        reason = check_bash(tool_input.get("command") or "", load_context(payload.get("cwd")))
     elif tool_name.startswith("mcp__"):
         reason = check_mcp(tool_name, tool_input)
     else:

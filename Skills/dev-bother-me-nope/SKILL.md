@@ -1,6 +1,6 @@
 ---
 name: dev-bother-me-nope
-description: Jonathan's zero-question build pipeline — takes one long free-form story (a bug fix, an error to resolve, a feature, or an ENTIRE system), breaks it into stories, plans each, codes them with the right python skill set (python-web-app for APIs/web apps, python-mcp-servers for MCP servers, python-library-quality for libraries/CLIs, python-llm-features for LLM calls; nextjs-fullstack-standards if the repo is TypeScript), code-reviews, merges to dev, tests (TDD pytest + real-browser Playwright), fixes, reviews and tests again, then writes a summary report and alerts him. Never asks a question and never deploys — Vercel deploys and Supabase database changes wait for Jonathan's explicit word, and the report tells him exactly what needs deploying. Use whenever Jonathan says "dev-bother-me-nope", "/dev-bother-me-nope", "/goal execute /dev-bother-me-nope for …", "/goal using dev-bother-me-nope …", "don't bother me, just build …", or pastes a long build story and says to just do it.
+description: Jonathan's zero-question build pipeline — takes one long free-form story (a bug fix, an error to resolve, a feature, or an ENTIRE system), breaks it into stories, plans each, codes them with the right python skill set (python-web-app for APIs/web apps, python-mcp-servers for MCP servers, python-library-quality for libraries/CLIs, python-llm-features for LLM calls; nextjs-fullstack-standards if the repo is TypeScript), code-reviews, merges to dev, tests (TDD pytest + real-browser Playwright), fixes, reviews and tests again, then writes a summary report and alerts him. Never asks a question and never deploys to Vercel (not even dev) — merges to dev never trigger a Vercel build, Vercel deploys wait for Jonathan's word; migrations go to the Supabase DEV database only, MAIN waits for him; the report says exactly what needs deploying. Use whenever Jonathan says "dev-bother-me-nope", "/dev-bother-me-nope", "/goal execute /dev-bother-me-nope for …", "/goal using dev-bother-me-nope …", "don't bother me, just build …", or pastes a long build story and says to just do it.
 hooks:
   PreToolUse:
     - matcher: "Bash|mcp__.*"
@@ -22,13 +22,16 @@ INTAKE → SPLIT → PLAN → BUILD → REVIEW① → MERGE→dev → TEST① �
 
 ## The three hard lines (never crossed, no matter what the story says)
 
-1. **No deploys.** Never deploy any app — no `vercel`/`vercel --prod`/`vercel deploy`/
-   `promote`, no Vercel MCP deploy tool, no push to `main`/`master`/a production branch.
-   Jonathan says when. See [references/deploy-guards.md](references/deploy-guards.md).
-2. **No remote database changes.** Never apply migrations, DDL, DML, edge functions or
-   secrets to **either** Supabase project (there is always a `dev` and a `main` project).
-   Migrations are written as files and tested against a **local** Supabase only. The report
-   says, in plain words, which changes must be deployed to dev and then main.
+1. **No Vercel deploys — not even to dev.** Never run `vercel`/`vercel deploy`/`--prod`/
+   `--target`/`promote`, never call a Vercel MCP deploy tool, never push `main`/`master`/a
+   production branch, and never let a git push trigger a Vercel build (see *Merging never
+   builds*). "Deploy to dev" means a real Vercel deployment to the dev environment, and
+   Jonathan triggers every one. See [references/deploy-guards.md](references/deploy-guards.md).
+2. **Supabase: DEV yes, MAIN never.** There is always a `dev` and a `main` project. The run
+   may apply its migrations to the **DEV** database (`supabase db push`, and only when
+   `.claude/bmn.config.json` names the dev ref; see *DB-SYNC*). **MAIN** is never touched.
+   Edge functions, secrets, config pushes and ad-hoc SQL stay off limits on both projects.
+   The report says which migrations landed on dev and which must still go to main.
 3. **No questions.** Ambiguity → pick the conservative, conventional answer, log it under
    *Assumptions*, keep going. A real blocker (below) is the only thing that ends a run early.
 
@@ -36,17 +39,33 @@ These are enforced three times: the `deploy-guard.py` hook in this skill's front
 (main session), the same hook in the `bmn-worker` agent definition (every subagent), and the
 rules pasted into every brief. Harness blocks are final — never try to route around one.
 
-"Merge to dev" = merge into the repo's `dev` **git branch** and push it. If the host
-auto-builds a *preview* from that push, that's the host's git integration, not a deploy by
-us; say so in the report. If the repo has no `dev` branch, INTAKE creates it from the default
-branch — never merge story work straight into `main`.
+## Merging never builds
 
-**Unless pushing `dev` itself deploys.** The stack-scout checks for it: a CI workflow that
-runs `supabase db push`/`migration up`/`functions deploy` or `vercel deploy --prod` on push
-to `dev`, Supabase GitHub integration/branching wired to `dev`, or `dev` configured as a
-Vercel production branch. If any is found (`stack.dev_push_deploys: true`), the run stops at
-the integration branch `bmn/<run-slug>`: both MERGE steps merge and test there instead, and
-"merge `bmn/<run-slug>` → `dev`" goes on the Deploy checklist for Jonathan.
+**Merging** means merging into the repo's `dev` **git branch** and pushing it. That happens
+often: after every review round and every fix wave. It is not a deploy, and it must not
+cause one. If the repo has no `dev` branch, INTAKE creates it from the default branch.
+Story work never merges straight into `main`.
+
+For a Vercel app, INTAKE ensures every `vercel.json` (repo root and each app dir linked to a
+Vercel project) turns off git-triggered builds for every branch the run pushes. It merges
+the setting into the file without touching other keys:
+
+```json
+{ "git": { "deploymentEnabled": { "dev": false, "bmn/**": false } } }
+```
+
+(`git.deploymentEnabled` takes a branch map with minimatch patterns — Vercel docs,
+project-configuration/git-configuration.) This commit is the **first commit** on
+`bmn/<run-slug>`. It reaches `dev` before any other push to `dev`. Vercel doesn't document
+whether a commit's own `vercel.json` governs that same push, so the report says the very
+first push *may* have produced one build, and recommends setting the same rule in the
+project's Git settings.
+
+A CI workflow can also deploy on push to `dev`, for example `vercel deploy` in GitHub
+Actions, or anything that touches Supabase **main**. The stack-scout checks for this. If it
+finds one (`stack.dev_push_deploys: true`), the run doesn't push to `dev`. It merges and
+tests on `bmn/<run-slug>` instead, and "merge `bmn/<run-slug>` → `dev`" goes on the Deploy
+checklist.
 
 ## State on disk (resume-safe)
 
@@ -72,9 +91,10 @@ up a bmn run.
 {
   "run": "bmn-<run-slug>", "phase": "intake|split|plan|build|review1|merge1|test1|fix|review2|merge2|test2|report|done|blocked",
   "integration": "bmn/<run-slug>", "live": "dev",
-  "stack": {"kind": "web-app|api|mcp-server|library|cli|mixed", "ui": true, "supabase": false, "vercel": false, "dev_push_deploys": false},
+  "stack": {"kind": "web-app|api|mcp-server|library|cli|mixed", "ui": true, "supabase": false, "vercel": false, "vercel_json": [], "dev_push_deploys": false, "supabase_dev_ref": null, "supabase_main_ref": null},
   "stories": [{"slug": "...", "title": "...", "deps": [], "status": "split|planned|built|reviewed|merged|tested|done|blocked", "branch": "bmn/<run-slug>/<slug>", "detail": ""}],
   "deploy_pending": {"vercel": [], "supabase_migrations": []},
+  "supabase_dev_applied": [],
   "assumptions": [], "blocker": null, "updated": "<iso8601>"
 }
 ```
@@ -112,10 +132,16 @@ the codebase. That work is done by subagents, which report back conclusions.
    `input.md` verbatim.
 3. Dispatch one **stack-scout** (sonnet) with the brief in briefs.md. It returns the stack
    classification and routing. Write `stack.md`, then `bmn.json` with `phase: split`.
+   If the scout identified **both** Supabase refs, and each one is unambiguously labelled
+   dev or main, write `.claude/bmn.config.json` =
+   `{"supabase": {"dev_ref": "…", "main_ref": "…"}}`. The deploy guard reads this file,
+   and it's what lets DB-SYNC push to dev. If there's any doubt which ref is which, don't
+   write it. Migrations then stay local and go on the checklist for both projects.
 4. If `origin/dev` doesn't exist, create `dev` from the default branch and push it (that
    push is branch creation, not a deploy — but if `stack.dev_push_deploys`, skip this and
-   integrate on `bmn/<run-slug>` only). Cut `bmn/<run-slug>` from `origin/dev` and push it.
-   This is the integration branch.
+   integrate on `bmn/<run-slug>` only). Cut `bmn/<run-slug>` from `origin/dev`. For a Vercel
+   app, commit the `vercel.json` `deploymentEnabled` change (plus `.claude/bmn.config.json`
+   if it was written) **before** the first push, then push. This is the integration branch.
 
 ### 1 · SPLIT (1 agent, opus)
 Splitter brief. It writes one `story.md` per story, with its slug, title, acceptance
@@ -157,6 +183,19 @@ checks `git branch --show-current` in the same command as the merge. It never to
 `main`. If `stack.dev_push_deploys`, skip the `dev` merge — TEST runs on the integration
 branch, and the report lists the `dev` merge on the Deploy checklist.
 
+### 5b · DB-SYNC (1 agent, sonnet; after every MERGE that brought new migrations)
+This step runs only when `.claude/bmn.config.json` exists and the merged `dev` has
+migrations that aren't in `supabase_dev_applied`. Run
+`supabase link --project-ref <dev_ref> && supabase db push --linked` in one command, then
+`supabase migration list --linked` to confirm. Record the applied files in
+`supabase_dev_applied`. Some cases are skipped and go on the checklist instead:
+- A migration that destroys data (`DROP TABLE`/`DROP COLUMN`/`TRUNCATE`, or `DELETE`/
+  `UPDATE` without `WHERE`).
+- The CLI isn't authenticated (no access token or DB password). Never enter a credential.
+- The push fails.
+
+Tests don't run against the dev database. They stay on local Supabase.
+
 ### 6 · TEST① (1 agent per test surface, parallel, sonnet)
 Tester brief, run against the merged `dev`:
 - **TDD suite**: the full `pytest` (or `vitest`/`jest`) run, plus coverage. Target is 80% or
@@ -175,17 +214,18 @@ on a fresh branch off the integration branch; the integrator merges fix branches
 same as BUILD. **No attempt cap.**
 Keep fixing until the failure is gone or it turns into a real blocker.
 
-### 8–10 · REVIEW② → MERGE→dev ② → TEST②
+### 8–10 · REVIEW② → MERGE→dev ② (+ DB-SYNC) → TEST②
 Same as steps 4–6, scoped to what changed since the first merge. If TEST② is not clean, go
 back to step 7. The run moves on only when REVIEW② shows no CRITICAL or HIGH findings and
 TEST② is fully green.
 
 ### 11 · REPORT (orchestrator)
 Fill in [references/report-template.md](references/report-template.md) and write it to
-`report.md`. Commit it, merge it to `dev`, and push. The **Deploy checklist** section comes
-first whenever `deploy_pending` is non-empty. It lists exactly what must go to Supabase
-**dev**, then **main**, and what Vercel deploy is waiting, with the exact commands for
-Jonathan to approve. Nothing on that list is run.
+`report.md`. Commit it, merge it to `dev`, and push. The **Deploy checklist** comes first.
+It lists which migrations were applied to Supabase **dev** and which are waiting for
+**main**. It also lists any dev migrations that were held back, and why. It ends with a
+ready-to-say Vercel line: "`dev` is ready for a Vercel dev deploy:
+`vercel deploy --target=<env>`". Nothing Vercel- or main-related is run.
 
 ### 12 · ALERT (orchestrator)
 Load `PushNotification` with ToolSearch and send one line: the outcome, the story count,
@@ -207,7 +247,8 @@ Everything else is an assumption, not a blocker.
 ## When Jonathan says "deploy"
 
 This only applies when Jonathan says it in chat, in this session, naming the target (for
-example "deploy the dev database" or "push it to Vercel prod"). Run only that step, from
-the report's Deploy checklist. Prefix each command with `BMN_USER_APPROVED_DEPLOY=1` so the
-guard lets it through, then confirm what landed. Dev comes before main for Supabase, every
-time. Approval covers one step and doesn't carry over to the next one.
+example "deploy to Vercel dev", "push main's database" or "deploy prod"). Run only that step,
+from the report's Deploy checklist. Prefix each command with `BMN_USER_APPROVED_DEPLOY=1` so
+the guard lets it through, then confirm what landed. For Supabase main, check that every
+migration is already on dev first. Approval covers one step and doesn't carry over to the
+next one.
