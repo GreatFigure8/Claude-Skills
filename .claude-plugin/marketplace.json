@@ -1,0 +1,8 @@
+{
+  "name": "claude-skills",
+  "owner": { "name": "Jonathan Stevenson" },
+  "metadata": { "pluginRoot": "./Skills" },
+  "plugins": [
+    { "name": "dev-story-flow", "source": "dev-story-flow" }
+  ]
+}

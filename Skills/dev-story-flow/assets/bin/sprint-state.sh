@@ -5,7 +5,7 @@
 #   sprint-state.sh new [--live <branch>] [--integration <branch>|none]
 #   sprint-state.sh list [<status>]
 #   sprint-state.sh get <sprint>
-#   sprint-state.sh set <sprint> <status> [--by <id>] [--force]
+#   sprint-state.sh set <sprint> <status> [--by <id>] [--detail <t>] [--force]
 #   sprint-state.sh story add <sprint> <slug> --title <t> --kind interactive|service
 #   sprint-state.sh story set <sprint> <slug> <status> [--detail <t>] [--plan <relpath>] [--bump-attempts] [--force]
 #   sprint-state.sh stale <sprint> [<hours>]        exit 0 = claim older than <hours> (default $DSF_STALE_HOURS or 6)
@@ -34,11 +34,12 @@ SPRINT_NEXT = {
     "blocked": {"planned", "executing"},
 }
 CLAIMING = {"planning", "executing"}
-STORY_STATES = ["drafted", "planned", "executing", "validating", "done", "blocked"]
+STORY_STATES = ["drafted", "planned", "executing", "reviewing", "validating", "done", "blocked"]
 STORY_NEXT = {
     "drafted": {"planned"},
     "planned": {"executing"},
-    "executing": {"validating", "blocked"},
+    "executing": {"reviewing", "validating", "blocked"},
+    "reviewing": {"validating", "executing", "blocked"},
     "validating": {"done", "executing", "blocked"},
     "done": set(),
     "blocked": {"executing"},
@@ -108,8 +109,9 @@ def cmd_get(base, args):
 
 def cmd_set(base, args):
     by, args = opt(args, "--by", None)
+    detail, args = opt(args, "--detail", None)
     force, args = opt(args, "--force", False, has_value=False)
-    if len(args) != 2: die("set <sprint> <status> [--by <id>] [--force]")
+    if len(args) != 2: die("set <sprint> <status> [--by <id>] [--detail <t>] [--force]")
     name, status = args
     if status not in SPRINT_STATES: die(f"unknown status {status}; one of {SPRINT_STATES}")
     m = load(base, name)
@@ -119,6 +121,8 @@ def cmd_set(base, args):
     who = by or default_id()
     nm = with_history(m, status, who, forced=(force and status not in SPRINT_NEXT[cur] and status != cur))
     nm = {**nm, "claim": ({"by": who, "at": nm["updated"]} if status in CLAIMING else None)}
+    if detail is not None:
+        nm = {**nm, "detail": detail, "history": [*nm["history"][:-1], {**nm["history"][-1], "detail": detail}]}
     save(base, name, nm); print(f"{name}\t{cur} -> {status}")
 
 def find_story(m, slug):

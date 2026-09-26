@@ -1,6 +1,6 @@
 ---
 name: dev-story-sprint
-description: Jonathan's fast lane for shipping ONE user story — plan in the chat where the story is written, stop and wait for an explicit go-ahead, then dispatch code via silent, parallel executors. No TDD, no epic docs, no planning session, Sonnet 5 by default with Opus 5 only for the hard items, orchestrator that never passes 165k tokens — it stops at a clean point and posts a "prep for clear" prompt to paste into the next orchestrator. Use whenever Jonathan writes or pastes a user story, says "sprint", "story", "just build it", "fast lane", "slim workflow", "no epic", "let's ship this one", "quiet mode", "get it done", or wants a code change in his repos (FastAPI/FastMCP, Oracle Fusion MCP tooling, OIC, Next.js, OCI, Supabase) WITHOUT the full dev-epic-workflow ceremony. Also trigger when resuming a story from a prep-for-clear prompt ("resume story", "continue the sprint", "prep for clear", a pasted `dev-story-sprint prep-for-clear` block), or when asked whether the orchestrator is near its token budget. Do NOT use for multi-story epics, issue-tracker intake, or when Jonathan explicitly asks for an epic plan — that is dev-epic-workflow.
+description: Jonathan's fast lane for shipping ONE user story — plan in the chat where the story is written, stop and wait for an explicit go-ahead, then dispatch code via silent, parallel executors. No TDD, no epic docs, no planning session, Sonnet 5 by default with Opus 5.5 only for the hard items, orchestrator that never passes 165k tokens — it stops at a clean point and posts a "prep for clear" prompt to paste into the next orchestrator. Use whenever Jonathan writes or pastes a user story, says "sprint", "story", "just build it", "fast lane", "slim workflow", "no epic", "let's ship this one", "quiet mode", "get it done", or wants a code change in his repos (FastAPI/FastMCP, Oracle Fusion MCP tooling, OIC, Next.js, OCI, Supabase) WITHOUT the full dev-epic-workflow ceremony. Also trigger when resuming a story from a prep-for-clear prompt ("resume story", "continue the sprint", "prep for clear", a pasted `dev-story-sprint prep-for-clear` block), or when asked whether the orchestrator is near its token budget. Do NOT use for multi-story epics, issue-tracker intake, or when Jonathan explicitly asks for an epic plan — that is dev-epic-workflow.
 ---
 
 # Dev Story Sprint
@@ -15,7 +15,7 @@ The slim, fast sibling of `dev-epic-workflow`. Same bones — one branch and one
 4. **Executors are silent.** No text between tool calls. No "now I'll…", no progress, no plan, no questions. Their only output is one return summary to the orchestrator, ≤ 20 lines. They never address Jonathan. A question is a `blocked` state, not a sentence.
 5. **The orchestrator is silent.** It speaks exactly four times: the plan message, a decision it genuinely cannot make, the closing message, and the prep-for-clear prompt. No progress narration, no "dispatching wave 2", no recaps, no restating the plan, no verification chatter. Silence is consent for everything **after** wave 1 dispatches — but the plan message itself is never silence-is-consent. It always ends by waiting for Jonathan's explicit go-ahead before the first `Agent` call; that pause is unconditional, not just when there's an open question.
 6. **Maximum parallelism.** Decompose the story for independence, then dispatch **every** item whose dependencies are met in the **same message** — one `Agent` call per item. Waves, not a queue. The only serialisation is a real code dependency.
-7. **The orchestrator picks the model per item, always explicitly.** `model: "sonnet"` (Sonnet 5) is the default and is used whenever it can do the job. `model: "opus"` (Opus 5) only for items meeting the complexity bar below. Never leave `model` to inherit.
+7. **The orchestrator picks the model per item, always explicitly.** `model: "sonnet"` (Sonnet 5) is the default and is used whenever it can do the job. `model: "opus"` (Opus 5.5) only for items meeting the complexity bar below. Never leave `model` to inherit.
 8. **Every dispatch runs in its own worktree** — `isolation: "worktree"` on the `Agent` call, no exceptions, single-item flow included. The orchestrator keeps the main checkout; no executor ever switches its branch.
 9. **The orchestrator never passes 165k tokens. Ever.** `.claude/hooks/context-budget-gate.sh` — a PreToolUse hook on the `Agent` tool — is the enforcement mechanism of record, not the orchestrator noticing its own count. At 150k (soft) a dispatch still goes through, but the hook injects a reminder to stop dispatching and land what's in flight; at 165k (hard) the `Agent` call is **denied** outright, so no new dispatch is possible until in-flight work lands and the "prep for clear" prompt is posted, after which the orchestrator says nothing more. Jonathan pastes the prompt into a fresh chat. Thresholds default to 150k soft / 165k hard and are configurable via env `CONTEXT_BUDGET_SOFT_TOKENS` / `CONTEXT_BUDGET_HARD_TOKENS` or a `.claude/context-budget` file. The gate fails open — a missing or stale sentinel means no enforcement, so the numbers still matter and the orchestrator still watches its own count. This replaces the global 120k-announce / 150k-checkpoint rule for sprints.
 10. **Have fun.** Terse is not grim. The four messages the orchestrator does send can have a pulse.
@@ -54,7 +54,7 @@ Grounded: <what was read>   Assumed: <what wasn't, if anything>
 |---|---|---|---|---|
 | 1 | feat/<story>-<item> | <scope>. Done when: <check>. Not: <exclusion>. | 1 | Sonnet 5 |
 | 2 | feat/<story>-<item> | ... | 1 | Sonnet 5 |
-| 3 | fix/<story>-<item>  | ... (depends on 1) | 2 | Opus 5 |
+| 3 | fix/<story>-<item>  | ... (depends on 1) | 2 | Opus 5.5 |
 
 Open questions: none   ← state them if any; they don't change what happens next
 Ready to dispatch wave 1 — say go.
@@ -81,7 +81,7 @@ The last line matters in repos that also run `dev-epic-workflow`: its subagent-l
 
 **One `Agent` call per item, all of a wave's items in one message.** Each call:
 
-- `subagent_type: "story-item-executor"`
+- `subagent_type: "dev-story-flow:story-item-executor"` — the agent bundled by the `dev-story-flow` plugin; this skill installs no agent of its own
 - `model: "sonnet"` or `model: "opus"` — from the plan table, always explicit
 - `isolation: "worktree"` — always
 - `run_in_background: true` when the wave has more than one item, so each return wakes the orchestrator to verify and merge that item while the others keep running. A single-item wave may run in the foreground.
@@ -187,10 +187,14 @@ An executor that stops on a permission prompt has broken the silence rule and st
 
 ## Install (once per machine)
 
-Both live pieces are **symlinks into the working checkout**, `~/Source/claude-skills`:
+The live skill is a **symlink into the working checkout**, `~/Source/claude-skills`:
 
 - `~/.claude/skills/dev-story-sprint` → `~/Source/claude-skills/Skills/dev-story-sprint`
-- `~/.claude/agents/story-item-executor.md` → `~/Source/claude-skills/Skills/dev-story-sprint/assets/agents/story-item-executor.md`
+
+The executor agent is not installed by this skill: it is `dev-story-flow:story-item-executor`,
+bundled by the `dev-story-flow` plugin (install that plugin once — see its SKILL.md). Nothing
+is placed in `~/.claude/agents/` any more; a bare `story-item-executor.md` there would shadow
+the plugin's copy.
 
 There is no separate worktree pinned to `main` — whatever is currently checked out in
 `~/Source/claude-skills` (branch, and any uncommitted edit) is what every repo on the machine

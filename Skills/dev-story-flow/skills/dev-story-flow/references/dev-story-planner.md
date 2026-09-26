@@ -1,6 +1,6 @@
 # dev-story-planner — phase 2 of dev-story-flow
 
-Finds every sprint the creator marked `ready-to-plan`, claims it, and produces an execution
+Finds every sprint `dev-story-intake` marked `ready-to-plan`, claims it, and produces an execution
 plan per story plus one sprint-level `impl-plan.md`. Planning is delegated to **silent
 sub-agents**, one per story, running in parallel. The orchestrator speaks only to announce
 the model table and to close — or when a story genuinely cannot be planned without Jonathan.
@@ -19,7 +19,7 @@ State moves `ready-to-plan → planning → planned`; see [sprint-state.md](spri
 ### 1. Pick up unplanned sprints
 
 ```bash
-SS=~/.claude/skills/dev-story-flow/assets/bin/sprint-state.sh
+SS=${CLAUDE_PLUGIN_ROOT}/assets/bin/sprint-state.sh
 git fetch -q && git pull --ff-only          # manifests are committed; read the latest
 $SS list ready-to-plan
 ```
@@ -67,7 +67,7 @@ Planning sprint 2026-09-10-001 — 3 stories
 |---|---|---|
 | add-chat-endpoint | 1 | Sonnet 5 |
 | create-home-page (depends on add-chat-endpoint) | 2 | Sonnet 5 |
-| migrate-sessions-table | 1 | Opus 5 |
+| migrate-sessions-table | 1 | Opus 5.5 |
 ```
 
 Then, in the **same message**, one `Agent` call per story — all of them, so they run
@@ -86,7 +86,7 @@ dev-story-flow plan — sprint <sprint>, story <slug>
 Read: docs/sprints/<sprint>/<slug>/story.md (whole), then ground in the repo with grep -n / sed -n
       on the files the Specification names and their direct callers. Not a repo tour.
 Write: docs/sprints/<sprint>/<slug>/<slug>-plan.md using the plan template in
-       ~/.claude/skills/dev-story-flow/references/dev-story-planner.md (section "Plan template").
+       ${CLAUDE_PLUGIN_ROOT}/skills/dev-story-flow/references/dev-story-planner.md (section "Plan template").
 Rules: silent — no text between tool calls, never address Jonathan. Decompose along file
        ownership so no two items in a wave touch the same files. Every AC in the story maps to
        a row in the Validation table with an exact command or browser step. Pick Sonnet 5 per
@@ -180,8 +180,9 @@ rm -f .claude/signals/active-epic
 
 That status change **is** the hand-off; the coder discovers work with `sprint-state.sh list
 planned`. Then one closing line per sprint: stories, items, waves, any open questions, and
-where `impl-plan.md` is so Jonathan can review before running
-`/goal using dev-story-flow execute until all planned sprints are completed`.
+where `impl-plan.md` is. Under the `run` loop the coder procedure starts in the same turn
+with no pause; under a standalone `plan` objective Jonathan can read `impl-plan.md` before
+running `/goal using dev-story-flow execute until all planned sprints are completed`.
 
 **Open questions do not block planning.** They are written down with the default the coder
 will take. Only a story that cannot be planned at all (spec contradicts the repo, dependency
@@ -208,8 +209,10 @@ The sprint itself stays `planning`, its claim intact — a resuming planner reus
 
 ## Rules
 
-- The orchestrator is quiet: the table message, a genuine blocker, the closing line. Nothing
-  between.
+- **Silence is non-negotiable** (SKILL.md rule 3): the orchestrator speaks only the table
+  message, a genuine blocker, the closing line — nothing between. Every planner sub-agent
+  returns only its summary. Stay quiet and keep every sub-agent quiet unless something
+  genuinely needs Jonathan's attention.
 - Every spawn is announced in a table with a **Model** column before it starts. Never let
   `model` inherit.
 - Never edit `story.md`. If a story is wrong, the plan's *Open questions* says so.

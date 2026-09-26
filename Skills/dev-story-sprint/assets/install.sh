@@ -35,7 +35,6 @@ link() { # link <target> <linkpath>
 }
 
 link "$HERE" "$SKILLS_DEST/dev-story-sprint"
-link "$HERE/assets/agents/story-item-executor.md" "$AGENTS_DEST/story-item-executor.md"
 
 # --- settings.json: permissions allowlist ---------------------------------------------------
 if ! command -v python3 >/dev/null 2>&1; then
