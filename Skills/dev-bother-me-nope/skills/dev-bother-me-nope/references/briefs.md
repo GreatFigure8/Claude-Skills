@@ -1,7 +1,7 @@
 # Subagent briefs
 
 Fill every `{placeholder}`; paste the **Common preamble** at the top of every brief. All
-agents are `subagent_type: "bmn-worker"`. Every agent returns ≤200 words (JSON where
+agents are `subagent_type: "dev-bother-me-nope:bmn-worker"`. Every agent returns ≤200 words (JSON where
 asked) — conclusions, not file dumps.
 
 ## Common preamble
@@ -31,7 +31,7 @@ Rules — no exceptions:
 ## stack-scout (sonnet)
 
 ```
-Classify the stack per ~/.claude/skills/dev-bother-me-nope/references/stack-routing.md.
+Classify the stack per {skill_dir}/references/stack-routing.md.
 Input story: docs/sprints/{run}/input.md. Inspect the repo (manifests, dirs, CI, vercel.json,
 supabase/). Also report: default branch, whether `dev` exists on origin, test runner,
 lint/type-check commands, whether Docker + supabase CLI + playwright are available.
