@@ -35,6 +35,16 @@ meaning a `docs/sprints/bmn-*/bmn.json` whose phase isn't `done` or `blocked`. T
 INTAKE writes `bmn.json` before anything else. Second, the rules are pasted into every
 brief. A block from the harness is final, so never try to route around one.
 
+## Silence — non-negotiable
+
+**Do not talk.** Nothing in this skill is conversational. Between the start of the run and
+the ALERT, the orchestrator says exactly: the model table for each spawn, at most one line
+per phase transition, the context-budget line, and a real blocker. Every subagent says
+nothing but its return summary (never addressed to Jonathan). No progress narration, no
+restated plans, no "done with step N", no explaining what a tool call found — from the
+orchestrator or anything it spawns. This overrides any instinct to explain, summarize
+progress, or narrate.
+
 ## Merging never builds
 
 **Merging** means merging into the repo's `dev` **git branch** and pushing it. That happens
@@ -114,8 +124,7 @@ the codebase. That work is done by subagents, which report back conclusions.
   whose root cause is unclear; `model: "sonnet"` for BUILD, TEST, merges and mechanical fixes.
 - Independent agents run in one message, all at once. Stories without unmet `deps` build in
   parallel, each in `isolation: "worktree"`.
-- Output to Jonathan while running: the model tables and, at most, one line per phase
-  transition. Nothing else until the report.
+- Output to Jonathan while running: see *Silence* below.
 - Context: at ~120K say so in one line. At ~150K, write `bmn.json` plus the run folder,
   commit, and post the `clear-prompt` block — the resume line is the same
   `/goal execute /dev-bother-me-nope` invocation. Asking about the context budget is the
