@@ -68,17 +68,17 @@ Executing sprint 2026-09-10-001 — 3 stories, 9 items   live=main integration=s
 
 | Story / item | Branch | Wave | Model |
 |---|---|---|---|
-| add-chat-endpoint 1 | feat/add-chat-endpoint-route | 1 | Sonnet 5 |
-| add-chat-endpoint 2 | test/add-chat-endpoint-integration | 2 | Sonnet 5 |
-| create-home-page 1 | test/create-home-page-tdd | 1 | Sonnet 5 |
+| add-chat-endpoint 1 | feat/add-chat-endpoint-route | 1 | Sonnet 5.5 |
+| add-chat-endpoint 2 | test/add-chat-endpoint-integration | 2 | Sonnet 5.5 |
+| create-home-page 1 | test/create-home-page-tdd | 1 | Sonnet 5.5 |
 | … | | | |
 | add-chat-endpoint review | (integration) | after last item | Opus 5.5 — touches DB |
-| create-home-page review | (integration) | after last item | Sonnet 5 |
+| create-home-page review | (integration) | after last item | Sonnet 5.5 |
 ```
 
 One review row per story. Its model is decided now, from `story.md`'s *Dependencies, risks,
 and breaking changes*: **Opus 5.5** when it names auth, user input, database queries,
-filesystem paths, external calls, crypto, or money; **Sonnet 5** otherwise.
+filesystem paths, external calls, crypto, or money; **Sonnet 5.5** otherwise.
 
 No go-ahead is awaited: `planned` **is** the approval. Dispatch wave 1 in the same message.
 
@@ -249,7 +249,7 @@ $SS story set <sprint> <slug> executing --bump-attempts --detail "AC-<x> failed:
 then dispatch **one fix item** — `fix/<slug>-attempt-<k>`, `isolation: "worktree"`, the
 failing AC rows and the observed output verbatim in *Scope* (or, when the fix comes from step
 4, the reviewer's CRITICAL/HIGH lines verbatim), the same *Files owned* as the items that
-produced the behaviour. Model: Sonnet 5 for attempts 1–2, **Opus 5.5 from attempt 3** (the cause
+produced the behaviour. Model: Sonnet 5.5 for attempts 1–2, **Opus 5.5 from attempt 3** (the cause
 is by then genuinely unclear, which is the Opus bar). One line in chat when the model changes.
 Merge it as any item, then go back to step 4 — a fix is reviewed again before it is
 validated again.
