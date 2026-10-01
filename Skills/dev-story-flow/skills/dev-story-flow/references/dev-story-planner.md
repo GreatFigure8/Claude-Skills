@@ -50,7 +50,7 @@ sub-agents' job.
 scaffolding (a new type, migration, config key, shared component) goes first. Independent
 stories run in the same wave. Record the order for `impl-plan.md`.
 
-**Model per story — the Opus bar:** Sonnet 5 unless the story meets one of: cross-module
+**Model per story — the Opus bar:** Sonnet 5.5 unless the story meets one of: cross-module
 refactor with unclear blast radius; concurrency, data migration, or auth/security-sensitive
 change; a spec whose *Open questions* still leave real design choices; anything where a
 wrong-but-plausible plan would be expensive to detect during execution. Big-and-mechanical is
@@ -65,8 +65,8 @@ Planning sprint 2026-09-10-001 — 3 stories
 
 | Story | Wave | Model |
 |---|---|---|
-| add-chat-endpoint | 1 | Sonnet 5 |
-| create-home-page (depends on add-chat-endpoint) | 2 | Sonnet 5 |
+| add-chat-endpoint | 1 | Sonnet 5.5 |
+| create-home-page (depends on add-chat-endpoint) | 2 | Sonnet 5.5 |
 | migrate-sessions-table | 1 | Opus 5.5 |
 ```
 
@@ -89,7 +89,7 @@ Write: docs/sprints/<sprint>/<slug>/<slug>-plan.md using the plan template in
        ${CLAUDE_PLUGIN_ROOT}/skills/dev-story-flow/references/dev-story-planner.md (section "Plan template").
 Rules: silent — no text between tool calls, never address Jonathan. Decompose along file
        ownership so no two items in a wave touch the same files. Every AC in the story maps to
-       a row in the Validation table with an exact command or browser step. Pick Sonnet 5 per
+       a row in the Validation table with an exact command or browser step. Pick Sonnet 5.5 per
        item unless it meets the Opus bar stated in the same reference. Do not edit story.md,
        sprint.json, or any source file. Do not commit.
 Return: ≤ 15 lines — item count, waves, models chosen, risks, open questions (or none).
@@ -109,8 +109,8 @@ Grounded: <files read>   Assumed: <what was not verifiable, or none>
 ## Items
 | # | Branch | Scope / Done when / Not | Files owned | Wave | Model | Gates |
 |---|---|---|---|---|---|---|
-| 1 | feat/<slug>-<item> | <scope>. Done when: <check>. Not: <exclusion>. | <paths> | 1 | Sonnet 5 | <cmd or "stack default"> |
-| 2 | test/<slug>-integration | Write tests/integration/<slug>.sh exercising the running app. Done when: exits 0 against a fresh start. | tests/integration/<slug>.sh | 2 | Sonnet 5 | bash tests/integration/<slug>.sh |
+| 1 | feat/<slug>-<item> | <scope>. Done when: <check>. Not: <exclusion>. | <paths> | 1 | Sonnet 5.5 | <cmd or "stack default"> |
+| 2 | test/<slug>-integration | Write tests/integration/<slug>.sh exercising the running app. Done when: exits 0 against a fresh start. | tests/integration/<slug>.sh | 2 | Sonnet 5.5 | bash tests/integration/<slug>.sh |
 
 ## Validation — how the coder proves each acceptance criterion
 | AC | Check | Command / browser steps | Pass when |
