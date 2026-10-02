@@ -30,6 +30,9 @@ supabase link --project-ref <main-ref> && supabase db push --linked
 | Story | Result | Tests (unit/int/browser) | Review (C/H/M/L) | Notes |
 | --- | --- | --- | --- | --- |
 
+**Whole-run review (REVIEW③, max):** {rounds} round(s) · final C/H/M/L {c/h/m/l} ·
+`docs/sprints/{run}/review-final.md`
+
 ## Assumptions I made instead of asking
 {numbered list — every decision taken without Jonathan}
 
@@ -40,4 +43,4 @@ supabase link --project-ref <main-ref> && supabase db push --linked
 {MEDIUM/LOW findings not fixed, skipped surfaces (e.g. no Docker → DB not validated), blocker if any}
 
 ## Evidence
-Per-story `review.md`, `validation.md`, screenshots under `docs/sprints/{run}/<slug>/evidence/`.
+Per-story `review.md`, `validation.md`, run-level `review-final.md`, screenshots under `docs/sprints/{run}/<slug>/evidence/`.
