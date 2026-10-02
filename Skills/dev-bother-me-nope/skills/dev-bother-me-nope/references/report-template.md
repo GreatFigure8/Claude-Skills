@@ -2,6 +2,7 @@
 
 **Run:** `{run}` · **Finished:** {iso8601} · **Outcome:** ✅ shipped to `dev` / ⛔ blocked
 **Stack:** {kind} · skills used: {routed skills}
+**Design:** {picked direction} — {Claude Design link} / no UI in this run / Claude Design unavailable, built to existing conventions
 **Merged to dev:** {merge shas}
 
 ## Deploy checklist — nothing was deployed to Vercel; Supabase MAIN untouched

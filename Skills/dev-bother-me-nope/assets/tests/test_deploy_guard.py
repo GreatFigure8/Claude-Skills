@@ -161,6 +161,13 @@ def test_supabase_sql_detected_by_project_id_on_uuid_named_server():
     assert mcp("mcp__9378f59a__execute_sql", query="drop table users").returncode == 0
 
 
+def test_claude_design_mcp_tools_allowed():
+    assert run_guard({"tool_name": "mcp__claude_design__create_project", "tool_input": {"name": "x — bmn-run"}}).returncode == 0
+    assert mcp("mcp__claude_design__write_files", project_id="abc", files=[]).returncode == 0
+    assert mcp("mcp__claude_design__delete_files", project_id="abc").returncode == 0
+    assert mcp("mcp__claude_design__ack_comments", project_id="abc").returncode == 0
+
+
 def test_vercel_mcp_read_tools_allowed():
     assert mcp("mcp__vercel__get_deployment").returncode == 0
     assert mcp("mcp__vercel__list_deployments").returncode == 0
