@@ -1,6 +1,6 @@
 ---
 name: dev-bother-me-nope
-description: Jonathan's zero-question build pipeline — takes one long free-form story (a bug fix, an error to resolve, a feature, or an ENTIRE system), breaks it into stories, plans each, codes them with the right python skill set (python-web-app for APIs/web apps, python-mcp-servers for MCP servers, python-library-quality for libraries/CLIs, python-llm-features for LLM calls; nextjs-fullstack-standards if the repo is TypeScript), code-reviews, merges to dev, tests (TDD pytest + real-browser Playwright), fixes, reviews and tests again, then writes a summary report and alerts him. Never asks a question and never deploys to Vercel (not even dev) — merges to dev never trigger a Vercel build, Vercel deploys wait for Jonathan's word; migrations go to the Supabase DEV database only, MAIN waits for him; the report says exactly what needs deploying. Use whenever Jonathan says "dev-bother-me-nope", "/dev-bother-me-nope", "/goal execute /dev-bother-me-nope for …", "/goal using dev-bother-me-nope …", "don't bother me, just build …", or pastes a long build story and says to just do it.
+description: Jonathan's zero-question build pipeline — takes one long free-form story (a bug fix, an error to resolve, a feature, or an ENTIRE system), breaks it into stories, plans each, codes them with the right python skill set (python-web-app for APIs/web apps, python-mcp-servers for MCP servers, python-library-quality for libraries/CLIs, python-llm-features for LLM calls; nextjs-fullstack-standards if the repo is TypeScript), code-reviews, merges to dev, tests (TDD pytest + real-browser Playwright), fixes, reviews and tests again, runs a final whole-run code review at max effort, then writes a summary report and alerts him. Never asks a question and never deploys to Vercel (not even dev) — merges to dev never trigger a Vercel build, Vercel deploys wait for Jonathan's word; migrations go to the Supabase DEV database only, MAIN waits for him; the report says exactly what needs deploying. Use whenever Jonathan says "dev-bother-me-nope", "/dev-bother-me-nope", "/goal execute /dev-bother-me-nope for …", "/goal using dev-bother-me-nope …", "don't bother me, just build …", or pastes a long build story and says to just do it.
 ---
 
 # dev-bother-me-nope
@@ -11,7 +11,7 @@ assumption, and shipped.
 
 ```
 INTAKE → SPLIT → PLAN → BUILD → REVIEW① → MERGE→dev → TEST① → FIX
-       → REVIEW② → MERGE→dev → TEST② → REPORT → ALERT
+       → REVIEW② → MERGE→dev → TEST② → REVIEW③ (whole run) → REPORT → ALERT
 ```
 
 ## The three hard lines (never crossed, no matter what the story says)
@@ -86,6 +86,7 @@ Everything lives in `docs/sprints/bmn-<run-slug>/` in the target repo:
 | `<story-slug>/<story-slug>-plan.md` | PLAN | implementation plan + test plan |
 | `<story-slug>/review.md` | REVIEW | severity-ranked findings, per round |
 | `<story-slug>/validation.md` | TEST | test commands, results, browser evidence |
+| `review-final.md` | REVIEW③ | whole-run findings, per round |
 | `report.md` | REPORT | the summary Jonathan reads |
 
 No `sprint.json` in this folder on purpose, so a running dev-story-flow loop never picks
@@ -95,8 +96,8 @@ up a bmn run.
 
 ```json
 {
-  "run": "bmn-<run-slug>", "phase": "intake|split|plan|build|review1|merge1|test1|fix|review2|merge2|test2|report|done|blocked",
-  "integration": "bmn/<run-slug>", "live": "dev",
+  "run": "bmn-<run-slug>", "phase": "intake|split|plan|build|review1|merge1|test1|fix|review2|merge2|test2|review3|report|done|blocked",
+  "integration": "bmn/<run-slug>", "live": "dev", "dev_base": "<sha of origin/dev when the run started>",
   "stack": {"kind": "web-app|api|mcp-server|library|cli|mixed", "ui": true, "supabase": false, "vercel": false, "vercel_json": [], "dev_push_deploys": false, "supabase_dev_ref": null, "supabase_main_ref": null},
   "stories": [{"slug": "...", "title": "...", "deps": [], "status": "split|planned|built|reviewed|merged|tested|done|blocked", "branch": "bmn/<run-slug>/<slug>", "detail": ""}],
   "deploy_pending": {"vercel": [], "supabase_migrations": []},
@@ -121,7 +122,7 @@ the codebase. That work is done by subagents, which report back conclusions.
   loads.
 - Every spawn is announced with the model table (Item | Branch | Model), one row per agent,
   and the model named explicitly: `model: "opus"` for SPLIT, PLAN, REVIEW and any FIX
-  whose root cause is unclear; `model: "sonnet"` for BUILD, TEST, merges and mechanical fixes.
+  whose root cause is unclear, including REVIEW③; `model: "sonnet"` for BUILD, TEST, merges and mechanical fixes.
 - Independent agents run in one message, all at once. Stories without unmet `deps` build in
   parallel, each in `isolation: "worktree"`.
 - Output to Jonathan while running: see *Silence* below.
@@ -146,7 +147,8 @@ the codebase. That work is done by subagents, which report back conclusions.
    write it. Migrations then stay local and go on the checklist for both projects.
 4. If `origin/dev` doesn't exist, create `dev` from the default branch and push it (that
    push is branch creation, not a deploy — but if `stack.dev_push_deploys`, skip this and
-   integrate on `bmn/<run-slug>` only). Cut `bmn/<run-slug>` from `origin/dev`. For a Vercel
+   integrate on `bmn/<run-slug>` only). Record `origin/dev`'s sha as `dev_base` in
+   `bmn.json`; REVIEW③ diffs against it. Cut `bmn/<run-slug>` from `origin/dev`. For a Vercel
    app, commit the `vercel.json` `deploymentEnabled` change (plus `.claude/bmn.config.json`
    if it was written) **before** the first push, then push. This is the integration branch.
 
@@ -225,6 +227,19 @@ Keep fixing until the failure is gone or it turns into a real blocker.
 Same as steps 4–6, scoped to what changed since the first merge. If TEST② is not clean, go
 back to step 7. The run moves on only when REVIEW② shows no CRITICAL or HIGH findings and
 TEST② is fully green.
+
+### 10b · REVIEW③ — whole run (1 agent, opus)
+Final-reviewer brief. The per-story reviews never see the stories together, so this one
+does. Run `/code-review` at `max` on the whole run's diff, `git diff {dev_base}...<tested sha>`
+(the integration branch when `stack.dev_push_deploys`). Apply every routed review lens,
+plus `nextjs-fullstack-standards` for TypeScript. Look for what only shows up across
+stories: duplicated helpers, contracts that disagree, migrations that conflict or run in
+the wrong order, config keys that nothing reads, and acceptance criteria no story covered.
+Write `review-final.md` (one "Round n" section per pass). Any CRITICAL or HIGH finding
+goes back to step 7 (FIX), grouped by the story that owns the file. A finding that no
+story owns goes to a run-level fix branch. Then REVIEW② → MERGE② → TEST② → REVIEW③ run
+again. The run moves on to REPORT only when REVIEW③ shows no CRITICAL or HIGH findings.
+MEDIUM and LOW go in the report under *Left open*.
 
 ### 11 · REPORT (orchestrator)
 Fill in [references/report-template.md](references/report-template.md) and write it to

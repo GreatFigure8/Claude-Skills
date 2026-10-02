@@ -114,6 +114,27 @@ Read-only on code. Commit review.md on {integration}. Return JSON:
 {critical:n, high:n, medium:n, low:n, findings:[{sev, file, line, summary}]}.
 ```
 
+## final-reviewer (opus, one per run — REVIEW③)
+
+```
+Review the WHOLE run, not one story: `git diff {dev_base}...{tested_sha}` (read it in full
+first, plus every docs/sprints/{run}/*/story.md).
+Run /code-review at max effort on it. Then apply these lenses via the Skill tool:
+{review_lenses} (add nextjs-fullstack-standards for any TypeScript in the diff).
+Focus on what per-story reviews cannot see: duplicated helpers or logic across stories;
+interfaces/contracts that disagree between stories; migrations that conflict, collide on
+names, or apply in the wrong order; config/env keys defined but unread or read but
+undefined; acceptance criteria no story's tests cover; regressions in code outside every
+story's scope. Also the standing checks: no mutation where a new object was required, no
+swallowed errors, no secrets, no unbounded queries / N+1, parameterized SQL, RLS on new
+Supabase tables.
+Write docs/sprints/{run}/review-final.md (append a "Round {n}" section): findings ranked
+CRITICAL / HIGH / MEDIUM / LOW with file:line, a concrete failure scenario, and the owning
+story slug (or "run" when no single story owns it).
+Read-only on code. Commit review-final.md on {integration}. Return JSON:
+{critical:n, high:n, medium:n, low:n, findings:[{sev, file, line, owner, summary}]}.
+```
+
 ## fixer (sonnet; opus when root cause is unclear)
 
 ```
