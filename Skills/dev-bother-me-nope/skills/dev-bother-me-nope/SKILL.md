@@ -1,6 +1,6 @@
 ---
 name: dev-bother-me-nope
-description: Jonathan's zero-question build pipeline — takes one long free-form story (a bug fix, an error to resolve, a feature, or an ENTIRE system), breaks it into stories, plans each, codes them with the right python skill set (python-web-app for APIs/web apps, python-mcp-servers for MCP servers, python-library-quality for libraries/CLIs, python-llm-features for LLM calls; nextjs-fullstack-standards if the repo is TypeScript), code-reviews, merges to dev, tests (TDD pytest + real-browser Playwright), fixes, reviews and tests again, runs a final whole-run code review at max effort, then writes a summary report and alerts him. Never asks a question and never deploys to Vercel (not even dev) — merges to dev never trigger a Vercel build, Vercel deploys wait for Jonathan's word; migrations go to the Supabase DEV database only, MAIN waits for him; the report says exactly what needs deploying. Use whenever Jonathan says "dev-bother-me-nope", "/dev-bother-me-nope", "/goal execute /dev-bother-me-nope for …", "/goal using dev-bother-me-nope …", "don't bother me, just build …", or pastes a long build story and says to just do it.
+description: Jonathan's zero-question build pipeline — takes one long free-form story (a bug fix, an error to resolve, a feature, or an ENTIRE system), breaks it into stories, plans each, codes them with the right python skill set (python-web-app for APIs/web apps, python-mcp-servers for MCP servers, python-library-quality for libraries/CLIs, python-llm-features for LLM calls; nextjs-fullstack-standards if the repo is TypeScript), code-reviews, merges to dev, tests (TDD pytest + real-browser Playwright), fixes, reviews and tests again, runs a final whole-run code review at max effort, then writes a summary report and alerts him. Never asks a question and never deploys to Vercel (not even dev) — merges to dev never trigger a Vercel build, Vercel deploys wait for Jonathan's word; migrations go to the Supabase DEV database only, MAIN waits for him; the report says exactly what needs deploying. Use whenever Jonathan says "dev-bother-me-nope", "/dev-bother-me-nope", "/goal execute /dev-bother-me-nope for …", "/goal using dev-bother-me-nope …", "don't bother me, just build …", or pastes a long build story and says to just do it. Also use when Jonathan says "I'm moving computers", "switching machines" or "move-computers" (write a handoff for every open run), and at the start of every coding session (pick up open handoffs from another machine).
 ---
 
 # dev-bother-me-nope
@@ -28,6 +28,8 @@ INTAKE → SPLIT → PLAN → BUILD → REVIEW① → MERGE→dev → TEST① �
    The report says which migrations landed on dev and which must still go to main.
 3. **No questions.** Ambiguity → pick the conservative, conventional answer, log it under
    *Assumptions*, keep going. A real blocker (below) is the only thing that ends a run early.
+   Two questions are allowed, and nothing else: the context-budget checkpoint, and which
+   open handoff to pick up at MOVE-IN.
 
 These rules are enforced twice. First, the plugin's `deploy-guard.py` PreToolUse hook
 covers the main session and every subagent. It only acts in a repo with a run in progress,
@@ -87,6 +89,7 @@ Everything lives in `docs/sprints/bmn-<run-slug>/` in the target repo:
 | `<story-slug>/review.md` | REVIEW | severity-ranked findings, per round |
 | `<story-slug>/validation.md` | TEST | test commands, results, browser evidence |
 | `review-final.md` | REVIEW③ | whole-run findings, per round |
+| `handoff.md` | MOVE-OUT | machine-move handoff; renamed `handoff-<ts>.md` once picked up |
 | `report.md` | REPORT | the summary Jonathan reads |
 
 No `sprint.json` in this folder on purpose, so a running dev-story-flow loop never picks
@@ -102,12 +105,17 @@ up a bmn run.
   "stories": [{"slug": "...", "title": "...", "deps": [], "status": "split|planned|built|reviewed|merged|tested|done|blocked", "branch": "bmn/<run-slug>/<slug>", "detail": ""}],
   "deploy_pending": {"vercel": [], "supabase_migrations": []},
   "supabase_dev_applied": [],
+  "handoff": null,
   "assumptions": [], "blocker": null, "updated": "<iso8601>"
 }
 ```
 
 Write `bmn.json` atomically (write to a temp file, then `mv`), with a new object each time.
-Commit the run folder at the end of every phase. **Resume rule:** if a `bmn-*` run folder
+Commit the run folder at the end of every phase. **Moving computers:** when Jonathan says
+he's moving machines, run MOVE-OUT. On every start, run MOVE-IN *before* the resume rule.
+It finds open handoffs in the working tree and on `origin/bmn/*`, and asks which one to
+pick up. Both procedures are in [references/move-computers.md](references/move-computers.md).
+**Resume rule:** if a `bmn-*` run folder
 with `phase` other than `done` exists and the objective doesn't clearly name a new story,
 re-read `bmn.json` and continue from `phase`, trusting only what's on disk.
 
@@ -134,7 +142,8 @@ the codebase. That work is done by subagents, which report back conclusions.
 ## Procedure
 
 ### 0 · INTAKE (orchestrator)
-1. Resume check (above). Then `git fetch`, and record the branch that's checked out.
+1. MOVE-IN check, then the resume check (above). Then `git fetch`, and record the branch
+   that's checked out.
 2. Pick `<run-slug>`, a descriptive kebab-case summary of the story's intent. Write
    `input.md` verbatim, and write `bmn.json` with `phase: intake` **right away**. The
    deploy guard is only active once this file exists.
