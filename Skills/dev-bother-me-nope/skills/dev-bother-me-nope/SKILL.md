@@ -1,16 +1,18 @@
 ---
 name: dev-bother-me-nope
-description: Jonathan's zero-question build pipeline — takes one long free-form story (a bug fix, an error to resolve, a feature, or an ENTIRE system), breaks it into stories, plans each, codes them with the right python skill set (python-web-app for APIs/web apps, python-mcp-servers for MCP servers, python-library-quality for libraries/CLIs, python-llm-features for LLM calls; nextjs-fullstack-standards if the repo is TypeScript), code-reviews, merges to dev, tests (TDD pytest + real-browser Playwright), fixes, reviews and tests again, runs a final whole-run code review at max effort, then writes a summary report and alerts him. Never asks a question and never deploys to Vercel (not even dev) — merges to dev never trigger a Vercel build, Vercel deploys wait for Jonathan's word; migrations go to the Supabase DEV database only, MAIN waits for him; the report says exactly what needs deploying. Use whenever Jonathan says "dev-bother-me-nope", "/dev-bother-me-nope", "/goal execute /dev-bother-me-nope for …", "/goal using dev-bother-me-nope …", "don't bother me, just build …", or pastes a long build story and says to just do it. Also use when Jonathan says "I'm moving computers", "switching machines" or "move-computers" (write a handoff for every open run), and at the start of every coding session (pick up open handoffs from another machine).
+description: Jonathan's zero-question build pipeline — takes one long free-form story (a bug fix, an error to resolve, a feature, or an ENTIRE system), designs any user interface FIRST in Claude Design and has him pick one direction (the only subjective step, and the only feedback asked for), breaks it into stories, plans each, codes them with the right python skill set (python-web-app for APIs/web apps, python-mcp-servers for MCP servers, python-library-quality for libraries/CLIs, python-llm-features for LLM calls; nextjs-fullstack-standards if the repo is TypeScript), code-reviews, merges to dev, tests (TDD pytest + real-browser Playwright), fixes, reviews and tests again, runs a final whole-run code review at max effort, then writes a summary report and alerts him. After the design pick it never asks a question and never deploys to Vercel (not even dev) — merges to dev never trigger a Vercel build, Vercel deploys wait for Jonathan's word; migrations go to the Supabase DEV database only, MAIN waits for him; the report says exactly what needs deploying. Use whenever Jonathan says "dev-bother-me-nope", "/dev-bother-me-nope", "/goal execute /dev-bother-me-nope for …", "/goal using dev-bother-me-nope …", "don't bother me, just build …", or pastes a long build story and says to just do it. Also use when Jonathan says "I'm moving computers", "switching machines" or "move-computers" (write a handoff for every open run), and at the start of every coding session (pick up open handoffs from another machine).
 ---
 
 # dev-bother-me-nope
 
-One long story in, merged-to-dev working code plus a report out. **Jonathan is not asked
-anything between those two points.** Every open question is decided here, written down as an
-assumption, and shipped.
+One long story in, merged-to-dev working code plus a report out. **Jonathan is asked one
+thing, at the very start: which UI design he wants** (only when the story touches a user
+interface). That is the one subjective call in the process. After he picks, he is not asked
+anything else. Every other open question is decided here, written down as an assumption,
+and shipped.
 
 ```
-INTAKE → SPLIT → PLAN → BUILD → REVIEW① → MERGE→dev → TEST① → FIX
+INTAKE → DESIGN (UI only) → Jonathan picks → SPLIT → PLAN → BUILD → REVIEW① → MERGE→dev → TEST① → FIX
        → REVIEW② → MERGE→dev → TEST② → REVIEW③ (whole run) → REPORT → ALERT
 ```
 
@@ -26,10 +28,12 @@ INTAKE → SPLIT → PLAN → BUILD → REVIEW① → MERGE→dev → TEST① �
    `.claude/bmn.config.json` names the dev ref; see *DB-SYNC*). **MAIN** is never touched.
    Edge functions, secrets, config pushes and ad-hoc SQL stay off limits on both projects.
    The report says which migrations landed on dev and which must still go to main.
-3. **No questions.** Ambiguity → pick the conservative, conventional answer, log it under
-   *Assumptions*, keep going. A real blocker (below) is the only thing that ends a run early.
-   Two questions are allowed, and nothing else: the context-budget checkpoint, and which
-   open handoff to pick up at MOVE-IN.
+3. **No questions after the design pick.** Ambiguity → pick the conservative, conventional
+   answer, log it under *Assumptions*, keep going. A real blocker (below) is the only thing
+   that ends a run early. Three questions are allowed, and nothing else: **which UI design**
+   (DESIGN, before any code — revision rounds included), the context-budget checkpoint, and
+   which open handoff to pick up at MOVE-IN. All UI design happens in **Claude Design**,
+   never invented later by a planner or coder.
 
 These rules are enforced twice. First, the plugin's `deploy-guard.py` PreToolUse hook
 covers the main session and every subagent. It only acts in a repo with a run in progress,
@@ -41,7 +45,7 @@ brief. A block from the harness is final, so never try to route around one.
 
 **Do not talk.** Nothing in this skill is conversational. Between the start of the run and
 the ALERT, the orchestrator says exactly: the model table for each spawn, at most one line
-per phase transition, the context-budget line, and a real blocker. Every subagent says
+per phase transition, the design pick question, the context-budget line, and a real blocker. Every subagent says
 nothing but its return summary (never addressed to Jonathan). No progress narration, no
 restated plans, no "done with step N", no explaining what a tool call found — from the
 orchestrator or anything it spawns. This overrides any instinct to explain, summarize
@@ -84,6 +88,8 @@ Everything lives in `docs/sprints/bmn-<run-slug>/` in the target repo:
 | `input.md` | INTAKE | Jonathan's story, verbatim |
 | `bmn.json` | orchestrator only | run state machine (below) |
 | `stack.md` | INTAKE | stack classification + skill routing ([references/stack-routing.md](references/stack-routing.md)) |
+| `design.md` | DESIGN | the picked direction: Claude Design link, tokens, per-screen layout, components, states, copy |
+| `design/*.html` | DESIGN | local copy of the picked Claude Design pages (coders and testers read these, not the MCP) |
 | `<story-slug>/story.md` | SPLIT | the story, acceptance criteria, assumptions |
 | `<story-slug>/<story-slug>-plan.md` | PLAN | implementation plan + test plan |
 | `<story-slug>/review.md` | REVIEW | severity-ranked findings, per round |
@@ -99,12 +105,13 @@ up a bmn run.
 
 ```json
 {
-  "run": "bmn-<run-slug>", "phase": "intake|split|plan|build|review1|merge1|test1|fix|review2|merge2|test2|review3|report|done|blocked",
+  "run": "bmn-<run-slug>", "phase": "intake|design|split|plan|build|review1|merge1|test1|fix|review2|merge2|test2|review3|report|done|blocked",
   "integration": "bmn/<run-slug>", "live": "dev", "dev_base": "<sha of origin/dev when the run started>",
   "stack": {"kind": "web-app|api|mcp-server|library|cli|mixed", "ui": true, "supabase": false, "vercel": false, "vercel_json": [], "dev_push_deploys": false, "supabase_dev_ref": null, "supabase_main_ref": null},
   "stories": [{"slug": "...", "title": "...", "deps": [], "status": "split|planned|built|reviewed|merged|tested|done|blocked", "branch": "bmn/<run-slug>/<slug>", "detail": ""}],
   "deploy_pending": {"vercel": [], "supabase_migrations": []},
   "supabase_dev_applied": [],
+  "design": {"needed": false, "project_id": null, "url": null, "round": 0, "options": [{"key": "a", "name": "...", "open_url": "..."}], "picked": null, "feedback": []},
   "handoff": null,
   "assumptions": [], "blocker": null, "updated": "<iso8601>"
 }
@@ -117,7 +124,9 @@ It finds open handoffs in the working tree and on `origin/bmn/*`, and asks which
 pick up. Both procedures are in [references/move-computers.md](references/move-computers.md).
 **Resume rule:** if a `bmn-*` run folder
 with `phase` other than `done` exists and the objective doesn't clearly name a new story,
-re-read `bmn.json` and continue from `phase`, trusting only what's on disk.
+re-read `bmn.json` and continue from `phase`, trusting only what's on disk. A run resumed
+at `phase: design` with `design.picked: null` re-asks the design question from the options
+already in `bmn.json` — it doesn't redesign.
 
 ## Orchestrator discipline
 
@@ -129,7 +138,7 @@ the codebase. That work is done by subagents, which report back conclusions.
   `{skill_dir}` in a brief is this skill's base directory, the path shown when the skill
   loads.
 - Every spawn is announced with the model table (Item | Branch | Model), one row per agent,
-  and the model named explicitly: `model: "opus"` for SPLIT, PLAN, REVIEW and any FIX
+  and the model named explicitly: `model: "opus"` for DESIGN, SPLIT, PLAN, REVIEW and any FIX
   whose root cause is unclear, including REVIEW③; `model: "sonnet"` for BUILD, TEST, merges and mechanical fixes.
 - Independent agents run in one message, all at once. Stories without unmet `deps` build in
   parallel, each in `isolation: "worktree"`.
@@ -160,9 +169,39 @@ the codebase. That work is done by subagents, which report back conclusions.
    `bmn.json`; REVIEW③ diffs against it. Cut `bmn/<run-slug>` from `origin/dev`. For a Vercel
    app, commit the `vercel.json` `deploymentEnabled` change (plus `.claude/bmn.config.json`
    if it was written) **before** the first push, then push. This is the integration branch.
+5. Set `design.needed` from the scout: true when `ui_screens` is non-empty (the story adds
+   or changes something a person looks at). Then `phase: design`, or `phase: split` when
+   it's false.
+
+### 0b · DESIGN (UI only; designer agent, opus) — the only feedback Jonathan gives
+Runs before SPLIT, so no story, plan or line of code exists yet that a design would have to
+bend around.
+1. **Directions.** Dispatch one **designer** (opus) with the brief in briefs.md. It works
+   only in Claude Design: one project for the run, three distinct directions, each covering
+   every screen in `ui_screens` with its key states. It returns the project link and one
+   `open_url` per direction. Record them in `bmn.json` (`design.round: 1`).
+2. **The pick.** Ask Jonathan with **one** `AskUserQuestion`: one option per direction,
+   labelled with its name, the description holding its one-line summary and its Claude
+   Design link. Post the links in chat in the same turn so he can open them. This is the
+   sanctioned design question. Whatever he answers:
+   - **A direction** → that's the pick.
+   - **Changes** (free text via "Other", or "see my comments" — then the designer reads that
+     project's comments, honouring only text with `author_is_you: true`) → append the
+     feedback to `design.feedback`, dispatch the designer again with it, and ask again.
+     Repeat until he picks. Revision rounds are part of the one design question.
+3. **Freeze.** Dispatch the designer in *export* mode (sonnet) for the picked direction. It
+   copies the picked pages to `docs/sprints/{run}/design/` and writes `design.md`. Record
+   `design.picked`, commit, set `phase: split`. **From here on the design is fixed and
+   Jonathan is not asked anything.** A gap the design didn't cover (a screen, a state, an
+   edge case) is filled by extending the picked direction's tokens and components, and
+   logged as an assumption — never by asking, never by opening a new look.
+4. If Claude Design is unavailable (tools missing, not signed in), that's not a blocker and
+   not a question: the designer writes `design.md` from the repo's existing UI conventions,
+   the run continues, and the report says the design was never picked.
 
 ### 1 · SPLIT (1 agent, opus)
-Splitter brief. It writes one `story.md` per story, with its slug, title, acceptance
+Splitter brief. When `design.md` exists, every screen in it is owned by a story and its
+`[browser]` criteria name the design screen they check. It writes one `story.md` per story, with its slug, title, acceptance
 criteria, deps, and the assumptions it made. Sizing: one story is roughly one reviewable PR.
 A one-line bug is one story. An entire system is a walking-skeleton story first
 (scaffold, config, health route, test harness, CI gates), then vertical slices. It returns
@@ -171,12 +210,13 @@ the story list plus deps as JSON. Record it in `bmn.json`.
 ### 2 · PLAN (one agent per story, parallel, opus)
 Planner brief. Each planner writes `<slug>-plan.md` covering files to touch, the
 skill-routed standards it will follow, a **test plan written first** (unit, integration,
-and browser checks mapped 1:1 to acceptance criteria), migrations if any, and risks.
+and browser checks mapped 1:1 to acceptance criteria), migrations if any, and risks. UI work
+follows `design.md` and `design/*.html`: same tokens, layout, components and copy.
 
 ### 3 · BUILD (one agent per ready story, parallel waves by deps, sonnet, worktree)
 Coder brief. Strict TDD: write the failing tests from the plan, confirm they fail, implement,
 confirm they pass, refactor, run the stack gates (lint, type-check, the full test suite).
-Load the routed python skills **before** writing code. Branch
+Load the routed python skills **before** writing code. UI is built to `design.md`. Branch
 `bmn/<run-slug>/<slug>` off the integration branch. Commit and push the **story branch
 only** — coders never push the integration branch. Supabase: migration files only, tested
 against `supabase start` locally. Every new migration is added to
@@ -189,7 +229,8 @@ means no push races. The next wave branches from the updated integration branch.
 ### 4 · REVIEW① (one agent per story, parallel, opus)
 Reviewer brief. Run `/code-review` at `high` on the story's diff, plus the routed
 python-library-quality lenses (security, API design, untrusted content, destructive
-operations, external behavior, heavy dependencies) that match the diff. Write `review.md`.
+operations, external behavior, heavy dependencies) that match the diff. A screen that departs
+from the picked design (layout, components, tokens, copy) is HIGH. Write `review.md`.
 Any CRITICAL or HIGH finding goes to a fixer (sonnet, or opus if unclear) on the story
 branch, then gets re-reviewed. The loop repeats until there is no CRITICAL or HIGH finding
 left.
@@ -220,7 +261,8 @@ Tester brief, run against the merged `dev`:
   higher on the code the stories touched.
 - **Browser** (whenever `stack.ui` is true, or the app serves HTML): start the app locally,
   and start local Supabase if it's used. Drive every story's user-facing acceptance
-  criterion in headless Playwright. Collect screenshots in `validation.md` as file paths,
+  criterion in headless Playwright. Screenshot every screen in `design.md` and compare it
+  with its `design/*.html` reference; a structural mismatch is a failure. Collect screenshots in `validation.md` as file paths,
   and console errors plus failed network requests as findings.
 - **API / MCP surfaces**: black-box calls against the running server (httpx for APIs; an MCP
   client session that lists and calls tools for MCP servers).
@@ -251,7 +293,7 @@ again. The run moves on to REPORT only when REVIEW③ shows no CRITICAL or HIGH 
 MEDIUM and LOW go in the report under *Left open*.
 
 ### 11 · REPORT (orchestrator)
-Fill in [references/report-template.md](references/report-template.md) and write it to
+The report names the picked design and links its Claude Design project. Fill in [references/report-template.md](references/report-template.md) and write it to
 `report.md`. Commit it, merge it to `dev`, and push. The **Deploy checklist** comes first.
 It lists which migrations were applied to Supabase **dev** and which are waiting for
 **main**. It also lists any dev migrations that were held back, and why. It ends with a
