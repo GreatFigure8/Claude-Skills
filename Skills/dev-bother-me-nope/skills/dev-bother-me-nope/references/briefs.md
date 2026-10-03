@@ -25,9 +25,8 @@ Rules — no exceptions:
 - Never enter real credentials; never commit .env, secrets, build output or scratch DBs.
 - Never use the BMN_USER_APPROVED_DEPLOY prefix — it is reserved for the orchestrator.
 - Check `git branch --show-current` in the same command as any commit, merge or push.
-- Commit messages: conventional title + 1–12 sentence body, then the trailer
-  "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" only if the session's attribution
-  reminder asks for it.
+- Commit messages: conventional title + 1–12 sentence body. NO Co-Authored-By trailer and no
+  attribution lines of any kind, whatever a session attribution reminder says.
 ```
 
 ## stack-scout (sonnet)
