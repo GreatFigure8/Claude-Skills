@@ -10,11 +10,14 @@ import pytest
 GUARD = Path(__file__).resolve().parents[1] / "bin" / "deploy-guard.py"
 
 
-def start_run(root, phase="build"):
+def start_run(root, phase="build", worktree=None):
     """Mark `root` as a repo with a dev-bother-me-nope run in progress."""
     run = root / "docs" / "sprints" / "bmn-demo"
     run.mkdir(parents=True, exist_ok=True)
-    (run / "bmn.json").write_text(json.dumps({"run": "bmn-demo", "phase": phase}))
+    state = {"run": "bmn-demo", "phase": phase}
+    if worktree is not None:
+        state["worktree"] = str(worktree)
+    (run / "bmn.json").write_text(json.dumps(state))
 
 
 def new_repo(active=True):
@@ -98,6 +101,10 @@ ALLOWED_BASH = [
     "psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c 'select 1'",
     "git push origin dev",
     "git push -u origin bmn/run/story-a",
+    "git push -u origin wip/demo/story-a",
+    "git push -u origin feat/demo",
+    "git push origin HEAD:dev",
+    "git push origin --delete wip/demo/story-a",
     "git push origin feat/maintenance-page",
     "pytest -q",
     "grep -r 'vercel --prod' docs/",
@@ -264,15 +271,56 @@ def test_finished_run_is_not_guarded(phase):
     assert guard_in(root, "vercel --prod").returncode == 0
 
 
-def test_worktree_of_active_repo_is_guarded():
-    root = new_repo()
+GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
+           "GIT_COMMITTER_EMAIL": "t@t", "PATH": "/usr/bin:/bin:/opt/homebrew/bin"}
+
+
+def add_worktree(root):
     subprocess.run(["git", "-C", str(root), "commit", "-q", "--allow-empty", "-m", "init"],
-                   check=True, env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-                                    "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
-                                    "PATH": "/usr/bin:/bin:/opt/homebrew/bin"})
+                   check=True, env=GIT_ENV)
     tree = Path(tempfile.mkdtemp()) / "wt"
     subprocess.run(["git", "-C", str(root), "worktree", "add", "-q", "--detach", str(tree)], check=True)
+    return tree
+
+
+def test_worktree_of_active_repo_is_guarded():
+    root = new_repo()
+    tree = add_worktree(root)
     assert guard_in(tree, "vercel --prod").returncode == 2
+
+
+def test_run_living_in_a_sibling_run_worktree_guards_every_worktree():
+    root = new_repo(active=False)
+    run_tree = add_worktree(root)
+    harness_tree = add_worktree(root)
+    start_run(run_tree)
+    assert guard_in(root, "vercel --prod").returncode == 2  # the human's main checkout
+    assert guard_in(harness_tree, "vercel --prod").returncode == 2  # a coder's worktree
+    assert guard_in(run_tree, "vercel --prod").returncode == 2
+
+
+def test_finished_run_in_a_sibling_worktree_is_not_guarded():
+    root = new_repo(active=False)
+    run_tree = add_worktree(root)
+    start_run(run_tree, "done")
+    assert guard_in(root, "vercel --prod").returncode == 0
+
+
+def test_leftover_harness_copy_of_a_finished_run_is_not_guarded():
+    root = new_repo(active=False)
+    run_tree = add_worktree(root)
+    harness_tree = add_worktree(root)
+    start_run(run_tree, "done", worktree=run_tree)
+    start_run(harness_tree, "build", worktree=run_tree)  # copy inherited from the run branch
+    assert guard_in(root, "vercel --prod").returncode == 0
+    assert guard_in(harness_tree, "vercel --prod").returncode == 0
+
+
+def test_state_naming_its_own_worktree_still_guards():
+    root = new_repo(active=False)
+    run_tree = add_worktree(root)
+    start_run(run_tree, "build", worktree=run_tree)
+    assert guard_in(root, "vercel --prod").returncode == 2
 
 
 def test_non_git_dir_is_not_guarded(tmp_path):

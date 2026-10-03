@@ -16,10 +16,15 @@ deployment to the dev environment, e.g. `vercel deploy --target=<dev env>`).
 Allowed: `vercel dev`, `vercel build`, `vercel pull`, `vercel env pull`, `vercel ls`,
 `vercel inspect`, `vercel logs`, `vercel whoami`, `vercel link`, `vercel --version`.
 
-- A git push that makes Vercel build. The run pushes `dev` and `bmn/**` often, so INTAKE
-  sets `git.deploymentEnabled: {"dev": false, "bmn/**": false}` in every Vercel app's
-  `vercel.json` before the first push. The guard can't see Vercel's git integration. This
-  setting is what enforces it.
+- A git push that makes Vercel build. The run pushes `dev`, its run branch
+  `<type>/<run-slug>` and `wip/<run-slug>/*` often, so INTAKE sets
+  `git.deploymentEnabled: {"dev": false, "wip/**": false, "bmn/**": false,
+  "<type>/<run-slug>": false}` in every Vercel app's `vercel.json` as the run branch's
+  first commit, before its first push. The run branch is keyed by exact name so human
+  `feat/*`/`fix/*` branches still get previews; CLEANUP drops that key in its final commit
+  to `dev`. `ignoreCommand` is not used: Vercel still creates the deployment and cancels
+  it, and cancelled builds count against deployment quotas and build slots. The guard
+  can't see Vercel's git integration. This setting is what enforces it.
 
 **Supabase** — there are always two projects, `dev` and `main`.
 - **DEV (allowed, migrations only):** `supabase db push` / `migration up` is allowed when
@@ -70,7 +75,7 @@ Whenever a run creates or changes any of the following, add an entry to
 | edge function | `supabase functions deploy <name>` per project |
 | new env var / secret | the name (never a value) and which project(s) need it |
 | app code on a Vercel project | "`dev` is ready for a Vercel **dev** deploy when you say so" + `vercel deploy --target=<dev env>`; prod listed separately |
-| first `deploymentEnabled` commit | "The first push may have built once; also set the rule in Vercel → Project → Settings → Git" |
+| `deploymentEnabled` commit on the run branch or `dev` | "The run branch's first push, and the first `dev` push carrying `deploymentEnabled`, may each have built once (Vercel doesn't document whether a commit's own vercel.json governs its push); set the rule in Vercel → Project → Settings → Git" |
 
 Supabase is always **dev before main**. The checklist says plainly which migrations the
 code on `dev` depends on, and which features will fail on an environment until they're
