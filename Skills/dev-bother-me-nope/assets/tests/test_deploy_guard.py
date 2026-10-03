@@ -271,6 +271,14 @@ def test_finished_run_is_not_guarded(phase):
     assert guard_in(root, "vercel --prod").returncode == 0
 
 
+@pytest.mark.parametrize("phase", ["intake", "build", "merge1", "test1", "review1", "fix1",
+                                   "merge2", "test2", "review2", "report"])
+def test_every_unfinished_phase_is_guarded(phase):
+    root = new_repo(active=False)
+    start_run(root, phase)
+    assert guard_in(root, "vercel --prod").returncode == 2
+
+
 GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
            "GIT_COMMITTER_EMAIL": "t@t", "PATH": "/usr/bin:/bin:/opt/homebrew/bin"}
 

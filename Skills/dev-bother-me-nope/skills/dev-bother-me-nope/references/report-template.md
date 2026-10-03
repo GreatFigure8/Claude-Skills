@@ -1,9 +1,27 @@
 # {Run title} — dev-bother-me-nope report
 
-**Run:** `{run}` · **Finished:** {iso8601} · **Outcome:** ✅ shipped to `dev` / ⛔ blocked
+**Run:** `{run}` · **Finished:** {iso8601} · **Outcome:** ✅ done, merged to `dev`, stopped for you / ⛔ blocked
 **Stack:** {kind} · skills used: {routed skills}
 **Design:** {picked direction} — {Claude Design link} / no UI in this run / Claude Design unavailable, built to existing conventions
 **Merged to dev:** {merge shas}
+
+## Stopped for Jonathan — the run is done
+
+code → review → fix → review → report. The run did REVIEW①, one fix round (FIX①) and
+REVIEW②, then stopped. Nothing REVIEW② found was fixed. Nothing was released, promoted to
+`main` or deployed, and no further round was started. Anything below is a **new goal, and
+only you decide whether there is one**.
+
+**Built:** {one line per story: what works now}
+**FIX① fixed:** {n} of {n} REVIEW① findings + {n} TEST① failures — {ids}
+**FIX① not reproducible / blocked:** {id → evidence or reason; "none"}
+**Left open:** REVIEW② C/H/M/L {c/h/m/l} + {n} TEST② failures + {n} REVIEW① items still open
+or regressed. All of them are listed under *Left open* below, HIGH first.
+**Decisions that are yours**
+1. Left-open items: a new goal for them, or accept them as they are.
+2. Release / promotion `dev` → `main`: {ready / held back by …}.
+3. Deploys: Vercel dev {ready}; Supabase MAIN {n} migrations waiting (*Deploy checklist*).
+4. DB: {held-back migrations, data fixes, anything destructive; "nothing"}.
 
 ## Deploy checklist — nothing was deployed to Vercel; Supabase MAIN untouched
 
@@ -28,20 +46,23 @@ supabase link --project-ref <main-ref> && supabase db push --linked
 {3–6 sentences: what was asked, what was built, what state it's in.}
 
 ## Stories
-| Story | Result | Tests (unit/int/browser) | Review (C/H/M/L) | Notes |
-| --- | --- | --- | --- | --- |
+| Story | Result | Tests (unit/int/browser) | REVIEW① C/H/M/L | Fixed in FIX① | Left open | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
 
-**Whole-run review (REVIEW③, max):** {rounds} round(s) · final C/H/M/L {c/h/m/l} ·
-`docs/sprints/{run}/review-final.md`
+**Reviews (`/code-review` high, one pass each):** REVIEW① C/H/M/L {c/h/m/l} · REVIEW②
+re-check {fixed/still-open/regressed/not-reproducible} · REVIEW② new C/H/M/L {c/h/m/l} ·
+`docs/sprints/{run}/review.md`
 
 ## Assumptions I made instead of asking
 {numbered list — every decision taken without Jonathan}
 
-## Fixed along the way
-{review findings and test failures that were fixed, one line each}
+## FIX① — what the fix round did
+{one line per item: id → fixed (test name) / not reproducible (evidence) / blocked (reason)}
 
-## Left open
-{MEDIUM/LOW findings not fixed, skipped surfaces (e.g. no Docker → DB not validated), blocker if any}
+## Left open — not fixed by this run
+{every REVIEW② finding and TEST② failure, HIGH first, with id, file:line and scenario; REVIEW①
+items still open or regressed; skipped surfaces (e.g. no Docker → DB not validated); blocker if
+any. Fixing any of it is a new goal you start.}
 
 ## Git cleanup
 **Run branch** `{type}/{run-slug}` · worktree `{path}`: deleted (local + origin) / left — {why,
@@ -50,4 +71,4 @@ e.g. "not in dev: merge it, the next bmn start deletes it" or "worktree has unco
 **Left:** {ref → why, one per line; "nothing" when clean}
 
 ## Evidence
-Per-story `review.md`, `validation.md`, run-level `review-final.md`, screenshots under `docs/sprints/{run}/<slug>/evidence/`.
+Run-level `review.md` (REVIEW① and REVIEW②), per-story `validation.md` (tests and FIX①), screenshots under `docs/sprints/{run}/<slug>/evidence/`.

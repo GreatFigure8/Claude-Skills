@@ -2,8 +2,8 @@
 
 Fill every `{placeholder}`; paste the **Common preamble** at the top of every brief.
 From `bmn.json`: `{integration}` = the run branch `<type>/<run-slug>`, `{run_worktree}` =
-`worktree`, `{base}` = `<merge>^1` and `{head}` = `tip` of the story's latest entry in its
-`merges` list in bmn.json, `{run_slug}` = `run` without `bmn-`, `{dev_worktree}` =
+`worktree`, `{dev_base}` = `dev_base`, `{review1_sha}` / `{review2_sha}` = `review_shas`,
+`{run_slug}` = `run` without `bmn-`, `{dev_worktree}` =
 `../<repo-name>-<run-slug>-dev`, `{repo_path}` = the main checkout. All
 agents are `subagent_type: "dev-bother-me-nope:bmn-worker"`. Every agent returns ≤200 words (JSON where
 asked) — conclusions, not file dumps.
@@ -153,50 +153,51 @@ integrator merges it. Return: commits, test counts (before-fail / after-pass), g
 new migrations/env vars, anything skipped and why.
 ```
 
-## reviewer (opus, one per story)
+## reviewer (opus; REVIEW① is pass 1, REVIEW② is pass 2; one per area when a pass is split)
 
 ```
-Review story {slug}'s diff: `git diff {base}...{head}` (read it in full first).
-Run /code-review at high effort on it. Then apply these lenses via the Skill tool:
-{review_lenses}. Also check: tests exist for every acceptance criterion; no mutation where a
-new object was required; no swallowed errors; no secrets; no unbounded queries / N+1;
-parameterized SQL; RLS on new Supabase tables. If design.md exists: a screen that departs
+This is REVIEW{pass}, ONE pass, area {area} ("whole run", or the stories/paths you own when
+the pass is split). No verifier agent re-checks you and no further review round follows;
+a fixer's reproducing test is what checks your findings.
+Pass 1, the code the run implemented: `git diff {dev_base}...{review1_sha}` (read it in full
+first), every docs/sprints/{run}/*/story.md, and the TEST① failures {test_failures}.
+Pass 2, the FIX① delta: `git diff {review1_sha}...{review2_sha}` (read it in full first),
+the REVIEW① section of docs/sprints/{run}/review.md, the "FIX①" sections of
+docs/sprints/{run}/**/validation.md, and the TEST② failures {test_failures}. Re-check every
+REVIEW① finding at {review2_sha}: fixed / still-open / regressed / not-reproducible (accept
+the fixer's record, don't re-argue it). New findings come from the delta only. Nothing you
+find in pass 2 is fixed by the run; it goes to Jonathan as you write it.
+Run /code-review at high effort, never max or ultra, whatever the session's effort setting.
+Then apply these lenses via the Skill tool: {review_lenses} (add nextjs-fullstack-standards
+for any TypeScript in the diff). Look for what per-file review misses: duplicated helpers
+across stories; contracts that disagree between stories; migrations that conflict, collide
+on names or apply in the wrong order; config/env keys defined but unread or read but
+undefined; acceptance criteria no test covers. Standing checks: no mutation where a new
+object was required, no swallowed errors, no secrets, no unbounded queries / N+1,
+parameterized SQL, RLS on new Supabase tables. If design.md exists: a screen that departs
 from it (layout, components, tokens, copy) is HIGH.
-Write docs/sprints/{run}/{slug}/review.md (append a "Round {n}" section): findings ranked
-CRITICAL / HIGH / MEDIUM / LOW with file:line and a concrete failure scenario each.
-Read-only on code. Commit review.md on {integration}. Return JSON:
-{critical:n, high:n, medium:n, low:n, findings:[{sev, file, line, summary}]}.
+Rank findings CRITICAL / HIGH / MEDIUM / LOW, each with an id (R{pass}-<n>), file:line, a
+concrete failure scenario, and the owning story slug ("run" when no single story owns it).
+Whole run: write the "REVIEW{pass}" section of docs/sprints/{run}/review.md and commit it on
+{integration}. Split by area: write nothing; the orchestrator writes review.md from your JSON.
+Read-only on code. Return JSON: {pass, area, critical:n, high:n, medium:n, low:n,
+findings:[{id, sev, file, line, owner, summary}], recheck:[{id, status}] (pass 2 only)}.
 ```
 
-## final-reviewer (opus, one per run — REVIEW③)
+## fixer (FIX① only; sonnet, opus when the root cause is unclear; one per owning story)
 
 ```
-Review the WHOLE run, not one story: `git diff {dev_base}...{tested_sha}` (read it in full
-first, plus every docs/sprints/{run}/*/story.md).
-Run /code-review at max effort on it. Then apply these lenses via the Skill tool:
-{review_lenses} (add nextjs-fullstack-standards for any TypeScript in the diff).
-Focus on what per-story reviews cannot see: duplicated helpers or logic across stories;
-interfaces/contracts that disagree between stories; migrations that conflict, collide on
-names, or apply in the wrong order; config/env keys defined but unread or read but
-undefined; acceptance criteria no story's tests cover; regressions in code outside every
-story's scope. Also the standing checks: no mutation where a new object was required, no
-swallowed errors, no secrets, no unbounded queries / N+1, parameterized SQL, RLS on new
-Supabase tables.
-Write docs/sprints/{run}/review-final.md (append a "Round {n}" section): findings ranked
-CRITICAL / HIGH / MEDIUM / LOW with file:line, a concrete failure scenario, and the owning
-story slug (or "run" when no single story owns it).
-Read-only on code. Commit review-final.md on {integration}. Return JSON:
-{critical:n, high:n, medium:n, low:n, findings:[{sev, file, line, owner, summary}]}.
-```
-
-## fixer (sonnet; opus when root cause is unclear)
-
-```
-Fix these findings/failures for story {slug}: {findings}. In your isolated worktree, branch
-{fix_branch} (wip/{run_slug}/{slug}-fix-<n>) from origin/{integration}. For each: write a test that reproduces it → confirm it fails → fix →
-pass. Run gates {gates}. Push {fix_branch} only — the integrator merges it. Append what you
-changed to docs/sprints/{run}/{slug}/review.md or validation.md. Return: each finding →
-fixed / not-reproducible (with evidence) / blocked (with reason).
+FIX① is the run's only fix round. Fix these for {owner} (a story slug, or "run"):
+{findings} (REVIEW① findings by id, every severity, plus TEST① failures). In your isolated
+worktree, branch {fix_branch} (wip/{run_slug}/{owner}-fix) from origin/{integration}.
+Reproduce each item first: write a test that fails because of it and confirm it fails. That
+failing test IS the verification; nobody else re-checks it. Then fix → pass. An item you
+can't reproduce is recorded as not-reproducible with the evidence (what you ran, what
+happened). Don't argue it, retry it or fix it blind. One attempt: an item you can't fix is
+recorded as blocked with the reason, not looped on.
+Run gates {gates}. Push {fix_branch} only — the integrator merges it. Append a "FIX①" section
+to docs/sprints/{run}/{owner}/validation.md (owner "run" → docs/sprints/{run}/validation.md):
+id → fixed (test name) / not-reproducible (evidence) / blocked (reason). Return that list.
 ```
 
 ## integrator (sonnet, one at a time)
@@ -296,13 +297,14 @@ Return JSON: {applied[], held_back[{file, reason}], error}.
 ## tester (sonnet, one per surface)
 
 ```
-Surface: {surface}. In your isolated worktree, `git switch --detach {sha}` (origin/dev).
+Surface: {surface}, TEST{test_n} (1 after BUILD, 2 after FIX①). In your isolated worktree,
+`git switch --detach {sha}` (origin/dev).
 - unit/integration: run the full suite with coverage; report per-story coverage of touched
   files; target ≥80%.
 - browser: install deps, start the app locally (and `supabase start` if used), run
   pytest-playwright headless for every [browser] acceptance criterion in stories {slugs};
   add missing Playwright tests for any [browser] criterion lacking one (commit them on a
-  branch `wip/{run_slug}/tests-<surface>-<round>`, push it, and report it for the integrator). Save screenshots under
+  branch `wip/{run_slug}/tests-<surface>-{test_n}`, push it, and report it for the integrator). Save screenshots under
   docs/sprints/{run}/{slug}/evidence/. Capture console errors + failed requests. If
   design.md exists, screenshot every design screen and compare it with its design/*.html
   reference; a structural mismatch (missing/extra region, wrong component, wrong copy) is a
@@ -312,7 +314,7 @@ Surface: {surface}. In your isolated worktree, `git switch --detach {sha}` (orig
   changed tool with valid and invalid input.
 Stop every server you started. Write/append docs/sprints/{run}/{slug}/validation.md per story:
 command, result, evidence paths, each criterion PASS/FAIL. Every time, commit validation.md and
-evidence/ (plus any new tests) on `wip/{run_slug}/tests-<surface>-<round>`, push it, and
+evidence/ (plus any new tests) on `wip/{run_slug}/tests-<surface>-{test_n}`, push it, and
 report that branch for the integrator. Leave the worktree clean. Return JSON:
 {surface, pass:n, fail:n, failures:[{slug, criterion, error, repro}] , coverage}.
 ```
