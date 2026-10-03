@@ -8,9 +8,9 @@
 ## Deploy checklist — nothing was deployed to Vercel; Supabase MAIN untouched
 
 **Vercel:** `dev` is ready for a Vercel **dev** deploy when you say so —
-`vercel deploy --target=<dev env>`. Merges to `dev` did not build (git.deploymentEnabled).
-{if first run in this repo: "The first push may have built once; also set the rule in
-Vercel → Project → Settings → Git."}
+`vercel deploy --target=<dev env>`. Merges to `dev`, `wip/**` and `{run branch}` pushes
+did not build (git.deploymentEnabled). "The first push of `{run branch}` may have built
+once — Vercel doesn't document whether a commit's own vercel.json governs its push."
 
 **Supabase**
 | # | Migration | DEV | MAIN | Why it matters |
@@ -42,6 +42,12 @@ supabase link --project-ref <main-ref> && supabase db push --linked
 
 ## Left open
 {MEDIUM/LOW findings not fixed, skipped surfaces (e.g. no Docker → DB not validated), blocker if any}
+
+## Git cleanup
+**Run branch** `{type}/{run-slug}` · worktree `{path}`: deleted (local + origin) / left — {why,
+e.g. "not in dev: merge it, the next bmn start deletes it" or "worktree has uncommitted changes"}
+**Deleted:** {n} wip branches (local + origin), {n} worktrees — {list}
+**Left:** {ref → why, one per line; "nothing" when clean}
 
 ## Evidence
 Per-story `review.md`, `validation.md`, run-level `review-final.md`, screenshots under `docs/sprints/{run}/<slug>/evidence/`.

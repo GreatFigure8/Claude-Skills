@@ -10,7 +10,8 @@ accident guard, not a sandbox.
 
 Shipped as a plugin hook, so it fires in every session; it only acts inside a git repo with a
 dev-bother-me-nope run in progress (docs/sprints/bmn-*/bmn.json whose phase isn't done or
-blocked), checked in the current worktree and in the repo's main worktree.
+blocked), checked in every worktree of the repo — the run's state lives in its sibling run
+worktree, not in the human's main checkout.
 Rules and rationale: ../../references/deploy-guards.md
 """
 import json
@@ -262,17 +263,17 @@ def repo_root(cwd):
 
 
 def git_roots(cwd):
-    """The current worktree's root and the main worktree's root; empty outside git."""
+    """Every worktree root of the repo (main checkout, run worktree, harness worktrees);
+    empty outside git. A run's state lives in its sibling run worktree, so all are checked."""
     try:
-        out = subprocess.run(
-            ["git", "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"],
-            cwd=cwd or None, capture_output=True, text=True, timeout=5)
+        out = subprocess.run(["git", "worktree", "list", "--porcelain"], cwd=cwd or None,
+                             capture_output=True, text=True, timeout=5)
     except (OSError, subprocess.SubprocessError):
         return []
-    lines = out.stdout.split()
-    if out.returncode != 0 or len(lines) != 2:
+    if out.returncode != 0:
         return []
-    return list(dict.fromkeys([Path(lines[0]), Path(lines[1]).parent]))
+    return list(dict.fromkeys(Path(line[len("worktree "):])
+                              for line in out.stdout.splitlines() if line.startswith("worktree ")))
 
 
 def run_in_progress(cwd):

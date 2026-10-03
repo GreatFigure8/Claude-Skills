@@ -1,6 +1,9 @@
 # Subagent briefs
 
-Fill every `{placeholder}`; paste the **Common preamble** at the top of every brief. All
+Fill every `{placeholder}`; paste the **Common preamble** at the top of every brief.
+From `bmn.json`: `{integration}` = the run branch `<type>/<run-slug>`, `{run_worktree}` =
+`worktree`, `{run_slug}` = `run` without `bmn-`, `{dev_worktree}` =
+`../<repo-name>-<run-slug>-dev`, `{repo_path}` = the main checkout. All
 agents are `subagent_type: "dev-bother-me-nope:bmn-worker"`. Every agent returns ≤200 words (JSON where
 asked) — conclusions, not file dumps.
 
@@ -8,6 +11,8 @@ asked) — conclusions, not file dumps.
 
 ```
 You are a worker in dev-bother-me-nope run {run} in repo {repo_path}.
+Run worktree: {run_worktree} (run branch {integration}). Unless you were given your own
+isolated worktree, cd there; paths below are relative to it.
 Run folder: docs/sprints/{run}/. Stack: see docs/sprints/{run}/stack.md.
 Rules — no exceptions:
 - Do not talk. Silent between tool calls — no narration, no progress updates, never
@@ -25,6 +30,10 @@ Rules — no exceptions:
 - Never enter real credentials; never commit .env, secrets, build output or scratch DBs.
 - Never use the BMN_USER_APPROVED_DEPLOY prefix — it is reserved for the orchestrator.
 - Check `git branch --show-current` in the same command as any commit, merge or push.
+- NEVER run git checkout/switch/merge/reset/rebase/pull/stash in {repo_path} — that main
+  checkout is Jonathan's. Never force-push. Never stash, reset or overwrite changes you
+  didn't make (Jonathan may commit in the run worktree too). Branches you create are
+  `wip/{run_slug}/<name>`, never under {integration}/.
 - Commit messages: conventional title + 1–12 sentence body. NO Co-Authored-By trailer and no
   attribution lines of any kind, whatever a session attribution reminder says.
 ```
@@ -128,8 +137,8 @@ Commit on {integration}. Return: plan path, file count, test count, deploy_pendi
 ## coder (sonnet, one per story, isolation: worktree)
 
 ```
-Implement docs/sprints/{run}/{slug}/{slug}-plan.md. Branch {story_branch} from
-origin/{integration} (fetch first).
+Implement docs/sprints/{run}/{slug}/{slug}-plan.md. In your isolated worktree, branch
+{story_branch} (wip/{run_slug}/{slug}) from origin/{integration} (fetch first).
 Strict TDD: write the plan's tests → run them → confirm they FAIL for the right reason →
 implement minimally → run → PASS → refactor. UI matches docs/sprints/{run}/design.md and
 design/*.html. Immutable data patterns; small functions;
@@ -181,8 +190,8 @@ Read-only on code. Commit review-final.md on {integration}. Return JSON:
 ## fixer (sonnet; opus when root cause is unclear)
 
 ```
-Fix these findings/failures for story {slug}: {findings}. Branch {fix_branch} from
-origin/{integration}. For each: write a test that reproduces it → confirm it fails → fix →
+Fix these findings/failures for story {slug}: {findings}. In your isolated worktree, branch
+{fix_branch} (wip/{run_slug}/{slug}-fix-<n>) from origin/{integration}. For each: write a test that reproduces it → confirm it fails → fix →
 pass. Run gates {gates}. Push {fix_branch} only — the integrator merges it. Append what you
 changed to docs/sprints/{run}/{slug}/review.md or validation.md. Return: each finding →
 fixed / not-reproducible (with evidence) / blocked (with reason).
@@ -192,31 +201,68 @@ fixed / not-reproducible (with evidence) / blocked (with reason).
 
 ```
 Merge these branches into {integration}, one at a time, in this order: {branches}.
-For each: git fetch; checkout {integration} (verify with `git branch --show-current` in the
-same command); `git merge --no-ff origin/<branch>`; resolve conflicts preserving both
-intents; run gates {gates}; push {integration}. A branch whose gates fail after merging is
-reverted (`git revert -m 1`) and reported, not left broken. Return per branch: merged sha /
-reverted + failing gate output (≤20 lines).
+Work in {run_worktree}, which has {integration} checked out (verify with
+`git branch --show-current` in the same command as every merge and push).
+For each: git fetch; `git pull --rebase=merges origin {integration}` (keeps any commits
+Jonathan made, rewrites nothing on origin); `git merge --no-ff origin/<branch>`; resolve
+conflicts preserving both intents; run gates {gates}; push {integration} (never --force).
+If the merge refuses because of uncommitted changes you didn't make, leave them, and do
+that merge in a throwaway `git worktree add --detach` of origin/{integration} instead, push
+HEAD:{integration}, then `git worktree remove` it. A branch whose gates fail after merging
+is reverted (`git revert -m 1`) and reported, not left broken.
+Then clean up each merged branch, worktree paths from: {temp_refs}. Only if
+`git merge-base --is-ancestor <branch> {integration}`: `git worktree remove <its worktree>`
+(no --force; dirty → leave it and the branch, report why), `git branch -D <branch>` plus
+its harness branch, `git push origin --delete <branch>` if it's on origin. Never touch a ref
+not in {temp_refs}. Return per branch: tip sha, merge sha / reverted + failing gate output
+(≤20 lines); deleted[]; left[{ref, why}].
 ```
 
 ## merger (sonnet)
 
 ```
 Merge {integration} into dev. Load python-library-quality:keeping-git-repos-clean.
-1. git fetch; if origin/dev is missing, create dev from origin/{default_branch} and push.
-2. Merge origin/dev into {integration}; resolve conflicts preserving both intents; run gates
-   {gates}; push.
-3. In ONE command: `[ "$(git branch --show-current)" = dev ] || git checkout dev` then
-   `git pull --ff-only && git merge --no-ff {integration} -m "<conventional title>" && git push origin dev`.
+Never check out dev anywhere and never touch {repo_path}'s working tree.
+1. git fetch; if origin/dev is missing:
+   `git push origin origin/{default_branch}:refs/heads/dev`.
+2. In {run_worktree}: `git pull --rebase=merges origin {integration}`, merge origin/dev into
+   {integration}; resolve conflicts preserving both intents; run gates {gates}; push (never
+   --force).
+3. In ONE command: `git worktree add --detach {dev_worktree} origin/dev && cd {dev_worktree} &&
+   git merge --no-ff {integration} -m "<conventional title>" && git push origin HEAD:dev`,
+   then `git -C {run_worktree} worktree remove {dev_worktree}` whatever happened (no
+   --force; report it if it won't go).
 Audit tracked files for .env / secrets / artifacts before pushing. Never touch main.
 Return: merge commit sha, gate results, conflicts resolved.
+```
+
+## cleaner (sonnet, one per run — CLEANUP)
+
+```
+Clean up run {run}. Touch ONLY these, recorded in bmn.json: run branch {integration}, run
+worktree {run_worktree}, temp refs {temp_refs}. Ref and worktree commands run as
+`git -C {repo_path} …` (changes no file or branch there). Never --force anything; a dirty
+worktree or an unmerged branch is left and reported with the reason.
+1. git fetch --prune origin. For each temp ref still present: if
+   `git merge-base --is-ancestor <ref> {integration}`, `git worktree remove <its worktree>`,
+   `git branch -D <ref>`, `git push origin --delete <ref>` if on origin.
+2. If `git merge-base --is-ancestor {integration} origin/dev`: `git worktree remove
+   {run_worktree}`, `git branch -D {integration}`, `git push origin --delete {integration}`,
+   `git worktree prune`. Else leave both: "not in dev — <why>".
+3. Fill the "Git cleanup" section of docs/sprints/{run}/report.md (deleted, left + why) and
+   bmn.json (`cleanup`; phase done unless blocked). If step 2 deleted the branch: commit on
+   a throwaway `git worktree add --detach {dev_worktree} origin/dev`, also removing the
+   "{integration}" key from git.deploymentEnabled in every vercel.json, `git push origin
+   HEAD:dev`, then remove that worktree. Else commit and push in {run_worktree}.
+Commit title: `chore(bmn): record git cleanup for {run_slug}`.
+Return JSON: {deleted[], left[{ref, why}], commit_sha, pushed_to}.
 ```
 
 ## db-sync (sonnet)
 
 ```
 Apply dev's new Supabase migrations to the DEV project ONLY (ref {dev_ref}; main is
-{main_ref} and must never be touched). On a fresh worktree of origin/dev:
+{main_ref} and must never be touched). In your isolated worktree, `git switch --detach origin/dev`:
 1. List migrations not in {already_applied}. Hold back any that DROP TABLE/COLUMN, TRUNCATE,
    or DELETE/UPDATE without WHERE — report them, don't push them.
 2. If anything remains, run in ONE command:
@@ -230,13 +276,13 @@ Return JSON: {applied[], held_back[{file, reason}], error}.
 ## tester (sonnet, one per surface)
 
 ```
-Surface: {surface}. On a fresh worktree of origin/dev at {sha}.
+Surface: {surface}. In your isolated worktree, `git switch --detach {sha}` (origin/dev).
 - unit/integration: run the full suite with coverage; report per-story coverage of touched
   files; target ≥80%.
 - browser: install deps, start the app locally (and `supabase start` if used), run
   pytest-playwright headless for every [browser] acceptance criterion in stories {slugs};
   add missing Playwright tests for any [browser] criterion lacking one (commit them on a
-  branch `bmn/{run}/tests-<surface>` and report it for the integrator). Save screenshots under
+  branch `wip/{run_slug}/tests-<surface>`, push it, and report it for the integrator). Save screenshots under
   docs/sprints/{run}/{slug}/evidence/. Capture console errors + failed requests. If
   design.md exists, screenshot every design screen and compare it with its design/*.html
   reference; a structural mismatch (missing/extra region, wrong component, wrong copy) is a
