@@ -276,13 +276,28 @@ def git_roots(cwd):
                               for line in out.stdout.splitlines() if line.startswith("worktree ")))
 
 
+def owns_state(root, named):
+    """A state file counts only in the worktree it names; copies inherited by harness, scratch
+    or human worktrees are ignored. Runs before 1.4.0 name no worktree and always count."""
+    if not named or not isinstance(named, str):
+        return True
+    try:
+        return Path(named).resolve() == Path(root).resolve()
+    except (OSError, RuntimeError):
+        return False
+
+
 def run_in_progress(cwd):
     for root in git_roots(cwd):
         for state in root.glob(RUN_STATE_GLOB):
             try:
-                phase = json.loads(state.read_text()).get("phase")
+                data = json.loads(state.read_text())
+                phase = data.get("phase")
+                named = data.get("worktree")
             except (OSError, ValueError, AttributeError):
-                phase = None
+                phase, named = None, None
+            if not owns_state(root, named):
+                continue
             if phase not in FINISHED_PHASES:
                 return True
     return False

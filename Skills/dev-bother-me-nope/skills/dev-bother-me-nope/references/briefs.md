@@ -2,7 +2,8 @@
 
 Fill every `{placeholder}`; paste the **Common preamble** at the top of every brief.
 From `bmn.json`: `{integration}` = the run branch `<type>/<run-slug>`, `{run_worktree}` =
-`worktree`, `{run_slug}` = `run` without `bmn-`, `{dev_worktree}` =
+`worktree`, `{base}` = `<merge>^1` and `{head}` = `tip` of the story's latest entry in its
+`merges` list in bmn.json, `{run_slug}` = `run` without `bmn-`, `{dev_worktree}` =
 `../<repo-name>-<run-slug>-dev`, `{repo_path}` = the main checkout. All
 agents are `subagent_type: "dev-bother-me-nope:bmn-worker"`. Every agent returns ≤200 words (JSON where
 asked) — conclusions, not file dumps.
@@ -20,7 +21,8 @@ Rules — no exceptions:
 - Never ask a question. Decide, record the decision under "Assumptions" in the file you own,
   continue.
 - NEVER deploy to Vercel (dev included): no vercel deploy/--prod/--target/promote, no push to
-  main/master/production, never remove or weaken git.deploymentEnabled in vercel.json.
+  main/master/production, never remove or weaken git.deploymentEnabled in vercel.json (sole exception: the cleaner
+  removes the deleted run branch's own exact-name key; never `dev`, `wip/**` or `bmn/**`).
 - NEVER touch Supabase MAIN. Supabase DEV only via the DB-SYNC brief (migrations, db push).
   No remote DDL/DML otherwise, no functions deploy, no secrets. Tests use local
   `supabase start` only.
@@ -210,11 +212,16 @@ If the merge refuses because of uncommitted changes you didn't make, leave them,
 that merge in a throwaway `git worktree add --detach` of origin/{integration} instead, push
 HEAD:{integration}, then `git worktree remove` it. A branch whose gates fail after merging
 is reverted (`git revert -m 1`) and reported, not left broken.
-Then clean up each merged branch, worktree paths from: {temp_refs}. Only if
-`git merge-base --is-ancestor <branch> {integration}`: `git worktree remove <its worktree>`
-(no --force; dirty → leave it and the branch, report why), `git branch -D <branch>` plus
-its harness branch, `git push origin --delete <branch>` if it's on origin. Never touch a ref
-not in {temp_refs}. Return per branch: tip sha, merge sha / reverted + failing gate output
+Then clean up each merged branch, worktree paths from: {temp_refs}. Check each copy
+separately against origin/{integration}. Local copy: `git merge-base --is-ancestor <branch>
+origin/{integration}`, then `git branch -D <branch>`. Remote copy, when `origin/<branch>`
+exists (also when no local ref does): `git merge-base --is-ancestor origin/<branch>
+origin/{integration}`, then `git push origin --delete <branch>`. Remove its worktree
+(`git worktree remove`, no --force; dirty → leave it and the branch, report why) once the
+branch qualifies. Delete the paired harness branch only when it has no commits unique to it
+(`git rev-list <harness> --not --exclude=refs/heads/<harness> --branches --remotes` prints
+nothing); else leave it and record it. A copy that fails its check is left and recorded.
+Never touch a ref not in {temp_refs}. Return per branch: tip sha, merge sha / reverted + failing gate output
 (≤20 lines); deleted[]; left[{ref, why}].
 ```
 
@@ -227,7 +234,9 @@ Never check out dev anywhere and never touch {repo_path}'s working tree.
    `git push origin origin/{default_branch}:refs/heads/dev`.
 2. In {run_worktree}: `git pull --rebase=merges origin {integration}`, merge origin/dev into
    {integration}; resolve conflicts preserving both intents; run gates {gates}; push (never
-   --force).
+   --force). If pull or merge refuses because of uncommitted changes you didn't make, leave
+   them and do this step in a throwaway `git worktree add --detach` of origin/{integration},
+   push HEAD:{integration}, then remove it.
 3. In ONE command: `git worktree add --detach {dev_worktree} origin/dev && cd {dev_worktree} &&
    git merge --no-ff {integration} -m "<conventional title>" && git push origin HEAD:dev`,
    then `git -C {run_worktree} worktree remove {dev_worktree}` whatever happened (no
@@ -243,17 +252,28 @@ Clean up run {run}. Touch ONLY these, recorded in bmn.json: run branch {integrat
 worktree {run_worktree}, temp refs {temp_refs}. Ref and worktree commands run as
 `git -C {repo_path} …` (changes no file or branch there). Never --force anything; a dirty
 worktree or an unmerged branch is left and reported with the reason.
-1. git fetch --prune origin. For each temp ref still present: if
-   `git merge-base --is-ancestor <ref> {integration}`, `git worktree remove <its worktree>`,
-   `git branch -D <ref>`, `git push origin --delete <ref>` if on origin.
-2. If `git merge-base --is-ancestor {integration} origin/dev`: `git worktree remove
-   {run_worktree}`, `git branch -D {integration}`, `git push origin --delete {integration}`,
-   `git worktree prune`. Else leave both: "not in dev — <why>".
-3. Fill the "Git cleanup" section of docs/sprints/{run}/report.md (deleted, left + why) and
-   bmn.json (`cleanup`; phase done unless blocked). If step 2 deleted the branch: commit on
-   a throwaway `git worktree add --detach {dev_worktree} origin/dev`, also removing the
-   "{integration}" key from git.deploymentEnabled in every vercel.json, `git push origin
-   HEAD:dev`, then remove that worktree. Else commit and push in {run_worktree}.
+1. git fetch --prune origin. Check each copy of every temp ref separately. Local copy:
+   `git merge-base --is-ancestor <ref> origin/{integration}`, then `git branch -D <ref>`.
+   Remote copy, when `origin/<ref>` exists (also when no local ref does):
+   `git merge-base --is-ancestor origin/<ref> origin/{integration}`, then
+   `git push origin --delete <ref>`. A `harness` ref whose worktree is gone is deleted when
+   its tip equals its `base`, or when `git rev-list <ref> --not --exclude=refs/heads/<ref>
+   --branches --remotes` prints nothing. Remove a ref's worktree (no --force) only after the
+   ref qualifies. A copy that fails its check is left and recorded with the reason.
+2. After the fetch: delete local {integration} (`git branch -D`) only if
+   `git merge-base --is-ancestor {integration} origin/dev`. Delete the origin copy
+   (`git push origin --delete {integration}`) only if bmn.json `integration_pushed` is true
+   AND `git merge-base --is-ancestor origin/{integration} origin/dev` also holds; otherwise
+   leave it and record "origin has commits not in dev". Remove {run_worktree} (no --force,
+   clean only) when the local branch is deleted, then `git worktree prune`. Else leave both:
+   "not in dev — <why>".
+3. If step 2 deleted the branch: first `git -C {repo_path} worktree add --detach
+   {dev_worktree} origin/dev`. Then edit docs/sprints/{run}/report.md ("Git cleanup":
+   deleted, left + why), bmn.json (`cleanup`; `phase: blocked` when `blocker` is non-null,
+   else `done`) and remove the "{integration}" key from git.deploymentEnabled in every
+   vercel.json, all inside {dev_worktree}; commit, `git push origin HEAD:dev`, then remove
+   that worktree. Otherwise edit and commit in {run_worktree}, staging only
+   `docs/sprints/{run}/`, and push.
 Commit title: `chore(bmn): record git cleanup for {run_slug}`.
 Return JSON: {deleted[], left[{ref, why}], commit_sha, pushed_to}.
 ```
@@ -282,7 +302,7 @@ Surface: {surface}. In your isolated worktree, `git switch --detach {sha}` (orig
 - browser: install deps, start the app locally (and `supabase start` if used), run
   pytest-playwright headless for every [browser] acceptance criterion in stories {slugs};
   add missing Playwright tests for any [browser] criterion lacking one (commit them on a
-  branch `wip/{run_slug}/tests-<surface>`, push it, and report it for the integrator). Save screenshots under
+  branch `wip/{run_slug}/tests-<surface>-<round>`, push it, and report it for the integrator). Save screenshots under
   docs/sprints/{run}/{slug}/evidence/. Capture console errors + failed requests. If
   design.md exists, screenshot every design screen and compare it with its design/*.html
   reference; a structural mismatch (missing/extra region, wrong component, wrong copy) is a
@@ -291,6 +311,8 @@ Surface: {surface}. In your isolated worktree, `git switch --detach {sha}` (orig
 - mcp: start the server over stdio with an mcp ClientSession; list tools; call each new or
   changed tool with valid and invalid input.
 Stop every server you started. Write/append docs/sprints/{run}/{slug}/validation.md per story:
-command, result, evidence paths, each criterion PASS/FAIL. Return JSON:
+command, result, evidence paths, each criterion PASS/FAIL. Every time, commit validation.md and
+evidence/ (plus any new tests) on `wip/{run_slug}/tests-<surface>-<round>`, push it, and
+report that branch for the integrator. Leave the worktree clean. Return JSON:
 {surface, pass:n, fail:n, failures:[{slug, criterion, error, repro}] , coverage}.
 ```

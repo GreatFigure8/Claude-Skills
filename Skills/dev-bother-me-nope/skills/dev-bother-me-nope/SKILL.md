@@ -137,8 +137,9 @@ up a bmn run.
   "run": "bmn-<run-slug>", "phase": "intake|design|split|plan|build|review1|merge1|test1|fix|review2|merge2|test2|review3|report|cleanup|done|blocked",
   "integration": "<type>/<run-slug>", "worktree": "<abs path of ../<repo-name>-<run-slug>>", "live": "dev", "dev_base": "<sha of origin/dev when the run started>",
   "stack": {"kind": "web-app|api|mcp-server|library|cli|mixed", "ui": true, "supabase": false, "vercel": false, "vercel_json": [], "dev_push_deploys": false, "supabase_dev_ref": null, "supabase_main_ref": null},
-  "stories": [{"slug": "...", "title": "...", "deps": [], "status": "split|planned|built|reviewed|merged|tested|done|blocked", "branch": "wip/<run-slug>/<slug>", "detail": ""}],
-  "temp_refs": [{"branch": "wip/<run-slug>/<slug>|<harness branch>", "worktree": "<abs path>|null", "pushed": false}],
+  "stories": [{"slug": "...", "title": "...", "deps": [], "status": "split|planned|built|reviewed|merged|tested|done|blocked", "branch": "wip/<run-slug>/<slug>", "merges": [{"branch": "...", "tip": "<sha>", "merge": "<sha>"}], "detail": ""}],
+  "temp_refs": [{"branch": "wip/<run-slug>/<slug>|<harness branch>", "kind": "wip|harness", "base": "<sha at spawn>", "worktree": "<abs path>|null", "pushed": false}],
+  "integration_pushed": false,
   "cleanup": {"deleted": [], "left": [{"ref": "...", "why": "dirty worktree|not merged|..."}]},
   "deploy_pending": {"vercel": [], "supabase_migrations": []},
   "supabase_dev_applied": [],
@@ -157,7 +158,7 @@ and asks which one to pick up. Both procedures are in
 **Resume rule:** look for run folders in every worktree (`git worktree list`) and on
 `origin/dev`. If a `bmn-*` run with `phase` other than `done` exists and the objective
 doesn't clearly name a new story, re-read `bmn.json` and continue from `phase`, trusting
-only what's on disk. **Leftover sweep:** a `done` run whose `cleanup.left` names its run
+only what's on disk. **Leftover sweep:** a `done` or `blocked` run whose `cleanup.left` names its run
 branch, and that branch is now in `origin/dev` (Jonathan merged it), gets CLEANUP's run
 step now. A run resumed
 at `phase: design` with `design.picked: null` re-asks the design question from the options
@@ -178,7 +179,8 @@ the codebase. That work is done by subagents, which report back conclusions.
 - Independent agents run in one message, all at once. Stories without unmet `deps` build in
   parallel, each in `isolation: "worktree"`. Record every harness worktree path and branch
   the Agent result names, plus each `wip/` branch, in `temp_refs`.
-- Every non-isolated agent works in the run worktree (`{run_worktree}` in the briefs).
+- BUILD, FIX, TEST and DB-SYNC agents always run in `isolation: "worktree"`; every other
+  agent works in the run worktree (`{run_worktree}` in the briefs).
 - Output to Jonathan while running: see *Silence* below.
 - Context: at ~120K say so in one line. At ~150K, write `bmn.json` plus the run folder,
   commit, and post the `clear-prompt` block — the resume line is the same
@@ -195,8 +197,9 @@ the codebase. That work is done by subagents, which report back conclusions.
    `chore` for tooling, deps, config or docs only, `feat` for everything else. Create the
    run branch and worktree in one command, without touching the main checkout:
    `git worktree add --no-track -b <type>/<run-slug> ../<repo-name>-<run-slug> origin/dev`
-   (`origin/<default_branch>` when there's no `dev` yet; add `-2` to the slug if the branch
-   or directory exists). In the run worktree, write `input.md` verbatim and `bmn.json` with
+   (`origin/<default_branch>` when there's no `dev` yet; add `-2`, then `-3`…, to the slug when
+   `refs/heads/<type>/<run-slug>`, `refs/remotes/origin/<type>/<run-slug>`, any ref under
+   `<type>/<run-slug>/`, a branch named just `<type>`, or the directory exists). In the run worktree, write `input.md` verbatim and `bmn.json` with
    `phase: intake`, `integration` and `worktree` **right away**. The deploy guard is only
    active once this file exists.
 3. Dispatch one **stack-scout** (sonnet) with the brief in briefs.md. It returns the stack
@@ -212,7 +215,8 @@ the codebase. That work is done by subagents, which report back conclusions.
    Record `origin/dev`'s sha as `dev_base` in `bmn.json`; REVIEW③ diffs against it. In the
    run worktree, commit the `vercel.json` `deploymentEnabled` change for a Vercel app (plus
    `.claude/bmn.config.json` if it was written) **before** the first push, then
-   `git push -u origin <type>/<run-slug>`.
+   `git push -u origin <type>/<run-slug>`, then set `integration_pushed: true` in `bmn.json`
+   (CLEANUP deletes the origin copy only when it is set).
 5. Set `design.needed` from the scout: true when `ui_screens` is non-empty (the story adds
    or changes something a person looks at). Then `phase: design`, or `phase: split` when
    it's false.
@@ -270,8 +274,9 @@ When a wave finishes, one **integrator** (sonnet) merges that wave's story branc
 run branch one at a time, in the run worktree (pull, `--no-ff`, gates, push). One writer
 per branch means no push races. Then, for each branch it merged, it runs the cleanup
 (*Branches and worktrees*): harness worktree removed, `wip/` branch and harness branch
-deleted locally and on origin. It returns each story's tip sha and merge sha; record them
-in `bmn.json` (REVIEW diffs them) along with what was deleted or left. The next wave
+deleted locally and on origin. It returns each story's tip sha and merge sha; append them to
+that story's `merges` in `bmn.json` (REVIEW diffs `<merge>^1...tip` of the latest one) along
+with what was deleted or left. The next wave
 branches from the updated run branch.
 
 ### 4 · REVIEW① (one agent per story, parallel, opus)
@@ -292,7 +297,8 @@ gates, push. Then merge into `dev` in a throwaway detached worktree, never by ch
 it. It never touches `main`. If `stack.dev_push_deploys`, skip the `dev` merge — TEST runs
 on the run branch, and the report lists the `dev` merge on the Deploy checklist.
 
-### 5b · DB-SYNC (1 agent, sonnet; after every MERGE that brought new migrations)
+### 5b · DB-SYNC (1 agent, sonnet, `isolation: "worktree"`; after every MERGE that brought new migrations)
+Record its worktree and branch in `temp_refs`.
 This step runs only when `.claude/bmn.config.json` exists and the merged `dev` has
 migrations that aren't in `supabase_dev_applied`. Run
 `supabase link --project-ref <dev_ref> && supabase db push --linked` in one command, then
@@ -305,7 +311,8 @@ migrations that aren't in `supabase_dev_applied`. Run
 
 Tests don't run against the dev database. They stay on local Supabase.
 
-### 6 · TEST① (1 agent per test surface, parallel, sonnet)
+### 6 · TEST① (1 agent per test surface, parallel, sonnet, each in `isolation: "worktree"`)
+Record each worktree and branch in `temp_refs`.
 Tester brief, run against the merged `dev`:
 - **TDD suite**: the full `pytest` (or `vitest`/`jest`) run, plus coverage. Target is 80% or
   higher on the code the stories touched.
@@ -318,7 +325,8 @@ Tester brief, run against the merged `dev`:
   client session that lists and calls tools for MCP servers).
 Failures go into each story's `validation.md` as findings.
 
-### 7 · FIX (one agent per failing story, parallel, sonnet → opus if the first attempt fails)
+### 7 · FIX (one agent per failing story, parallel, sonnet → opus if the first attempt fails, each in `isolation: "worktree"`)
+Record each worktree and branch in `temp_refs`.
 Fixer brief. Reproduce the failure as a test first, fix it, and run the gates. The fix goes
 on a fresh `wip/<run-slug>/<slug>-fix-<n>` branch off the run branch; the integrator merges
 and cleans up fix and test branches serially, same as BUILD. **No attempt cap.**
@@ -355,19 +363,27 @@ section is filled in by CLEANUP.
 ### 11b · CLEANUP (1 agent, sonnet) — mandatory, never skipped
 Cleaner brief. Its ref and worktree commands run as `git -C <main checkout>`, which changes
 no file or branch there. It touches only what `bmn.json` names:
-1. **Sweep.** Every `temp_refs` entry still present: if it's in the run branch
-   (`merge-base --is-ancestor`), remove its worktree, delete it locally and on origin;
-   otherwise leave it, with the reason.
-2. **Run branch.** `git fetch --prune origin`. If the run branch is in `origin/dev`: remove
-   the run worktree (no `--force`), `git branch -D` it, `git push origin --delete` it,
-   `git worktree prune`. If it isn't (`dev_push_deploys`, blocked before merging) or the
-   worktree is dirty, leave it and say why.
-3. **Record.** Write the *Git cleanup* section of `report.md` and `bmn.json`
-   (`cleanup`; `phase: done` unless it's `blocked`), and commit
-   `chore(bmn): record git cleanup for <run-slug>`. When the run branch was merged, that
-   commit goes to `dev` through a throwaway detached worktree (`push origin HEAD:dev`, then
-   remove it) and also drops the run branch's `deploymentEnabled` key from every
-   `vercel.json`. Otherwise it goes on the run branch in the run worktree, key kept.
+1. **Sweep.** `git fetch --prune origin`, then check each copy of every `temp_refs` entry
+   separately. Local copy: delete it only if it is an ancestor of `origin/<integration>`.
+   Remote copy (when `origin/<ref>` exists, including after a machine move when no local
+   ref exists): delete it only if `origin/<ref>` is an ancestor of `origin/<integration>`.
+   A `harness` ref whose worktree is gone is deleted when its tip equals `base`, or when it
+   has no commits unique to it (`git rev-list <ref> --not --exclude=refs/heads/<ref>
+   --branches --remotes` prints nothing). A worktree is removed (no `--force`) only after
+   its ref qualifies. A copy that fails its check is left and recorded with the reason.
+2. **Run branch.** After the fetch: delete the local run branch only if it is an ancestor
+   of `origin/dev`, and the origin copy only if `integration_pushed` is set and
+   `origin/<integration>` is also an ancestor of `origin/dev`. Otherwise leave it and record
+   why ("origin has commits not in dev", `dev_push_deploys`, blocked before merging). Remove
+   the run worktree (no `--force`) only when the local branch is deleted and the worktree is
+   clean; then `git worktree prune`.
+3. **Record.** When step 2 deleted the branch, first `git -C <repo> worktree add --detach
+   <dev_worktree> origin/dev`; then edit `report.md` (the *Git cleanup* section), `bmn.json`
+   (`cleanup`; `phase: blocked` when `blocker` is non-null, else `done`) and every
+   `vercel.json` (dropping the run branch's `deploymentEnabled` key) inside that worktree,
+   commit `chore(bmn): record git cleanup for <run-slug>`, push `HEAD:dev`, and remove it.
+   Otherwise edit and commit in the run worktree, staging only `docs/sprints/bmn-<run-slug>/`,
+   key kept.
 
 ### 12 · ALERT (orchestrator)
 Load `PushNotification` with ToolSearch and send one line: the outcome, the story count,

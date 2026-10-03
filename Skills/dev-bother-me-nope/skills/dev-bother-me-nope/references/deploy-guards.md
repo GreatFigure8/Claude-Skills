@@ -75,7 +75,7 @@ Whenever a run creates or changes any of the following, add an entry to
 | edge function | `supabase functions deploy <name>` per project |
 | new env var / secret | the name (never a value) and which project(s) need it |
 | app code on a Vercel project | "`dev` is ready for a Vercel **dev** deploy when you say so" + `vercel deploy --target=<dev env>`; prod listed separately |
-| `deploymentEnabled` commit on the run branch | "The run branch's first push may have built once (Vercel doesn't document whether a commit's own vercel.json governs its push)" |
+| `deploymentEnabled` commit on the run branch or `dev` | "The run branch's first push, and the first `dev` push carrying `deploymentEnabled`, may each have built once (Vercel doesn't document whether a commit's own vercel.json governs its push); set the rule in Vercel → Project → Settings → Git" |
 
 Supabase is always **dev before main**. The checklist says plainly which migrations the
 code on `dev` depends on, and which features will fail on an environment until they're

@@ -28,8 +28,10 @@ Scope: every `docs/sprints/bmn-*` run in **this repo** whose `bmn.json` `phase` 
    `git show origin/<type>/<run-slug>:docs/sprints/bmn-<run-slug>/handoff.md | head -3`.
    Then tidy this machine: remove the run worktree and each harness worktree in
    `temp_refs` (`git worktree remove`, no `--force`), and `git branch -D` every local run or
-   `wip/` branch whose tip equals its `origin/` copy. Anything dirty or unpushed stays and is
-   named in the handoff under *Left on <host>*. The main checkout is never touched.
+   `wip/` branch whose tip equals its `origin/` copy, and each `temp_refs` harness branch whose
+   worktree was removed (only when it has no commits unique to it: `git rev-list <ref> --not
+   --exclude=refs/heads/<ref> --branches --remotes` prints nothing). Anything dirty or unpushed
+   stays and is named in the handoff under *Left on <host>*. The main checkout is never touched.
 6. **Other repos.** List any other repo under `~/Source/*` that has an open `bmn-*` run
    (`phase` ≠ `done`) but no open handoff. Don't write handoffs there: another session may
    own that checkout. Name those repos in the closing message so Jonathan can say "moving
