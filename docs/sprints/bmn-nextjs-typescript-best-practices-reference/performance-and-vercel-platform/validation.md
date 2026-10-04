@@ -370,3 +370,43 @@ Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-2`, cut from t
 - TEST1 criterion map: 10 PASS, 0 FAIL. Re-checked now: **18 of 18** tests it cites exist and PASS. Every criterion still maps to at least one passing test; the one-off criteria (grounding evidence, scope) are unchanged and not re-run here.
 
 **Result:** 13 FIX① tests PASS, 10 criteria PASS, 0 FAIL.
+
+## TEST2 content
+
+Run 2026-10-04 on a detached worktree at `origin/dev` `7acb627` (branch `wip/nextjs-typescript-best-practices-reference/tests-content-2`). Delta only: `references/nextjs/performance-and-vercel.md` between `5d7550d` (run branch at TEST1) and `7acb627`. Everything else was TEST1's.
+
+### 1. Live sources (delta)
+
+No `## Sources` URL is new or changed in this file (the URL set equals TEST1's). Result: **0 URLs to check, 0 fail**.
+
+Extended check: every URL on an added or changed line of this file, in prose and rules as well as `## Sources` (3 distinct), fetched the same way: **3 pass, 0 fail**.
+
+### 2. Snippet type-check (delta fences)
+
+New or changed fences (text differs from every TEST1 fence): **7 = 7 Do/Pattern/rule + 0 Don't half**.
+
+Result: **Do/Pattern/rule: 7 pass, 0 fail.** Cross-checks with the same config: TypeScript 6.0.3 reports 0 Do-fence error(s), TypeScript 5.9.3 reports 0.
+
+#### Failures (Do/Pattern/rule fences)
+
+None.
+
+#### Pass with a declared prelude that deserves a look
+
+None.
+
+#### Prelude record (delta fences)
+
+- 0 of 7 Do/Pattern/rule fences begin with a `// path` comment and sit at that path in the virtual project; the other 7 are standalone modules under `_loose/`.
+- `export {}` appended to 0 Do/Pattern/rule fence(s).
+- No other prelude was needed.
+
+#### Don't half (expected to be wrong; recorded, not failed)
+
+No Don't-half fence is new or changed in this file.
+
+### 3. Session-helper consistency (text only)
+
+No snippet in this file imports a session helper.
+
+Result: **0 fail** (nothing to check).

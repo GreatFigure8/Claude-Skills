@@ -282,3 +282,51 @@ Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-2`, cut from t
 - TEST1 criterion map: 10 PASS, 0 FAIL. Re-checked now: **19 of 19** tests it cites exist and PASS. Every criterion still maps to at least one passing test; the one-off criteria (grounding evidence, scope) are unchanged and not re-run here.
 
 **Result:** 8 FIX① tests PASS, 10 criteria PASS, 0 FAIL.
+
+## TEST2 content
+
+Run 2026-10-04 on a detached worktree at `origin/dev` `7acb627` (branch `wip/nextjs-typescript-best-practices-reference/tests-content-2`). Delta only: `references/nextjs/testing-and-observability.md` between `5d7550d` (run branch at TEST1) and `7acb627`. Everything else was TEST1's.
+
+### 1. Live sources (delta)
+
+No `## Sources` URL is new or changed in this file (the URL set equals TEST1's). Result: **0 URLs to check, 0 fail**.
+
+Extended check: every URL on an added or changed line of this file, in prose and rules as well as `## Sources` (18 distinct, leaving out 3 example hostname(s) that appear only inside code samples), fetched the same way: **18 pass, 0 fail**.
+
+### 2. Snippet type-check (delta fences)
+
+New or changed fences (text differs from every TEST1 fence): **11 = 8 Do/Pattern/rule + 3 Don't half**.
+
+Result: **Do/Pattern/rule: 8 pass, 0 fail.** Cross-checks with the same config: TypeScript 6.0.3 reports 0 Do-fence error(s), TypeScript 5.9.3 reports 0.
+
+#### Failures (Do/Pattern/rule fences)
+
+None.
+
+#### Pass with a declared prelude that deserves a look
+
+None.
+
+#### Prelude record (delta fences)
+
+- 1 of 8 Do/Pattern/rule fences begin with a `// path` comment and sit at that path in the virtual project; the other 7 are standalone modules under `_loose/`.
+- `export {}` appended to 0 Do/Pattern/rule fence(s).
+- Other preludes (Do/Pattern/rule fences only):
+
+| Fence | Prelude |
+| --- | --- |
+| #19 (line 506) Don't: call redirect() inside try (TEST-23) | any-typed stub module: `src/features/posts/services/save-post.ts` |
+
+#### Don't half (expected to be wrong; recorded, not failed)
+
+| Fence | Outcome |
+| --- | --- |
+| #16 (line 464) Don't: unit-render an async Server Component (TEST-2) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #18 (line 487) Don't: call redirect() inside try (TEST-23) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #20 (line 521) Don't: throw for a validation failure (TEST-18) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+
+### 3. Session-helper consistency (text only)
+
+No snippet in this file imports a session helper.
+
+Result: **0 fail** (nothing to check).

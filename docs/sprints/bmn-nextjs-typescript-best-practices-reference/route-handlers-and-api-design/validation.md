@@ -348,3 +348,75 @@ Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-2`, cut from t
 - TEST1 criterion map: 11 PASS, 0 FAIL. Re-checked now: **21 of 21** tests it cites exist and PASS. Every criterion still maps to at least one passing test; the one-off criteria (grounding evidence, scope) are unchanged and not re-run here.
 
 **Result:** 15 FIX① tests PASS, 11 criteria PASS, 0 FAIL.
+
+## TEST2 content
+
+Run 2026-10-04 on a detached worktree at `origin/dev` `7acb627` (branch `wip/nextjs-typescript-best-practices-reference/tests-content-2`). Delta only: `references/nextjs/route-handlers-and-apis.md` between `5d7550d` (run branch at TEST1) and `7acb627`. Everything else was TEST1's.
+
+### 1. Live sources (delta)
+
+Command per URL (8 in parallel): `curl -sL -A <UA> --max-time 20 --max-redirs 10 -o /dev/null -w "%{http_code}|%{url_effective}|%{num_redirects}" <url>`. Pass = HTTP 2xx and the final URL is the requested page.
+
+| URL | HTTP | Redirects | Result |
+| --- | --- | --- | --- |
+| https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP | 200 | 0 | pass |
+
+Result: **1 new URL(s), 1 pass, 0 fail**.
+
+Extended check: every URL on an added or changed line of this file, in prose and rules as well as `## Sources` (13 distinct, leaving out 1 example hostname(s) that appear only inside code samples), fetched the same way: **13 pass, 0 fail**.
+
+### 2. Snippet type-check (delta fences)
+
+New or changed fences (text differs from every TEST1 fence): **15 = 13 Do/Pattern/rule + 2 Don't half**.
+
+Result: **Do/Pattern/rule: 13 pass, 0 fail.** Cross-checks with the same config: TypeScript 6.0.3 reports 0 Do-fence error(s), TypeScript 5.9.3 reports 0.
+
+#### Failures (Do/Pattern/rule fences)
+
+None.
+
+#### Pass with a declared prelude that deserves a look
+
+- #19 (line 568), #23 (line 632) and #25 (line 675), all Do halves of an Anti-patterns entry, use `ApiErrorBody` in `satisfies ApiErrorBody` without importing it. Without the prelude each is `TS2304` Cannot find name 'ApiErrorBody'. It is defined in the same file (the error-envelope fence at line 72, exported from `src/lib/api/errors.ts`) and the Pattern fences import it as `import type { ApiErrorBody } from '@/lib/api/errors'`. Not counted as a failure (same call as TEST1 #14 and #16: a fragment of a larger module), but a reader who copies one of these three fences alone gets a compile error.
+- #25 (line 675) also omits `import { redirect } from 'next/navigation'` (same call as TEST1 #24); `resolveShortLink` is an app placeholder.
+
+#### Prelude record (delta fences)
+
+- 9 of 13 Do/Pattern/rule fences begin with a `// path` comment and sit at that path in the virtual project; the other 4 are standalone modules under `_loose/`.
+- `export {}` appended to 0 Do/Pattern/rule fence(s).
+- Other preludes (Do/Pattern/rule fences only):
+
+| Fence | Prelude |
+| --- | --- |
+| #03 (line 121) Validated POST (create) | any-typed stub module: `src/lib/dal.ts`, `src/lib/projects.ts` |
+| #04 (line 184) Paginated GET (list) | any-typed stub module: `src/lib/dal.ts`, `src/lib/projects.ts` |
+| #05 (line 227) Dynamic segment with RouteContext | any-typed stub module: `src/lib/dal.ts`, `src/lib/projects.ts` |
+| #06 (line 277) Webhook with signature verification on the raw body | any-typed stub module: `src/lib/webhooks/vercel.ts` |
+| #07 (line 341) CORS with preflight | any-typed stub module: `src/lib/status.ts` |
+| #08 (line 373) Rate-limited, origin-checked POST with after() and maxDuration | any-typed stub module: `src/lib/dal.ts`, `src/lib/exports.ts` |
+| #09 (line 412) Cache Components: a cached public GET | any-typed stub module: `src/lib/catalog.ts` |
+| #11 (line 467) Don't fetch your own Route Handler from a Server Component | any-typed stub module: `src/lib/projects.ts` |
+| #19 (line 568) Don't verify a webhook over re-serialized JSON | free names declared `any`: `ApiErrorBody` |
+| #23 (line 632) Don't use the edge runtime or updateTag in a Route Handler | any-typed stub module: `src/lib/dal.ts`; free names declared `any`: `ApiErrorBody` |
+| #25 (line 675) Don't call redirect() inside try/catch | import added: `redirect` from `next/navigation`; free names declared `any`: `resolveShortLink`, `ApiErrorBody` |
+
+#### Don't half (expected to be wrong; recorded, not failed)
+
+| Fence | Outcome |
+| --- | --- |
+| #10 (line 456) Don't fetch your own Route Handler from a Server Component | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #24 (line 662) Don't call redirect() inside try/catch | compiles (the mistake is a runtime, security or caching rule, not a type error); prelude: import added: `redirect`; free names declared `any`: `resolveShortLink` |
+
+### 3. Session-helper consistency (text only)
+
+| Line | Import | From | Context |
+| --- | --- | --- | --- |
+| 122 | `getSession` | `@/lib/dal` | Route Handler |
+| 185 | `getSession` | `@/lib/dal` | Route Handler |
+| 228 | `getSession` | `@/lib/dal` | Route Handler |
+| 374 | `getSession` | `@/lib/dal` | Route Handler |
+| 633 | `getSession` | `@/lib/dal` | Route Handler |
+
+- The Don't fence at line 512 calls `getSession()` with no import line (fragment).
+
+Result: **0 fail**. Each session helper is imported from `@/lib/dal`; `getSession` appears in Route Handlers and SSE/API routes, `verifySession` in Server Actions and pages.

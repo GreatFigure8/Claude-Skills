@@ -250,3 +250,23 @@ Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-2`, cut from t
 - Renamed or replaced in FIX① (the criterion keeps a passing test): AC11 `test_stack_routing_typescript_row_names_the_reference_in_both_cells` -> `test_stack_routing_typescript_row_reads_the_reference_never_loads_it` (+ `test_stack_routing_route_table_has_a_read_column`); AC12 `test_skill_frontmatter_description_unchanged` -> `test_skill_frontmatter_description_pinned`; AC13 `test_reviewer_brief_keeps_fullstack_standards` -> `test_reviewer_brief_keeps_fullstack_standards_when_available`; AC14 `test_plugin_json_is_version_1_6_0` (removed since TEST1) -> `test_plugin_json_is_version_1_7_0`.
 
 **Result:** 27 FIX① tests PASS, 16 criteria PASS, 0 FAIL.
+
+## TEST2 content
+
+Run 2026-10-04 on a detached worktree at `origin/dev` `7acb627` (branch `wip/nextjs-typescript-best-practices-reference/tests-content-2`). Delta only: `references/nextjs.md` between `5d7550d` (run branch at TEST1) and `7acb627`. Everything else was TEST1's.
+
+### 1. Live sources (delta)
+
+No `## Sources` URL is new or changed in this file (the URL set equals TEST1's). Result: **0 URLs to check, 0 fail**.
+
+Extended check: every URL on an added or changed line of this file, in prose and rules as well as `## Sources` (3 distinct), fetched the same way: **3 pass, 0 fail**.
+
+### 2. Snippet type-check (delta fences)
+
+No ```` ```ts ````/```` ```tsx ```` fence in this file is new or changed (every fence's text equals a TEST1 fence). Result: **0 fences, 0 fail**.
+
+### 3. Session-helper consistency (text only)
+
+No snippet in this file imports a session helper.
+
+Result: **0 fail** (nothing to check).

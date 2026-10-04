@@ -378,3 +378,52 @@ Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-2`, cut from t
 - TEST1 criterion map: 10 PASS, 0 FAIL. Re-checked now: **18 of 18** tests it cites exist and PASS. Every criterion still maps to at least one passing test; the one-off criteria (grounding evidence, scope) are unchanged and not re-run here.
 
 **Result:** 12 FIX① tests PASS, 10 criteria PASS, 0 FAIL.
+
+## TEST2 content
+
+Run 2026-10-04 on a detached worktree at `origin/dev` `7acb627` (branch `wip/nextjs-typescript-best-practices-reference/tests-content-2`). Delta only: `references/nextjs/typescript.md` between `5d7550d` (run branch at TEST1) and `7acb627`. Everything else was TEST1's.
+
+### 1. Live sources (delta)
+
+Command per URL (8 in parallel): `curl -sL -A <UA> --max-time 20 --max-redirs 10 -o /dev/null -w "%{http_code}|%{url_effective}|%{num_redirects}" <url>`. Pass = HTTP 2xx and the final URL is the requested page.
+
+| URL | HTTP | Redirects | Result |
+| --- | --- | --- | --- |
+| https://nextjs.org/docs/app/api-reference/cli/create-next-app | 200 | 0 | pass |
+| https://nextjs.org/docs/architecture/supported-browsers | 200 | 0 | pass |
+
+Result: **2 new URL(s), 2 pass, 0 fail**.
+
+Extended check: every URL on an added or changed line of this file, in prose and rules as well as `## Sources` (10 distinct), fetched the same way: **10 pass, 0 fail**.
+
+### 2. Snippet type-check (delta fences)
+
+New or changed fences (text differs from every TEST1 fence): **5 = 5 Do/Pattern/rule + 0 Don't half**.
+
+Result: **Do/Pattern/rule: 5 pass, 0 fail.** Cross-checks with the same config: TypeScript 6.0.3 reports 0 Do-fence error(s), TypeScript 5.9.3 reports 0.
+
+#### Failures (Do/Pattern/rule fences)
+
+None.
+
+#### Pass with a declared prelude that deserves a look
+
+None.
+
+#### Prelude record (delta fences)
+
+- 4 of 5 Do/Pattern/rule fences begin with a `// path` comment and sit at that path in the virtual project; the other 1 is a standalone module under `_loose/`.
+- `export {}` appended to 0 Do/Pattern/rule fence(s).
+- No other prelude was needed.
+
+#### Don't half (expected to be wrong; recorded, not failed)
+
+No Don't-half fence is new or changed in this file.
+
+### 3. Session-helper consistency (text only)
+
+No snippet in this file imports a session helper.
+
+- P9 (line 430) mentions `verifySession()` from `@/lib/dal` in a comment only; it imports nothing session-related (the signup action is anonymous).
+
+Result: **0 fail** (nothing to check).

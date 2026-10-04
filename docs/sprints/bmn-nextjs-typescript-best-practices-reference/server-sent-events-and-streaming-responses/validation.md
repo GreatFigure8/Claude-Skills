@@ -428,3 +428,52 @@ Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-2`, cut from t
 - TEST1 criterion map: 11 PASS, 0 FAIL. Re-checked now: **23 of 23** tests it cites exist and PASS. Every criterion still maps to at least one passing test; the one-off criteria (grounding evidence, scope) are unchanged and not re-run here.
 
 **Result:** 14 FIX① tests PASS, 11 criteria PASS, 0 FAIL.
+
+## TEST2 content
+
+Run 2026-10-04 on a detached worktree at `origin/dev` `7acb627` (branch `wip/nextjs-typescript-best-practices-reference/tests-content-2`). Delta only: `references/nextjs/sse-and-streaming.md` between `5d7550d` (run branch at TEST1) and `7acb627`. Everything else was TEST1's.
+
+### 1. Live sources (delta)
+
+No `## Sources` URL is new or changed in this file (the URL set equals TEST1's). Result: **0 URLs to check, 0 fail**.
+
+Extended check: every URL on an added or changed line of this file, in prose and rules as well as `## Sources` (49 distinct), fetched the same way: **49 pass, 0 fail**.
+
+### 2. Snippet type-check (delta fences)
+
+New or changed fences (text differs from every TEST1 fence): **7 = 7 Do/Pattern/rule + 0 Don't half**.
+
+Result: **Do/Pattern/rule: 7 pass, 0 fail.** Cross-checks with the same config: TypeScript 6.0.3 reports 0 Do-fence error(s), TypeScript 5.9.3 reports 0.
+
+#### Failures (Do/Pattern/rule fences)
+
+None.
+
+#### Pass with a declared prelude that deserves a look
+
+- #10 (line 621) is the Do half of the heartbeat/subscription entry: a statement list that closes over `isReleased`, `heartbeat`, `unsubscribe`, `markCleanedUp` and `request` from the Route Handler shown above it in the doc. Declared `any`, not counted as a failure.
+
+#### Prelude record (delta fences)
+
+- 6 of 7 Do/Pattern/rule fences begin with a `// path` comment and sit at that path in the virtual project; the other 1 is a standalone module under `_loose/`.
+- `export {}` appended to 1 Do/Pattern/rule fence(s): #10 (line 621).
+- Other preludes (Do/Pattern/rule fences only):
+
+| Fence | Prelude |
+| --- | --- |
+| #03 (line 152) The SSE Route Handler | any-typed stub module: `src/lib/dal.ts` |
+| #07 (line 562) AI SDK on Vercel | any-typed stub module: `src/lib/dal.ts` |
+| #10 (line 621) Don't start a heartbeat or subscription with no release path (SSE-15) | free names declared `any`: `isReleased`, `heartbeat`, `unsubscribe`, `markCleanedUp`, `request` |
+
+#### Don't half (expected to be wrong; recorded, not failed)
+
+No Don't-half fence is new or changed in this file.
+
+### 3. Session-helper consistency (text only)
+
+| Line | Import | From | Context |
+| --- | --- | --- | --- |
+| 153 | `getSession` | `@/lib/dal` | Route Handler |
+| 563 | `getSession` | `@/lib/dal` | Route Handler |
+
+Result: **0 fail**. Each session helper is imported from `@/lib/dal`; `getSession` appears in Route Handlers and SSE/API routes, `verifySession` in Server Actions and pages.
