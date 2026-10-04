@@ -276,3 +276,129 @@ None.
 #### JSON fences
 
 - line 377 parses as JSON.
+
+## FIX①
+
+Branch `wip/nextjs-typescript-best-practices-reference/server-sent-events-and-streaming-responses-fix`, cut from
+`origin/feat/nextjs-typescript-best-practices-reference` at `8188c54`. Files touched: `references/nextjs/sse-and-streaming.md`,
+`assets/tests/test_nextjs_topic_sse_and_streaming.py` and this story folder.
+
+### Result
+
+| Id | Result | Verified by |
+| --- | --- | --- |
+| R1-C1 | fixed | `test_sse_route_handlers_read_a_nullable_session_not_a_redirecting_one`; harness `R1-C1` (signed-out GET and POST: 307 -> /login before, 401 after) |
+| R1-C9 (this file's side) | fixed | same guard: both route fences import `getSession` from `@/lib/dal`; no `@/lib/auth`, no `verifySession(` |
+| R1-C2 | fixed | `test_sse_route_holds_live_events_until_the_replay_is_written`; harness `R1-C2` (101,98,99,100[,101] before; 98,99,100,101 after) |
+| R1-C3 | fixed | `test_sse_vercel_json_keys_use_the_src_prefix`; harness `R1-C3` (`path.matchesGlob` of the `src/app/api/*/route.ts` files against the keys) |
+| R1-C10 | fixed | `test_sse_route_checks_desired_size_before_enqueueing`; harness `R1-C10` (4,808,907 bytes queued before; 1,048,666 and self-closed after) |
+| R1-C11 | fixed | `test_sse_route_unsubscribes_inside_after`; harness `R1-C11` (no after() task before; the task settles only after the unsubscribe after) |
+| R1-C12 | fixed | `test_sse_hook_keys_resume_id_and_status_by_url`; harness `R1-C12` (room b opened with lastEventId=5 and status 'open' before) |
+| R1-C13 | fixed | `test_sse_fetch_reader_stops_on_a_final_4xx`; harness `R1-C13` (401/403/400 retried 5 times in 300 ms before; reject after 1 open after; 503 still retries) |
+| R1-C14 | fixed | `test_sse_plain_text_ai_stream_has_its_own_reader`; harness `R1-C14` (chat route body through readSse: "" before; readTextStream: "Hello, world" after) |
+| R1-C20 | fixed | `test_sse_fetch_readers_cancel_the_body_on_failure`; harness `R1-C20` (body cancelled=false for a 500 and for a throwing onMessage before) |
+| R1-C21 | fixed | `test_sse_fetch_reader_tracks_id_only_blocks`; harness `R1-C21` (reconnected with 1 after `id: 7` before; 7 after) |
+| R1-C22 | fixed | `test_sse_hook_listens_for_stream_error`; harness `R1-C22` (source open and status 'open' after stream-error before) |
+| R1-C23 | fixed | `test_sse_backoff_wait_removes_its_abort_listener`; harness `R1-C23` (listeners 0,1,2,3,4,5 before; 0 at every reconnect after) |
+| R1-C24 | fixed | `test_sse_frames_to_stream_takes_the_request_signal`; harness `R1-C24` and strict tsc (TS2554 on `framesToStream(..., request.signal)` before) |
+
+No item was not-reproducible or blocked. Every pytest guard above was run against the pre-fix file (a scratch copy of the test module
+pointed at `git show origin/feat/…:…/sse-and-streaming.md`) and failed: the 13 new guards plus
+`test_sse_route_handler_example_releases_on_abort_and_cancel`, whose needle moved from `verifySession` to `getSession(`. Gates on this
+branch: pytest `1039 passed`; ruff `All checks passed!`.
+
+### What changed
+
+- SSE-6 and both route fences use `getSession()` from `@/lib/dal` (the run's session-helper contract); the `redirect` page is cited for
+  the 307 and added to Sources.
+- Route: live events go to a `held` buffer until the `replaySince` result is written, then only those the replay didn't send (matched by
+  id). `send()` checks `controller.desiredSize` under a 1 MiB `ByteLengthQueuingStrategy` and closes a client that far behind. The
+  unsubscribe runs in `release()` on the subscription promise and settles the promise returned from `after(() => cleanedUp)`. SSE-16,
+  SSE-19, SSE-20, the "How it meets the rules" bullets, the SSE-15 Do block and Not-confirmed item 10 say so.
+- `framesToStream(frames, signal)` closes the generator on `abort` and in `cancel()`, and removes its listener.
+- `vercel.json` keys are `src/app/api/events/**/*` and `src/app/api/chat/**/*`. Re-read live on 2026-10-04: the duration page says a
+  `src` project must "prefix your function routes with `/src/`" and writes its key as `src/api/*.js`; the vercel.json page lists
+  `src/pages/**/*` as a key. Not-confirmed item 9 was wrong and is gone; items 10 and 11 are now 9 and 10.
+- Hook: the resume id and the status are stored with their URL, so a new URL starts at `'connecting'` with no `lastEventId`, while a
+  re-run on the same URL still resumes; `stream-error` closes the source and reports `'closed'`.
+- fetch reader: `HttpStatusError` and `bodyReader()` (cancels a non-OK body); `readSse` cancels its reader in `finally` and reports ids
+  through `onId`, so an `id:`-only block moves the resume id (WHATWG dispatch step 1 sets the last event ID before the empty-data return,
+  re-read live); `readSseWithReconnect` rethrows a 4xx other than 408 and 429; `wait()` removes its abort listener. `parseBlock` uses
+  `.pop()` instead of `.at(-1)`, so the fence no longer needs `lib` ES2022 (TEST① TS2550; the `lib` itself is typescript.md's, R1-C4).
+- AI SDK: new `src/shared/utils/read-text-stream.ts` (`readTextStream`) for `toTextStreamResponse()`; the "as in the previous section"
+  pointer to `readSse` is gone. Checklist items for auth, SSE-16, SSE-20 and the fetch reader updated, and one added for plain text.
+- Length: the Rules and Not-confirmed sections are one line per item or sub-bullet now, as route-handlers-and-apis.md and
+  routing-and-metadata.md already are; no rule or item was dropped. 786 lines (limit 800).
+
+### Harness (run under Node, before and after)
+
+Scratch folder `scratchpad/fix1-sse/`, copied to `evidence/fix1-harness/`. `extract.mjs` writes every `// src/...` fence and the json
+fence of a copy of the file to `out/<label>/`. `loader.mjs` resolves `@/` there and swaps `@/lib/dal` (the contract, using the real
+`redirect` from next@16.3.8), `@/lib/realtime`, `next/server` (an `after` recorder) and `ai` for the stubs in `stubs/`. `harness.mjs`
+runs the SSE route, the chat route, the hook (react@19.3.0 with react-test-renderer@19.3.0 and a fake `EventSource`), the readers and
+`framesToStream`, and turns a thrown redirect into a response the way Next's app-route module does (`module.js` ~486, status from
+`getRedirectStatusCodeFromError`). Node v26.0.0, `SSE_LABEL=<label> node --import ./loader.mjs harness.mjs`.
+
+Before (`git show origin/feat/nextjs-typescript-best-practices-reference:…/sse-and-streaming.md`):
+
+```text
+FAIL R1-C1 signed-out SSE GET and chat POST answer 401 (not a 307 to /login) :: GET 307 -> /login, POST 307 -> /login
+FAIL R1-C2 replayed ids precede live ids, each id once :: snapshot-before-live 101,98,99,100; snapshot-after-live 101,98,99,100,101; want 98,99,100,101
+FAIL R1-C10 a client that never reads cannot grow the queue without bound :: 4808907 bytes queued for 20000 unread events (last id 20000)
+FAIL R1-C11 unsubscribe runs inside a task registered with after() :: no after()/waitUntil task registered; unsubscribe() runs untracked
+FAIL R1-C12 switching url starts the new room fresh; same-url re-runs still resume :: room b opened with lastEventId=5 and status 'open'; same-url re-run resumed from 9
+FAIL R1-C22 a stream-error frame closes the source and reports closed :: after stream-error: source.closed=false, status 'open'
+FAIL R1-C13 401/403/400 stop the reconnect loop; 503 still retries :: 401: still retrying after 5 open(s); 403: still retrying after 5 open(s); 400: still retrying after 5 open(s); 503: still retrying after 5 opens
+FAIL R1-C14 the chat route plain-text body reaches the UI :: readSse (no plain-text reader exists) delivered ""
+FAIL R1-C20 readSse cancels the body on a non-OK status and when onMessage throws :: 500 body cancelled=false; onMessage-throws body cancelled=false
+FAIL R1-C21 an id-only block moves the resume id :: reconnected with Last-Event-ID 1 after an id-only block "id: 7"
+FAIL R1-C23 backoff waits leave no abort listeners behind :: abort listeners at each reconnect: 0,1,2,3,4,5
+FAIL R1-C24 aborting the signal passed to framesToStream closes the generator :: framesToStream takes 1 parameter(s); abort left the generator open
+FAIL R1-C3 vercel.json functions keys match the src/app route files :: keys app/api/events/**/*, app/api/chat/**/* match none of src/app/api/events/route.ts, src/app/api/chat/route.ts
+before: 0 pass, 13 fail
+```
+
+After (this branch):
+
+```text
+PASS R1-C1 signed-out SSE GET and chat POST answer 401 (not a 307 to /login) :: GET 401, POST 401
+PASS R1-C2 replayed ids precede live ids, each id once :: both orders 98,99,100,101
+PASS R1-C10 a client that never reads cannot grow the queue without bound :: 1048666 bytes queued, stream ended itself=true, last id 4374
+PASS R1-C11 unsubscribe runs inside a task registered with after() :: after() task settled once unsubscribe finished (52 ms after abort)
+PASS R1-C12 switching url starts the new room fresh; same-url re-runs still resume :: room b opened with no lastEventId, status 'connecting'; same-url re-run resumed from 9
+PASS R1-C22 a stream-error frame closes the source and reports closed :: source closed, status 'closed'
+PASS R1-C13 401/403/400 stop the reconnect loop; 503 still retries :: 401: rejected (Stream request failed: 401) after 1 open(s); 403: rejected (Stream request failed: 403) after 1 open(s); 400: rejected (Stream request failed: 400) after 1 open(s); 503: still retrying after 5 opens
+PASS R1-C14 the chat route plain-text body reaches the UI :: readTextStream delivered "Hello, world"
+PASS R1-C20 readSse cancels the body on a non-OK status and when onMessage throws :: 500 body cancelled=true; onMessage-throws body cancelled=true
+PASS R1-C21 an id-only block moves the resume id :: reconnected with 7
+PASS R1-C23 backoff waits leave no abort listeners behind :: abort listeners at each reconnect: 0,0,0,0,0,0
+PASS R1-C24 aborting the signal passed to framesToStream closes the generator :: generator finally ran on abort (framesToStream takes 2 parameters)
+PASS R1-C3 vercel.json functions keys match the src/app route files :: keys src/app/api/events/**/*, src/app/api/chat/**/* match both route files
+after: 13 pass, 0 fail
+```
+
+Strict tsc (`typecheck.mjs`: typescript.md P1 compilerOptions, so `strict` and `noUncheckedIndexedAccess`, with next@16.3.8 types,
+declaration stubs for `@/lib/dal` and `ai`, and `src/usage.ts` calling `framesToStream(tokenFrames(tokens), request.signal)`):
+
+```text
+before, TS 5.9.3, lib ES2020:  src/usage.ts(5,87): error TS2554: Expected 1 arguments, but got 2.
+before, TS 7.0.2, lib ES2020:  src/shared/utils/read-sse.ts(21,48): error TS2550: Property 'at' does not exist on type '[string, string][]'.
+                               src/usage.ts(5,87): error TS2554: Expected 1 arguments, but got 2.
+after, TS 5.9.3 and 7.0.2, lib ES2020 and lib ESNext: tsc --strict clean (all eight path fences plus usage.ts)
+```
+
+### FIX① assumptions
+
+- R1-C2 drops held live events whose id the replay already sent instead of comparing ids, because the store contract types ids as
+  opaque strings (Redis stream ids aren't decimal). A held event the replay didn't send was logged after the replay read, so it's newer.
+- R1-C10 closes a client whose unread queue passes 1 MiB rather than dropping frames, because the feed is resumable: the client
+  reconnects with `Last-Event-ID` and replays the rest. A byte-length strategy is needed, because the default `highWaterMark` of 1 would
+  close the stream after one unread frame.
+- R1-C11 uses the documented callback form, `after(() => cleanedUp)`. The callback's promise settles at release, so it holds whether
+  Next runs the callback when the handler returns or when the body finishes (Not-confirmed item 10).
+- R1-C13 treats 408 and 429 as retryable and every other 4xx as final; 5xx and network errors keep backing off.
+- R1-C12 keeps one resume id, for the latest URL. Going back to an earlier room starts from its recent history, which handling by id
+  (SSE-20) absorbs.
+- R1-C22 stops for good on `stream-error`, and the UI offers the retry, as it already does for `'closed'`.
+- R1-C14's reader is a new file because `readSse` is SSE-only; it shares `bodyReader` and `HttpStatusError` with it.
+- To stay within 800 lines, the Rules and Not-confirmed sections were reflowed to one line per item instead of dropping prose.
