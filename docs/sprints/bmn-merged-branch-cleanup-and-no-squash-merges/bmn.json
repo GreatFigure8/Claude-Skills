@@ -1,13 +1,13 @@
 {
   "run": "bmn-merged-branch-cleanup-and-no-squash-merges",
-  "phase": "merge2",
+  "phase": "review2",
   "integration": "feat/merged-branch-cleanup-and-no-squash-merges",
   "worktree": "/Users/jonathanstevenson/Source/claude-skills-merged-branch-cleanup-and-no-squash-merges",
   "live": "dev",
   "dev_base": "2aa149bc0995489235182b57d666b390df4ec5a1",
   "review_shas": {
     "review1": "4d26d44c95132483080032d84eada740f71ba6c1",
-    "review2": null
+    "review2": "190ff8e255ce08b5d9fa8a06711d83a303605f9a"
   },
   "stack": {
     "kind": "library",
@@ -24,7 +24,7 @@
       "slug": "skill-text-merged-branch-cleanup-and-merge-commits-only",
       "title": "Skill text: delete every merged branch and its worktrees, merge commits only (1.6.0)",
       "deps": [],
-      "status": "tested",
+      "status": "done",
       "branch": "wip/merged-branch-cleanup-and-no-squash-merges/skill-text-merged-branch-cleanup-and-merge-commits-only",
       "merges": [
         {
@@ -44,7 +44,7 @@
       "slug": "deploy-guard-blocks-squash-merges",
       "title": "The deploy guard blocks squash merges and PR merges that keep the source branch",
       "deps": [],
-      "status": "tested",
+      "status": "done",
       "branch": "wip/merged-branch-cleanup-and-no-squash-merges/deploy-guard-blocks-squash-merges",
       "merges": [
         {
@@ -64,7 +64,7 @@
       "slug": "merged-branch-cleanup-and-repo-merge-policy-scripts",
       "title": "Merged-branch cleanup and repo merge-policy helper scripts",
       "deps": [],
-      "status": "tested",
+      "status": "done",
       "branch": "wip/merged-branch-cleanup-and-no-squash-merges/merged-branch-cleanup-and-repo-merge-policy-scripts",
       "merges": [
         {
@@ -179,6 +179,20 @@
       "base": "784f54d1b40c5bc60bc79c299bbc66f311df0989",
       "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a0ac764f9ca167407",
       "pushed": false
+    },
+    {
+      "branch": "wip/merged-branch-cleanup-and-no-squash-merges/tests-unit-2",
+      "kind": "wip",
+      "base": "190ff8e255ce08b5d9fa8a06711d83a303605f9a",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ae9dd52350a2bb7f2",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-ae9dd52350a2bb7f2",
+      "kind": "harness",
+      "base": "190ff8e255ce08b5d9fa8a06711d83a303605f9a",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ae9dd52350a2bb7f2",
+      "pushed": false
     }
   ],
   "integration_pushed": true,
@@ -228,11 +242,15 @@
     "R1-6 (owner run) is in deploy-guard.py, so the deploy-guard fixer takes it alongside R1-5 to avoid two fixers editing one file"
   ],
   "blocker": null,
-  "updated": "2026-10-04T02:33:32.105004+00:00",
+  "updated": "2026-10-04T02:44:14.955041+00:00",
   "dev_merges": [
     {
       "phase": "merge1",
       "merge": "4d26d44c95132483080032d84eada740f71ba6c1"
+    },
+    {
+      "phase": "merge2",
+      "merge": "190ff8e255ce08b5d9fa8a06711d83a303605f9a"
     }
   ]
 }
