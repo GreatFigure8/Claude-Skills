@@ -218,3 +218,23 @@ What changed:
 4. `routed_references[]` holds `nextjs.md` only. Each reader picks the topic files per story from its Topic index.
 5. `plugin.json` is unchanged. No item needs a new version, and `test_skill_text_rules.py` (not owned here) pins `1.7.0`.
 6. The SKILL.md frontmatter description was edited for R1-A14 consistency. Its sha256 pin in `test_nextjs_wiring.py` moved with it.
+
+## TEST2 content
+
+Run 2026-10-04 on a detached worktree at `origin/dev` `7acb627` (branch `wip/nextjs-typescript-best-practices-reference/tests-content-2`). Delta only: `references/nextjs.md` between `5d7550d` (run branch at TEST1) and `7acb627`. Everything else was TEST1's.
+
+### 1. Live sources (delta)
+
+No `## Sources` URL is new or changed in this file (the URL set equals TEST1's). Result: **0 URLs to check, 0 fail**.
+
+Extended check: every URL on an added or changed line of this file, in prose and rules as well as `## Sources` (3 distinct), fetched the same way: **3 pass, 0 fail**.
+
+### 2. Snippet type-check (delta fences)
+
+No ```` ```ts ````/```` ```tsx ```` fence in this file is new or changed (every fence's text equals a TEST1 fence). Result: **0 fences, 0 fail**.
+
+### 3. Session-helper consistency (text only)
+
+No snippet in this file imports a session helper.
+
+Result: **0 fail** (nothing to check).

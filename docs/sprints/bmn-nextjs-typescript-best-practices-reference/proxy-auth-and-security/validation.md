@@ -299,3 +299,64 @@ text in the REVIEW① tables of `../review.md`). Each was reproduced first, then
    `X-Frame-Options` sent beside it, because the docs call that header superseded.
 4. Rewriting the other topics' session-helper imports (`@/lib/dal/session`, `@/lib/auth/session`,
    `@/lib/auth`) belongs to their own fixers; this file only defines the contract they align to.
+
+## TEST2 content
+
+Run 2026-10-04 on a detached worktree at `origin/dev` `7acb627` (branch `wip/nextjs-typescript-best-practices-reference/tests-content-2`). Delta only: `references/nextjs/proxy-auth-and-security.md` between `5d7550d` (run branch at TEST1) and `7acb627`. Everything else was TEST1's.
+
+### 1. Live sources (delta)
+
+No `## Sources` URL is new or changed in this file (the URL set equals TEST1's). Result: **0 URLs to check, 0 fail**.
+
+Extended check: every URL on an added or changed line of this file, in prose and rules as well as `## Sources` (3 distinct), fetched the same way: **3 pass, 0 fail**.
+
+### 2. Snippet type-check (delta fences)
+
+New or changed fences (text differs from every TEST1 fence): **13 = 9 Do/Pattern/rule + 4 Don't half**.
+
+Result: **Do/Pattern/rule: 9 pass, 0 fail.** Cross-checks with the same config: TypeScript 6.0.3 reports 0 Do-fence error(s), TypeScript 5.9.3 reports 0.
+
+#### Failures (Do/Pattern/rule fences)
+
+None.
+
+#### Pass with a declared prelude that deserves a look
+
+None.
+
+#### Prelude record (delta fences)
+
+- 6 of 9 Do/Pattern/rule fences begin with a `// path` comment and sit at that path in the virtual project; the other 3 are standalone modules under `_loose/`.
+- `export {}` appended to 0 Do/Pattern/rule fence(s).
+- Other preludes (Do/Pattern/rule fences only):
+
+| Fence | Prelude |
+| --- | --- |
+| #02 (line 285) Data Access Layer | any-typed stub module: `src/lib/prisma.ts` |
+| #04 (line 360) Server Action that authorises before it mutates | any-typed stub module: `src/lib/prisma.ts` |
+| #05 (line 391) Route Handler | any-typed stub module: `src/lib/reports.ts` |
+| #18 (line 624) Don't mutate cookies during render (SEC-10) | any-typed stub module: `src/lib/actions/auth.ts` |
+
+#### Don't half (expected to be wrong; recorded, not failed)
+
+| Fence | Outcome |
+| --- | --- |
+| #08 (line 498) Don't make Proxy the only gate (SEC-4, SEC-5) | compiles (the mistake is a runtime, security or caching rule, not a type error); prelude: import added: `NextRequest`, `NextResponse`; free names declared `any`: `prisma` |
+| #10 (line 519) Don't check auth only on the page (SEC-21) | compiles (the mistake is a runtime, security or caching rule, not a type error); prelude: free names declared `any`: `verifySession`, `prisma` |
+| #17 (line 614) Don't mutate cookies during render (SEC-10) | compiles (the mistake is a runtime, security or caching rule, not a type error); prelude: import added: `cookies`; free names declared `any`: `Profile` |
+| #19 (line 635) Don't set secrets in Proxy response headers (SEC-6) | compiles (the mistake is a runtime, security or caching rule, not a type error); prelude: import added: `NextResponse`; free names declared `any`: `request`, `token`; wrapped |
+
+### 3. Session-helper consistency (text only)
+
+| Line | Import | From | Context |
+| --- | --- | --- | --- |
+| 286 | `decrypt, type Session` | `@/lib/session` | proxy/DAL |
+| 324 | `decrypt` | `@/lib/session` | proxy/DAL |
+| 361 | `verifySession` | `@/lib/dal` | Server Action |
+| 392 | `getSession` | `@/lib/dal` | Route Handler |
+
+- `src/lib/dal.ts` (line 286) and `src/proxy.ts` (line 324) import `decrypt` (and `type Session`) from `@/lib/session`. That is the doc's cookie and crypto module (`src/lib/session.ts`, line 222), shared only by the DAL and the Proxy so that the Proxy's validity rule is the one `getSession()` uses (SEC-46); the consumer-facing contract is `@/lib/dal`, and no Route Handler, SSE route, API, page or action in any file imports `@/lib/session`. Recorded, not a failure.
+
+- The Don't-half fences at lines 511, 520 (page), 534, 547, 558, 590 and 601 call `verifySession()` with no import line (fragments); nothing there names another path.
+
+Result: **0 fail**. Each session helper is imported from `@/lib/dal` (the two `@/lib/session` imports are the contract's own internals, see above); `getSession` appears in Route Handlers and SSE/API routes, `verifySession` in Server Actions and pages.
