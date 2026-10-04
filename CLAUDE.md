@@ -26,6 +26,13 @@
    live on update, so the "land on dev/main before relying on it" caution still applies; there
    is just no `install.sh` and no manual copy into `~/.claude/agents` or `~/.claude/hooks` for
    these two.
+   **Every other skill is in the marketplace too**, one plugin per skill, so the plugin manager
+   lists them all and installs each with one click. Those entries have no `plugin.json`: the
+   marketplace entry is the manifest (`source: <skill dir>`, `strict: false`, `skills: ["./"]`,
+   plus a `category` for its type). A new skill folder needs its own entry in
+   `.claude-plugin/marketplace.json`, or it won't appear. A plugin install only loads the
+   skill; anything a skill's `assets/install.sh` does beyond the symlink (e.g. dev-story-sprint's
+   settings.json allowlist merge) still has to be run separately.
 
 ## The checkout is shared
 
