@@ -1,0 +1,3 @@
+TEST1 coverage: this story touches only Markdown and plugin.json (no Python statements to measure).
+Its criteria are asserted by Skills/dev-bother-me-nope/assets/tests/test_skill_text_rules.py (all passing under 3.13 and 3.9).
+Full suite: 338 passed on 3.13; 336 passed + 2 failed on 3.9 (the 2 failures are in test_helper_script_quality.py, not this story's tests).
