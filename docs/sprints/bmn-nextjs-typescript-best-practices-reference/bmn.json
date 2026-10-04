@@ -1,6 +1,6 @@
 {
   "run": "bmn-nextjs-typescript-best-practices-reference",
-  "phase": "test2",
+  "phase": "review2",
   "integration": "feat/nextjs-typescript-best-practices-reference",
   "worktree": "/Users/jonathanstevenson/Source/claude-skills-nextjs-typescript-best-practices-reference",
   "live": "dev",
@@ -547,6 +547,34 @@
       "base": "8188c54",
       "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ac791ecccb4c280a8",
       "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/tests-unit-2",
+      "kind": "wip",
+      "base": "7acb627423c9cde5e638f87f9ee7838b1473abdc",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ac3b3c13579213f4e",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-ac3b3c13579213f4e",
+      "kind": "harness",
+      "base": "7acb627423c9cde5e638f87f9ee7838b1473abdc",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ac3b3c13579213f4e",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/tests-content-2",
+      "kind": "wip",
+      "base": "7acb627423c9cde5e638f87f9ee7838b1473abdc",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-af540002f1b4bb63f",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-af540002f1b4bb63f",
+      "kind": "harness",
+      "base": "7acb627423c9cde5e638f87f9ee7838b1473abdc",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-af540002f1b4bb63f",
+      "pushed": false
     }
   ],
   "integration_pushed": true,
@@ -682,5 +710,5 @@
     "TEST\u2461 content surface re-checks only the fences and Sources URLs FIX\u2460 changed (Jonathan asked why the run was slow; full content check already ran at TEST\u2460)."
   ],
   "blocker": null,
-  "updated": "2026-10-04T06:50:00Z"
+  "updated": "2026-10-04T07:20:00Z"
 }
