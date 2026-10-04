@@ -97,3 +97,65 @@ CRITICAL 0 · HIGH 7 · MEDIUM 12 · LOW 13
 | R1-C31 | LOW | `performance-and-vercel.md:459` | run | WebVitals component and rule duplicated (PERF-26, TEST-32) with different endpoints; keep one owner and link. |
 | R1-C32 | LOW | `proxy-auth-and-security.md:218` | proxy-auth-and-security | Module-level SESSION_SECRET throw fires on import, so next build and E2E fail in CI when the secret isn't present at build time. |
 
+
+## REVIEW②
+
+One pass over the run branch's FIX① delta (`git diff 5d7550d 106df4a`; `origin/dev` took other runs' changes in between), split by area across three opus reviewers, `/code-review` at `high`, run in parallel with TEST② to save time. Every REVIEW① finding re-checked at `7acb627`: **66 of 66 fixed**, none still open, regressed or not reproducible.
+
+**New findings:** CRITICAL 0 · HIGH 0 · MEDIUM 8 · LOW 22 (30).
+
+TEST② input: unit 1247 passed, 0 failed; content delta 3/3 checks passed (4 new Sources URLs 200; 96 changed fences type-check under P1 tsconfig on next@16.3.8; session-helper imports consistent). TEST② note on route-handlers fences #19/#23/#25 missing `ApiErrorBody`/`redirect` imports is R2-B6.
+
+Duplicates: R2-A3 = R2-C1; R2-B8 = R2-C3. **Nothing below was fixed — it goes to Jonathan.**
+
+### Area A
+
+CRITICAL 0 · HIGH 0 · MEDIUM 3 · LOW 5
+
+| id | sev | file:line | owner | finding |
+| --- | --- | --- | --- | --- |
+| R2-A1 | MEDIUM | `test_nextjs_topic_routing_and_metadata.py:164` | app-router-routing-and-metadata | New R1-A10 test uses zip(..., strict=True) (Python 3.10+); under /usr/bin/python3 3.9 it raises TypeError (1 failed, 1246 passed). Commit 976c2f4 had already removed the same construct from this file. |
+| R2-A2 | MEDIUM | `briefs.md:68` | nextjs-standard-entry-point-and-skill-wiring | Stack-scout gates{lint,types,test} schema has no build key and no order, so next build is dropped or misfiled and {gates} never catches build-only failures (e.g. missing RT-19 default.tsx); SKILL.md:351 still orders lint before types. |
+| R2-A3 | MEDIUM | `testing-and-observability.md:70` | testing-errors-and-observability | TEST-37 (and :449, :703) still runs eslint . before typegen+tsc and allows ESLint only, against stack-routing.md:60 / NN-9 / TS-12 (types → configured linter → build). (Same as R2-C1.) |
+| R2-A4 | LOW | `SKILL.md:3` | nextjs-standard-entry-point-and-skill-wiring | Description grew to 1807 chars; the skill listing truncates ~1535, so the 'pastes a long build story' trigger is no longer visible; still says 'TDD pytest + real-browser Playwright', at odds with the TypeScript tooling. |
+| R2-A5 | LOW | `nextjs_doc_helpers.py:125` | nextjs-standard-entry-point-and-skill-wiring | uses_any_type misses '=> any', '<T = any>', 'extends any', 'keyof any' and ': any' after a string containing '/*'; wrongly flags a string like 'mode: any'. |
+| R2-A6 | LOW | `test_nextjs_topic_typescript.py:28` | run | R1-B17 switch covered only 3 topic tests; typescript, routing, performance, proxy-auth, sse and testing tests keep their own any-regex copies (none catch Record<string, any>); routing:109 and proxy-auth:111 keep their own major(). |
+| R2-A7 | LOW | `test_nextjs_topic_routing_and_metadata.py:193` | app-router-routing-and-metadata | R1-A12 guard cannot fail: ROUTER_CALL stops at the first ')', so removing both 'as Route' casts still passes 21/21; GROUP_IN_ROUTE_LITERAL ignores @slot folders and RouteContext. |
+| R2-A8 | LOW | `typescript.md:48` | typescript-config-and-typing-patterns | TS-4 says add **/*.mts only for next.config.mts, but P1 (:263) and CREATE_NEXT_APP_INCLUDE require it in every repo. |
+
+### Area B
+
+CRITICAL 0 · HIGH 0 · MEDIUM 1 · LOW 9
+
+| id | sev | file:line | owner | finding |
+| --- | --- | --- | --- | --- |
+| R2-B1 | MEDIUM | `route-handlers-and-apis.md:106` | route-handlers-and-api-design | New rejectCrossSiteRequest() rejects any Origin not exactly APP_ORIGIN, rejects a missing Origin, and rejects everything when APP_ORIGIN is unset; APP_ORIGIN is defined nowhere else (typescript.md P7 env schema, TEST-12/13 E2E config). Playwright's request fixture (TEST-15) sends no Origin, so every black-box test of the POST/DELETE/exports/revalidate examples gets 403, as do dev servers without APP_ORIGIN and Vercel preview URLs. Fix: compare against the request's own origin/host and document the env key. |
+| R2-B2 | LOW | `rendering-and-caching.md:294` | rendering-caching-and-streaming-ssr | R1-B15 move adds a second src/lib/actions/posts.ts that conflicts with DF P5: RC's createPost (title-only schema, writes db.post.create directly, skips the DAL) clashes with the DAL createPost DF imports (TS2440 if merged); NewPostState not exported from the 'use server' module (against DF-21). |
+| R2-B3 | LOW | `rendering-and-caching.md:319` | rendering-caching-and-streaming-ssr | New markNotificationRead returns Promise<void> with `if (!id.success) return`, which DF-14 now forbids; invalid id gives no feedback and the DF guard only scans its own file. |
+| R2-B4 | LOW | `route-handlers-and-apis.md:422` | route-handlers-and-api-design | Catalog cursor is an unbounded client string (z.string().min(1)) that goes into the 'use cache' key; random cursors create hours-long entries and evict real ones (use-cache-remote docs: per-request-unique keys drive utilization to ~0). |
+| R2-B5 | LOW | `route-handlers-and-apis.md:571` | run | Three separate HMAC verification implementations (rendering:333 sha256 readSignedBody, route-handlers:301 inline sha1, isValidSignature sha1); a missing secret answers 500 in Patterns but 401 invalid_signature in Do blocks; FIX① had to patch the byte-length bug in each copy separately. |
+| R2-B6 | LOW | `route-handlers-and-apis.md:643` | route-handlers-and-api-design | New Do blocks at 568, 632, 676 use `satisfies ApiErrorBody` without importing it; the 632 block is otherwise a complete module, so copied it fails TS2304 (also flagged by TEST② content as fences #19/#23/#25; #25 also misses `redirect` import). |
+| R2-B7 | LOW | `data-fetching-and-mutations.md:99` | data-fetching-server-actions-and-forms | DF-14's new sentence says a failed authorization check returns state, but the file's own Do block at :600 throws new Error('Forbidden'), as do proxy-auth:537 and :563. |
+| R2-B8 | LOW | `sse-and-streaming.md:574` | server-sent-events-and-streaming-responses | Chat POST authenticates with the cookie session but has no Origin check (API-17) and answers ad-hoc bodies instead of ApiErrorBody (API-10); SameSite=lax limits CSRF. |
+| R2-B9 | LOW | `test_nextjs_topic_data_fetching_and_mutations.py:203` | data-fetching-server-actions-and-forms | BARE_RETURN only matches a line that is just `return`; the inline `if (!x.success) return` form passes the guard. |
+| R2-B10 | LOW | `test_nextjs_topic_route_handlers_and_apis.py:75` | route-handlers-and-api-design | SIGNATURE_VERIFY_RE accepts any verify\w*( call, so verifyPayloadShape() satisfies the R1-B16 webhook guard by name alone. |
+
+### Area C
+
+CRITICAL 0 · HIGH 0 · MEDIUM 4 · LOW 8
+
+| id | sev | file:line | owner | finding |
+| --- | --- | --- | --- | --- |
+| R2-C1 | MEDIUM | `testing-and-observability.md:70` | testing-errors-and-observability | TEST-37 and its checklist (703) gate eslint . first then typegen&&tsc and name ESLint only; FIX① made stack-routing.md:60 typegen&&tsc → configured linter (eslint or biome) → build, and nextjs.md/typescript.md allow Biome. Opposite gate orders; a Biome repo gets TEST-37 cited against it. |
+| R2-C2 | MEDIUM | `testing-and-observability.md:632` | testing-errors-and-observability | Anti-pattern Do config uses Number(process.env.E2E_PORT) with no fallback, and nothing (brief, stack-routing, SKILL.md) sets E2E_PORT; a copied block runs next start -p NaN. Derived range 3100-3999 also covers 3306/3389. |
+| R2-C3 | MEDIUM | `sse-and-streaming.md:574` | server-sent-events-and-streaming-responses | Chat POST is cookie-authenticated without rejectCrossSiteRequest() (API-17), returns { error: string } not ApiErrorBody (API-10) and an empty-body 401 (API-14); a copied chat route fails review against route-handlers-and-apis.md. (Same as R2-B8.) |
+| R2-C4 | MEDIUM | `testing-and-observability.md:94` | testing-errors-and-observability | coverage.exclude omits the server-only DAL/session modules (src/lib/dal.ts, src/lib/dal/*, src/lib/session.ts), which import 'server-only' and call cookies(); they stay at 0% under include src/** and can pull the 80% floor under. |
+| R2-C5 | LOW | `sse-and-streaming.md:391` | server-sent-events-and-streaming-responses | handleMessage (useEffectEvent) reads the latest url while the old EventSource closes only in passive cleanup; a room-a message in that window is stored under room b, which then opens with room a's lastEventId. Pass the effect's url into handleMessage. |
+| R2-C6 | LOW | `sse-and-streaming.md:211` | server-sent-events-and-streaming-responses | Live events buffered during replay go into an unbounded 'held' array outside the desiredSize/1 MiB bound the prose claims; the post-subscribe isReleased guard was removed, so replaySince still reads after disconnect. |
+| R2-C7 | LOW | `sse-and-streaming.md:626` | server-sent-events-and-streaming-responses | Anti-pattern Do block's release() calls unsubscribe() unguarded (was unsubscribe?.()); an abort before subscribe resolves throws, cleanup never completes and the late subscription leaks; also drops clearTimeout(deadline). |
+| R2-C8 | LOW | `sse-and-streaming.md:294` | server-sent-events-and-streaming-responses | framesToStream adds an abort listener without checking signal.aborted first; an already-aborted signal never fires onAbort, leaking the generator/upstream LLM call when cancel() is also skipped. |
+| R2-C9 | LOW | `performance-and-vercel.md:172` | performance-and-vercel-platform | PERF-26/TEST-32 point at '/api/vitals below' but no /api/vitals Route Handler is defined; a copied reporter 404s on every page view. |
+| R2-C10 | LOW | `proxy-auth-and-security.md:44` | proxy-auth-and-security | SEC-4 says use the DAL's getSession validity function, but Proxy imports decrypt from @/lib/session; read literally it pulls @/lib/dal (Prisma, cookies()) into proxy.ts. Name decrypt. |
+| R2-C11 | LOW | `performance-and-vercel.md:648` | run | Constant-time compare written out four times (route-handlers:304, :574; performance:498, :648) with drift already (cronSecret ?? ''); no shared helper. |
+| R2-C12 | LOW | `proxy-auth-and-security.md:233` | run | Snippets read SESSION_SECRET, CRON_SECRET and APP_ORIGIN via process.env directly while TS-24 requires one src/lib/env.ts schema and SEC-14 forbids secret env reads outside the DAL; none of the three keys is in ServerEnvSchema. |
+

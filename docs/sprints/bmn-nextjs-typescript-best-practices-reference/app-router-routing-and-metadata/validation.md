@@ -306,3 +306,86 @@ then the topic was fixed and they pass.
 3. The authorization check is role-based (`role !== 'admin'`), using the `Session = { userId; role }` shape from proxy-auth-and-security.md. The Don't half carries the same auth lines, so its only flaw is the `redirect()` inside `try`.
 4. RT-12's group-free literal is backed by the docs (layout.js `LayoutProps<'/dashboard'>`; route groups are "not included in the route's URL path") plus the typegen check. No page states it in one sentence, so the typegen output is recorded as evidence and not cited as a source.
 5. The intercepting-route page (`@modal/(.)photos/[id]/page.tsx`) keeps its hand-typed `params`. No finding named it, and the docs do not show which `PageProps` literal an intercepted route takes.
+
+## TEST2: unit (2026-10-04)
+
+Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-2`, cut from the detached run base `origin/dev` `7acb627` (the run branch after the FIX① merges). Tester: `tests-unit-2`. No code was changed; verification pass after FIX①.
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Full suite with coverage | `uv run --quiet --with pytest --with pytest-cov python -m pytest Skills/dev-bother-me-nope/assets/tests -q --cov=Skills/dev-bother-me-nope/assets/tests --cov-report=term` | **1247 passed in 199.90s (0:03:19)**, exit 0, 0 failed, 0 skipped. Log: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring/evidence/test2-unit-full-suite.txt` |
+| Per-test outcomes | same suite with `-v -p no:cacheprovider` | 1247 PASSED, 0 other (117.86s). Per-story lists: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/app-router-routing-and-metadata/evidence/test2-unit-results.txt` |
+| Lint | `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope` | `All checks passed!` |
+
+### Coverage
+
+- `test_nextjs_topic_routing_and_metadata.py`: **100%** (126 of 126 statements).
+- `references/nextjs/routing-and-metadata.md`: Markdown, coverage n/a.
+- Whole suite: **99%** (4605 of 4642 statements). Target 80% met; `nextjs_doc_helpers.py` is the shared parser every story's tests use.
+
+### FIX① tests
+
+- **5 of 5** test names this story's FIX① section lists exist and PASS (none missing, none failing).
+
+### [unit] criteria still map to passing tests
+
+- TEST1 criterion map: 10 PASS, 0 FAIL. Re-checked now: **13 of 13** tests it cites exist and PASS. Every criterion still maps to at least one passing test; the one-off criteria (grounding evidence, scope) are unchanged and not re-run here.
+
+**Result:** 5 FIX① tests PASS, 10 criteria PASS, 0 FAIL.
+
+## TEST2 content
+
+Run 2026-10-04 on a detached worktree at `origin/dev` `7acb627` (branch `wip/nextjs-typescript-best-practices-reference/tests-content-2`). Delta only: `references/nextjs/routing-and-metadata.md` between `5d7550d` (run branch at TEST1) and `7acb627`. Everything else was TEST1's.
+
+### 1. Live sources (delta)
+
+Command per URL (8 in parallel): `curl -sL -A <UA> --max-time 20 --max-redirs 10 -o /dev/null -w "%{http_code}|%{url_effective}|%{num_redirects}" <url>`. Pass = HTTP 2xx and the final URL is the requested page.
+
+| URL | HTTP | Redirects | Result |
+| --- | --- | --- | --- |
+| https://nextjs.org/docs/llms.txt | 200 | 0 | pass |
+
+Result: **1 new URL(s), 1 pass, 0 fail**.
+
+Extended check: every URL on an added or changed line of this file, in prose and rules as well as `## Sources` (8 distinct, leaving out 3 example hostname(s) that appear only inside code samples), fetched the same way: **8 pass, 0 fail**.
+
+### 2. Snippet type-check (delta fences)
+
+New or changed fences (text differs from every TEST1 fence): **9 = 6 Do/Pattern/rule + 3 Don't half**.
+
+Result: **Do/Pattern/rule: 6 pass, 0 fail.** Cross-checks with the same config: TypeScript 6.0.3 reports 0 Do-fence error(s), TypeScript 5.9.3 reports 0.
+
+#### Failures (Do/Pattern/rule fences)
+
+None.
+
+#### Pass with a declared prelude that deserves a look
+
+None.
+
+#### Prelude record (delta fences)
+
+- 4 of 6 Do/Pattern/rule fences begin with a `// path` comment and sit at that path in the virtual project; the other 2 are standalone modules under `_loose/`.
+- `export {}` appended to 0 Do/Pattern/rule fence(s).
+- Other preludes (Do/Pattern/rule fences only):
+
+| Fence | Prelude |
+| --- | --- |
+| #18 (line 468) Don't call redirect() inside try (RT-31) | any-typed stub module: `src/lib/dal.ts`, `src/features/projects/services/projects.ts` |
+
+#### Don't half (expected to be wrong; recorded, not failed)
+
+| Fence | Outcome |
+| --- | --- |
+| #17 (line 447) Don't call redirect() inside try (RT-31) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #21 (line 519) Don't hand-write head tags in the root layout (RT-4, RT-37) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #23 (line 552) Don't push an unvalidated URL (RT-22) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+
+### 3. Session-helper consistency (text only)
+
+| Line | Import | From | Context |
+| --- | --- | --- | --- |
+| 448 | `verifySession` | `@/lib/dal` | Server Action |
+| 469 | `verifySession` | `@/lib/dal` | Server Action |
+
+Result: **0 fail**. Each session helper is imported from `@/lib/dal`; `getSession` appears in Route Handlers and SSE/API routes, `verifySession` in Server Actions and pages.

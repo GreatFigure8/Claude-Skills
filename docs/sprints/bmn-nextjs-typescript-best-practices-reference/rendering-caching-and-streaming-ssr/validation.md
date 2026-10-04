@@ -273,3 +273,83 @@ Gates (2026-10-04, after the fix):
 - The webhook signs with HMAC-SHA256 in an `x-signature` header as a generic provider; route-handlers-and-apis.md's Vercel webhook uses Vercel's documented SHA-1 header, and the prose says to use the provider's own scheme there.
 - `createPost` uses the `(prevState, formData)` signature for `useActionState`, matching data-fetching-and-mutations.md; `markNotificationRead` also validates its id with `z.uuid()` and scopes the write to the caller, the same pattern as DF's `toggleLikeAction`.
 - The foreign rule ids (API-8, API-10, API-32) are not cited in prose because `test_topic_cites_only_its_own_rule_ids` forbids it; the prose links route-handlers-and-apis.md instead.
+
+## TEST2: unit (2026-10-04)
+
+Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-2`, cut from the detached run base `origin/dev` `7acb627` (the run branch after the FIX① merges). Tester: `tests-unit-2`. No code was changed; verification pass after FIX①.
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Full suite with coverage | `uv run --quiet --with pytest --with pytest-cov python -m pytest Skills/dev-bother-me-nope/assets/tests -q --cov=Skills/dev-bother-me-nope/assets/tests --cov-report=term` | **1247 passed in 199.90s (0:03:19)**, exit 0, 0 failed, 0 skipped. Log: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring/evidence/test2-unit-full-suite.txt` |
+| Per-test outcomes | same suite with `-v -p no:cacheprovider` | 1247 PASSED, 0 other (117.86s). Per-story lists: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/rendering-caching-and-streaming-ssr/evidence/test2-unit-results.txt` |
+| Lint | `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope` | `All checks passed!` |
+
+### Coverage
+
+- `test_nextjs_topic_rendering_and_caching.py`: **100%** (246 of 246 statements).
+- `references/nextjs/rendering-and-caching.md`: Markdown, coverage n/a.
+- Whole suite: **99%** (4605 of 4642 statements). Target 80% met; `nextjs_doc_helpers.py` is the shared parser every story's tests use.
+
+### FIX① tests
+
+- **15 of 15** test names this story's FIX① section lists exist and PASS (none missing, none failing).
+
+### [unit] criteria still map to passing tests
+
+- TEST1 criterion map: 10 PASS, 0 FAIL. Re-checked now: **21 of 21** tests it cites exist and PASS. Every criterion still maps to at least one passing test; the one-off criteria (grounding evidence, scope) are unchanged and not re-run here.
+
+**Result:** 15 FIX① tests PASS, 10 criteria PASS, 0 FAIL.
+
+## TEST2 content
+
+Run 2026-10-04 on a detached worktree at `origin/dev` `7acb627` (branch `wip/nextjs-typescript-best-practices-reference/tests-content-2`). Delta only: `references/nextjs/rendering-and-caching.md` between `5d7550d` (run branch at TEST1) and `7acb627`. Everything else was TEST1's.
+
+### 1. Live sources (delta)
+
+No `## Sources` URL is new or changed in this file (the URL set equals TEST1's). Result: **0 URLs to check, 0 fail**.
+
+Extended check: every URL on an added or changed line of this file, in prose and rules as well as `## Sources` (12 distinct), fetched the same way: **12 pass, 0 fail**.
+
+### 2. Snippet type-check (delta fences)
+
+New or changed fences (text differs from every TEST1 fence): **15 = 15 Do/Pattern/rule + 0 Don't half**.
+
+Result: **Do/Pattern/rule: 15 pass, 0 fail.** Cross-checks with the same config: TypeScript 6.0.3 reports 0 Do-fence error(s), TypeScript 5.9.3 reports 0.
+
+#### Failures (Do/Pattern/rule fences)
+
+None.
+
+#### Pass with a declared prelude that deserves a look
+
+- #22 (line 528) uses the app placeholders `List` and `getRecommendations`; #28 (line 637) uses `postExists` and `PostContent`. Both are Do halves of an Anti-patterns entry and these names are illustrative. Declared `any`, not counted as failures.
+
+#### Prelude record (delta fences)
+
+- 11 of 15 Do/Pattern/rule fences begin with a `// path` comment and sit at that path in the virtual project; the other 4 are standalone modules under `_loose/`.
+- `export {}` appended to 0 Do/Pattern/rule fence(s).
+- Other preludes (Do/Pattern/rule fences only):
+
+| Fence | Prelude |
+| --- | --- |
+| #02 (line 107) Cache data with a lifetime and a tag | any-typed stub module: `src/lib/db.ts` |
+| #04 (line 168) Push dynamic access down to widen the static shell | any-typed stub module: `src/app/shop/[slug]/sidebar.ts` |
+| #07 (line 237) Server and Client composition | any-typed stub module: `src/app/ui/cart.ts` |
+| #10 (line 293) Invalidate after a write | any-typed stub module: `src/lib/db.ts`, `src/lib/dal.ts` |
+| #12 (line 341) Invalidate after a write | any-typed stub module: `src/lib/api/errors.ts` |
+| #13 (line 374) Return a real 404 before streaming starts (previous model) | any-typed stub module: `src/app/post/[slug]/post-content.ts`, `src/lib/posts.ts` |
+| #22 (line 528) Don't read `cookies()` inside `'use cache'` (RC-23) | free names declared `any`: `List`, `getRecommendations` |
+| #26 (line 598) Don't call `updateTag` or a one-argument `revalidateTag` in a Route Handler (RC-32, RC-33) | any-typed stub module: `src/lib/api/errors.ts` |
+| #28 (line 637) Don't decide "not found" after streaming started (RC-40) | free names declared `any`: `postExists`, `PostContent` |
+
+#### Don't half (expected to be wrong; recorded, not failed)
+
+No Don't-half fence is new or changed in this file.
+
+### 3. Session-helper consistency (text only)
+
+| Line | Import | From | Context |
+| --- | --- | --- | --- |
+| 294 | `verifySession` | `@/lib/dal` | Server Action |
+
+Result: **0 fail**. Each session helper is imported from `@/lib/dal`; `getSession` appears in Route Handlers and SSE/API routes, `verifySession` in Server Actions and pages.

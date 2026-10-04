@@ -307,3 +307,88 @@ Scratch project `/private/tmp/claude-501/-Users-jonathanstevenson-Source-claude-
 6. **`.bind(` with `useActionState` is not in the docs together.** Recorded under "Not confirmed by the docs" (P7). It type-checks and builds; no page confirms or denies progressive enhancement for the combination.
 7. **Line budget.** To stay under 800 lines two items were cut and re-verified against the contract tests: P3's `item.tsx` fence merged into `page.tsx` (the helper stays next to the component it serves, as DF-7 asks), and the "Don't call `revalidateTag` with one argument" anti-pattern removed (DF-16 and the Version notes carry the same claim, and the compiler reports it). Eight anti-patterns became seven; the floor is three.
 8. **`PageProps` helper.** The three rewritten page signatures use the global `PageProps<'/route'>` helper (NN-7) instead of hand-typed `{ params: Promise<...> }`.
+
+## TEST2: unit (2026-10-04)
+
+Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-2`, cut from the detached run base `origin/dev` `7acb627` (the run branch after the FIX① merges). Tester: `tests-unit-2`. No code was changed; verification pass after FIX①.
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Full suite with coverage | `uv run --quiet --with pytest --with pytest-cov python -m pytest Skills/dev-bother-me-nope/assets/tests -q --cov=Skills/dev-bother-me-nope/assets/tests --cov-report=term` | **1247 passed in 199.90s (0:03:19)**, exit 0, 0 failed, 0 skipped. Log: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring/evidence/test2-unit-full-suite.txt` |
+| Per-test outcomes | same suite with `-v -p no:cacheprovider` | 1247 PASSED, 0 other (117.86s). Per-story lists: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/data-fetching-server-actions-and-forms/evidence/test2-unit-results.txt` |
+| Lint | `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope` | `All checks passed!` |
+
+### Coverage
+
+- `test_nextjs_topic_data_fetching_and_mutations.py`: **100%** (166 of 166 statements).
+- `references/nextjs/data-fetching-and-mutations.md`: Markdown, coverage n/a.
+- Whole suite: **99%** (4605 of 4642 statements). Target 80% met; `nextjs_doc_helpers.py` is the shared parser every story's tests use.
+
+### FIX① tests
+
+- **12 of 12** test names this story's FIX① section lists exist and PASS (none missing, none failing).
+
+### [unit] criteria still map to passing tests
+
+- TEST1 criterion map: 10 PASS, 0 FAIL. Re-checked now: **15 of 15** tests it cites exist and PASS. Every criterion still maps to at least one passing test; the one-off criteria (grounding evidence, scope) are unchanged and not re-run here.
+
+**Result:** 12 FIX① tests PASS, 10 criteria PASS, 0 FAIL.
+
+## TEST2 content
+
+Run 2026-10-04 on a detached worktree at `origin/dev` `7acb627` (branch `wip/nextjs-typescript-best-practices-reference/tests-content-2`). Delta only: `references/nextjs/data-fetching-and-mutations.md` between `5d7550d` (run branch at TEST1) and `7acb627`. Everything else was TEST1's.
+
+### 1. Live sources (delta)
+
+No `## Sources` URL is new or changed in this file (the URL set equals TEST1's). Result: **0 URLs to check, 0 fail**.
+
+Extended check: every URL on an added or changed line of this file, in prose and rules as well as `## Sources` (14 distinct), fetched the same way: **14 pass, 0 fail**.
+
+### 2. Snippet type-check (delta fences)
+
+New or changed fences (text differs from every TEST1 fence): **14 = 14 Do/Pattern/rule + 0 Don't half**.
+
+Result: **Do/Pattern/rule: 14 pass, 0 fail.** Cross-checks with the same config: TypeScript 6.0.3 reports 0 Do-fence error(s), TypeScript 5.9.3 reports 0.
+
+#### Failures (Do/Pattern/rule fences)
+
+None.
+
+#### Pass with a declared prelude that deserves a look
+
+None.
+
+#### Prelude record (delta fences)
+
+- 14 of 14 Do/Pattern/rule fences begin with a `// path` comment and sit at that path in the virtual project; the other 0 are standalone modules under `_loose/`.
+- `export {}` appended to 0 Do/Pattern/rule fence(s).
+- Other preludes (Do/Pattern/rule fences only):
+
+| Fence | Prelude |
+| --- | --- |
+| #01 (line 193) P1 Parallel fetching with `params` awaited inside `<Suspense>` (DF-4, DF-5; both models) | any-typed stub module: `src/lib/dal/artists.ts`, `src/app/artist/[username]/albums.ts` |
+| #02 (line 226) P2 Request-scoped deduplication with React `cache` in the DAL (DF-2, DF-6; both models) | any-typed stub module: `src/lib/db.ts`, `src/lib/dto.ts` |
+| #03 (line 245) P3 Preload before blocking work (DF-7; previous model) | any-typed stub module: `src/lib/dal/items.ts` |
+| #04 (line 269) P4 Stream a promise to a Client Component with `use(` (DF-8; both models) | any-typed stub module: `src/lib/dal/comments.ts` |
+| #05 (line 287) P4 Stream a promise to a Client Component with `use(` (DF-8; both models) | any-typed stub module: `src/lib/dto.ts` |
+| #07 (line 323) P5 Validate `FormData`, return typed state, invalidate, then redirect (DF-12 to DF-17, DF-21; both models) | any-typed stub module: `src/lib/dal.ts`, `src/lib/dal/posts.ts` |
+| #11 (line 426) P7 Extra arguments with `.bind(` and typed failure state (DF-13, DF-14, DF-19; both models) | any-typed stub module: `src/lib/dal.ts` |
+| #13 (line 487) P8 Optimistic toggle from an event handler (DF-14, DF-16, DF-22, DF-23; both models) | any-typed stub module: `src/lib/dal.ts`, `src/lib/dal/likes.ts` |
+| #14 (line 510) P9 Post-response work with `after(` in a Server Action (DF-15, DF-25; both models) | any-typed stub module: `src/lib/dal.ts`, `src/lib/dal/posts.ts`, `src/lib/audit.ts` |
+
+#### Don't half (expected to be wrong; recorded, not failed)
+
+No Don't-half fence is new or changed in this file.
+
+### 3. Session-helper consistency (text only)
+
+| Line | Import | From | Context |
+| --- | --- | --- | --- |
+| 324 | `verifySession` | `@/lib/dal` | Server Action |
+| 427 | `verifySession` | `@/lib/dal` | Server Action |
+| 488 | `verifySession` | `@/lib/dal` | Server Action |
+| 511 | `verifySession` | `@/lib/dal` | Server Action |
+
+- Prose rule DF-12 says to call `verifySession()` from `@/lib/dal` "(or `auth()`)": text only, no snippet imports `auth`. Recorded, not a failure. Fragments at lines 582 and 595 (Don't check the session only in the page) call `verifySession()` with no import line.
+
+Result: **0 fail**. Each session helper is imported from `@/lib/dal`; `getSession` appears in Route Handlers and SSE/API routes, `verifySession` in Server Actions and pages.

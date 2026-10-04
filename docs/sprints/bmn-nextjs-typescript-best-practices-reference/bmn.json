@@ -1,13 +1,13 @@
 {
   "run": "bmn-nextjs-typescript-best-practices-reference",
-  "phase": "merge2",
+  "phase": "report",
   "integration": "feat/nextjs-typescript-best-practices-reference",
   "worktree": "/Users/jonathanstevenson/Source/claude-skills-nextjs-typescript-best-practices-reference",
   "live": "dev",
   "dev_base": "d8b709f914fbbd40e0c7f77a2a4549114ec6e20f",
   "review_shas": {
     "review1": "59279a32e2a701a243f433e9e48ce3846d84821d",
-    "review2": null
+    "review2": "7acb627423c9cde5e638f87f9ee7838b1473abdc"
   },
   "stack": {
     "kind": "library",
@@ -24,7 +24,7 @@
       "slug": "nextjs-standard-entry-point-and-skill-wiring",
       "title": "Entry point, index and bmn wiring",
       "deps": [],
-      "status": "tested",
+      "status": "done",
       "branch": "wip/nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring",
       "merges": [
         {
@@ -46,7 +46,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "tested",
+      "status": "done",
       "branch": "wip/nextjs-typescript-best-practices-reference/typescript-config-and-typing-patterns",
       "merges": [
         {
@@ -68,7 +68,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "tested",
+      "status": "done",
       "branch": "wip/nextjs-typescript-best-practices-reference/app-router-routing-and-metadata",
       "merges": [
         {
@@ -90,7 +90,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "tested",
+      "status": "done",
       "branch": "wip/nextjs-typescript-best-practices-reference/rendering-caching-and-streaming-ssr",
       "merges": [
         {
@@ -112,7 +112,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "tested",
+      "status": "done",
       "branch": "wip/nextjs-typescript-best-practices-reference/data-fetching-server-actions-and-forms",
       "merges": [
         {
@@ -134,7 +134,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "tested",
+      "status": "done",
       "branch": "wip/nextjs-typescript-best-practices-reference/route-handlers-and-api-design",
       "merges": [
         {
@@ -156,7 +156,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "tested",
+      "status": "done",
       "branch": "wip/nextjs-typescript-best-practices-reference/server-sent-events-and-streaming-responses",
       "merges": [
         {
@@ -178,7 +178,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "tested",
+      "status": "done",
       "branch": "wip/nextjs-typescript-best-practices-reference/proxy-auth-and-security",
       "merges": [
         {
@@ -200,7 +200,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "tested",
+      "status": "done",
       "branch": "wip/nextjs-typescript-best-practices-reference/performance-and-vercel-platform",
       "merges": [
         {
@@ -222,7 +222,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "tested",
+      "status": "done",
       "branch": "wip/nextjs-typescript-best-practices-reference/testing-errors-and-observability",
       "merges": [
         {
@@ -547,6 +547,34 @@
       "base": "8188c54",
       "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ac791ecccb4c280a8",
       "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/tests-unit-2",
+      "kind": "wip",
+      "base": "7acb627423c9cde5e638f87f9ee7838b1473abdc",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ac3b3c13579213f4e",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-ac3b3c13579213f4e",
+      "kind": "harness",
+      "base": "7acb627423c9cde5e638f87f9ee7838b1473abdc",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ac3b3c13579213f4e",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/tests-content-2",
+      "kind": "wip",
+      "base": "7acb627423c9cde5e638f87f9ee7838b1473abdc",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-af540002f1b4bb63f",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-af540002f1b4bb63f",
+      "kind": "harness",
+      "base": "7acb627423c9cde5e638f87f9ee7838b1473abdc",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-af540002f1b4bb63f",
+      "pushed": false
     }
   ],
   "integration_pushed": true,
@@ -639,7 +667,15 @@
       "worktree:/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a98f4acd9d1427406",
       "local:wip/nextjs-typescript-best-practices-reference/testing-errors-and-observability-fix",
       "origin:wip/nextjs-typescript-best-practices-reference/testing-errors-and-observability-fix",
-      "local:worktree-agent-a98f4acd9d1427406"
+      "local:worktree-agent-a98f4acd9d1427406",
+      "worktree:/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ac3b3c13579213f4e",
+      "local:wip/nextjs-typescript-best-practices-reference/tests-unit-2",
+      "origin:wip/nextjs-typescript-best-practices-reference/tests-unit-2",
+      "worktree:/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-af540002f1b4bb63f",
+      "local:wip/nextjs-typescript-best-practices-reference/tests-content-2",
+      "origin:wip/nextjs-typescript-best-practices-reference/tests-content-2",
+      "local:worktree-agent-ac3b3c13579213f4e",
+      "local:worktree-agent-af540002f1b4bb63f"
     ],
     "left": []
   },
@@ -677,8 +713,10 @@
     "REVIEW\u2460 diffed the run's own merge into dev (59279a3^1..59279a3) instead of dev_base...review1, because dev also took another run's changes after dev_base.",
     "FIX\u2460 ownership by file: 'run' findings are routed to the story owning the file they sit in (R1-A5, R1-C6 \u2192 entry-point story; R1-B17 helper dedupe \u2192 entry-point story; R1-C31 WebVitals \u2192 performance owns, testing links). The cross-topic session-helper finding (R1-B15/R1-C9) is fixed by every topic fixer against one decided contract: src/lib/dal.ts ('server-only') exports getSession(): Promise<Session|null> (no redirect; Route Handlers, SSE, APIs) and verifySession(): Promise<Session> (redirects to /login; pages, layouts, Server Actions); imports use @/lib/dal; snippets use the canonical src/ layout and src/lib/actions/ for Server Actions.",
     "Lint decision for R1-A5: new projects use ESLint with eslint-config-next (TS-12); a repo that already uses Biome keeps it; the gate runs the repo's configured linter (eslint . or biome check .).",
-    "FIX\u2460 entry-point fixer ordered the TS gate types \u2192 lint \u2192 build; testing-and-observability.md TEST-37 may still list lint first (left for REVIEW\u2461)."
+    "FIX\u2460 entry-point fixer ordered the TS gate types \u2192 lint \u2192 build; testing-and-observability.md TEST-37 may still list lint first (left for REVIEW\u2461).",
+    "REVIEW\u2461 diffs the run branch's own FIX\u2460 delta (5d7550d..106df4a, i.e. run branch at MERGE\u2460\u2192 run branch before MERGE\u2461) because origin/dev took other runs' changes in between.",
+    "TEST\u2461 content surface re-checks only the fences and Sources URLs FIX\u2460 changed (Jonathan asked why the run was slow; full content check already ran at TEST\u2460)."
   ],
   "blocker": null,
-  "updated": "2026-10-04T06:40:00Z"
+  "updated": "2026-10-04T08:00:00Z"
 }
