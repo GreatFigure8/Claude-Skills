@@ -99,3 +99,64 @@ Gates:
   - `strip_remote` was dropped, because `short_branch` now always gets full refs.
   - The fetch was inlined into `survey`.
 - **R1-4.** When `sys.stdlib_module_names` is missing, the stdlib check falls back to `sys.builtin_module_names` plus the modules `pkgutil` finds in the interpreter's `stdlib`, `platstdlib` and `lib-dynload` dirs.
+
+## TEST2 (unit/integration, after FIX①) — base `origin/dev` 190ff8e
+
+Surface: unit/integration (no browser/api/mcp surface in this run). Branch `wip/merged-branch-cleanup-and-no-squash-merges/tests-unit-2`.
+
+Commands:
+- `uv run --quiet --with pytest --with coverage python -m coverage run --rcfile=<scratch> -m pytest Skills/dev-bother-me-nope/assets/tests -q` (`patch = subprocess`): **476 passed** in 107.5 s (Python 3.13.13).
+- `uv run --quiet --python /usr/bin/python3 --with pytest python -m pytest Skills/dev-bother-me-nope/assets/tests -q`: **476 passed** in 112.3 s (Python 3.9.6). The two TEST1 failures (`test_script_imports_stdlib_only`, AC 21) now pass.
+- `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope`: All checks passed.
+- End-to-end smoke in a tmp dir (`evidence/test2-integration-smoke.txt`, **14 of 14** checks), scripts run under `/usr/bin/python3` 3.9.6: bare `origin.git` + clone (`dev` default, `origin/HEAD` set), branch `feat/run` with two worktrees (one clean, one dirty with an untracked file) merged `--no-ff` into `dev` and pushed; `feat/envkeep` merged, its clean worktree holds an ignored `.env` plus an ignored `node_modules/`; `feat/cacheonly` merged, its worktree holds only an ignored `__pycache__/`; `feat/unmerged` pushed, with a worktree, not merged.
+  - `--dry-run` on `feat/run`: exit 0, `dry_run: true`, plan lists the clean worktree and the origin copy, nothing changed (refs, origin refs and worktree list identical before and after).
+  - `feat/unmerged`: exit 0, `deleted: []`, worktree, local branch and origin copy each in `left` with "not merged into origin/dev"; all three still exist.
+  - `feat/run`: clean worktree removed; dirty worktree left byte-identical with "uncommitted or ignored files ... never forced"; local branch left ("checked out in worktree ..."); merged origin copy deleted.
+  - `feat/envkeep` (the R1-1 case): worktree **kept**, `.env` intact, reason names `!! .env`; local branch kept; merged origin copy deleted.
+  - `feat/cacheonly`: only caches ignored, so the worktree is removed, the local and origin branches deleted, `left: []`.
+  - `--target` as a full SHA, `feat/unmerged~0`, `origin/dev~0` and `origin/dev^{commit}`: each exit 2, `{"error": "--target ... must name a branch or tag, not a commit"}`, nothing changed (R1-2).
+  - `--branch dev`: exit 2, "branch 'dev' is protected and is never deleted".
+
+Evidence and coverage: `evidence/test2-coverage.txt`, `evidence/test2-integration-smoke.txt`. `merged-branch-cleanup.py` **94%** (247 stmts, 15 missed; 397 lines), `repo-merge-policy.py` **94%** (188 stmts, 11 missed; 298 lines). Target 80%: met. The policy figure needs a measurement-only env injection (see the coverage file); the repo's tests are unchanged.
+
+| AC | Test | TEST2 |
+| --- | --- | --- |
+| 1 merged branch in two worktrees | `test_merged_branch_in_two_worktrees_removes_both_and_deletes_local_and_origin`, `test_deleting_local_branch_drops_its_config_section` | PASS |
+| 2 dirty worktree never forced | `test_dirty_worktree_is_left_byte_identical_and_never_forced`; smoke `feat/run` | PASS |
+| 3 locked worktree | `test_locked_worktree_is_left_locked_with_lock_reason` | PASS |
+| 4 unmerged branch | `test_unmerged_branch_deletes_nothing`; smoke `feat/unmerged` | PASS |
+| 5 origin ahead of target | `test_origin_ahead_of_target_keeps_origin_copy_only`, `test_origin_copy_moved_after_check_is_not_deleted` | PASS |
+| 6 main checkout | `test_main_checkout_is_never_removed_or_switched` | PASS |
+| 7 remote-only branch | `test_remote_only_branch_deletes_origin_copy` | PASS |
+| 8 stale worktree | `test_stale_entry_holding_the_branch_is_removed_and_other_stale_entries_kept` (replaces `test_stale_worktree_entry_is_pruned_before_scan`, R1-8) | PASS |
+| 9 dry run | `test_dry_run_lists_plan_and_changes_no_refs_or_worktrees`; smoke dry-run | PASS |
+| 10 fetch / --no-fetch | `test_fetches_with_prune_by_default`, `test_no_fetch_runs_no_fetch` | PASS |
+| 11 refusals | `test_refuses_*` incl. `test_refuses_target_that_is_a_commit_expression_not_a_ref[...]`, `test_refuses_default_branch_when_origin_head_is_not_set_locally`, `test_refuses_when_the_default_branch_cannot_be_determined`; smoke `--branch dev` and four commit-shaped `--target`s | PASS |
+| 12 safe execution | `test_subprocess_calls_are_argument_lists_without_shell`, `test_every_git_call_is_dash_c_and_never_switches_branches`, `test_plan_keeps_local_branch_while_any_worktree_holds_it`, `test_parse_worktree_porcelain_reads_locked_prunable_detached_entries` | PASS |
+| 13 changes needed: one typed PATCH + read-back | `test_changes_needed_sends_one_typed_patch_and_confirms` | PASS |
+| 14 already compliant | `test_already_compliant_sends_no_patch`, `test_already_compliant_takes_precedence_over_missing_admin` | PASS |
+| 15 merge commits kept possible | `test_merge_commits_turned_on_in_same_patch_rebase_never_sent` | PASS |
+| 16 no admin rights | `test_no_admin_rights_skips_without_patch` | PASS |
+| 17 no usable gh | `test_gh_missing_from_path_skips`, `test_gh_not_authenticated_skips`, `test_no_github_remote_skips`, `test_skip_reasons_are_distinct` | PASS |
+| 18 rejected / not applied | `test_rejected_patch_fails_with_first_error_line`, `test_read_back_with_old_values_fails`, `test_failure_reason_never_contains_token_or_auth_header` | PASS |
+| 19 policy dry run | `test_dry_run_plans_changes_without_patch` | PASS |
+| 20 repo resolution + validation | `test_malformed_repo_argument_exits_2`, `test_repo_path_that_is_not_a_directory_exits_2`, `test_repo_name_comes_from_gh_repo_view_in_repo_path`, `test_invalid_repo_view_output_skips`, `test_invalid_api_json_skips_without_traceback`, `test_failed_first_read_is_skipped_not_failed` | PASS |
+| 21 quality gates | ruff clean; 397 and 298 lines (<400); `test_script_imports_stdlib_only` and the other quality tests pass on 3.13 **and 3.9** | PASS (TEST1 FAIL on 3.9 cleared by R1-4) |
+
+FIX① items, re-checked at TEST2:
+
+| Id | Check | TEST2 |
+| --- | --- | --- |
+| R1-1 ignored `.env` keeps the worktree | smoke `feat/envkeep` (worktree + `.env` kept, branch kept); `test_worktree_holding_an_ignored_file_is_kept_with_the_file`, `test_worktree_whose_only_ignored_files_are_caches_is_removed`; smoke `feat/cacheonly` removed | PASS |
+| R1-2 `--target` must be a ref | smoke SHA, `branch~0`, `origin/dev~0`, `origin/dev^{commit}` all refused (exit 2) | PASS |
+| R1-3 rebase / bisect keep the local branch | `test_branch_being_rebased_or_bisected_keeps_local_branch[...]` | PASS |
+| R1-4 stdlib check on 3.9 | full suite 476 passed on `/usr/bin/python3` 3.9.6 | PASS |
+| R1-8 only this branch's stale entry | `test_stale_entry_holding_the_branch_is_removed_and_other_stale_entries_kept` | PASS |
+| R1-9 default branch undetermined | `test_refuses_default_branch_when_origin_head_is_not_set_locally`, `test_refuses_when_the_default_branch_cannot_be_determined` | PASS |
+
+Result: 21 PASS, 0 FAIL.
+
+### TEST2 Assumptions
+
+- The smoke's ignored-file cases use the clone's shared `.git/info/exclude` (as the unit tests do) instead of committed `.gitignore` files, so the three branches merge without conflicts. A first run of the smoke reported one FAIL that was a setup defect (an untracked, not ignored, `node_modules/` named in the reason instead of `.env`); it was fixed and rerun, 14 of 14 pass.
+- The 3.9 run is pass/fail only; coverage comes from 3.13.

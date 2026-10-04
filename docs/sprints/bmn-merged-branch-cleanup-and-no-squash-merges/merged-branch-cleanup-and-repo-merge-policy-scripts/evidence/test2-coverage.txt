@@ -1,0 +1,14 @@
+TEST2 (after FIX1), base origin/dev 190ff8e. Subprocess coverage: coverage 7.16.2, patch=subprocess, include=assets/bin/*.py (python 3.13.13).
+Full suite on uv default Python 3.13.13: 476 passed in 107.51s.
+Full suite on /usr/bin/python3 3.9.6 (uv run --python /usr/bin/python3 --with pytest): 476 passed in 112.32s (the two TEST1 3.9 failures, test_script_imports_stdlib_only, now pass).
+ruff check Skills/dev-bother-me-nope: All checks passed.
+
+Name                                                            Stmts   Miss  Cover   Missing
+Skills/dev-bother-me-nope/assets/bin/merged-branch-cleanup.py     247     15    94%   84, 109-112, 207, 221, 237, 246-247, 256, 259, 312, 369-370
+Skills/dev-bother-me-nope/assets/bin/repo-merge-policy.py         188     11    94%   81, 160, 170-173, 244, 247-248, 277-278
+
+Measurement note: test_repo_merge_policy.py runs the script with an explicit minimal env (PATH plus the fake gh vars), so
+the subprocess hook never saw COVERAGE_PROCESS_START in the full run. The policy figure comes from re-running that file
+(38 passed) with a measurement-only pytest plugin that adds COVERAGE_PROCESS_START to that env, then `coverage combine
+--append`. The repo's tests were not changed.
+merged-branch-cleanup.py is 397 lines, repo-merge-policy.py 298 lines. Target 80%: met for both.
