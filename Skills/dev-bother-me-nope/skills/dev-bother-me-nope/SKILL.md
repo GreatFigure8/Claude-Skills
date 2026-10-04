@@ -220,7 +220,8 @@ hasn't committed. A run from before 1.5.0 maps its old phase first: `review1` �
 
 **Leftover sweep:** a `done` or `blocked` run whose `cleanup.left` names its run
 branch, and that branch is now in `origin/dev` (Jonathan merged it), gets CLEANUP's run
-step now: `merged-branch-cleanup.py --repo <main checkout> --branch <run branch> --target origin/dev`.
+step now:
+`python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo <main checkout> --branch <run branch> --target origin/dev`.
 
 A run resumed at `phase: design` with `design.picked: null` re-asks the design question
 from the options already in `bmn.json` — it doesn't redesign.
@@ -349,7 +350,7 @@ coders never push the run branch. Supabase: migration files only, tested against
 When a wave finishes, one **integrator** (sonnet) merges that wave's story branches into the
 run branch one at a time, in the run worktree (pull, `--no-ff`, gates, push). One writer
 per branch means no push races. Then, for each branch it merged, it runs
-`merged-branch-cleanup.py --repo {run_worktree} --branch <branch> --target origin/{integration}`
+`python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo {run_worktree} --branch <branch> --target origin/{integration}`
 (*Cleanup is a step*): every worktree on the branch removed, and the `wip/` branch deleted
 locally and on origin, plus the paired harness branch once nothing unique is left on it. It
 returns each story's tip sha and merge sha; append them to that story's `merges` in
@@ -456,7 +457,7 @@ Cleaner brief. It runs the helper (*Cleanup is a step*) with `--repo <main check
 changes no file or branch there, so the helper never removes the worktree it runs from. It
 touches only what `bmn.json` names:
 1. **Sweep.** `git fetch --prune origin`, then, for every `temp_refs` entry, run
-   `merged-branch-cleanup.py --repo <main checkout> --branch <ref> --target origin/{integration}`.
+   `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo <main checkout> --branch <ref> --target origin/{integration}`.
    Temp refs go first, while `origin/{integration}` still resolves. The helper checks each
    copy separately (including after a machine move, when no local ref exists), so the local
    copy and the origin copy are each deleted only if they are an ancestor of the target. Every
@@ -466,18 +467,29 @@ touches only what `bmn.json` names:
    equals `base`, or when it has no commits unique to it (`git rev-list <ref> --not
    --exclude=refs/heads/<ref> --branches --remotes` prints nothing).
 2. **Run branch.** After the fetch, run
-   `merged-branch-cleanup.py --repo <main checkout> --branch <integration> --target origin/dev`.
+   `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo <main checkout> --branch <integration> --target origin/dev`.
    The local branch, the origin copy and every worktree on the branch (the run worktree
-   included, when clean) go only if the branch is an ancestor of `origin/dev`. The origin copy
-   is gated on `integration_pushed`: when it is unset and `origin/<integration>` exists
-   anyway, skip the helper, leave the branch and record "origin copy not pushed by this run".
-   Anything the helper leaves ("origin has commits not in dev", `dev_push_deploys`, blocked
-   before merging, a dirty run worktree) is recorded with its reason; then
-   `git worktree prune`.
+   included, when clean) go only if the branch is an ancestor of `origin/dev`. Anything the
+   helper leaves ("origin has commits not in dev", `dev_push_deploys`, blocked before merging,
+   a dirty run worktree) is recorded with its reason; then `git worktree prune`.
+   Only the origin copy is gated on `integration_pushed`. When it is false and
+   `origin/<integration>` exists anyway, this run didn't push that copy, so it stays and goes
+   into `left` as `origin:<integration>`, "origin copy not pushed by this run" — but the local
+   branch and every worktree on it are still deleted. The helper has no flag that skips the
+   origin copy (it always deletes one that is merged), so run its local part by hand, with
+   its rules: `sha=$(git -C <main checkout> rev-parse refs/heads/<integration>)`;
+   `git -C <main checkout> merge-base --is-ancestor "$sha" origin/dev` must exit 0, else
+   delete nothing and record why; `git -C <main checkout> worktree remove <path>` without
+   --force for every worktree on the branch that isn't the main checkout (git refuses a dirty
+   or locked one, which goes into `left`); then, once none holds it,
+   `git -C <main checkout> update-ref -d refs/heads/<integration> "$sha"` (a branch that moved
+   since is kept). Record `worktree:<path>` and `local:<integration>` in `deleted`, as the
+   helper does.
 3. **Record.** When step 2 deleted the branch, first `git -C <repo> worktree add --detach
    <dev_worktree> origin/dev`; then edit `report.md` (the *Git cleanup* section), `bmn.json`
    (`cleanup`; `phase: blocked` when `blocker` is non-null, else `done`) and every
-   `vercel.json` (dropping the run branch's `deploymentEnabled` key) inside that worktree,
+   `vercel.json` (dropping the run branch's `deploymentEnabled` key, only when the origin copy
+   was deleted too: an origin copy that stays keeps its key) inside that worktree,
    commit `chore(bmn): record git cleanup for <run-slug>`, push `HEAD:dev`, and remove it.
    Otherwise edit and commit in the run worktree, staging only `docs/sprints/bmn-<run-slug>/`,
    key kept.

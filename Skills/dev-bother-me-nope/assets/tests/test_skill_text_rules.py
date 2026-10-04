@@ -520,6 +520,85 @@ def test_squash_is_only_ever_forbidden(path):
     assert not offenders, "\n".join(offenders)
 
 
+# --- FIX1 R1-7: an unpushed run branch is still cleaned locally -------------------
+
+
+def _run_branch_steps():
+    """CLEANUP's "Run branch" step as the skill and as the cleaner brief word it."""
+    return {
+        "SKILL.md CLEANUP": _numbered_item(_section(_skill(), "10b · CLEANUP"), "Run branch"),
+        "cleaner brief": _numbered_item(_brief("cleaner"), "Run branch"),
+    }
+
+
+def _record_steps():
+    return {
+        "SKILL.md CLEANUP": _numbered_item(_section(_skill(), "10b · CLEANUP"), "**Record.**"),
+        "cleaner brief": _numbered_item(_brief("cleaner"), "If step 2 deleted the branch"),
+    }
+
+
+@pytest.mark.parametrize("where", ["SKILL.md CLEANUP", "cleaner brief"])
+def test_unpushed_run_branch_is_still_deleted_locally(where):
+    step = _run_branch_steps()[where]
+    _assert_lacks(step, "skip the helper", "leave the branch")
+    _assert_has(
+        step,
+        "integration_pushed",
+        "origin copy not pushed by this run",
+        "local branch",
+        "every worktree",
+    )
+
+
+@pytest.mark.parametrize("where", ["SKILL.md CLEANUP", "cleaner brief"])
+def test_unpushed_run_branch_names_the_local_only_steps(where):
+    step = _norm(_run_branch_steps()[where])
+    assert re.search(r"no (flag|switch|option)[^.]*origin copy", step), "must say it has no flag"
+    _assert_has(
+        step,
+        "merge-base --is-ancestor",
+        "worktree remove <path>",
+        "without --force",
+        "update-ref -d refs/heads/",
+    )
+    assert "git branch -D" not in step
+
+
+@pytest.mark.parametrize("where", ["SKILL.md CLEANUP", "cleaner brief"])
+def test_vercel_key_stays_while_the_origin_copy_stays(where):
+    _assert_has(_record_steps()[where], "only when the origin copy was deleted too")
+
+
+# --- FIX1 R1-10: every helper call uses the plugin-root form ----------------------
+
+HELPER_SCRIPTS = ("merged-branch-cleanup", "repo-merge-policy", "deploy-guard")
+HELPER_CALL = re.compile(
+    rf"(?P<runner>python3 )?(?P<path>\S*?)\b(?:{'|'.join(HELPER_SCRIPTS)})\.py\s+--"
+)
+CALL_PATHS = ("${CLAUDE_PLUGIN_ROOT}/assets/bin/", "{skill_dir}/../../assets/bin/")
+
+
+def _helper_calls(text):
+    """Every `<helper>.py --…` invocation (a bare mention of the file name is not one)."""
+    return list(HELPER_CALL.finditer(_norm(text)))
+
+
+def test_the_skill_and_briefs_do_invoke_the_helpers():
+    assert len(_helper_calls(_read(SKILL))) >= 5
+    assert len(_helper_calls(_read(BRIEFS))) >= 3
+
+
+@pytest.mark.parametrize("path", OWNED_MARKDOWN, ids=lambda path: path.name)
+def test_every_helper_invocation_uses_the_plugin_root_form(path):
+    bare = [
+        match.group(0)
+        for match in _helper_calls(_read(path))
+        if not (match.group("runner") and match.group("path") in CALL_PATHS)
+    ]
+    assert not bare, f"bare helper invocation (the script is not on PATH): {bare}"
+
+
 # --- AC14: this file never runs the helper scripts --------------------------------
 
 

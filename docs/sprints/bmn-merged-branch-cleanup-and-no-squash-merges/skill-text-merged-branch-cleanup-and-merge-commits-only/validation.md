@@ -35,3 +35,24 @@ Result: 14 PASS, 0 FAIL.
 ## Assumptions
 
 - AC14's "full suite passes" is judged by the story's own command (uv default interpreter, 3.13). The extra 3.9 run requested for the TEST1 brief shows 2 failures in the helper-script story's test file, so those are filed against that story.
+
+## FIX①
+
+Branch `wip/merged-branch-cleanup-and-no-squash-merges/skill-text-merged-branch-cleanup-and-merge-commits-only-fix`. Each item was reproduced as a failing test in `Skills/dev-bother-me-nope/assets/tests/test_skill_text_rules.py` before the Markdown changed (7 failures), then fixed (all pass).
+
+| Id | Outcome | Test (`test_skill_text_rules.py`) |
+| --- | --- | --- |
+| R1-7 | fixed | `test_unpushed_run_branch_is_still_deleted_locally`, `test_unpushed_run_branch_names_the_local_only_steps`, `test_vercel_key_stays_while_the_origin_copy_stays` (each runs for SKILL.md CLEANUP and the cleaner brief) |
+| R1-10 | fixed | `test_every_helper_invocation_uses_the_plugin_root_form[SKILL.md]` (failed on 4 bare calls: the leftover sweep, the BUILD integrator line, CLEANUP step 1 and step 2), plus `test_the_skill_and_briefs_do_invoke_the_helpers` so the check can't pass vacuously |
+
+What changed:
+- R1-7: CLEANUP step 2 (SKILL.md) and the cleaner brief's step 2 no longer skip the helper when `integration_pushed` is false and `origin/<integration>` exists. Only the origin copy is held back, recorded in `left` as "origin copy not pushed by this run". The local branch and every worktree on it are still deleted.
+- R1-10: all four bare `merged-branch-cleanup.py --…` calls in SKILL.md now read `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --…`.
+
+Gates: `uv run --quiet --with pytest python -m pytest Skills/dev-bother-me-nope/assets/tests -q` — 350 passed. `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope/assets/tests/test_skill_text_rules.py` — All checks passed.
+
+## FIX① Assumptions
+
+- `merged-branch-cleanup.py --help` has no flag that skips the origin copy (options: `--repo --branch --target --remote --no-fetch --dry-run`), and the script is owned by another fixer, so the text says so and has the cleaner run the helper's local part with its own rules: `merge-base --is-ancestor` proof, `git worktree remove` without `--force` (git refuses a dirty or locked worktree), and the compare-and-swap `git update-ref -d refs/heads/<branch> <sha>`. If the script later gains a remote-skip flag, that hand-run fallback should become one call to it.
+- Because the origin copy now outlives the local branch in that case, CLEANUP step 3 drops the run branch's `deploymentEnabled` key only when the origin copy was deleted too. An origin branch that stays keeps its no-deploy key, so a push to it can't trigger a Vercel build.
+- R1-10 was fixed at every bare helper call in SKILL.md, not just line 221, because the same "command not found" failure applied to the other three.
