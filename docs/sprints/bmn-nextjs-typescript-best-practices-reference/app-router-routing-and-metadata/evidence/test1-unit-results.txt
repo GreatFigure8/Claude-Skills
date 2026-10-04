@@ -1,0 +1,40 @@
+# TEST1 unit results for app-router-routing-and-metadata
+
+Branch wip/nextjs-typescript-best-practices-reference/tests-unit-1, base origin/dev 59279a3, 2026-10-04.
+Full-suite result: 1026 passed in 95.32s (0:01:35). Each line is one pytest node id from the verbose run of the
+nextjs tests that this story's criterion map cites; `34` ids, all PASSED.
+
+test_nextjs_reference.py::test_every_prose_url_is_listed_in_sources[routing-and-metadata.md] PASSED
+test_nextjs_reference.py::test_every_url_host_is_allowed[routing-and-metadata.md] PASSED
+test_nextjs_reference.py::test_file_is_at_most_800_lines[routing-and-metadata.md] PASSED
+test_nextjs_reference.py::test_no_bare_code_fences[routing-and-metadata.md] PASSED
+test_nextjs_reference.py::test_no_todo_or_tbd[routing-and-metadata.md] PASSED
+test_nextjs_reference.py::test_primary_source_floor[routing-and-metadata.md] PASSED
+test_nextjs_reference.py::test_relative_links_resolve[routing-and-metadata.md] PASSED
+test_nextjs_reference.py::test_rule_ids_are_unique_across_topic_files PASSED
+test_nextjs_reference.py::test_sources_is_a_bullet_list_of_unique_https_urls[routing-and-metadata.md] PASSED
+test_nextjs_reference.py::test_stub_marker_names_the_owning_story[routing-and-metadata.md] PASSED
+test_nextjs_reference.py::test_topic_as_of_matches_the_entry_point[routing-and-metadata.md] PASSED
+test_nextjs_reference.py::test_topic_cites_only_its_own_rule_ids[routing-and-metadata.md] PASSED
+test_nextjs_reference.py::test_topic_meets_the_floors[routing-and-metadata.md] PASSED
+test_nextjs_reference.py::test_topic_not_confirmed_section_lists_urls_and_no_rules[routing-and-metadata.md] PASSED
+test_nextjs_reference.py::test_topic_rules_are_well_formed_and_numbered[routing-and-metadata.md] PASSED
+test_nextjs_reference.py::test_topic_rules_cite_a_source_or_convention[routing-and-metadata.md] PASSED
+test_nextjs_reference.py::test_topic_sections_follow_the_contract[routing-and-metadata.md] PASSED
+test_nextjs_reference.py::test_topic_version_notes_name_the_major[routing-and-metadata.md] PASSED
+test_nextjs_topic_routing_and_metadata.py::test_canonical_layout_is_linked_from_the_topic PASSED
+test_nextjs_topic_routing_and_metadata.py::test_every_anti_pattern_pairs_a_dont_with_a_do PASSED
+test_nextjs_topic_routing_and_metadata.py::test_every_checklist_item_names_an_rt_rule PASSED
+test_nextjs_topic_routing_and_metadata.py::test_not_confirmed_section_lists_the_urls_checked PASSED
+test_nextjs_topic_routing_and_metadata.py::test_routing_topic_cites_no_other_topics_rule_ids PASSED
+test_nextjs_topic_routing_and_metadata.py::test_routing_topic_covers_required_concepts PASSED
+test_nextjs_topic_routing_and_metadata.py::test_routing_topic_examples_never_type_as_any PASSED
+test_nextjs_topic_routing_and_metadata.py::test_routing_topic_has_at_least_fifteen_rt_rules PASSED
+test_nextjs_topic_routing_and_metadata.py::test_routing_topic_has_worked_example[client-search-params] PASSED
+test_nextjs_topic_routing_and_metadata.py::test_routing_topic_has_worked_example[not-found-page] PASSED
+test_nextjs_topic_routing_and_metadata.py::test_routing_topic_has_worked_example[sitemap] PASSED
+test_nextjs_topic_routing_and_metadata.py::test_routing_topic_has_worked_example[static-params-page] PASSED
+test_nextjs_topic_routing_and_metadata.py::test_routing_topic_has_worked_example[typed-generate-metadata] PASSED
+test_nextjs_topic_routing_and_metadata.py::test_routing_topic_replaces_the_stub PASSED
+test_nextjs_topic_routing_and_metadata.py::test_rules_state_the_parallel_route_default_requirement PASSED
+test_nextjs_topic_routing_and_metadata.py::test_version_notes_name_the_major_and_link_nextjs_org PASSED

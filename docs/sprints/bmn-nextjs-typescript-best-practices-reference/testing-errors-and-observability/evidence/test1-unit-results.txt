@@ -1,0 +1,42 @@
+# TEST1 unit results for testing-errors-and-observability
+
+Branch wip/nextjs-typescript-best-practices-reference/tests-unit-1, base origin/dev 59279a3, 2026-10-04.
+Full-suite result: 1026 passed in 95.32s (0:01:35). Each line is one pytest node id from the verbose run of the
+nextjs tests that this story's criterion map cites; `36` ids, all PASSED.
+
+test_nextjs_reference.py::test_every_prose_url_is_listed_in_sources[testing-and-observability.md] PASSED
+test_nextjs_reference.py::test_every_url_host_is_allowed[testing-and-observability.md] PASSED
+test_nextjs_reference.py::test_file_is_at_most_800_lines[testing-and-observability.md] PASSED
+test_nextjs_reference.py::test_no_bare_code_fences[testing-and-observability.md] PASSED
+test_nextjs_reference.py::test_no_todo_or_tbd[testing-and-observability.md] PASSED
+test_nextjs_reference.py::test_primary_source_floor[testing-and-observability.md] PASSED
+test_nextjs_reference.py::test_relative_links_resolve[testing-and-observability.md] PASSED
+test_nextjs_reference.py::test_rule_ids_are_unique_across_topic_files PASSED
+test_nextjs_reference.py::test_sources_is_a_bullet_list_of_unique_https_urls[testing-and-observability.md] PASSED
+test_nextjs_reference.py::test_stub_marker_names_the_owning_story[testing-and-observability.md] PASSED
+test_nextjs_reference.py::test_topic_as_of_matches_the_entry_point[testing-and-observability.md] PASSED
+test_nextjs_reference.py::test_topic_cites_only_its_own_rule_ids[testing-and-observability.md] PASSED
+test_nextjs_reference.py::test_topic_meets_the_floors[testing-and-observability.md] PASSED
+test_nextjs_reference.py::test_topic_not_confirmed_section_lists_urls_and_no_rules[testing-and-observability.md] PASSED
+test_nextjs_reference.py::test_topic_rules_are_well_formed_and_numbered[testing-and-observability.md] PASSED
+test_nextjs_reference.py::test_topic_rules_cite_a_source_or_convention[testing-and-observability.md] PASSED
+test_nextjs_reference.py::test_topic_sections_follow_the_contract[testing-and-observability.md] PASSED
+test_nextjs_reference.py::test_topic_version_notes_name_the_major[testing-and-observability.md] PASSED
+test_nextjs_topic_testing_and_observability.py::test_every_anti_pattern_pairs_dont_with_do PASSED
+test_nextjs_topic_testing_and_observability.py::test_every_review_checklist_item_names_a_rule PASSED
+test_nextjs_topic_testing_and_observability.py::test_gate_commands_agree_with_stack_routing PASSED
+test_nextjs_topic_testing_and_observability.py::test_gate_scripts_example_uses_eslint_never_next_lint PASSED
+test_nextjs_topic_testing_and_observability.py::test_has_global_error_example PASSED
+test_nextjs_topic_testing_and_observability.py::test_has_instrumentation_example PASSED
+test_nextjs_topic_testing_and_observability.py::test_has_playwright_config_example PASSED
+test_nextjs_topic_testing_and_observability.py::test_has_segment_error_boundary_example PASSED
+test_nextjs_topic_testing_and_observability.py::test_has_vitest_config_example PASSED
+test_nextjs_topic_testing_and_observability.py::test_required_terms_are_present PASSED
+test_nextjs_topic_testing_and_observability.py::test_rule_ids_use_only_the_test_prefix PASSED
+test_nextjs_topic_testing_and_observability.py::test_rules_map_onto_bmn_test_surfaces PASSED
+test_nextjs_topic_testing_and_observability.py::test_rules_separate_expected_errors_from_global_error PASSED
+test_nextjs_topic_testing_and_observability.py::test_rules_state_async_server_component_limit_with_testing_guide_link PASSED
+test_nextjs_topic_testing_and_observability.py::test_topic_file_has_at_least_15_test_rules PASSED
+test_nextjs_topic_testing_and_observability.py::test_topic_file_is_not_a_stub PASSED
+test_nextjs_topic_testing_and_observability.py::test_typescript_examples_never_use_any PASSED
+test_nextjs_topic_testing_and_observability.py::test_version_notes_name_the_major_and_link_nextjs PASSED

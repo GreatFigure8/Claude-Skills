@@ -93,3 +93,53 @@ Branch `wip/nextjs-typescript-best-practices-reference/performance-and-vercel-pl
 8. **Three more tests than the plan:** 21 collected against 18: two extra checker self-tests (4, plan: 2) and the
    no-`any` test (plan AC4 asks for typed examples).
 9. The research date and the coder's re-check date are both 2026-10-04.
+
+## TEST1: unit (2026-10-04)
+
+Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-1`, cut from the detached run base `origin/dev` `59279a3` (the run branch tip after
+the wave-2 merges, with origin/dev merged in). Tester: `tests-unit-1`. No code was changed; this is a
+verification pass.
+
+### Commands and results
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Full suite with coverage | `uv run --quiet --with pytest --with pytest-cov python -m pytest Skills/dev-bother-me-nope/assets/tests -q --cov=Skills/dev-bother-me-nope/assets/tests --cov-report=term` | **1026 passed in 95.32s (0:01:35)**, exit 0, 0 failed, 0 skipped. Log: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring/evidence/test1-unit-full-suite.txt` |
+| Lint | `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope` | `All checks passed!` |
+| Story tests, verbose | `pytest test_nextjs_topic_performance_and_vercel.py test_nextjs_reference.py ... -v` (483 tests across the nextjs files and `test_skill_text_rules.py`) | 483 PASSED, 0 other. The tests this map cites are listed in `evidence/test1-unit-results.txt` |
+| TERMS and example needles | one-off script comparing this story's criterion 3 and 4 lists with the test | story TERMS (22) equal the test's TERMS (22), same order: True; story example needles missing from the test source: 0 |
+| URL sets | one-off script comparing `## Sources` of `references/nextjs/performance-and-vercel.md` with the URLs in `evidence/sources-verified.md` | 51 cited, 51 listed, nothing only in one of them. All 51 evidence rows carry fetch date 2026-10-04 and a non-empty Backs cell |
+| Scope | one-off `git diff --name-only <merge>^1 <merge>` for this story's merge `c8b4630` | 4 files, all inside the story scope (the topic file, `test_nextjs_topic_performance_and_vercel.py`, and files under `docs/sprints/bmn-nextjs-typescript-best-practices-reference/performance-and-vercel-platform/`); outside scope: none |
+
+### Coverage
+
+- `references/nextjs/performance-and-vercel.md`: Markdown, coverage n/a. It is exercised by the generic contract tests and by `test_nextjs_topic_performance_and_vercel.py`; the file is 43 rules, 784 lines (cap 800).
+- `nextjs_doc_helpers.py` (shared parser the tests use): **99%** (243 of 245 statements). Uncovered: line 180 (an unterminated code fence at end of file) and line 294 (`h1` of an empty file). Target 80% met.
+- `test_nextjs_topic_performance_and_vercel.py`: **100%** (110 of 110 statements). Whole suite: **99%** (3604 of 3635).
+
+### Criterion map
+
+All [unit] criteria of `story.md`, mapped to the test or one-off check that covers them. The generic
+contract tests are the ones `test_nextjs_reference.py` runs for every topic file; none is skipped
+(the suite has no skips), so each ran on `performance-and-vercel.md`.
+
+| AC | Criterion | Covering test(s) / check | Result |
+| --- | --- | --- | --- |
+| 1 | Contract | generic contract tests (17 x `[performance-and-vercel.md]` + `test_rule_ids_are_unique_across_topic_files`) | PASS |
+| 2 | Not a stub, at least 15 PERF rules | `test_performance_topic_is_not_a_stub`<br>`test_performance_topic_has_at_least_15_perf_rules` | PASS |
+| 3 | Required terms | `test_performance_topic_names_every_required_concept` | PASS |
+| 4 | Examples (next/image sizes, next/font, NextConfig remotePatterns, next/script strategy, maxDuration; no `any`) | `test_performance_topic_has_required_typescript_example`<br>`test_typescript_examples_use_no_any_type`<br>`test_patterns_code_uses_no_deprecated_api` | PASS |
+| 5 | Every Vercel number line carries a vercel.com or nextjs.org link | `test_every_vercel_number_line_carries_a_platform_link`<br>`test_unit_line_check_flags_a_number_without_a_link`<br>`test_unit_line_check_accepts_a_link_elsewhere_in_the_list_item`<br>`test_unit_line_check_counts_nested_bullets_as_part_of_the_item`<br>`test_unit_line_check_does_not_let_one_item_vouch_for_the_next` | PASS |
+| 6 | Runtime choice rule names `Edge` with a vercel.com link | `test_runtime_choice_rule_names_edge_with_a_vercel_link` | PASS |
+| 7 | Version notes name the major and link nextjs.org | `test_version_notes_name_the_major_and_link_nextjs` | PASS |
+| 8 | Reviewer-ready | `test_every_checklist_item_names_a_perf_rule`<br>`test_checklist_rule_ids_exist_in_rules`<br>`test_anti_patterns_pair_each_dont_with_a_do` | PASS |
+| 9 | Grounding evidence (one-off) | one-off set-equality check, see below | PASS |
+| 10 | Scope and gates (one-off + suite + ruff) | one-off `git diff --name-only` check, full suite, ruff (see below)<br>`test_topic_never_instructs_a_vercel_deploy` | PASS |
+
+**Totals:** 10 PASS, 0 FAIL, 0 uncovered.
+
+### TEST1 assumptions
+
+1. AC9 (grounding evidence) is a one-off check by design ("not a permanent test"). It was re-run here with the plan's set-equality method and passed.
+2. AC10 scope is checked against the story's merge into the run branch (`git diff --name-only <merge>^1 <merge>`), because `origin/feat/...` has since moved on. The suite and ruff are checked on the final tree.
+3. Where the criterion text asks for content beyond what its test asserts (for example, the shape of an example), the test is taken as the verification the story names; factual correctness of the claims against nextjs.org and vercel.com is the REVIEW① lens, not a unit test.

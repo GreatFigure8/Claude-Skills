@@ -1,0 +1,42 @@
+# TEST1 unit results for proxy-auth-and-security
+
+Branch wip/nextjs-typescript-best-practices-reference/tests-unit-1, base origin/dev 59279a3, 2026-10-04.
+Full-suite result: 1026 passed in 95.32s (0:01:35). Each line is one pytest node id from the verbose run of the
+nextjs tests that this story's criterion map cites; `36` ids, all PASSED.
+
+test_nextjs_reference.py::test_every_prose_url_is_listed_in_sources[proxy-auth-and-security.md] PASSED
+test_nextjs_reference.py::test_every_url_host_is_allowed[proxy-auth-and-security.md] PASSED
+test_nextjs_reference.py::test_file_is_at_most_800_lines[proxy-auth-and-security.md] PASSED
+test_nextjs_reference.py::test_no_bare_code_fences[proxy-auth-and-security.md] PASSED
+test_nextjs_reference.py::test_no_todo_or_tbd[proxy-auth-and-security.md] PASSED
+test_nextjs_reference.py::test_primary_source_floor[proxy-auth-and-security.md] PASSED
+test_nextjs_reference.py::test_relative_links_resolve[proxy-auth-and-security.md] PASSED
+test_nextjs_reference.py::test_rule_ids_are_unique_across_topic_files PASSED
+test_nextjs_reference.py::test_sources_is_a_bullet_list_of_unique_https_urls[proxy-auth-and-security.md] PASSED
+test_nextjs_reference.py::test_stub_marker_names_the_owning_story[proxy-auth-and-security.md] PASSED
+test_nextjs_reference.py::test_topic_as_of_matches_the_entry_point[proxy-auth-and-security.md] PASSED
+test_nextjs_reference.py::test_topic_cites_only_its_own_rule_ids[proxy-auth-and-security.md] PASSED
+test_nextjs_reference.py::test_topic_meets_the_floors[proxy-auth-and-security.md] PASSED
+test_nextjs_reference.py::test_topic_not_confirmed_section_lists_urls_and_no_rules[proxy-auth-and-security.md] PASSED
+test_nextjs_reference.py::test_topic_rules_are_well_formed_and_numbered[proxy-auth-and-security.md] PASSED
+test_nextjs_reference.py::test_topic_rules_cite_a_source_or_convention[proxy-auth-and-security.md] PASSED
+test_nextjs_reference.py::test_topic_sections_follow_the_contract[proxy-auth-and-security.md] PASSED
+test_nextjs_reference.py::test_topic_version_notes_name_the_major[proxy-auth-and-security.md] PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_every_anti_pattern_dont_is_paired_with_a_do PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_every_review_checklist_item_names_a_sec_rule PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_every_use_server_block_checks_auth_before_writing PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_example_block_is_present[csp-nonce] PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_example_block_is_present[dal-server-only-cache] PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_example_block_is_present[proxy-matcher] PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_example_block_is_present[server-action] PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_example_block_is_present[session-cookie] PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_no_other_topic_rule_ids_are_used PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_not_confirmed_section_lists_the_urls_checked PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_required_terms_are_present PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_rules_keep_proxy_optimistic_and_recheck_in_the_dal PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_topic_file_is_not_a_stub PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_topic_has_at_least_18_sec_rules PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_ts_examples_never_use_any PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_version_notes_list_the_topic_security_advisories PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_version_notes_name_the_major_and_link_nextjs_org PASSED
+test_nextjs_topic_proxy_auth_and_security.py::test_version_notes_state_the_middleware_to_proxy_rename PASSED

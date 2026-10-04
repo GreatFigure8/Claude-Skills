@@ -97,3 +97,53 @@ status codes and `redirects` running before Proxy; Vercel's 1,024 vs 2,048 limit
 8. No generateSitemaps block trim was needed: the file is 712 lines.
 9. `nextjs-fullstack-standards` was not loaded and no build skill was routed (stack.md). No `.sh`
    file changed, so shellcheck had nothing to check. No migrations, env vars or deploy_pending.
+
+## TEST1: unit (2026-10-04)
+
+Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-1`, cut from the detached run base `origin/dev` `59279a3` (the run branch tip after
+the wave-2 merges, with origin/dev merged in). Tester: `tests-unit-1`. No code was changed; this is a
+verification pass.
+
+### Commands and results
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Full suite with coverage | `uv run --quiet --with pytest --with pytest-cov python -m pytest Skills/dev-bother-me-nope/assets/tests -q --cov=Skills/dev-bother-me-nope/assets/tests --cov-report=term` | **1026 passed in 95.32s (0:01:35)**, exit 0, 0 failed, 0 skipped. Log: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring/evidence/test1-unit-full-suite.txt` |
+| Lint | `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope` | `All checks passed!` |
+| Story tests, verbose | `pytest test_nextjs_topic_routing_and_metadata.py test_nextjs_reference.py ... -v` (483 tests across the nextjs files and `test_skill_text_rules.py`) | 483 PASSED, 0 other. The tests this map cites are listed in `evidence/test1-unit-results.txt` |
+| TERMS and example needles | one-off script comparing this story's criterion 3 and 4 lists with the test | story TERMS (32) equal the test's TERMS (32), same order: True; story example needles missing from the test source: 0 |
+| URL sets | one-off script comparing `## Sources` of `references/nextjs/routing-and-metadata.md` with the URLs in `evidence/sources-verified.md` | 58 cited, 59 listed, nothing only in one of them. The evidence file also names `https://nextjs.org/docs/llms.txt` in its header prose, as the place the version string was read; it is not a per-URL row and the topic file does not cite it, so the row sets are equal. All 58 evidence rows carry fetch date 2026-10-04 and a non-empty Backs cell |
+| Scope | one-off `git diff --name-only <merge>^1 <merge>` for this story's merge `d0b022c` | 3 files, all inside the story scope (the topic file, `test_nextjs_topic_routing_and_metadata.py`, and files under `docs/sprints/bmn-nextjs-typescript-best-practices-reference/app-router-routing-and-metadata/`); outside scope: none |
+
+### Coverage
+
+- `references/nextjs/routing-and-metadata.md`: Markdown, coverage n/a. It is exercised by the generic contract tests and by `test_nextjs_topic_routing_and_metadata.py`; the file is 40 rules, 713 lines (cap 800).
+- `nextjs_doc_helpers.py` (shared parser the tests use): **99%** (243 of 245 statements). Uncovered: line 180 (an unterminated code fence at end of file) and line 294 (`h1` of an empty file). Target 80% met.
+- `test_nextjs_topic_routing_and_metadata.py`: **100%** (68 of 68 statements). Whole suite: **99%** (3604 of 3635).
+
+### Criterion map
+
+All [unit] criteria of `story.md`, mapped to the test or one-off check that covers them. The generic
+contract tests are the ones `test_nextjs_reference.py` runs for every topic file; none is skipped
+(the suite has no skips), so each ran on `routing-and-metadata.md`.
+
+| AC | Criterion | Covering test(s) / check | Result |
+| --- | --- | --- | --- |
+| 1 | Contract | generic contract tests (17 x `[routing-and-metadata.md]` + `test_rule_ids_are_unique_across_topic_files`)<br>`test_routing_topic_cites_no_other_topics_rule_ids` | PASS |
+| 2 | Not a stub, at least 15 RT rules | `test_routing_topic_replaces_the_stub`<br>`test_routing_topic_has_at_least_fifteen_rt_rules` | PASS |
+| 3 | Required terms | `test_routing_topic_covers_required_concepts` | PASS |
+| 4 | Examples (generateStaticParams, generateMetadata, sitemap, notFound, useSearchParams; no `any`) | `test_routing_topic_has_worked_example`<br>`test_routing_topic_examples_never_type_as_any` | PASS |
+| 5 | Parallel-route `default` rule in `## Rules` | `test_rules_state_the_parallel_route_default_requirement` | PASS |
+| 6 | Links `../nextjs.md` (canonical layout) | `test_canonical_layout_is_linked_from_the_topic` | PASS |
+| 7 | Version notes name the major and link nextjs.org | `test_version_notes_name_the_major_and_link_nextjs_org` | PASS |
+| 8 | Reviewer-ready | `test_every_checklist_item_names_an_rt_rule`<br>`test_every_anti_pattern_pairs_a_dont_with_a_do` | PASS |
+| 9 | Grounding evidence (one-off) | one-off set-equality check, see below | PASS |
+| 10 | Scope and gates (one-off + suite + ruff) | one-off `git diff --name-only` check, full suite, ruff (see below)<br>`test_not_confirmed_section_lists_the_urls_checked` | PASS |
+
+**Totals:** 10 PASS, 0 FAIL, 0 uncovered.
+
+### TEST1 assumptions
+
+1. AC9 (grounding evidence) is a one-off check by design ("not a permanent test"). It was re-run here with the plan's set-equality method and passed.
+2. AC10 scope is checked against the story's merge into the run branch (`git diff --name-only <merge>^1 <merge>`), because `origin/feat/...` has since moved on. The suite and ruff are checked on the final tree.
+3. Where the criterion text asks for content beyond what its test asserts (for example, the shape of an example), the test is taken as the verification the story names; factual correctness of the claims against nextjs.org and vercel.com is the REVIEW① lens, not a unit test.

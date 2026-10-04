@@ -98,3 +98,53 @@ project under the session scratchpad (nothing committed). Next.js 16.3.8, TypeSc
 9. No defect was found in the shared files (`nextjs.md`, `nextjs_doc_helpers.py`,
    `test_nextjs_reference.py`, the wiring files); none was edited.
 10. Supabase, env vars, migrations and deploys: none. `deploy_pending: []`.
+
+## TEST1: unit (2026-10-04)
+
+Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-1`, cut from the detached run base `origin/dev` `59279a3` (the run branch tip after
+the wave-2 merges, with origin/dev merged in). Tester: `tests-unit-1`. No code was changed; this is a
+verification pass.
+
+### Commands and results
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Full suite with coverage | `uv run --quiet --with pytest --with pytest-cov python -m pytest Skills/dev-bother-me-nope/assets/tests -q --cov=Skills/dev-bother-me-nope/assets/tests --cov-report=term` | **1026 passed in 95.32s (0:01:35)**, exit 0, 0 failed, 0 skipped. Log: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring/evidence/test1-unit-full-suite.txt` |
+| Lint | `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope` | `All checks passed!` |
+| Story tests, verbose | `pytest test_nextjs_topic_typescript.py test_nextjs_reference.py ... -v` (483 tests across the nextjs files and `test_skill_text_rules.py`) | 483 PASSED, 0 other. The tests this map cites are listed in `evidence/test1-unit-results.txt` |
+| TERMS and example needles | one-off script comparing this story's criterion 3 and 4 lists with the test | story TERMS (20) equal the test's TERMS (20), same order: True; story example needles missing from the test source: 0 |
+| URL sets | one-off script comparing `## Sources` of `references/nextjs/typescript.md` with the URLs in `evidence/sources-verified.md` | 41 cited, 41 listed, nothing only in one of them. All 41 evidence rows carry fetch date 2026-10-04 and a non-empty Backs cell |
+| Scope | one-off `git diff --name-only <merge>^1 <merge>` for this story's merge `9cbe6a7` | 4 files, all inside the story scope (the topic file, `test_nextjs_topic_typescript.py`, and files under `docs/sprints/bmn-nextjs-typescript-best-practices-reference/typescript-config-and-typing-patterns/`); outside scope: none |
+
+### Coverage
+
+- `references/nextjs/typescript.md`: Markdown, coverage n/a. It is exercised by the generic contract tests and by `test_nextjs_topic_typescript.py`; the file is 34 rules, 788 lines (cap 800).
+- `nextjs_doc_helpers.py` (shared parser the tests use): **99%** (243 of 245 statements). Uncovered: line 180 (an unterminated code fence at end of file) and line 294 (`h1` of an empty file). Target 80% met.
+- `test_nextjs_topic_typescript.py`: **98%** (95 of 97 statements). Whole suite: **99%** (3604 of 3635).
+
+### Criterion map
+
+All [unit] criteria of `story.md`, mapped to the test or one-off check that covers them. The generic
+contract tests are the ones `test_nextjs_reference.py` runs for every topic file; none is skipped
+(the suite has no skips), so each ran on `typescript.md`.
+
+| AC | Criterion | Covering test(s) / check | Result |
+| --- | --- | --- | --- |
+| 1 | Contract | generic contract tests (17 x `[typescript.md]` + `test_rule_ids_are_unique_across_topic_files`)<br>`test_typescript_topic_uses_only_ts_rule_ids` | PASS |
+| 2 | Not a stub, at least 15 TS rules | `test_typescript_topic_is_not_a_stub`<br>`test_typescript_topic_has_at_least_15_rules` | PASS |
+| 3 | Required terms (`missing_terms == []`) | `test_typescript_topic_mentions_every_required_term` | PASS |
+| 4 | Examples (strict json, NextConfig+typedRoutes, PageProps, RouteContext, safeParse; no `any`) | `test_typescript_topic_has_strict_tsconfig_json_block`<br>`test_typescript_topic_has_typed_next_config_block`<br>`test_typescript_topic_has_page_props_block_awaiting_params`<br>`test_typescript_topic_has_route_context_handler_block`<br>`test_typescript_topic_has_safe_parse_boundary_block`<br>`test_typescript_topic_examples_never_use_any` | PASS |
+| 5 | How route helpers are generated; `searchParams` awaited in a tsx block | `test_typescript_rules_say_how_route_helpers_are_generated`<br>`test_typescript_topic_awaits_search_params_in_tsx` | PASS |
+| 6 | Rules forbid `ignoreBuildErrors` and ban `any` for `unknown` | `test_typescript_rules_forbid_ignore_build_errors_and_ban_any` | PASS |
+| 7 | Version notes name the major and link nextjs.org | `test_typescript_version_notes_name_major_and_link_nextjs` | PASS |
+| 8 | Reviewer-ready (checklist cites `TS-`, Don't/Do pairs) | `test_typescript_review_checklist_items_cite_rule_ids`<br>`test_typescript_anti_patterns_pair_each_dont_with_a_do` | PASS |
+| 9 | Grounding evidence (one-off) | one-off set-equality check, see below | PASS |
+| 10 | Scope and gates (one-off + suite + ruff) | one-off `git diff --name-only` check, full suite, ruff (see below)<br>`test_typescript_every_source_is_linked_in_the_body` | PASS |
+
+**Totals:** 10 PASS, 0 FAIL, 0 uncovered.
+
+### TEST1 assumptions
+
+1. AC9 (grounding evidence) is a one-off check by design ("not a permanent test"). It was re-run here with the plan's set-equality method and passed.
+2. AC10 scope is checked against the story's merge into the run branch (`git diff --name-only <merge>^1 <merge>`), because `origin/feat/...` has since moved on. The suite and ruff are checked on the final tree.
+3. Where the criterion text asks for content beyond what its test asserts (for example, the shape of an example), the test is taken as the verification the story names; factual correctness of the claims against nextjs.org and vercel.com is the REVIEW① lens, not a unit test.

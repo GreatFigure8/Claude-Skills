@@ -70,3 +70,53 @@ documented TypeScript error.
 8. **Defects in shared files:** none found. `nextjs.md`, the helpers and `test_nextjs_reference.py` were read-only
    and the contract matched the plan apart from item 1.
 9. **No migrations, env vars, Vercel or Supabase work** (stack.md: no UI, no Supabase, no Vercel). `deploy_pending: []`.
+
+## TEST1: unit (2026-10-04)
+
+Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-1`, cut from the detached run base `origin/dev` `59279a3` (the run branch tip after
+the wave-2 merges, with origin/dev merged in). Tester: `tests-unit-1`. No code was changed; this is a
+verification pass.
+
+### Commands and results
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Full suite with coverage | `uv run --quiet --with pytest --with pytest-cov python -m pytest Skills/dev-bother-me-nope/assets/tests -q --cov=Skills/dev-bother-me-nope/assets/tests --cov-report=term` | **1026 passed in 95.32s (0:01:35)**, exit 0, 0 failed, 0 skipped. Log: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring/evidence/test1-unit-full-suite.txt` |
+| Lint | `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope` | `All checks passed!` |
+| Story tests, verbose | `pytest test_nextjs_topic_rendering_and_caching.py test_nextjs_reference.py ... -v` (483 tests across the nextjs files and `test_skill_text_rules.py`) | 483 PASSED, 0 other. The tests this map cites are listed in `evidence/test1-unit-results.txt` |
+| TERMS and example needles | one-off script comparing this story's criterion 3 and 4 lists with the test | story TERMS (22) equal the test's TERMS (22), same order: True; story example needles missing from the test source: 0 |
+| URL sets | one-off script comparing `## Sources` of `references/nextjs/rendering-and-caching.md` with the URLs in `evidence/sources-verified.md` | 46 cited, 46 listed, nothing only in one of them. All 46 evidence rows carry fetch date 2026-10-04 and a non-empty Backs cell |
+| Scope | one-off `git diff --name-only <merge>^1 <merge>` for this story's merge `356a2f9` | 4 files, all inside the story scope (the topic file, `test_nextjs_topic_rendering_and_caching.py`, and files under `docs/sprints/bmn-nextjs-typescript-best-practices-reference/rendering-caching-and-streaming-ssr/`); outside scope: none |
+
+### Coverage
+
+- `references/nextjs/rendering-and-caching.md`: Markdown, coverage n/a. It is exercised by the generic contract tests and by `test_nextjs_topic_rendering_and_caching.py`; the file is 47 rules, 786 lines (cap 800).
+- `nextjs_doc_helpers.py` (shared parser the tests use): **99%** (243 of 245 statements). Uncovered: line 180 (an unterminated code fence at end of file) and line 294 (`h1` of an empty file). Target 80% met.
+- `test_nextjs_topic_rendering_and_caching.py`: **100%** (149 of 149 statements). Whole suite: **99%** (3604 of 3635).
+
+### Criterion map
+
+All [unit] criteria of `story.md`, mapped to the test or one-off check that covers them. The generic
+contract tests are the ones `test_nextjs_reference.py` runs for every topic file; none is skipped
+(the suite has no skips), so each ran on `rendering-and-caching.md`.
+
+| AC | Criterion | Covering test(s) / check | Result |
+| --- | --- | --- | --- |
+| 1 | Contract | generic contract tests (17 x `[rendering-and-caching.md]` + `test_rule_ids_are_unique_across_topic_files`)<br>`test_rendering_topic_uses_only_rc_rule_ids` | PASS |
+| 2 | Not a stub, at least 18 RC rules | `test_rendering_topic_is_not_a_stub`<br>`test_rendering_topic_has_at_least_18_rc_rules` | PASS |
+| 3 | Required terms | `test_rendering_topic_names_every_required_concept` | PASS |
+| 4 | Examples (NextConfig+cacheComponents, use cache+cacheLife, cacheTag, Suspense, client wrapper with children; no `any`) | `test_rendering_topic_has_required_example`<br>`test_rendering_topic_examples_have_no_any` | PASS |
+| 5 | Detect the caching model first; model labels; `cacheComponents` with `without`/`previous model` | `test_first_rule_tells_the_reader_to_detect_the_caching_model`<br>`test_rules_section_labels_the_caching_model`<br>`test_patterns_tells_the_reader_how_to_detect_the_model`<br>`test_every_rule_carries_a_caching_model_label`<br>`test_scope_explains_the_model_labels` | PASS |
+| 6 | Decision table naming revalidateTag, updateTag, revalidatePath, refresh | `test_patterns_has_revalidation_decision_table`<br>`test_decision_table_says_where_each_api_may_be_called_and_what_the_user_sees` | PASS |
+| 7 | Version notes name the major and link nextjs.org | `test_version_notes_name_the_major_and_link_nextjs`<br>`test_version_notes_give_every_item_a_link` | PASS |
+| 8 | Reviewer-ready | `test_every_review_checklist_item_names_an_existing_rc_rule`<br>`test_every_checklist_line_in_the_section_is_a_checkbox_item`<br>`test_every_anti_pattern_pairs_dont_with_do`<br>`test_anti_patterns_name_existing_rules` | PASS |
+| 9 | Grounding evidence (one-off) | one-off set-equality check, see below | PASS |
+| 10 | Scope and gates (one-off + suite + ruff) | one-off `git diff --name-only` check, full suite, ruff (see below)<br>`test_patterns_has_rendering_strategies_and_migration_tables` | PASS |
+
+**Totals:** 10 PASS, 0 FAIL, 0 uncovered.
+
+### TEST1 assumptions
+
+1. AC9 (grounding evidence) is a one-off check by design ("not a permanent test"). It was re-run here with the plan's set-equality method and passed.
+2. AC10 scope is checked against the story's merge into the run branch (`git diff --name-only <merge>^1 <merge>`), because `origin/feat/...` has since moved on. The suite and ruff are checked on the final tree.
+3. Where the criterion text asks for content beyond what its test asserts (for example, the shape of an example), the test is taken as the verification the story names; factual correctness of the claims against nextjs.org and vercel.com is the REVIEW① lens, not a unit test.

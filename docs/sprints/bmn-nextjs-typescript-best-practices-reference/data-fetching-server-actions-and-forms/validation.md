@@ -87,3 +87,53 @@ the end of the evidence file ("Claims reworded, added or dropped after the live 
    2026 security release were also grepped and name none. Next.js 15 carry-overs are labelled as such.
 9. **No defects found in shared files.** `test_nextjs_reference.py` and `nextjs_doc_helpers.py` accepted the file
    unchanged.
+
+## TEST1: unit (2026-10-04)
+
+Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-1`, cut from the detached run base `origin/dev` `59279a3` (the run branch tip after
+the wave-2 merges, with origin/dev merged in). Tester: `tests-unit-1`. No code was changed; this is a
+verification pass.
+
+### Commands and results
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Full suite with coverage | `uv run --quiet --with pytest --with pytest-cov python -m pytest Skills/dev-bother-me-nope/assets/tests -q --cov=Skills/dev-bother-me-nope/assets/tests --cov-report=term` | **1026 passed in 95.32s (0:01:35)**, exit 0, 0 failed, 0 skipped. Log: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring/evidence/test1-unit-full-suite.txt` |
+| Lint | `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope` | `All checks passed!` |
+| Story tests, verbose | `pytest test_nextjs_topic_data_fetching_and_mutations.py test_nextjs_reference.py ... -v` (483 tests across the nextjs files and `test_skill_text_rules.py`) | 483 PASSED, 0 other. The tests this map cites are listed in `evidence/test1-unit-results.txt` |
+| TERMS and example needles | one-off script comparing this story's criterion 3 and 4 lists with the test | story TERMS (22) equal the test's TERMS (22), same order: True; story example needles missing from the test source: 0 |
+| URL sets | one-off script comparing `## Sources` of `references/nextjs/data-fetching-and-mutations.md` with the URLs in `evidence/sources-verified.md` | 39 cited, 39 listed, nothing only in one of them. All 39 evidence rows carry fetch date 2026-10-04 and a non-empty Backs cell |
+| Scope | one-off `git diff --name-only <merge>^1 <merge>` for this story's merge `57dd82b` | 4 files, all inside the story scope (the topic file, `test_nextjs_topic_data_fetching_and_mutations.py`, and files under `docs/sprints/bmn-nextjs-typescript-best-practices-reference/data-fetching-server-actions-and-forms/`); outside scope: none |
+
+### Coverage
+
+- `references/nextjs/data-fetching-and-mutations.md`: Markdown, coverage n/a. It is exercised by the generic contract tests and by `test_nextjs_topic_data_fetching_and_mutations.py`; the file is 28 rules, 781 lines (cap 800).
+- `nextjs_doc_helpers.py` (shared parser the tests use): **99%** (243 of 245 statements). Uncovered: line 180 (an unterminated code fence at end of file) and line 294 (`h1` of an empty file). Target 80% met.
+- `test_nextjs_topic_data_fetching_and_mutations.py`: **100%** (85 of 85 statements). Whole suite: **99%** (3604 of 3635).
+
+### Criterion map
+
+All [unit] criteria of `story.md`, mapped to the test or one-off check that covers them. The generic
+contract tests are the ones `test_nextjs_reference.py` runs for every topic file; none is skipped
+(the suite has no skips), so each ran on `data-fetching-and-mutations.md`.
+
+| AC | Criterion | Covering test(s) / check | Result |
+| --- | --- | --- | --- |
+| 1 | Contract | generic contract tests (17 x `[data-fetching-and-mutations.md]` + `test_rule_ids_are_unique_across_topic_files`)<br>`test_topic_uses_only_df_rule_ids` | PASS |
+| 2 | Not a stub, at least 15 DF rules | `test_topic_is_not_a_stub`<br>`test_topic_has_at_least_15_df_rules` | PASS |
+| 3 | Required terms | `test_topic_names_every_required_concept` | PASS |
+| 4 | Examples (Promise.all, use server+safeParse, useActionState, useOptimistic, cache(); no `any`) | `test_topic_has_required_example`<br>`test_examples_never_use_any` | PASS |
+| 5 | Every `'use server'` block calls an auth check; links proxy-auth-and-security.md | `test_every_use_server_block_calls_an_auth_check`<br>`test_mutation_examples_link_the_security_topic` | PASS |
+| 6 | `redirect` and `try` rule in `## Rules` | `test_rules_state_redirect_outside_try_catch`<br>`test_redirect_rule_says_outside_try_and_after_revalidation` | PASS |
+| 7 | Version notes name the major and link nextjs.org | `test_version_notes_name_the_major_and_link_nextjs` | PASS |
+| 8 | Reviewer-ready | `test_every_checklist_item_names_a_df_rule`<br>`test_checklist_rule_ids_exist`<br>`test_every_dont_is_paired_with_a_do` | PASS |
+| 9 | Grounding evidence (one-off) | one-off set-equality check, see below | PASS |
+| 10 | Scope and gates (one-off + suite + ruff) | one-off `git diff --name-only` check, full suite, ruff (see below) | PASS |
+
+**Totals:** 10 PASS, 0 FAIL, 0 uncovered.
+
+### TEST1 assumptions
+
+1. AC9 (grounding evidence) is a one-off check by design ("not a permanent test"). It was re-run here with the plan's set-equality method and passed.
+2. AC10 scope is checked against the story's merge into the run branch (`git diff --name-only <merge>^1 <merge>`), because `origin/feat/...` has since moved on. The suite and ruff are checked on the final tree.
+3. Where the criterion text asks for content beyond what its test asserts (for example, the shape of an example), the test is taken as the verification the story names; factual correctness of the claims against nextjs.org and vercel.com is the REVIEW① lens, not a unit test.
