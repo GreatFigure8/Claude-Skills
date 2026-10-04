@@ -260,3 +260,42 @@ None.
 | #15 (line 572) Don't return raw records to the client (SEC-13, SEC-16, SEC-23) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
 | #17 (line 597) Don't mutate cookies during render (SEC-10) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
 | #19 (line 618) Don't set secrets in Proxy response headers (SEC-6) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+
+## FIX①
+
+Branch `wip/nextjs-typescript-best-practices-reference/proxy-auth-and-security-fix`, from
+`origin/feat/nextjs-typescript-best-practices-reference`. Items: R1-C9, R1-C15, R1-C16, R1-C32 (full
+text in the REVIEW① tables of `../review.md`). Each was reproduced first, then fixed.
+
+| id | result | evidence |
+| --- | --- | --- |
+| R1-C9 | fixed (`test_one_rule_states_the_session_helper_contract_other_topics_import`, `test_ts_examples_name_files_in_the_canonical_src_layout`, `test_server_action_files_live_in_src_lib_actions`) | RED: 3 of the 6 new guards failed on the unfixed file (no rule named `src/lib/dal.ts` + `getSession` + `verifySession` + `src/lib/actions/`; snippets were named `lib/session.ts`, `proxy.ts`, `app/posts/actions.ts`, `app/api/reports/route.ts`). Behavioural: the 7 Patterns fences extracted to the paths their first-line comments name, under a strict tsc project with `@/*` -> `src/*`, gave 4 x TS2307 (`@/lib/dal` and `@/lib/session` not found from `app/api/reports/route.ts`, `app/posts/actions.ts`, `lib/dal.ts`, `proxy.ts`). After: new rule **SEC-46** states the contract (`src/lib/dal.ts`, imported as `@/lib/dal`; `getSession(): Promise<Session \| null>` never redirects; `verifySession(): Promise<Session>` redirects to `/login`; Server Actions in `src/lib/actions/`; snippets use the `src/` layout) and the Scope, the Patterns and the checklist cite it. Snippets are now `src/lib/session.ts`, `src/lib/dal.ts`, `src/proxy.ts`, `src/lib/actions/posts.ts`, `src/app/...` and root `next.config.ts`; the logout import is `@/lib/actions/auth`. The same extraction compiles with **tsc exit 0** (strict, `noUncheckedIndexedAccess`). The other topics' own snippets are their fixers' scope. |
+| R1-C15 | fixed (`test_proxy_and_get_session_share_one_validity_function`) | RED: the guard failed (role check lived in `dal.ts`, Proxy gated on `session?.userId`). Behavioural (vitest, `next@16.3.8` real `NextRequest`, `jose`; `next/headers`, `next/navigation` and `server-only` stubbed): a validly signed token with `role: 'superuser'` gave `getSession() === null` and `proxy(/login)` redirecting to `/dashboard`, so `/dashboard` -> `/login` -> `/dashboard` loops (`loops: true`). After: the validity rule (good signature, unexpired, string `userId`, known `role`) lives in one function, `decrypt` in `src/lib/session.ts`, returning `Session \| null`; `getSession` and the Proxy both call it and gate on the returned session; SEC-4 states the rule. The same vitest case now passes (`loops: false`), and the admin-token case still redirects `/login` -> `/dashboard` with `getSession()` returning `{ userId, role }`. |
+| R1-C16 | fixed (`test_security_headers_pattern_sends_the_frame_ancestors_sec_36_asks_for`) | RED: the guard failed (the `securityHeaders` array had HSTS, `nosniff`, Referrer-Policy and Permissions-Policy only). Behavioural: `await nextConfig.headers()` from the extracted `next.config.ts` had no `X-Frame-Options` and no `Content-Security-Policy` with `frame-ancestors`. Docs re-read (see `evidence/sources-verified.md` notes): the headers page says `X-Frame-Options` "has been superseded by CSP's `frame-ancestors` option" and the CSP guide's no-nonce example sets `Content-Security-Policy` from `next.config` `headers()` with `frame-ancestors 'none'`. After: the pattern sends `{ key: 'Content-Security-Policy', value: "frame-ancestors 'none'" }`; SEC-36 and its checklist item name it (CSP guide added as a source for that rule); a note says to keep `frame-ancestors` identical where `proxy.ts` also sets the nonce CSP (SEC-31), or drop it here `(convention)`. The vitest case passes. |
+| R1-C32 | fixed (`test_session_secret_is_read_lazily_but_still_fails_closed`) | RED: the guard failed (`const secret = process.env.SESSION_SECRET` at module scope, then a module-level `throw`). Behavioural, real build: the extracted snippets plus a `/dashboard` page calling `verifySession()` under `next@16.3.8`, run as `next build` with `SESSION_SECRET` unset, exit 1: `Failed to collect page data for /dashboard`, cause `Error: SESSION_SECRET is not set at module evaluation (src/lib/session.ts:10:20)`. After: `getKey()` reads the secret inside the function that signs or verifies, and `decrypt` calls it outside its `try`, so a missing secret is a server error, not a silent "signed out". The same `next build` with the secret unset exits 0 (`/dashboard` and `/api/reports` dynamic, Proxy compiled). Vitest: importing the session module with no secret resolves, and `encrypt` still rejects with `SESSION_SECRET is not set`. SEC-8 and its checklist item state the lazy read. |
+
+### Gates (after the fix)
+
+- New text guards in `test_nextjs_topic_proxy_auth_and_security.py`: 6 added; **6 failed on the unfixed
+  file** (24 collected: 6 failed, 18 passed) and all **24 pass** after.
+- With `test_nextjs_reference.py`: 209 passed. Full suite
+  `uv run --quiet --with pytest python -m pytest Skills/dev-bother-me-nope/assets/tests -q`: **1032 passed**.
+  Lint `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope`: All checks passed!
+- `wc -l` of the topic file: 798 (cap 800).
+- Sources equals evidence: 43 and 43, none missing, none extra, no prose URL outside Sources.
+- Strict tsc over the 7 Patterns fences (scratch project in the session scratchpad, `next@16.3.8`,
+  `react@19`, `jose`, `zod`, `server-only`, typed stubs for `@/lib/prisma` and `@/lib/reports`): exit 0.
+  Nothing from the scratch project is committed.
+
+### Assumptions
+
+1. The session-helper contract is a new rule, SEC-46, appended so no SEC id moves. `Session` is
+   `{ userId: string; role: 'admin' | 'user' }` in the snippets and "carries `userId` and `role`" in the
+   rule, so a project can widen the role union.
+2. `SessionPayload` (with `expiresAt`) is gone: the JWT carries `userId` and `role` and its own `exp`;
+   the cookie `expires` is computed in `createSession`. `decrypt` returns `Session | null` (it returned
+   the loose JWT payload or `undefined`).
+3. The frame-ancestors header is `frame-ancestors 'none'` (matching the nonce CSP pattern), with no
+   `X-Frame-Options` sent beside it, because the docs call that header superseded.
+4. Rewriting the other topics' session-helper imports (`@/lib/dal/session`, `@/lib/auth/session`,
+   `@/lib/auth`) belongs to their own fixers; this file only defines the contract they align to.
