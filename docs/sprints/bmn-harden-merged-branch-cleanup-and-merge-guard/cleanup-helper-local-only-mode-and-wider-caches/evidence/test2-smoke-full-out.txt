@@ -1,0 +1,194 @@
+=== story 1: cleanup-helper-local-only-mode-and-wider-caches
+PASS S1.C1 --local-only exit 0
+PASS S1.C1 no git push run (shim log)
+PASS S1.C1 origin refs/heads/branch SHA unchanged (merged copy)
+PASS S1.C2 left has exactly one origin entry with exact reason
+PASS S1.C2 deleted has no origin: entry
+PASS S1.C4 clean worktree removed + local branch deleted, listed in deleted
+PASS S1.C4 local:<branch> in deleted and ref gone
+PASS S1.C4 worktree directory gone
+PASS S1.C4 no --force on any git call
+PASS S1.C4 local delete is compare-and-swap (update-ref -d ref sha)
+PASS S1.C2 unmerged origin copy: one origin entry, same reason
+PASS S1.C1 unmerged origin copy: SHA unchanged, no push
+PASS S1.C2 no remote copy: no origin entry in left or deleted
+PASS S1.C2 no remote copy: local branch + worktree still deleted
+PASS S1.C3[c3-env-no-origin] exit 0, worktree dir and .env bytes intact
+PASS S1.C3[c3-env-no-origin] left has worktree:<path> with reason naming the ignored file
+PASS S1.C3[c3-env-no-origin] local branch kept, local:<branch> in left
+PASS S1.C3[c3-env-no-origin] deleted has nothing
+PASS S1.C3[c3-env-origin-copy] exit 0, worktree dir and .env bytes intact
+PASS S1.C3[c3-env-origin-copy] left has worktree:<path> with reason naming the ignored file
+PASS S1.C3[c3-env-origin-copy] local branch kept, local:<branch> in left
+PASS S1.C3[c3-env-origin-copy] deleted has nothing
+PASS S1.C5[rebase] --local-only keeps the local branch with the busy reason
+PASS S1.C5[rebase] same reason as the default mode
+PASS S1.C5[bisect] --local-only keeps the local branch with the busy reason
+PASS S1.C5[bisect] same reason as the default mode
+PASS S1.C5 unmerged local branch kept with 'not merged into'
+PASS S1.C6 dry-run: exit 0, dry_run true
+PASS S1.C6 dry-run: no <remote>: entry in deleted, left has the kept-copy entry
+PASS S1.C6 dry-run runs no fetch
+PASS S1.C6 dry-run: no mutating git call
+PASS S1.C6 dry-run: every ref/worktree identical, origin unchanged
+PASS S1.C6 dry-run lists the local deletions in the plan
+PASS S1.C7 docstring Contract line lists [--local-only]
+PASS S1.C7 docstring says remote copy never touched and reported in left
+PASS S1.C7 --help names --local-only
+PASS S1.C7 refusal with --local-only: --branch 'main' -> exit 2 + error
+PASS S1.C7 refusal with --local-only: --branch 'DEV' -> exit 2 + error
+PASS S1.C7 refusal with --local-only: --branch 'release' -> exit 2 + error
+PASS S1.C7 refusal with --local-only: --branch 'trunk' -> exit 2 + error
+PASS S1.C7 refusal with --local-only: --branch '-x' -> exit 2 + error
+PASS S1.C7 refusal with --local-only: --branch 'refs/heads/x' -> exit 2 + error
+PASS S1.C7 refusal with --local-only: --target '-x' -> exit 2 + error
+PASS S1.C7 refusal with --local-only: --target 'HEAD~0' -> exit 2 + error
+PASS S1.C7 refusal with --local-only: --target 'fix/run' -> exit 2 + error
+PASS S1.C7 refusals changed nothing
+PASS S1.C7 abbreviated --local-onl is refused (allow_abbrev off)
+PASS S1.C8 SKILL.md CLEANUP step 2 has the --local-only command
+PASS S1.C8 cleaner brief step 2 has the --local-only command
+PASS S1.C8 hand-run text gone from both: 'worktree remove <path>'
+PASS S1.C8 hand-run text gone from both: 'update-ref -d'
+PASS S1.C8 hand-run text gone from both: 'merge-base --is-ancestor "$sha"'
+PASS S1.C8 hand-run text gone from both: 'sha=$('
+PASS S1.C8 hand-run text gone from both: 'the helper has no flag'
+PASS S1.C8 SKILL: origin copy stays + listed as origin:<integration>
+PASS S1.C8 SKILL: local branch and every worktree still deleted
+PASS S1.C8 brief: origin copy stays + listed as origin:<integration>
+PASS S1.C8 brief: local branch and every worktree still deleted
+PASS S1.C9 Leftover sweep passes --local-only when integration_pushed false
+PASS S1.C9 no bare-path helper invocation (only plugin-root form or the bare name)
+PASS S1.C14 no 'worktree prune' in CLEANUP text except as a never-run sentence
+PASS S1.C14 cleaner text has no repo-wide prune: still says never run it
+PASS S1.C14 helper never runs worktree prune
+PASS S1.C14 helper docstring: never ... prunes other worktrees
+PASS S1.C10 is_cache True for all 19 listed ignored entries
+PASS S1.C11 is_cache False for all existing + near-miss entries
+PASS S1.C12 cache rules are immutable named constants (tuple/frozenset)
+PASS S1.C12 no mutable module-level state
+PASS S1.C12 no global statements
+PASS S1.C13 worktree with only Next.js/Playwright leftovers is removed, branch deleted (local-only)
+PASS S1.C13 default mode: leftovers-only worktree removed, local + origin copy deleted
+PASS S1.C13 same worktree plus ignored .env is kept with .env intact
+PASS S1.C13 near-miss dist keeps the worktree
+PASS S1.C13 near-miss env.local keeps the worktree
+PASS S1.C13 near-miss untracked-next-env keeps the worktree
+FAIL S1.C15 plugin.json version is 1.6.1  :: 
+PASS S1.C16 helper under 400 lines
+PASS S1.C16 every helper function under 50 lines
+PASS S1.C16 helper runs on /usr/bin/python3 3.9
+=== story 2: deploy-guard-protected-deletes-and-wrapper-gaps
+PASS S2.C1 approved protected delete blocked w/ branch-guard prefix, no approval advice :: BMN_USER_APPROVED_DEPLOY=1 git push origin --delete dev
+PASS S2.C1 approved protected delete blocked w/ branch-guard prefix, no approval advice :: BMN_USER_APPROVED_DEPLOY=1 git push origin :main
+PASS S2.C1 approved protected delete blocked w/ branch-guard prefix, no approval advice :: BMN_USER_APPROVED_DEPLOY=1 git push -d origin staging
+PASS S2.C1 approved protected delete blocked w/ branch-guard prefix, no approval advice :: BMN_USER_APPROVED_DEPLOY=1 git push origin +:refs/heads/release
+PASS S2.C1 approved protected delete blocked w/ branch-guard prefix, no approval advice :: BMN_USER_APPROVED_DEPLOY=1 sh -c 'git push origin --delete dev'
+PASS S2.C1 approved protected delete blocked w/ branch-guard prefix, no approval advice :: BMN_USER_APPROVED_DEPLOY=1 sudo -u me bash -lc 'git push origin --delete develop'
+PASS S2.C1 approved protected delete blocked w/ branch-guard prefix, no approval advice :: BMN_USER_APPROVED_DEPLOY=1 git -C . push origin --delete DEV
+PASS S2.C1 approved protected delete blocked w/ branch-guard prefix, no approval advice :: BMN_USER_APPROVED_DEPLOY=1 git push origin --delete trunk
+PASS S2.C2 message names the refspec + 'deletes a protected branch'
+PASS S2.C2 message says Jonathan deletes it himself / never inside a run
+PASS S2.C2 unapproved protected delete -> branch guard :: git push origin --delete dev
+PASS S2.C3 approved deploy push passes :: BMN_USER_APPROVED_DEPLOY=1 git push origin main
+PASS S2.C3 approved vercel deploy --prod passes :: BMN_USER_APPROVED_DEPLOY=1 vercel deploy --prod
+PASS S2.C3 approved shell deploy passes :: BMN_USER_APPROVED_DEPLOY=1 sh -c 'git push origin main'
+PASS S2.C3 unapproved push to main -> deploy guard :: git push origin main
+PASS S2.C4 allowed cleanup :: git push origin --delete wip/demo/a
+PASS S2.C4 allowed cleanup :: BMN_USER_APPROVED_DEPLOY=1 git push origin --delete feat/run-branch
+PASS S2.C4 allowed cleanup :: git push origin --force-with-lease=refs/heads/wip/x:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --delete wip/x
+PASS S2.C4 allowed cleanup :: git push origin --delete wip/x/y
+PASS S2.C4 allowed cleanup :: git push origin dev
+PASS S2.C4 allowed cleanup :: git push origin :wip/x
+PASS S2.C4 allowed cleanup :: git branch -D wip/x
+PASS S2.C4 allowed cleanup :: git worktree remove /tmp/x
+PASS S2.C4 allowed cleanup :: git worktree prune
+PASS S2.C4 allowed cleanup :: gh pr merge 5 --merge --delete-branch
+PASS S2.C4 allowed cleanup :: git merge --no-ff x
+PASS S2.C5 xargs GNU optional-value long flags :: xargs --replace git merge --squash x
+PASS S2.C5 xargs GNU optional-value long flags :: xargs --max-lines git merge --squash x
+PASS S2.C5 xargs GNU optional-value long flags :: xargs --eof git merge --squash x
+PASS S2.C5 xargs GNU optional-value long flags :: xargs --replace=R git merge --squash R
+PASS S2.C5 xargs GNU optional-value long flags :: xargs --max-lines=1 gh pr merge 12 --squash --delete-branch
+PASS S2.C5 xargs GNU optional-value long flags :: xargs --replace vercel deploy --prod
+PASS S2.C5 xargs GNU optional-value long flags :: xargs -I{} git merge --squash {}
+PASS S2.C6 value-taking xargs flags still consume :: xargs -I {} git merge --squash {}
+PASS S2.C6 value-taking xargs flags still consume :: xargs -L 1 git merge --squash x
+PASS S2.C6 value-taking xargs flags still consume :: xargs -n 1 git merge --squash x
+PASS S2.C6 value-taking xargs flags still consume :: xargs --max-args 1 git merge --squash x
+PASS S2.C6 value-taking xargs flags still consume :: xargs -E EOF git merge --squash x
+PASS S2.C6 value-taking xargs flags still consume :: xargs --process-slot-var SLOT git merge --squash x
+PASS S2.C6 benign xargs allowed :: xargs -I {} git status {}
+PASS S2.C6 benign xargs allowed :: xargs --replace echo squash
+PASS S2.C7 fish command string read (merge) :: fish --command='git merge --squash x'
+PASS S2.C7 fish command string read (merge) :: fish --command 'git merge --squash x'
+PASS S2.C7 fish command string read (merge) :: fish -c 'git merge --squash x'
+PASS S2.C7 fish command string read (merge) :: BMN_USER_APPROVED_DEPLOY=1 fish --command 'git merge --squash x'
+PASS S2.C7 fish --command push --delete dev -> branch guard :: fish --command='git push origin --delete dev'
+PASS S2.C7 fish benign/argument not read :: fish --command='git status'
+PASS S2.C7 fish benign/argument not read :: fish script.fish --command 'git merge --squash x'
+PASS S2.C7 --command read for every shell (sh) :: sh --command 'git merge --squash x'
+PASS S2.C7 --command read for every shell (bash) :: bash --command 'git merge --squash x'
+PASS S2.C7 --command read for every shell (zsh) :: zsh --command 'git merge --squash x'
+PASS S2.C7 --command read for every shell (dash) :: dash --command 'git merge --squash x'
+PASS S2.C7 --command read for every shell (ksh) :: ksh --command 'git merge --squash x'
+PASS RUNCTX approved delete dev :: BMN_USER_APPROVED_DEPLOY=1 git push origin --delete dev
+PASS RUNCTX xargs --replace squash :: xargs --replace git merge --squash x
+PASS RUNCTX xargs -I{} squash :: xargs -I{} git merge --squash {}
+PASS RUNCTX fish --command squash :: fish --command='git merge --squash x'
+PASS RUNCTX gh pr merge allowed :: gh pr merge 5 --merge --delete-branch
+PASS RUNCTX delete wip branch allowed :: git push origin --delete wip/x/y
+PASS RUNCTX inactive repo: guard does nothing outside a run :: git push origin --delete dev
+PASS S2.C8 wrapper bullet names xargs --replace and fish -c / --command
+PASS S2.C8 blind spots paragraph does not list xargs --replace / fish --command as blind
+PASS S2.C8 blind spot still listed: eval
+PASS S2.C8 blind spot still listed: doas
+PASS S2.C8 blind spot still listed: env -S
+PASS S2.C12 protected-delete bullet: branch-guard block never lifted by the prefix
+PASS S2.C12 'approval prefix does not apply' paragraph covers protected deletes
+PASS S2.C12 doc says list checked against merged-branch-cleanup.py by a test
+PASS S2.C12 guard docstring says the same (branch guard never lifted + parity)
+PASS PARITY guard DELETE_PROTECTED == helper PROTECTED (lowercase sets)
+PASS PARITY eight names
+PASS PARITY mutated guard copy reports exactly {'qa'} guard-only
+PASS PARITY mutated helper copy reports exactly {'qa'} helper-only
+PASS PARITY every protected name appears in guard docstring and doc bullet
+PASS S2.C13 guard < 800 lines, no function >= 50 lines
+PASS S2.C13 guard runs on /usr/bin/python3 3.9
+=== probes beyond the criteria
+PASS PROBE blocked :: git push origin :refs/heads/dev
+PASS PROBE blocked :: git push --delete origin dev
+PASS PROBE blocked :: BMN_USER_APPROVED_DEPLOY=1 git push --delete origin Dev
+PASS PROBE blocked :: git push origin --delete refs/heads/main
+PASS PROBE blocked :: git push origin --delete wip/x dev
+PASS PROBE blocked :: BMN_USER_APPROVED_DEPLOY=1 env git push origin --delete dev
+PASS PROBE blocked :: BMN_USER_APPROVED_DEPLOY=1 xargs --replace git push origin --delete dev
+PASS PROBE blocked :: xargs --null git merge --squash x
+PASS PROBE blocked :: xargs -r git merge --squash x
+PASS PROBE blocked :: xargs -0 -n1 git merge --squash
+PASS PROBE blocked :: xargs --max-procs 4 git merge --squash x
+PASS PROBE blocked :: xargs --no-run-if-empty git merge --squash x
+PASS PROBE blocked :: xargs -t -r --verbose git merge --squash x
+PASS PROBE blocked :: xargs -i git merge --squash {}
+PASS PROBE blocked :: xargs -l git merge --squash x
+PASS PROBE blocked :: xargs -e git merge --squash x
+PASS PROBE blocked :: find . | xargs --replace git push origin --delete dev
+PASS PROBE blocked :: fish --login --command='git merge --squash x'
+PASS PROBE blocked :: fish -lc 'git merge --squash x'
+PASS PROBE blocked :: fish --command 'git push origin --delete main'
+PASS PROBE blocked :: timeout 5 xargs --replace git merge --squash x
+PASS PROBE blocked :: sudo -u me fish --command 'git merge --squash x'
+PASS PROBE blocked :: fish --command='fish --command="git merge --squash x"'
+PASS PROBE blocked :: xargs --replace git push origin main
+PASS PROBE blocked :: xargs --replace -t git merge --squash x
+PASS PROBE allowed :: xargs --replace git status
+PASS PROBE allowed :: xargs --max-lines=1 git log
+PASS PROBE allowed :: fish --command='git log'
+PASS PROBE allowed :: echo xargs --replace git merge --squash x
+PASS PROBE allowed :: git push origin --delete wip/dev
+PASS PROBE allowed :: git push origin --delete dev-x
+PASS PROBE allowed :: git push origin --delete feature/dev
+PASS PROBE allowed :: git push origin :wip/main/x
+
+SUMMARY pass=187 fail=1 work=/private/tmp/claude-501/-Users-jonathanstevenson-Source-claude-skills/507b16ea-52ab-419a-9774-ba551007f542/scratchpad/bmn-smoke-0thmg5_2
+FAILED: S1.C15 plugin.json version is 1.6.1 :: 

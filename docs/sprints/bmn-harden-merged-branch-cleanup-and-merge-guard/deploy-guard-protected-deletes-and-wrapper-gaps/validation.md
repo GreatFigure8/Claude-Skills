@@ -97,3 +97,56 @@ all checks passed. `deploy-guard.py` is 797 lines (limit 800); no function reach
 3. `git push <remote> heads/<name>` (no colon) also resolves to the production branch, so the deploy family reads it
    through the same `ref_destination`.
 4. The guard keeps plain tuples for the parsed push, as before; a NamedTuple would not fit under the 800-line cap.
+
+## TEST2 (after FIX①)
+
+Surface: unit/integration, against `origin/dev` @ `7e990c1abc9de8fc71b51277eb83150e160e8119` (FIX① merged, 1114 tests).
+
+| Command | Result |
+| --- | --- |
+| `uv run --quiet --with pytest python -m pytest Skills/dev-bother-me-nope/assets/tests -q` (uv default Python) | 1114 passed |
+| `uv run --quiet --python /usr/bin/python3 --with pytest python -m pytest Skills/dev-bother-me-nope/assets/tests -q` (3.9.6) | 1114 passed |
+| `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope/assets` | All checks passed |
+| suite under subprocess coverage (`include = */assets/bin/*.py`) | 1114 passed |
+| `evidence/test2-smoke-guard.py <checkout>` (hook driven over stdin with an active-run fixture in a tmp clone) | 64 checks, 0 failed |
+| `evidence/smoke.py` (TEST1 smoke, rerun on this sha; story 2 section, output `../cleanup-helper-local-only-mode-and-wider-caches/evidence/test2-smoke-full-out.txt`) | story 2 section all PASS |
+| `evidence/test2-smoke-fix1.py` (R1-2 `heads/<name>`, R1-3 fish `-C`, R1-4 doc) | 27 checks, 0 failed |
+
+### Coverage (subprocess coverage, default Python)
+
+`assets/bin/deploy-guard.py`: 95% (520 statements, 25 missed: 187-188, 212, 370-371, 392, 405-406, 448, 453, 471-472,
+481-482, 496-497, 507-508, 527-528, 601, 609, 620, 706, 783). All are defensive paths (unparsable-quoting fallback,
+`git` / `symbolic-ref` failures, parser `break`/`return` branches, the `--all`/`--mirror` message, empty command). None of the
+branch-guard family, xargs value-flag set, `--command` / `-C` reading or `DELETE_PROTECTED` code is missed. Target 80%: met.
+`test_protected_branch_parity.py` is in the suite and passes (guard `DELETE_PROTECTED` equals helper `PROTECTED`).
+
+### Criteria
+
+All 13 criteria and the FIX① items (R1-2..R1-5): PASS on the post-FIX① sha. Proven through the real hook, with an active
+`bmn.json` run fixture (a phase `build` run in a tmp clone), exit code and stderr prefix checked each time:
+- Blocked with the branch-guard prefix, approved or not: `BMN_USER_APPROVED_DEPLOY=1 git push origin --delete dev`,
+  `:main`, `-d origin staging`, `+:refs/heads/release`, `sh -c '…'`, `sudo -u me bash -lc '… develop'`, `git -C . … DEV`,
+  the remote default branch (`trunk`, from `refs/remotes/origin/HEAD`), and the `heads/dev`, `:heads/main`,
+  `heads/staging` spellings (R1-2); the message names the refspec and does not offer the approval prefix.
+- Still allowed: `gh pr merge 5 --merge --delete-branch`, `git push origin --delete wip/x/y`, `wip/demo/a`, an approved
+  `--delete feat/run-branch`, `--force-with-lease=<ref>:<sha> --delete wip/x`, `--delete heads/feature`; approved
+  `git push origin main` and `vercel deploy --prod` (also through `sh -c`) pass; unapproved `git push origin main`, and
+  `HEAD:heads/main`, exit 2 with the deploy-guard prefix.
+- Merge guard through wrappers: `xargs --replace|--max-lines|--eof git merge --squash x`, `--replace=R`, `--max-lines=1 gh pr
+  merge 12 --squash --delete-branch`, `-I{} git merge --squash {}`, `-I {} …`, `-L 1`, `-n 1`, `--max-args 1`, `-E EOF`,
+  `--process-slot-var SLOT` exit 2 with the merge prefix; `xargs --replace vercel deploy --prod` with the deploy prefix;
+  `xargs -I {} git status {}` and `xargs --replace echo squash` exit 0. fish: `--command='…'`, `--command '…'`, `-c '…'`,
+  approved fish, `-C '…' -c true`, `--init-command='…'`, `-lC '…'` exit 2; `fish --command='git status'`,
+  `fish script.fish --command '…'`, `fish -C 'git status' -c true` and `bash -C -c 'git status'` exit 0.
+- Outside a run (no active `bmn.json`) the same `git push origin --delete dev` and `xargs --replace git merge --squash x` exit 0.
+- Docs: `deploy-guards.md` names `xargs --replace` and `fish --command`, the blind-spots paragraph does not list them and keeps
+  `eval`, `doas`, `env -S`, and now names `gh api -X DELETE …/git/refs/heads/<protected>` and the GitHub MCP branch tools (R1-4);
+  every protected name is in the guard docstring and the doc.
+- Gates: `deploy-guard.py` is 797 lines (< 800), no function reaches 50 lines.
+
+Totals (post-FIX①): 13 PASS, 0 FAIL.
+
+### Assumptions (TEST2)
+
+1. fish is not installed on this machine, so fish parsing was checked through the hook only, as the story's assumption 4 expects.
+2. Evidence: `evidence/test2-smoke-guard.py` and `evidence/test2-smoke-guard-out.txt`.
