@@ -36,6 +36,8 @@ Rules — no exceptions:
   checkout is Jonathan's. Never force-push. Never stash, reset or overwrite changes you
   didn't make (Jonathan may commit in the run worktree too). Branches you create are
   `wip/{run_slug}/<name>`, never under {integration}/.
+- Merges are merge commits only: `git merge --no-ff`, never squash. Any PR you merge is
+  `gh pr merge <n> --merge --delete-branch --repo <owner>/<repo>`.
 - Commit messages: conventional title + 1–12 sentence body. NO Co-Authored-By trailer and no
   attribution lines of any kind, whatever a session attribution reminder says.
 ```
@@ -213,17 +215,17 @@ If the merge refuses because of uncommitted changes you didn't make, leave them,
 that merge in a throwaway `git worktree add --detach` of origin/{integration} instead, push
 HEAD:{integration}, then `git worktree remove` it. A branch whose gates fail after merging
 is reverted (`git revert -m 1`) and reported, not left broken.
-Then clean up each merged branch, worktree paths from: {temp_refs}. Check each copy
-separately against origin/{integration}. Local copy: `git merge-base --is-ancestor <branch>
-origin/{integration}`, then `git branch -D <branch>`. Remote copy, when `origin/<branch>`
-exists (also when no local ref does): `git merge-base --is-ancestor origin/<branch>
-origin/{integration}`, then `git push origin --delete <branch>`. Remove its worktree
-(`git worktree remove`, no --force; dirty → leave it and the branch, report why) once the
-branch qualifies. Delete the paired harness branch only when it has no commits unique to it
-(`git rev-list <harness> --not --exclude=refs/heads/<harness> --branches --remotes` prints
-nothing); else leave it and record it. A copy that fails its check is left and recorded.
-Never touch a ref not in {temp_refs}. Return per branch: tip sha, merge sha / reverted + failing gate output
-(≤20 lines); deleted[]; left[{ref, why}].
+Then, for each branch you merged, clean it up with the helper (worktree paths from:
+{temp_refs}):
+`python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo {run_worktree} --branch <branch> --target origin/{integration}`.
+It proves each copy is merged (`git merge-base --is-ancestor`), removes every worktree that
+has the branch checked out (no --force; dirty or locked → left), and deletes the local branch
+and the origin copy. Its exit 2 (refused) goes to left with the error as why. Delete the
+paired harness branch only when it has no commits unique to it (`git rev-list <harness> --not
+--exclude=refs/heads/<harness> --branches --remotes` prints nothing), with `git branch -D`
+once its worktree is gone; else leave it and record it. Never touch a ref not in
+{temp_refs}. Return per branch: tip sha, merge sha / reverted + failing gate output
+(≤20 lines); deleted[] (the helper's worktree:/local:/origin: entries); left[{ref, why}].
 ```
 
 ## merger (sonnet)
@@ -231,6 +233,10 @@ Never touch a ref not in {temp_refs}. Return per branch: tip sha, merge sha / re
 ```
 Merge {integration} into dev. Load python-library-quality:keeping-git-repos-clean.
 Never check out dev anywhere and never touch {repo_path}'s working tree.
+Merge commits only: `git merge --no-ff`, never squash (no `git merge --squash`, no gh
+`--squash`/`-s`, never `merge_method=squash`). If your brief names a pull request, merge it with
+`gh pr merge <n> --merge --delete-branch --repo <owner>/<repo>`. It doesn't delete {integration}:
+CLEANUP does, after the last merge to dev, because FIX① still branches from it.
 1. git fetch; if origin/dev is missing:
    `git push origin origin/{default_branch}:refs/heads/dev`.
 2. In {run_worktree}: `git pull --rebase=merges origin {integration}`, merge origin/dev into
@@ -253,21 +259,24 @@ Clean up run {run}. Touch ONLY these, recorded in bmn.json: run branch {integrat
 worktree {run_worktree}, temp refs {temp_refs}. Ref and worktree commands run as
 `git -C {repo_path} …` (changes no file or branch there). Never --force anything; a dirty
 worktree or an unmerged branch is left and reported with the reason.
-1. git fetch --prune origin. Check each copy of every temp ref separately. Local copy:
-   `git merge-base --is-ancestor <ref> origin/{integration}`, then `git branch -D <ref>`.
-   Remote copy, when `origin/<ref>` exists (also when no local ref does):
-   `git merge-base --is-ancestor origin/<ref> origin/{integration}`, then
-   `git push origin --delete <ref>`. A `harness` ref whose worktree is gone is deleted when
-   its tip equals its `base`, or when `git rev-list <ref> --not --exclude=refs/heads/<ref>
-   --branches --remotes` prints nothing. Remove a ref's worktree (no --force) only after the
-   ref qualifies. A copy that fails its check is left and recorded with the reason.
-2. After the fetch: delete local {integration} (`git branch -D`) only if
-   `git merge-base --is-ancestor {integration} origin/dev`. Delete the origin copy
-   (`git push origin --delete {integration}`) only if bmn.json `integration_pushed` is true
-   AND `git merge-base --is-ancestor origin/{integration} origin/dev` also holds; otherwise
-   leave it and record "origin has commits not in dev". Remove {run_worktree} (no --force,
-   clean only) when the local branch is deleted, then `git worktree prune`. Else leave both:
-   "not in dev — <why>".
+Run the helper from {repo_path} (cd there first; it changes no file or branch in it), never
+from {run_worktree}, which it removes. Its exit 2 (refused) goes to left with the error as why.
+1. git fetch --prune origin. For every temp ref (before the run branch, while
+   origin/{integration} still resolves):
+   `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo {repo_path} --branch <ref> --target origin/{integration}`.
+   It checks each copy separately (local, and origin when `origin/<ref>` exists, also when no
+   local ref does), removes every worktree on the ref (no --force) once the ref qualifies, and
+   leaves a copy that fails its check, with the reason. A `harness` ref it leaves as not merged
+   is deleted with `git branch -D` (its worktree is already gone) when its tip equals its
+   `base`, or when `git rev-list <ref> --not --exclude=refs/heads/<ref> --branches --remotes`
+   prints nothing.
+2. Run branch: `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo {repo_path} --branch {integration} --target origin/dev`.
+   It deletes local {integration}, the origin copy and every worktree on it (the run worktree
+   too, when clean) only if the branch is an ancestor of origin/dev. The origin copy is gated
+   on bmn.json `integration_pushed`: when it is false and origin/{integration} exists anyway,
+   skip the helper, leave the branch and record "origin copy not pushed by this run". Whatever
+   the helper leaves ("origin has commits not in dev", a dirty run worktree) is recorded as
+   "not in dev — <why>". Then `git worktree prune`.
 3. If step 2 deleted the branch: first `git -C {repo_path} worktree add --detach
    {dev_worktree} origin/dev`. Then edit docs/sprints/{run}/report.md ("Git cleanup":
    deleted, left + why), bmn.json (`cleanup`; `phase: blocked` when `blocker` is non-null,

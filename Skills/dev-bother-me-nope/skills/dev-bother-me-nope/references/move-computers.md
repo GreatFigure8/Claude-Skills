@@ -66,7 +66,8 @@ This check runs before INTAKE's resume check, on every invocation.
      `git worktree add --track -b <type>/<run-slug> ../<repo-name>-<run-slug> origin/<type>/<run-slug>`
      (plain `git worktree add <path> <type>/<run-slug>` if the local branch exists). Write
      its path to `bmn.json` `worktree`. Harness worktrees from the other machine don't
-     exist here; their `wip/` branches stay on origin until CLEANUP deletes them.
+     exist here, and merged `wip/` branches are already deleted (local, origin and worktrees)
+     when the integrator merged them; only unmerged ones remain on origin.
    - Re-ground from disk: verify every *Claimed, not verified* line, and confirm every branch
      the handoff lists exists on origin.
    - Re-dispatch any "interrupted" brief.

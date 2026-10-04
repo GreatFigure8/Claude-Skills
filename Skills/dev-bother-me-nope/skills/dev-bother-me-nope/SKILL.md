@@ -79,8 +79,8 @@ Every branch bmn makes is one of these:
 
 | What | Name | Lives | Deleted |
 | --- | --- | --- | --- |
-| **Run branch** (the integration branch; permanent until merged) | `<type>/<run-slug>`, type `feat`\|`fix`\|`hotfix`\|`chore` from the story's intent, cut from `origin/dev` | the **run worktree** `../<repo-name>-<run-slug>` (sibling of the main checkout) | at CLEANUP, once it's in `origin/dev` |
-| Story, fix and test branches (temporary) | `wip/<run-slug>/<slug>` | a harness worktree (`isolation: "worktree"`) | as soon as the integrator has merged it |
+| **Run branch** (the integration branch; permanent until merged) | `<type>/<run-slug>`, type `feat`\|`fix`\|`hotfix`\|`chore` from the story's intent, cut from `origin/dev` | the **run worktree** `../<repo-name>-<run-slug>` (sibling of the main checkout) | at CLEANUP, after its last merge to `dev` — not after MERGE→dev①, because FIX① still branches from it |
+| Story, fix and test branches (temporary) | `wip/<run-slug>/<slug>` | a harness worktree (`isolation: "worktree"`) | as soon as the integrator has merged it — local, origin and every worktree on it |
 | Dev-merge scratch (temporary) | detached, no branch | `../<repo-name>-<run-slug>-dev` | in the same command that made it |
 
 Temp branches never sit under the run branch's name: git can't hold `feat/x` and
@@ -88,14 +88,22 @@ Temp branches never sit under the run branch's name: git can't hold `feat/x` and
 worktree. Jonathan may open it and commit there too, so the integrator and merger pull
 (`--rebase=merges`) before they push, never force-push, and never stash, reset or check out
 over changes they didn't make. Every ref and worktree the run creates is recorded in
-`bmn.json` (`integration`, `worktree`, `temp_refs`). Cleanup only ever touches those.
+`bmn.json` (`integration`, `worktree`, `temp_refs`). Cleanup only ever touches those refs,
+plus every worktree that has one of them checked out (from `git worktree list --porcelain`),
+even one bmn didn't create; the main checkout is never removed or switched.
 
-**Cleanup is a step, not advice.** Deleting a branch always goes the same way: verify
-`git merge-base --is-ancestor <branch> <target>` (never `git branch -d`, which checks
-against HEAD/upstream), `git worktree remove <path>` without `--force`, then `git branch -D`
-and `git push origin --delete` when it was pushed. A dirty worktree or an unmerged branch is
-left in place and recorded in `cleanup.left` with the reason. The report's *Git cleanup*
-section lists both.
+**Cleanup is a step, not advice.** Deleting a merged branch always goes through one tested
+helper, never a hand-written sequence:
+`python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo <path> --branch <branch> --target <ref>`.
+It proves the branch is merged with `git merge-base --is-ancestor <branch> <target>` (never
+`git branch -d`, which checks against HEAD/upstream), removes every worktree that has the
+branch checked out, deletes the local branch, and deletes the origin copy once that is also an
+ancestor of the target — never with `--force`. A dirty or locked worktree, the main checkout
+and a branch that isn't proven merged are left in place. It prints JSON with `deleted`
+(`worktree:`, `local:` and `origin:` entries) and `left` (`[{ref, why}]`). The orchestrator
+appends both to `bmn.json.cleanup`, and the report's *Git cleanup* section lists them. When
+the helper refuses (exit 2, an unresolvable target say), record the branch in `left` with the
+error as `why` and carry on.
 
 ## Merging never builds
 
@@ -127,6 +135,31 @@ Actions, or anything that touches Supabase **main**. The stack-scout checks for 
 finds one (`stack.dev_push_deploys: true`), the run doesn't push to `dev`. It merges and
 tests on the run branch instead, "merge `<type>/<run-slug>` → `dev`" goes on the Deploy
 checklist, and the run branch and worktree stay until that merge has happened.
+
+## Merge commits only — never squash (Jonathan's rule, 2026-10-03)
+
+**bmn never squash-merges.** On 2026-10-03 Jonathan asked for the full history of every
+change on `dev` from here on, so every merge bmn makes is a `git merge --no-ff` merge commit
+and every story branch's commits stay reachable in `dev`'s history. Merge commits only,
+never squash. A brief or the orchestrator never runs any of these forms:
+
+- `git merge --squash`: never.
+- `gh pr merge --squash` (or `-s`): never.
+- the REST API's `merge_method=squash`: never.
+
+The plugin's deploy guard blocks all three while a run is active
+([references/deploy-guards.md](references/deploy-guards.md)), and a block is final. Rebase
+merges aren't part of the rule and are left as they are.
+
+Any pull request bmn merges, or that a brief names, is merged one way only:
+`gh pr merge <n> --merge --delete-branch --repo <owner>/<repo>`. That is a merge commit, and
+the source branch is deleted on the remote. With `--repo`, gh skips its local-branch step, so
+the form deletes only the remote head branch and leaves every local checkout alone. The local
+branch and every worktree on it go through `merged-branch-cleanup.py` (*Cleanup is a step*).
+gh also skips the remote delete for `--auto` and for cross-repo PRs
+(cli/cli `pkg/cmd/pr/merge/merge.go`, `deleteRemoteBranch`), so bmn never uses `--auto`; the
+repo setting `delete_branch_on_merge=true`, set at INTAKE, is the backstop for a PR merged any
+other way.
 
 ## State on disk (resume-safe)
 
@@ -162,6 +195,7 @@ up a bmn run.
   "temp_refs": [{"branch": "wip/<run-slug>/<slug>|<harness branch>", "kind": "wip|harness", "base": "<sha at spawn>", "worktree": "<abs path>|null", "pushed": false}],
   "integration_pushed": false,
   "cleanup": {"deleted": [], "left": [{"ref": "...", "why": "dirty worktree|not merged|..."}]},
+  "repo_policy": null,
   "deploy_pending": {"vercel": [], "supabase_migrations": []},
   "supabase_dev_applied": [],
   "design": {"needed": false, "project_id": null, "url": null, "round": 0, "options": [{"key": "a", "name": "...", "open_url": "..."}], "picked": null, "feedback": []},
@@ -183,11 +217,13 @@ only what's on disk. Phases only move forward in enum order; a run resumed at `r
 later never fixes again. `report` covers REPORT and CLEANUP: re-run whichever of the two
 hasn't committed. A run from before 1.5.0 maps its old phase first: `review1` → `merge1`,
 `fix` → `fix1`, `review2` → `merge2`, `review3` → `review2`, `cleanup` → `report`.
+
 **Leftover sweep:** a `done` or `blocked` run whose `cleanup.left` names its run
 branch, and that branch is now in `origin/dev` (Jonathan merged it), gets CLEANUP's run
-step now. A run resumed
-at `phase: design` with `design.picked: null` re-asks the design question from the options
-already in `bmn.json` — it doesn't redesign.
+step now: `merged-branch-cleanup.py --repo <main checkout> --branch <run branch> --target origin/dev`.
+
+A run resumed at `phase: design` with `design.picked: null` re-asks the design question
+from the options already in `bmn.json` — it doesn't redesign.
 
 ## Orchestrator discipline
 
@@ -198,6 +234,9 @@ the codebase. That work is done by subagents, which report back conclusions.
   [references/briefs.md](references/briefs.md) and are filled in, not paraphrased.
   `{skill_dir}` in a brief is this skill's base directory, the path shown when the skill
   loads.
+- `${CLAUDE_PLUGIN_ROOT}` is empty in a worker's Bash. The orchestrator fills it like a
+  placeholder, with the absolute plugin root (`{skill_dir}/../..`, resolved), in every brief
+  and in its own Bash calls when the variable is empty.
 - Every spawn is announced with the model table (Item | Branch | Model), one row per agent,
   and the model named explicitly: `model: "opus"` for DESIGN, SPLIT, PLAN, REVIEW①, REVIEW②
   and any FIX① item whose root cause is unclear; `model: "sonnet"` for BUILD, TEST, merges
@@ -243,7 +282,18 @@ the codebase. That work is done by subagents, which report back conclusions.
    `.claude/bmn.config.json` if it was written) **before** the first push, then
    `git push -u origin <type>/<run-slug>`, then set `integration_pushed: true` in `bmn.json`
    (CLEANUP deletes the origin copy only when it is set).
-5. Set `design.needed` from the scout: true when `ui_screens` is non-empty (the story adds
+5. **Repo merge settings, once per run.** Skip it when `bmn.json.repo_policy` is already set
+   (a resumed run). Otherwise run
+   `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/repo-merge-policy.py --repo-path {run_worktree}`
+   and write its JSON verbatim to `bmn.json.repo_policy`
+   (`{"repo", "status": "changed|already-set|dry-run|skipped|failed", "changes": {field: {old, new}}, "reason"}`).
+   It sets `allow_squash_merge=false` and `delete_branch_on_merge=true` on the GitHub repo.
+   That is Jonathan's standing instruction of 2026-10-03, so bmn does it without asking. A
+   `skipped` or `failed` status (no admin rights, `gh` not signed in, not a GitHub repo) goes
+   into `assumptions` with its `reason`, never into `blocker`. The run continues, and bmn
+   still never squashes (*Merge commits only*). The report's *Repo merge settings* section
+   shows each old → new value.
+6. Set `design.needed` from the scout: true when `ui_screens` is non-empty (the story adds
    or changes something a person looks at). Then `phase: design`, or `phase: split` when
    it's false.
 
@@ -298,20 +348,24 @@ coders never push the run branch. Supabase: migration files only, tested against
 
 When a wave finishes, one **integrator** (sonnet) merges that wave's story branches into the
 run branch one at a time, in the run worktree (pull, `--no-ff`, gates, push). One writer
-per branch means no push races. Then, for each branch it merged, it runs the cleanup
-(*Branches and worktrees*): harness worktree removed, `wip/` branch and harness branch
-deleted locally and on origin. It returns each story's tip sha and merge sha; append them to
-that story's `merges` in `bmn.json` (REVIEW② finds the FIX① merges there) along with what
-was deleted or left. The next wave branches from the updated run branch. When the last wave
-is in, set `phase: merge1`.
+per branch means no push races. Then, for each branch it merged, it runs
+`merged-branch-cleanup.py --repo {run_worktree} --branch <branch> --target origin/{integration}`
+(*Cleanup is a step*): every worktree on the branch removed, and the `wip/` branch deleted
+locally and on origin, plus the paired harness branch once nothing unique is left on it. It
+returns each story's tip sha and merge sha; append them to that story's `merges` in
+`bmn.json` (REVIEW② finds the FIX① merges there) along with what was deleted or left.
+The next wave branches from the updated run branch. When the last wave is in, set
+`phase: merge1`.
 
 ### 4 · MERGE→dev ① (`merge1`; 1 agent, sonnet)
 Merger brief. In the run worktree, merge `origin/dev` into the run branch, run the full
 gates, push. Then merge into `dev` in a throwaway detached worktree, never by checking out
 `dev` anywhere: `git worktree add --detach ../<repo-name>-<run-slug>-dev origin/dev`, there
 `git merge --no-ff <type>/<run-slug> && git push origin HEAD:dev`, then `git worktree remove`
-it. It never touches `main`. If `stack.dev_push_deploys`, skip the `dev` merge — TEST runs
-on the run branch, and the report lists the `dev` merge on the Deploy checklist.
+it. It never touches `main`, never squashes, and doesn't delete the run branch: FIX① still
+branches from it, and CLEANUP deletes it after the last merge to `dev`. If
+`stack.dev_push_deploys`, skip the `dev` merge — TEST runs on the run branch, and the report
+lists the `dev` merge on the Deploy checklist.
 
 ### 4b · DB-SYNC (1 agent, sonnet, `isolation: "worktree"`; after every MERGE that brought new migrations)
 Record its worktree and branch in `temp_refs`.
@@ -367,7 +421,8 @@ opus when the root cause is unclear. Each fixer first reproduces each item as a 
 can't reproduce is recorded as not-reproducible, with evidence, not argued and not retried.
 An item it can't fix is recorded as blocked, with the reason. One attempt per fixer, no
 retry loop. Each fixer works on a fresh `wip/<run-slug>/<owner>-fix` branch off the run
-branch; the integrator merges and cleans up fix and test branches serially, same as BUILD.
+branch; the integrator merges each fix and test branch and deletes it with
+`merged-branch-cleanup.py`, serially, same as BUILD.
 When REVIEW① found nothing and TEST① was green, skip straight to REPORT.
 
 ### 8 · MERGE→dev ② (+ DB-SYNC) → TEST② (`merge2`, `test2`)
@@ -385,7 +440,8 @@ finds is fixed.** Every item, HIGH included, goes straight to the report under *
 ### 10 · REPORT (`report`; orchestrator)
 The report names the picked design and links its Claude Design project. Fill in [references/report-template.md](references/report-template.md) and write it to
 `report.md`. Keep `phase: report`, commit both in the run worktree, and have the merger
-merge to `dev`. **Stopped for Jonathan** comes first: what was built, what FIX① fixed, what
+merge to `dev` (a `--no-ff` merge commit, never squash). **Stopped for Jonathan** comes
+first: what was built, what FIX① fixed, what
 is left open (every REVIEW② finding and TEST② failure, HIGH included), and the decisions
 that are his — whether any of it becomes a new goal, release/promotion to `main`, deploys,
 DB. The **Deploy checklist** comes next.
@@ -396,22 +452,28 @@ ready-to-say Vercel line: "`dev` is ready for a Vercel dev deploy:
 section is filled in by CLEANUP.
 
 ### 10b · CLEANUP (still `report`; 1 agent, sonnet) — mandatory, never skipped
-Cleaner brief. Its ref and worktree commands run as `git -C <main checkout>`, which changes
-no file or branch there. It touches only what `bmn.json` names:
-1. **Sweep.** `git fetch --prune origin`, then check each copy of every `temp_refs` entry
-   separately. Local copy: delete it only if it is an ancestor of `origin/<integration>`.
-   Remote copy (when `origin/<ref>` exists, including after a machine move when no local
-   ref exists): delete it only if `origin/<ref>` is an ancestor of `origin/<integration>`.
-   A `harness` ref whose worktree is gone is deleted when its tip equals `base`, or when it
-   has no commits unique to it (`git rev-list <ref> --not --exclude=refs/heads/<ref>
-   --branches --remotes` prints nothing). A worktree is removed (no `--force`) only after
-   its ref qualifies. A copy that fails its check is left and recorded with the reason.
-2. **Run branch.** After the fetch: delete the local run branch only if it is an ancestor
-   of `origin/dev`, and the origin copy only if `integration_pushed` is set and
-   `origin/<integration>` is also an ancestor of `origin/dev`. Otherwise leave it and record
-   why ("origin has commits not in dev", `dev_push_deploys`, blocked before merging). Remove
-   the run worktree (no `--force`) only when the local branch is deleted and the worktree is
-   clean; then `git worktree prune`.
+Cleaner brief. It runs the helper (*Cleanup is a step*) with `--repo <main checkout>`, which
+changes no file or branch there, so the helper never removes the worktree it runs from. It
+touches only what `bmn.json` names:
+1. **Sweep.** `git fetch --prune origin`, then, for every `temp_refs` entry, run
+   `merged-branch-cleanup.py --repo <main checkout> --branch <ref> --target origin/{integration}`.
+   Temp refs go first, while `origin/{integration}` still resolves. The helper checks each
+   copy separately (including after a machine move, when no local ref exists), so the local
+   copy and the origin copy are each deleted only if they are an ancestor of the target. Every
+   worktree on the ref is removed (no `--force`) once the ref qualifies. A copy that fails its
+   check is left and recorded in `left` with the reason. A `harness` ref the helper leaves as
+   not merged is still deleted (`git branch -D`, its worktree is already gone) when its tip
+   equals `base`, or when it has no commits unique to it (`git rev-list <ref> --not
+   --exclude=refs/heads/<ref> --branches --remotes` prints nothing).
+2. **Run branch.** After the fetch, run
+   `merged-branch-cleanup.py --repo <main checkout> --branch <integration> --target origin/dev`.
+   The local branch, the origin copy and every worktree on the branch (the run worktree
+   included, when clean) go only if the branch is an ancestor of `origin/dev`. The origin copy
+   is gated on `integration_pushed`: when it is unset and `origin/<integration>` exists
+   anyway, skip the helper, leave the branch and record "origin copy not pushed by this run".
+   Anything the helper leaves ("origin has commits not in dev", `dev_push_deploys`, blocked
+   before merging, a dirty run worktree) is recorded with its reason; then
+   `git worktree prune`.
 3. **Record.** When step 2 deleted the branch, first `git -C <repo> worktree add --detach
    <dev_worktree> origin/dev`; then edit `report.md` (the *Git cleanup* section), `bmn.json`
    (`cleanup`; `phase: blocked` when `blocker` is non-null, else `done`) and every
