@@ -1,0 +1,52 @@
+{
+  "run": "bmn-nextjs-typescript-best-practices-reference",
+  "phase": "split",
+  "integration": "feat/nextjs-typescript-best-practices-reference",
+  "worktree": "/Users/jonathanstevenson/Source/claude-skills-nextjs-typescript-best-practices-reference",
+  "live": "dev",
+  "dev_base": "d8b709f914fbbd40e0c7f77a2a4549114ec6e20f",
+  "review_shas": {
+    "review1": null,
+    "review2": null
+  },
+  "stack": {
+    "kind": "library",
+    "ui": false,
+    "supabase": false,
+    "vercel": false,
+    "vercel_json": [],
+    "dev_push_deploys": false,
+    "supabase_dev_ref": null,
+    "supabase_main_ref": null
+  },
+  "stories": [],
+  "temp_refs": [],
+  "integration_pushed": false,
+  "cleanup": {
+    "deleted": [],
+    "left": []
+  },
+  "repo_policy": null,
+  "deploy_pending": {
+    "vercel": [],
+    "supabase_migrations": []
+  },
+  "supabase_dev_applied": [],
+  "design": {
+    "needed": false,
+    "project_id": null,
+    "url": null,
+    "round": 0,
+    "options": [],
+    "picked": null,
+    "feedback": []
+  },
+  "handoff": null,
+  "assumptions": [
+    "nextjs-fullstack-standards is not loadable anywhere on this machine; nextjs.md becomes the repo-owned Next.js/TS standard read by bmn's TypeScript routing.",
+    "Deep topics split into references/nextjs/<topic>.md (800-line cap); every claim sourced from nextjs.org/vercel.com, verified live 2026-10-04.",
+    "Plugin version bumps once (1.6.0 \u2192 1.7.0) with its pinned test."
+  ],
+  "blocker": null,
+  "updated": "2026-10-04T00:10:00Z"
+}
