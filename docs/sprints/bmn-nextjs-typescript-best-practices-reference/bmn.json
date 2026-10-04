@@ -1,6 +1,6 @@
 {
   "run": "bmn-nextjs-typescript-best-practices-reference",
-  "phase": "plan",
+  "phase": "build",
   "integration": "feat/nextjs-typescript-best-practices-reference",
   "worktree": "/Users/jonathanstevenson/Source/claude-skills-nextjs-typescript-best-practices-reference",
   "live": "dev",
@@ -24,7 +24,7 @@
       "slug": "nextjs-standard-entry-point-and-skill-wiring",
       "title": "Entry point, index and bmn wiring",
       "deps": [],
-      "status": "split",
+      "status": "planned",
       "branch": "wip/nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring",
       "merges": [],
       "detail": ""
@@ -35,7 +35,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "split",
+      "status": "planned",
       "branch": "wip/nextjs-typescript-best-practices-reference/typescript-config-and-typing-patterns",
       "merges": [],
       "detail": ""
@@ -46,7 +46,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "split",
+      "status": "planned",
       "branch": "wip/nextjs-typescript-best-practices-reference/app-router-routing-and-metadata",
       "merges": [],
       "detail": ""
@@ -57,7 +57,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "split",
+      "status": "planned",
       "branch": "wip/nextjs-typescript-best-practices-reference/rendering-caching-and-streaming-ssr",
       "merges": [],
       "detail": ""
@@ -68,7 +68,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "split",
+      "status": "planned",
       "branch": "wip/nextjs-typescript-best-practices-reference/data-fetching-server-actions-and-forms",
       "merges": [],
       "detail": ""
@@ -79,7 +79,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "split",
+      "status": "planned",
       "branch": "wip/nextjs-typescript-best-practices-reference/route-handlers-and-api-design",
       "merges": [],
       "detail": ""
@@ -90,7 +90,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "split",
+      "status": "planned",
       "branch": "wip/nextjs-typescript-best-practices-reference/server-sent-events-and-streaming-responses",
       "merges": [],
       "detail": ""
@@ -101,7 +101,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "split",
+      "status": "planned",
       "branch": "wip/nextjs-typescript-best-practices-reference/proxy-auth-and-security",
       "merges": [],
       "detail": ""
@@ -112,7 +112,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "split",
+      "status": "planned",
       "branch": "wip/nextjs-typescript-best-practices-reference/performance-and-vercel-platform",
       "merges": [],
       "detail": ""
@@ -123,7 +123,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "split",
+      "status": "planned",
       "branch": "wip/nextjs-typescript-best-practices-reference/testing-errors-and-observability",
       "merges": [],
       "detail": ""
@@ -161,8 +161,11 @@
     "Deep topics split into references/nextjs/<topic>.md (800-line cap); every claim sourced from nextjs.org/vercel.com, verified live 2026-10-04.",
     "Plugin version bumps once (1.6.0 \u2192 1.7.0) with its pinned test.",
     "Skeleton story creates all nine topic files as stubs; topic stories own only their file + test_nextjs_topic_<name>.py; rule ids prefixed per topic (TS, RT, RC, DF, API, SSE, SEC, PERF, TEST).",
-    "Unconfirmed claims go under 'Not confirmed by the docs' rather than being stated; snippets are not compiled, checked at review against cited pages."
+    "Unconfirmed claims go under 'Not confirmed by the docs' rather than being stated; snippets are not compiled, checked at review against cited pages.",
+    "Next.js 16.3.8 is current stable as of 2026-10-04 (npm latest, nextjs.org/docs label, Sept 2026 security post); every topic file's as-of line uses it.",
+    "Skeleton story built while topic planners were still researching (it has no deps) to overlap wall-clock.",
+    "Planners noted docs conflicts (e.g. Vercel vs nextjs.org limits, Zod 3 in the forms guide vs Zod 4, AI SDK drift); each goes under 'Not confirmed by the docs' in its topic file, never stated as a rule."
   ],
   "blocker": null,
-  "updated": "2026-10-04T00:25:00Z"
+  "updated": "2026-10-04T01:30:00Z"
 }
