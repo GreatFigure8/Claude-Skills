@@ -1,0 +1,107 @@
+# FIX1 R1-A1 open-redirect corpus (node v26.0.0, 2026-10-04)
+# command: node fix1-corpus.mjs <routing-and-metadata.md> <label>
+#   extracts the toSafePath guard verbatim from the Do fence, runs each input as-is and as a
+#   decoded ?next= value; exit 1 = a hostile input resolves cross-origin.
+# navigatesTo = new URL(result, 'https://app.example.com/login'): App Router's router.push builds
+#   new URL(addBasePath(href), location.href) and treats url.origin !== location.origin as external
+#   (next@16.3.8 dist/client/components/app-router-instance.js, app-router-utils.js).
+
+## BEFORE: origin/feat/nextjs-typescript-best-practices-reference (exit 1)
+
+guard (before):
+function toSafePath(value: string | null): string {
+  if (value === null || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) {
+    return '/'
+  }
+  return value
+}
+
+┌─────────┬──────────┬─────────────────────────┬───────────┬──────────────────────┬────────────────────────────────────────┬─────────────┬───────┐
+│ (index) │ via      │ input                   │ kind      │ result               │ navigatesTo                            │ crossOrigin │ ok    │
+├─────────┼──────────┼─────────────────────────┼───────────┼──────────────────────┼────────────────────────────────────────┼─────────────┼───────┤
+│ 0       │ 'as-is'  │ '"/%09/evil.com"'       │ 'hostile' │ '"/%09/evil.com"'    │ 'https://app.example.com/%09/evil.com' │ false       │ true  │
+│ 1       │ '?next=' │ '"/\\t/evil.com"'       │ 'hostile' │ '"/\\t/evil.com"'    │ 'https://evil.com/'                    │ true        │ false │
+│ 2       │ 'as-is'  │ '"/\\t/evil.com"'       │ 'hostile' │ '"/\\t/evil.com"'    │ 'https://evil.com/'                    │ true        │ false │
+│ 3       │ '?next=' │ '"/\\t/evil.com"'       │ 'hostile' │ '"/\\t/evil.com"'    │ 'https://evil.com/'                    │ true        │ false │
+│ 4       │ 'as-is'  │ '"/\\n/evil.com"'       │ 'hostile' │ '"/\\n/evil.com"'    │ 'https://evil.com/'                    │ true        │ false │
+│ 5       │ '?next=' │ '"/\\n/evil.com"'       │ 'hostile' │ '"/\\n/evil.com"'    │ 'https://evil.com/'                    │ true        │ false │
+│ 6       │ 'as-is'  │ '"/\\\\evil.com"'       │ 'hostile' │ '"/"'                │ 'https://app.example.com/'             │ false       │ true  │
+│ 7       │ '?next=' │ '"/\\\\evil.com"'       │ 'hostile' │ '"/"'                │ 'https://app.example.com/'             │ false       │ true  │
+│ 8       │ 'as-is'  │ '"/\\t\\\\evil.com"'    │ 'hostile' │ '"/\\t\\\\evil.com"' │ 'https://evil.com/'                    │ true        │ false │
+│ 9       │ '?next=' │ '"/\\t\\\\evil.com"'    │ 'hostile' │ '"/\\t\\\\evil.com"' │ 'https://evil.com/'                    │ true        │ false │
+│ 10      │ 'as-is'  │ '"//evil.com"'          │ 'hostile' │ '"/"'                │ 'https://app.example.com/'             │ false       │ true  │
+│ 11      │ '?next=' │ '"//evil.com"'          │ 'hostile' │ '"/"'                │ 'https://app.example.com/'             │ false       │ true  │
+│ 12      │ 'as-is'  │ '"https://evil.com"'    │ 'hostile' │ '"/"'                │ 'https://app.example.com/'             │ false       │ true  │
+│ 13      │ '?next=' │ '"https://evil.com"'    │ 'hostile' │ '"/"'                │ 'https://app.example.com/'             │ false       │ true  │
+│ 14      │ 'as-is'  │ '"/%5Cevil.com"'        │ 'hostile' │ '"/%5Cevil.com"'     │ 'https://app.example.com/%5Cevil.com'  │ false       │ true  │
+│ 15      │ '?next=' │ '"/\\\\evil.com"'       │ 'hostile' │ '"/"'                │ 'https://app.example.com/'             │ false       │ true  │
+│ 16      │ 'as-is'  │ '"/.//evil.com"'        │ 'hostile' │ '"/.//evil.com"'     │ 'https://app.example.com//evil.com'    │ false       │ true  │
+│ 17      │ '?next=' │ '"/.//evil.com"'        │ 'hostile' │ '"/.//evil.com"'     │ 'https://app.example.com//evil.com'    │ false       │ true  │
+│ 18      │ 'as-is'  │ '"/a/..//evil.com"'     │ 'hostile' │ '"/a/..//evil.com"'  │ 'https://app.example.com//evil.com'    │ false       │ true  │
+│ 19      │ '?next=' │ '"/a/..//evil.com"'     │ 'hostile' │ '"/a/..//evil.com"'  │ 'https://app.example.com//evil.com'    │ false       │ true  │
+│ 20      │ 'as-is'  │ '"javascript:alert(1)"' │ 'hostile' │ '"/"'                │ 'https://app.example.com/'             │ false       │ true  │
+│ 21      │ '?next=' │ '"javascript:alert(1)"' │ 'hostile' │ '"/"'                │ 'https://app.example.com/'             │ false       │ true  │
+│ 22      │ 'as-is'  │ '"https://["'           │ 'hostile' │ '"/"'                │ 'https://app.example.com/'             │ false       │ true  │
+│ 23      │ '?next=' │ '"https://["'           │ 'hostile' │ '"/"'                │ 'https://app.example.com/'             │ false       │ true  │
+│ 24      │ 'as-is'  │ '"/ok?x=1"'             │ 'benign'  │ '"/ok?x=1"'          │ 'https://app.example.com/ok?x=1'       │ false       │ true  │
+│ 25      │ '?next=' │ '"/ok?x=1"'             │ 'benign'  │ '"/ok?x=1"'          │ 'https://app.example.com/ok?x=1'       │ false       │ true  │
+│ 26      │ 'as-is'  │ '"/dashboard"'          │ 'benign'  │ '"/dashboard"'       │ 'https://app.example.com/dashboard'    │ false       │ true  │
+│ 27      │ '?next=' │ '"/dashboard"'          │ 'benign'  │ '"/dashboard"'       │ 'https://app.example.com/dashboard'    │ false       │ true  │
+└─────────┴──────────┴─────────────────────────┴───────────┴──────────────────────┴────────────────────────────────────────┴─────────────┴───────┘
+before: 21/28 ok; 7 cross-origin navigation(s)
+
+## AFTER: fix branch (exit 0)
+
+guard (after):
+const BASE = 'https://same-origin.invalid' // fixed placeholder origin; never a real host
+
+function sameOriginPath(value: string): string | null {
+  const url = new URL(value, BASE) // drops tabs and newlines, reads '\' as '/', throws on junk
+  if (url.origin !== BASE) return null // //evil.com, /\t/evil.com, https://evil.com, javascript:
+  const path = `${url.pathname}${url.search}${url.hash}`
+  // '/.//evil.com' normalizes to '//evil.com', so the result must stay same-origin too
+  return new URL(path, BASE).origin === BASE ? path : null
+}
+
+function toSafePath(value: string | null): Route {
+  if (value === null) return '/'
+  try {
+    return (sameOriginPath(value) ?? '/') as Route
+  } catch {
+    return '/' // new URL() throws on input it cannot parse
+  }
+}
+
+┌─────────┬──────────┬─────────────────────────┬───────────┬───────────────────┬────────────────────────────────────────┬─────────────┬──────┐
+│ (index) │ via      │ input                   │ kind      │ result            │ navigatesTo                            │ crossOrigin │ ok   │
+├─────────┼──────────┼─────────────────────────┼───────────┼───────────────────┼────────────────────────────────────────┼─────────────┼──────┤
+│ 0       │ 'as-is'  │ '"/%09/evil.com"'       │ 'hostile' │ '"/%09/evil.com"' │ 'https://app.example.com/%09/evil.com' │ false       │ true │
+│ 1       │ '?next=' │ '"/\\t/evil.com"'       │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 2       │ 'as-is'  │ '"/\\t/evil.com"'       │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 3       │ '?next=' │ '"/\\t/evil.com"'       │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 4       │ 'as-is'  │ '"/\\n/evil.com"'       │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 5       │ '?next=' │ '"/\\n/evil.com"'       │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 6       │ 'as-is'  │ '"/\\\\evil.com"'       │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 7       │ '?next=' │ '"/\\\\evil.com"'       │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 8       │ 'as-is'  │ '"/\\t\\\\evil.com"'    │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 9       │ '?next=' │ '"/\\t\\\\evil.com"'    │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 10      │ 'as-is'  │ '"//evil.com"'          │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 11      │ '?next=' │ '"//evil.com"'          │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 12      │ 'as-is'  │ '"https://evil.com"'    │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 13      │ '?next=' │ '"https://evil.com"'    │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 14      │ 'as-is'  │ '"/%5Cevil.com"'        │ 'hostile' │ '"/%5Cevil.com"'  │ 'https://app.example.com/%5Cevil.com'  │ false       │ true │
+│ 15      │ '?next=' │ '"/\\\\evil.com"'       │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 16      │ 'as-is'  │ '"/.//evil.com"'        │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 17      │ '?next=' │ '"/.//evil.com"'        │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 18      │ 'as-is'  │ '"/a/..//evil.com"'     │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 19      │ '?next=' │ '"/a/..//evil.com"'     │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 20      │ 'as-is'  │ '"javascript:alert(1)"' │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 21      │ '?next=' │ '"javascript:alert(1)"' │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 22      │ 'as-is'  │ '"https://["'           │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 23      │ '?next=' │ '"https://["'           │ 'hostile' │ '"/"'             │ 'https://app.example.com/'             │ false       │ true │
+│ 24      │ 'as-is'  │ '"/ok?x=1"'             │ 'benign'  │ '"/ok?x=1"'       │ 'https://app.example.com/ok?x=1'       │ false       │ true │
+│ 25      │ '?next=' │ '"/ok?x=1"'             │ 'benign'  │ '"/ok?x=1"'       │ 'https://app.example.com/ok?x=1'       │ false       │ true │
+│ 26      │ 'as-is'  │ '"/dashboard"'          │ 'benign'  │ '"/dashboard"'    │ 'https://app.example.com/dashboard'    │ false       │ true │
+│ 27      │ '?next=' │ '"/dashboard"'          │ 'benign'  │ '"/dashboard"'    │ 'https://app.example.com/dashboard'    │ false       │ true │
+└─────────┴──────────┴─────────────────────────┴───────────┴───────────────────┴────────────────────────────────────────┴─────────────┴──────┘
+after: 28/28 ok; 0 cross-origin navigation(s)

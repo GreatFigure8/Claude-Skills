@@ -1,0 +1,91 @@
+# FIX1 RED run: the five new tests against the origin topic file (before the fix)
+
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+__________ test_safe_path_guard_resolves_the_url_and_compares_origins __________
+
+    def test_safe_path_guard_resolves_the_url_and_compares_origins():
+        """R1-A1: a prefix check lets ?next=/%09/evil.com through; the URL parser drops the tab."""
+        guards = [body for body in _ts_blocks() if SAFE_PATH_GUARD in body]
+        assert guards, "no example defines the toSafePath redirect guard"
+        for body in guards:
+>           assert "new URL(" in body, "the guard must parse the value with new URL(value, base)"
+E           AssertionError: the guard must parse the value with new URL(value, base)
+E           assert 'new URL(' in '\'use client\'\nimport { useRouter, useSearchParams } from \'next/navigation\'\n\nfunction toSafePath(value: string |...SearchParams().get(\'next\'))\n  return <button type="button" onClick={() => router.push(target)}>Continue</button>\n}'
+
+Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_routing_and_metadata.py:153: AssertionError
+_____ test_every_server_action_authenticates_and_authorizes_before_writing _____
+
+    def test_every_server_action_authenticates_and_authorizes_before_writing():
+        """R1-A10: a Server Action is a public POST endpoint; verifySession() and a role check come first."""
+        bodies = _server_action_bodies()
+        assert bodies, "no 'use server' example found"
+        for body in bodies:
+            write = WRITE_CALL.search(body)
+            assert write, body[:120]
+            auth = body.find("await verifySession()")
+            authz = AUTHZ_CHECK.search(body)
+>           assert 0 <= auth < write.start(), f"verifySession() must precede the write: {body[:120]}"
+E           AssertionError: verifySession() must precede the write: 
+E               try {
+E                 const id = await saveProject(formData)
+E                 redirect(`/dashboard/projects/${id}`) // throws NEXT_REDIRECT, w
+E           assert 0 <= -1
+
+Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_routing_and_metadata.py:177: AssertionError
+________ test_layout_examples_use_layout_props_with_group_free_literals ________
+
+    def test_layout_examples_use_layout_props_with_group_free_literals():
+        """R1-A11: layouts use LayoutProps, and route literals drop (group) folders."""
+        layouts = [body for body in _ts_blocks() if LAYOUT_EXPORT.search(body)]
+        assert layouts
+        for body in layouts:
+>           assert "LayoutProps<'/" in body, body[:120]
+E           AssertionError: // src/app/layout.tsx
+E             import type { Metadata, Viewport } from 'next'
+E             import './globals.css'
+E             
+E             export const metadata: Meta
+E           assert "LayoutProps<'/" in '// src/app/layout.tsx\nimport type { Metadata, Viewport } from \'next\'\nimport \'./globals.css\'\n\nexport const met...{ children: React.ReactNode }) {\n  return (\n    <html lang="en">\n      <body>{children}</body>\n    </html>\n  )\n}'
+
+Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_routing_and_metadata.py:186: AssertionError
+______________ test_router_calls_type_non_literal_hrefs_as_route _______________
+
+    def test_router_calls_type_non_literal_hrefs_as_route():
+        """R1-A12: with typedRoutes on, a non-literal router.push/replace argument must be a Route."""
+        calls = 0
+        for body in _ts_blocks():
+            for match in ROUTER_CALL.finditer(body):
+                calls += 1
+                arg = match.group(1).strip()
+                if arg[0] in "'\"" or "as Route" in arg:
+                    continue
+>               assert ROUTE_TYPE_IMPORT.search(body), f"{arg!r} is not typed as Route: {body[:120]}"
+E               AssertionError: '`${pathname}?${next.toString(' is not typed as Route: // src/features/catalog/components/sort-select.tsx
+E                 'use client'
+E                 
+E                 import { usePathname, useRouter, useSearchParams } from
+E               assert None
+E                +  where None = <built-in method search of re.Pattern object at 0x7a1d39410>("// src/features/catalog/components/sort-select.tsx\n'use client'\n\nimport { usePathname, useRouter, useSearchParams ...n        <option key={option} value={option}>\n          {option}\n        </option>\n      ))}\n    </select>\n  )\n}")
+E                +    where <built-in method search of re.Pattern object at 0x7a1d39410> = re.compile("import type \\{[^}]*\\bRoute\\b[^}]*\\} from 'next'").search
+
+Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_routing_and_metadata.py:202: AssertionError
+__________________ test_sources_list_the_as_of_version_source __________________
+
+    def test_sources_list_the_as_of_version_source():
+        """R1-A17: the as-of version 16.3.8 needs its own source in ## Sources."""
+>       assert h.VERSION_SOURCE_URL in h.source_urls(_text())
+E       AssertionError: assert 'https://nextjs.org/blog/september-2026-security-release' in ('https://nextjs.org/docs/app/getting-started/project-structure', 'https://nextjs.org/docs/app/getting-started/layouts...docs/app/getting-started/route-handlers', 'https://nextjs.org/docs/app/api-reference/file-conventions/src-folder', ...)
+E        +  where 'https://nextjs.org/blog/september-2026-security-release' = h.VERSION_SOURCE_URL
+E        +  and   ('https://nextjs.org/docs/app/getting-started/project-structure', 'https://nextjs.org/docs/app/getting-started/layouts...docs/app/getting-started/route-handlers', 'https://nextjs.org/docs/app/api-reference/file-conventions/src-folder', ...) = <function source_urls at 0x106c34cc0>('# App Router routing, navigation and metadata\n\n> As of Next.js 16.3.8, verified 2026-10-04.\n\n## Scope\n\nThis fil...act.dev/reference/react/use\n- https://react.dev/reference/react/Suspense\n- https://react.dev/reference/react/cache\n')
+E        +    where <function source_urls at 0x106c34cc0> = h.source_urls
+E        +    and   '# App Router routing, navigation and metadata\n\n> As of Next.js 16.3.8, verified 2026-10-04.\n\n## Scope\n\nThis fil...act.dev/reference/react/use\n- https://react.dev/reference/react/Suspense\n- https://react.dev/reference/react/cache\n' = _text()
+
+Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_routing_and_metadata.py:208: AssertionError
+=========================== short test summary info ============================
+FAILED Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_routing_and_metadata.py::test_safe_path_guard_resolves_the_url_and_compares_origins
+FAILED Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_routing_and_metadata.py::test_every_server_action_authenticates_and_authorizes_before_writing
+FAILED Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_routing_and_metadata.py::test_layout_examples_use_layout_props_with_group_free_literals
+FAILED Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_routing_and_metadata.py::test_router_calls_type_non_literal_hrefs_as_route
+FAILED Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_routing_and_metadata.py::test_sources_list_the_as_of_version_source
+5 failed, 16 deselected in 0.03s

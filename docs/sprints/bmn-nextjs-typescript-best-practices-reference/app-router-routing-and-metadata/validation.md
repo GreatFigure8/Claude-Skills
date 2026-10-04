@@ -266,3 +266,43 @@ None.
 | #19 (line 491) Don't call useSearchParams outside a Suspense boundary (RT-27) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
 | #21 (line 517) Don't hand-write head tags in the root layout (RT-4, RT-37) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
 | #23 (line 550) Don't push an unvalidated URL (RT-22) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+
+## FIX①
+
+Branch `wip/nextjs-typescript-best-practices-reference/app-router-routing-and-metadata-fix`, cut from
+`origin/feat/nextjs-typescript-best-practices-reference` at `8188c54`. Files touched:
+`references/nextjs/routing-and-metadata.md`, `assets/tests/test_nextjs_topic_routing_and_metadata.py`
+and this story folder (validation.md and `evidence/`). Each item was reproduced first: the five new
+tests were run against the unfixed topic file and failed (5 failed, `evidence/fix1-pytest-red.txt`),
+then the topic was fixed and they pass.
+
+| ID | Result | Failing test that reproduced it (now passing) | Other evidence |
+| --- | --- | --- | --- |
+| R1-A1 (CRITICAL) | fixed | `test_safe_path_guard_resolves_the_url_and_compares_origins` | Node corpus run of the guard extracted verbatim from the fence: before 21/28 ok with **7 cross-origin navigations** (`/\t/evil.com`, which is what `?next=/%09/evil.com` decodes to, plus `/\n/evil.com` and `/\t\\evil.com`, each to `https://evil.com/`); after 28/28 ok, 0 cross-origin (`evidence/fix1-open-redirect-corpus.txt`, script `evidence/fix1-corpus.mjs`) |
+| R1-A10 (MEDIUM) | fixed | `test_every_server_action_authenticates_and_authorizes_before_writing` | Both `createProject` halves call `await verifySession()` from `@/lib/dal` (outside the `try`, since it redirects) and `if (role !== 'admin')` before `saveProject(userId, formData)` |
+| R1-A11 (MEDIUM) | fixed | `test_layout_examples_use_layout_props_with_group_free_literals` | `next typegen` 16.3.8 emits `LayoutRoutes = "/" \| "/dashboard"` for `src/app/(dashboard)/dashboard/layout.tsx` with slot `modal`; `LayoutProps<'/(dashboard)/dashboard'>` is TS2344 (`evidence/fix1-typecheck.txt`). Former "Not confirmed" #3 removed, #4 to #8 renumbered #3 to #7 here and in the evidence file |
+| R1-A12 (LOW) | fixed | `test_router_calls_type_non_literal_hrefs_as_route` | Scratch tsc, typedRoutes on: before exit 1 with 3 × TS2345 (SortSelect `router.replace`, both ContinueButton `router.push`); after exit 0 (`evidence/fix1-typecheck.txt`) |
+| R1-A17 (LOW) | fixed | `test_sources_list_the_as_of_version_source` | `https://nextjs.org/blog/september-2026-security-release` (names v16.3.8 Active LTS) and `https://nextjs.org/docs/llms.txt` (`@doc-version: 16.3.8`) fetched live (HTTP 200), added to `## Sources`, cited in Version notes, and added as evidence rows 59 and 60; Sources set = evidence set (60 = 60) |
+
+### What changed in the topic
+
+- **R1-A1:** the RT-22 Do guard now parses with `new URL(value, BASE)` against the fixed placeholder origin `https://same-origin.invalid`, requires `url.origin === BASE`, returns `pathname + search + hash`, and re-parses that result, because `/.//evil.com` normalizes to `//evil.com`. Parse failures fall back to `/`. RT-22 now says to sanitize by comparing parsed origins, not string prefixes (convention), and the RT-22 checklist item says the same.
+- **R1-A10:** the action authenticates and authorizes before writing; the prose links `verifySession()` to proxy-auth-and-security.md.
+- **R1-A11:** RT-12 says to write the literal as the URL path, without the group, citing layout.js and route groups. `RootLayout` (Pattern and both anti-pattern halves) uses `LayoutProps<'/'>`, and `DashboardLayout` uses `LayoutProps<'/dashboard'>`.
+- **R1-A12:** `import type { Route } from 'next'`; SortSelect casts `` `${pathname}?…` as Route ``; `toSafePath` returns `Route`. The Don't half casts `target as Route` and notes that the cast validates nothing.
+- **R1-A17:** see the table.
+
+### Gates and checks
+
+- Test: `uv run --quiet --with pytest python -m pytest Skills/dev-bother-me-nope/assets/tests -q`, **1031 passed**.
+- Lint: `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope`, **All checks passed!**
+- Topic length: 726 lines (≤ 800).
+- Scratch tsc (`…/scratchpad/fix1-routing/`, node_modules shared with the TEST① install: next 16.3.8, typescript 7.0.2 and 6.0.3). Every ts/tsx fence of the fixed topic, with typedRoutes on, `strict` and `noUncheckedIndexedAccess`, gives TypeScript 7.0.2 exit 0, TypeScript 6.0.3 exit 0, and TypeScript 7.0.2 with typedRoutes off exit 0.
+
+### FIX① assumptions
+
+1. The placeholder base `https://same-origin.invalid` is a convention. The guard runs during render, where `window` is undefined on the server, so a fixed base is used instead of `window.location.origin`. Any path that resolves to the base's origin is same-origin for the real app as well.
+2. The corpus adds inputs the orchestrator did not name: `/\n/evil.com`, `/\t\\evil.com`, `/.//evil.com`, `/a/..//evil.com` and `https://[`. `/.//evil.com` showed that "origin check, then return the pathname" alone would emit `//evil.com`, so the guard re-parses its own result. `/%5Cevil.com` stays a same-origin path (`%5C` is not decoded by the parser), and as a decoded `?next=` value it becomes `/\evil.com`, which is rejected.
+3. The authorization check is role-based (`role !== 'admin'`), using the `Session = { userId; role }` shape from proxy-auth-and-security.md. The Don't half carries the same auth lines, so its only flaw is the `redirect()` inside `try`.
+4. RT-12's group-free literal is backed by the docs (layout.js `LayoutProps<'/dashboard'>`; route groups are "not included in the route's URL path") plus the typegen check. No page states it in one sentence, so the typegen output is recorded as evidence and not cited as a source.
+5. The intercepting-route page (`@modal/(.)photos/[id]/page.tsx`) keeps its hand-typed `params`. No finding named it, and the docs do not show which `PageProps` literal an intercepted route takes.
