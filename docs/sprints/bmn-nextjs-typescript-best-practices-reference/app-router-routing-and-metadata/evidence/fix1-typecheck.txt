@@ -1,0 +1,36 @@
+# FIX1 scratch typecheck: next@16.3.8 `next typegen` + typescript 7.0.2 (`tsc --noEmit -p tsconfig.json`),
+# create-next-app compilerOptions + strict + noUncheckedIndexedAccess, next.config typedRoutes: true.
+# The project is built from every ts/tsx fence of routing-and-metadata.md (path-comment fences at
+# their path, the rest under src/_loose/), plus typed stubs for imported local modules and route files.
+
+## BEFORE: origin topic, typedRoutes true (exit 1)
+
+src/_loose/f25-dont.tsx(7,59): error TS2345: Argument of type 'string' is not assignable to parameter of type 'RouteImpl<string>'.
+src/_loose/f26-do.tsx(14,59): error TS2345: Argument of type 'string' is not assignable to parameter of type 'RouteImpl<string>'.
+src/features/catalog/components/sort-select.tsx(24,20): error TS2345: Argument of type '`${string}?${string}`' is not assignable to parameter of type 'RouteImpl<`${string}?${string}`>'.
+
+## LayoutProps probe in the BEFORE project (src/_probe/layoutprops.tsx)
+
+import type { ReactNode } from 'react'
+export function A(props: LayoutProps<'/dashboard'>): ReactNode { return [props.children, props.modal] }
+export function B(props: LayoutProps<'/(dashboard)/dashboard'>): ReactNode { return props.children }
+export function C(props: LayoutProps<'/'>): ReactNode { return props.children }
+export function D(props: LayoutProps<'/dashboard'>): ReactNode { return props.analytics }
+-- tsc: A (LayoutProps<'/dashboard'> with props.modal) and C (LayoutProps<'/'>) compile;
+src/_probe/layoutprops.tsx(3,38): error TS2344: Type '"/(dashboard)/dashboard"' does not satisfy the constraint 'LayoutRoutes'.
+src/_probe/layoutprops.tsx(5,79): error TS2339: Property 'analytics' does not exist on type 'LayoutProps<"/dashboard">'.
+-- .next/types/routes.d.ts:
+type LayoutRoutes = "/" | "/dashboard"
+  "/dashboard": "modal"
+
+## AFTER: fix branch, TypeScript 7.0.2, typedRoutes true (exit 0)
+
+(no output)
+
+## AFTER: TypeScript 6.0.3, same config (exit 0)
+
+(no output)
+
+## AFTER: TypeScript 7.0.2, typedRoutes false (exit 0)
+
+(no output)

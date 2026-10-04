@@ -19,8 +19,8 @@ only when the topic file stops citing that URL. A URL is never added without a l
 | 4 | https://nextjs.org/docs/app/getting-started/metadata-and-og-images | 2026-10-04 | RT-34, RT-36, RT-38 |
 | 5 | https://nextjs.org/docs/app/getting-started/route-handlers | 2026-10-04 | RT-3 (`route` and `page` can't share a segment) |
 | 6 | https://nextjs.org/docs/app/api-reference/file-conventions/src-folder | 2026-10-04 | RT-1, RT-2 |
-| 7 | https://nextjs.org/docs/app/api-reference/file-conventions/route-groups | 2026-10-04 | RT-5 |
-| 8 | https://nextjs.org/docs/app/api-reference/file-conventions/layout | 2026-10-04 | RT-4, RT-26 |
+| 7 | https://nextjs.org/docs/app/api-reference/file-conventions/route-groups | 2026-10-04 | RT-5, RT-12 (a group is not part of the URL path, so it is not part of the route literal) |
+| 8 | https://nextjs.org/docs/app/api-reference/file-conventions/layout | 2026-10-04 | RT-4, RT-12 (`LayoutProps<'/dashboard'>`, slots inferred from the directory), RT-26 |
 | 9 | https://nextjs.org/docs/app/api-reference/file-conventions/page | 2026-10-04 | RT-11, RT-28 |
 | 10 | https://nextjs.org/docs/app/api-reference/file-conventions/template | 2026-10-04 | RT-7 |
 | 11 | https://nextjs.org/docs/app/api-reference/file-conventions/loading | 2026-10-04 | RT-8, RT-33 |
@@ -31,10 +31,10 @@ only when the topic file stops citing that URL. A URL is never added without a l
 | 16 | https://nextjs.org/docs/app/api-reference/file-conventions/default | 2026-10-04 | RT-19, Not confirmed #1 |
 | 17 | https://nextjs.org/docs/app/api-reference/file-conventions/dynamic-routes | 2026-10-04 | RT-10, RT-13 |
 | 18 | https://nextjs.org/docs/app/api-reference/file-conventions/parallel-routes | 2026-10-04 | RT-19, RT-20, RT-21, Not confirmed #1 |
-| 19 | https://nextjs.org/docs/app/api-reference/file-conventions/intercepting-routes | 2026-10-04 | RT-21, Not confirmed #4 |
+| 19 | https://nextjs.org/docs/app/api-reference/file-conventions/intercepting-routes | 2026-10-04 | RT-21, Not confirmed #3 |
 | 20 | https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config | 2026-10-04 | RT-17, Version notes |
 | 21 | https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config/dynamicParams | 2026-10-04 | RT-17 |
-| 22 | https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config/prefetch | 2026-10-04 | RT-25, Not confirmed #8 |
+| 22 | https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config/prefetch | 2026-10-04 | RT-25, Not confirmed #7 |
 | 23 | https://nextjs.org/docs/app/api-reference/functions/generate-static-params | 2026-10-04 | RT-11, RT-15, RT-16, RT-18 |
 | 24 | https://nextjs.org/docs/app/api-reference/functions/next-root-params | 2026-10-04 | RT-14, Version notes |
 | 25 | https://nextjs.org/docs/app/api-reference/components/link | 2026-10-04 | RT-22, RT-23, RT-30, Version notes |
@@ -46,20 +46,20 @@ only when the topic file stops citing that URL. A URL is never added without a l
 | 31 | https://nextjs.org/docs/app/api-reference/functions/redirect | 2026-10-04 | RT-31 |
 | 32 | https://nextjs.org/docs/app/api-reference/functions/permanentRedirect | 2026-10-04 | RT-31 |
 | 33 | https://nextjs.org/docs/app/api-reference/functions/not-found | 2026-10-04 | RT-33 |
-| 34 | https://nextjs.org/docs/app/guides/redirecting | 2026-10-04 | RT-31, RT-32, Not confirmed #5 |
+| 34 | https://nextjs.org/docs/app/guides/redirecting | 2026-10-04 | RT-31, RT-32, Not confirmed #4 |
 | 35 | https://nextjs.org/docs/app/guides/prefetching | 2026-10-04 | RT-23, RT-24 |
 | 36 | https://nextjs.org/docs/app/guides/adopting-partial-prefetching | 2026-10-04 | RT-25 |
 | 37 | https://nextjs.org/docs/app/api-reference/config/next-config-js/partialPrefetching | 2026-10-04 | RT-25, Version notes |
 | 38 | https://nextjs.org/docs/app/api-reference/functions/generate-metadata | 2026-10-04 | RT-11, RT-34, RT-35, RT-36, RT-37 |
 | 39 | https://nextjs.org/docs/app/api-reference/functions/generate-viewport | 2026-10-04 | RT-37, Not confirmed #2 |
-| 40 | https://nextjs.org/docs/app/api-reference/file-conventions/metadata/sitemap | 2026-10-04 | RT-39, Not confirmed #6 |
+| 40 | https://nextjs.org/docs/app/api-reference/file-conventions/metadata/sitemap | 2026-10-04 | RT-39, Not confirmed #5 |
 | 41 | https://nextjs.org/docs/app/api-reference/functions/generate-sitemaps | 2026-10-04 | RT-39 |
 | 42 | https://nextjs.org/docs/app/api-reference/file-conventions/metadata/robots | 2026-10-04 | RT-39, Version notes |
 | 43 | https://nextjs.org/docs/app/api-reference/file-conventions/metadata/opengraph-image | 2026-10-04 | RT-38, RT-40 |
 | 44 | https://nextjs.org/docs/app/api-reference/file-conventions/metadata/app-icons | 2026-10-04 | RT-38 |
 | 45 | https://nextjs.org/docs/app/api-reference/functions/image-response | 2026-10-04 | RT-40 |
-| 46 | https://nextjs.org/docs/app/api-reference/functions/generate-image-metadata | 2026-10-04 | RT-11, RT-40, Not confirmed #7 |
-| 47 | https://nextjs.org/docs/app/api-reference/config/typescript | 2026-10-04 | RT-22 (typed links), Not confirmed #3 |
+| 46 | https://nextjs.org/docs/app/api-reference/functions/generate-image-metadata | 2026-10-04 | RT-11, RT-40, Not confirmed #6 |
+| 47 | https://nextjs.org/docs/app/api-reference/config/typescript | 2026-10-04 | RT-12 (route helpers), RT-22 (typed links: non-literal hrefs cast with `as Route`) |
 | 48 | https://nextjs.org/docs/app/guides/upgrading/version-16 | 2026-10-04 | RT-11, RT-19, RT-30, RT-39, RT-40, Version notes |
 | 49 | https://nextjs.org/docs/app/guides/upgrading/version-15 | 2026-10-04 | RT-11 (`generateMetadata` params became a Promise), Version notes |
 | 50 | https://nextjs.org/blog/next-16 | 2026-10-04 | RT-23, Version notes |
@@ -67,7 +67,18 @@ only when the topic file stops citing that URL. A URL is never added without a l
 | 52 | https://nextjs.org/blog/next-16-3 | 2026-10-04 | RT-14, RT-25, Version notes |
 | 53 | https://vercel.com/docs/og-image-generation | 2026-10-04 | RT-40 (1200x630 recommended size, 500 KB bundle, fonts) |
 | 54 | https://vercel.com/docs/routing/redirects | 2026-10-04 | RT-32 (307/308 guidance, Bulk Redirects) |
-| 55 | https://vercel.com/docs/routing/redirects/configuration-redirects | 2026-10-04 | Not confirmed #5 (2,048-redirect limit) |
+| 55 | https://vercel.com/docs/routing/redirects/configuration-redirects | 2026-10-04 | Not confirmed #4 (2,048-redirect limit) |
 | 56 | https://react.dev/reference/react/use | 2026-10-04 | RT-11 (`use()` unwraps a Promise in a Client Component) |
 | 57 | https://react.dev/reference/react/Suspense | 2026-10-04 | RT-27 (`<Suspense>` fallback boundary) |
 | 58 | https://react.dev/reference/react/cache | 2026-10-04 | RT-36 (`cache()` memoizes a server data function) |
+| 59 | https://nextjs.org/blog/september-2026-security-release | 2026-10-04 | As-of version: names v16.3.8 as Active LTS (FIX① R1-A17; HTTP 200 `text/markdown`, published 2026-09-30) |
+| 60 | https://nextjs.org/docs/llms.txt | 2026-10-04 | As-of version: `@doc-version: 16.3.8` (FIX① R1-A17; HTTP 200 `text/plain`) |
+
+FIX① (2026-10-04) re-fetched rows 7, 8, 47, 59 and 60 live (each HTTP 200). Rows 59 and 60 were
+added because the as-of version had no source in `## Sources` (R1-A17). Rows 7, 8 and 47 now back
+RT-12's group-free route literal: layout.js types `app/dashboard/layout.tsx` with
+`LayoutProps<'/dashboard'>` and infers slots "from your directory structure", and route-groups.md
+says a group "should **not be included** in the route's URL path". `next typegen` (16.3.8)
+agrees: it emits `LayoutRoutes = "/" | "/dashboard"` for `src/app/(dashboard)/dashboard/layout.tsx`,
+and `LayoutProps<'/(dashboard)/dashboard'>` is TS2344. The former "Not confirmed #3" (route groups
+in route literals) is resolved, so items #4 to #8 became #3 to #7.
