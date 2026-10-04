@@ -1,0 +1,47 @@
+{
+  "run": "bmn-merged-branch-cleanup-and-no-squash-merges",
+  "phase": "intake",
+  "integration": "feat/merged-branch-cleanup-and-no-squash-merges",
+  "worktree": "/Users/jonathanstevenson/Source/claude-skills-merged-branch-cleanup-and-no-squash-merges",
+  "live": "dev",
+  "dev_base": "2aa149bc0995489235182b57d666b390df4ec5a1",
+  "review_shas": {
+    "review1": null,
+    "review2": null
+  },
+  "stack": {
+    "kind": null,
+    "ui": false,
+    "supabase": false,
+    "vercel": false,
+    "vercel_json": [],
+    "dev_push_deploys": false,
+    "supabase_dev_ref": null,
+    "supabase_main_ref": null
+  },
+  "stories": [],
+  "temp_refs": [],
+  "integration_pushed": false,
+  "cleanup": {
+    "deleted": [],
+    "left": []
+  },
+  "deploy_pending": {
+    "vercel": [],
+    "supabase_migrations": []
+  },
+  "supabase_dev_applied": [],
+  "design": {
+    "needed": false,
+    "project_id": null,
+    "url": null,
+    "round": 0,
+    "options": [],
+    "picked": null,
+    "feedback": []
+  },
+  "handoff": null,
+  "assumptions": [],
+  "blocker": null,
+  "updated": "2026-10-04T01:00:06.821514+00:00"
+}
