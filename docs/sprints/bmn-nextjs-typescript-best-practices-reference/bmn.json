@@ -1,12 +1,12 @@
 {
   "run": "bmn-nextjs-typescript-best-practices-reference",
-  "phase": "merge1",
+  "phase": "test1",
   "integration": "feat/nextjs-typescript-best-practices-reference",
   "worktree": "/Users/jonathanstevenson/Source/claude-skills-nextjs-typescript-best-practices-reference",
   "live": "dev",
   "dev_base": "d8b709f914fbbd40e0c7f77a2a4549114ec6e20f",
   "review_shas": {
-    "review1": null,
+    "review1": "59279a32e2a701a243f433e9e48ce3846d84821d",
     "review2": null
   },
   "stack": {
@@ -406,8 +406,9 @@
     "Unconfirmed claims go under 'Not confirmed by the docs' rather than being stated; snippets are not compiled, checked at review against cited pages.",
     "Next.js 16.3.8 is current stable as of 2026-10-04 (npm latest, nextjs.org/docs label, Sept 2026 security post); every topic file's as-of line uses it.",
     "Skeleton story built while topic planners were still researching (it has no deps) to overlap wall-clock.",
-    "Planners noted docs conflicts (e.g. Vercel vs nextjs.org limits, Zod 3 in the forms guide vs Zod 4, AI SDK drift); each goes under 'Not confirmed by the docs' in its topic file, never stated as a rule."
+    "Planners noted docs conflicts (e.g. Vercel vs nextjs.org limits, Zod 3 in the forms guide vs Zod 4, AI SDK drift); each goes under 'Not confirmed by the docs' in its topic file, never stated as a rule.",
+    "origin/dev moved to plugin 1.6.1 (harden run) during this run; merge kept 1.7.0 (higher) in plugin.json and its pinned test."
   ],
   "blocker": null,
-  "updated": "2026-10-04T03:10:00Z"
+  "updated": "2026-10-04T03:20:00Z"
 }
