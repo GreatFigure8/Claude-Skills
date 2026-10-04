@@ -1,0 +1,29 @@
+PASS R1-1 --pushed + ignored .env: worktree and .env kept, branch kept, no push, origin unchanged
+PASS R1-1 --pushed clean (cache only) worktree: removed, local branch deleted, origin copy kept and reported
+PASS R1-1 --pushed with an unpushed commit: local branch kept (nothing proven pushed)
+PASS R1-1 --pushed with a target other than <remote>/<branch> is refused (exit 2)
+PASS R1-1 own-branch target without --pushed still refused
+PASS R1-1 move-computers MOVE-OUT step 6 runs the helper with --pushed / --local-only
+PASS R1-1 move-computers step 6 only mentions hand-run remove/-D/prune inside a Never sentence
+PASS R1-1 step 5 no longer carries a hand-run worktree remove / branch -D
+PASS R1-2/3 block: git push origin --delete heads/dev
+PASS R1-2/3 block: BMN_USER_APPROVED_DEPLOY=1 git push origin :heads/main
+PASS R1-2/3 block: git push origin --delete refs/heads/dev
+PASS R1-2/3 block: BMN_USER_APPROVED_DEPLOY=1 git push origin --delete heads/staging
+PASS R1-2/3 allow: git push origin --delete heads/feature
+PASS R1-2/3 allow: git push origin --delete heads/wip/x/y
+PASS R1-2/3 block: git push origin HEAD:heads/main
+PASS R1-2/3 allow: BMN_USER_APPROVED_DEPLOY=1 git push origin HEAD:heads/main
+PASS R1-2/3 block: fish -C 'git merge --squash x' -c true
+PASS R1-2/3 block: fish --init-command='git merge --squash x' -c true
+PASS R1-2/3 block: fish --init-command 'git merge --squash x'
+PASS R1-2/3 block: fish -lC 'git merge --squash x'
+PASS R1-2/3 block: BMN_USER_APPROVED_DEPLOY=1 fish -C 'git merge --squash x' -c true
+PASS R1-2/3 allow: fish -C 'git status' -c true
+PASS R1-2/3 allow: bash -C -c 'git status'
+PASS R1-2/3 allow: fish script.fish -C 'git merge --squash x'
+PASS R1-2/3 allow: git push origin --delete a b c d
+PASS R1-4 blind spots name gh api -X DELETE .../git/refs/heads/<protected> and the GitHub MCP branch tools
+PASS R1-6 --local-only reports the origin copy exactly once even when origin is unreachable (no-fetch)
+
+SMOKE-FIX1 27 pass, 0 fail

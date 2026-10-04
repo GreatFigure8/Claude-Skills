@@ -1,0 +1,20 @@
+PASS AC1 --local-only: exit 0, no git push run
+PASS AC1 origin refs/heads/fix/run unchanged (merged origin copy)
+PASS AC2 exactly one origin: left entry, reason 'origin copy kept: --local-only'
+PASS AC2 deleted has no origin: entry; local deleted
+PASS AC2 no remote copy: no origin: entry in left
+PASS AC2/5 unmerged branch: origin copy entry exactly once with --local-only reason; local kept 'not merged'; origin unchanged
+PASS AC3 unpushed branch + ignored .env: worktree dir and .env intact (R2-1)
+PASS AC3 left names worktree with a reason citing .env; local branch kept in left
+PASS AC4 clean worktree removed, local deleted (CAS), deleted lists both
+PASS AC5 rebase in progress keeps local branch (busy_with runs in --local-only)
+PASS AC6 --local-only --dry-run: no fetch, no push, nothing changed, no origin: in deleted, origin left entry
+PASS AC7 protected/default/bad-target refusals still exit 2 with --local-only
+PASS AC7 --help names --local-only
+PASS AC7 docstring contract lists [--local-only]
+PASS AC13 only Next.js/Playwright leftovers: worktree removed and branch deleted
+PASS AC13 same plus ignored .env: worktree kept with .env intact
+PASS regression: default mode deletes merged origin copy and local
+PASS regression: default mode with only cache leftovers removes worktree
+
+SMOKE-CLEANUP 18 pass, 0 fail; tmp=/var/folders/lv/j4mynvv14p52m0_3565hjv600000gn/T/bmn-smoke-ey7w_gn0
