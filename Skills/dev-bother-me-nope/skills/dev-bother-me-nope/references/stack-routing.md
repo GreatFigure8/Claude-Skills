@@ -2,8 +2,8 @@
 
 The stack-scout classifies the target repo and the story (for a greenfield system, from
 the story alone) and writes `stack.md`. Every planner, coder, reviewer and fixer loads
-exactly the skills routed here — via `Skill({skill: "<name>"})` — **before** writing or
-judging code.
+exactly the skills routed here — via `Skill({skill: "<name>"})` — and reads every reference
+file routed here, **before** writing or judging code.
 
 ## Classify
 
@@ -31,7 +31,11 @@ pytest + pytest-playwright, ruff + mypy/pyright. Log it as an assumption.
 | `library` / `cli` | `python-library-quality:designing-python-apis`, `python-library-quality:deferring-heavy-dependencies` | `auditing-python-security`, `designing-python-apis`, `optimizing-python-performance`, `guarding-destructive-operations`, `keeping-git-repos-clean` |
 | any + `llm` | add `python-llm-features:building-llm-backed-features`, `python-llm-features:reporting-derived-metrics`, `claude-api` | add `verifying-external-behavior` |
 | any + CI workflows touched | add `python-library-quality:running-github-actions-efficiently` | same |
-| TypeScript / Next.js repo | `nextjs-fullstack-standards` (the python skills don't apply to `.ts`/`.tsx`) | `nextjs-fullstack-standards` lens |
+| TypeScript / Next.js repo | Read `references/nextjs.md` and the topic files its index routes the story to; also `nextjs-fullstack-standards`, when the session has it (the python skills don't apply to `.ts`/`.tsx`) | `references/nextjs.md` (findings cite its rule ids); `nextjs-fullstack-standards` lens, when the session has it |
+
+Reference files such as `references/nextjs.md` are read with the Read tool, not loaded with
+`Skill(...)`. They ship inside this plugin, so they are always available. Workers get the
+absolute path `${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs.md`.
 
 `python-library-quality:keeping-git-repos-clean` is loaded by every merger — no `.env`,
 build output or scratch DB ever lands on `dev`.
@@ -48,3 +52,4 @@ the rest — never approximate a skill from memory.
 | `api` / `web-app` | HTTP black-box | `httpx` against the running server |
 | `mcp-server` | MCP black-box | `mcp` client session over stdio: list tools, call each new/changed tool |
 | `supabase` | DB | local `supabase start`; `supabase db reset` (local) applies migrations |
+| TypeScript / Next.js repo (replaces the python tooling above) | unit + integration, browser, HTTP black-box, gates | unit + integration: the repo's runner (Vitest or Jest) with coverage; browser (`ui`): Playwright (`@playwright/test`) against `next build && next start` run locally; HTTP black-box: `fetch` against the running server; gates: `tsc --noEmit`, `eslint .` (`next lint` was removed in Next.js 16) and `next build`. Details: [nextjs/testing-and-observability.md](nextjs/testing-and-observability.md) |
