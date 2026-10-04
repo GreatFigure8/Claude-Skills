@@ -166,15 +166,101 @@ CACHE_VERDICTS = {
     "!! build/": False,
     "?? node_modules/": False,
     " M node_modules/x.js": False,
+    # regenerable outputs of Next.js, TypeScript, Playwright, coverage, macOS, setuptools, tooling
+    "!! next-env.d.ts": True,
+    "!! web/next-env.d.ts": True,
+    "!! tsconfig.tsbuildinfo": True,
+    "!! app/tsconfig.app.tsbuildinfo": True,
+    "!! test-results/": True,
+    "!! e2e/test-results/x.png": True,
+    "!! playwright-report/": True,
+    "!! .coverage": True,
+    "!! .coverage.host.123.456": True,
+    "!! .DS_Store": True,
+    "!! docs/.DS_Store": True,
+    "!! src/pkg.egg-info/": True,
+    "!! pkg.egg-info/PKG-INFO": True,
+    "!! htmlcov/": True,
+    "!! .tox/": True,
+    "!! .nox/": True,
+    "!! .turbo/": True,
+    "!! .parcel-cache/": True,
+    "!! .eslintcache": True,
+    # near-misses stay blocking: exact and case-sensitive, ignored entries only
+    "!! .env.local": False,
+    "!! secrets.pem": False,
+    "!! next-env.d.ts.bak": False,
+    "!! notes.tsbuildinfo.txt": False,
+    "?? next-env.d.ts": False,
+    "?? .DS_Store": False,
+    " M test-results/keep.txt": False,
+    "!! dist/": False,
+    "!! coverage.json": False,
 }
 
 
 @pytest.mark.unit
 @pytest.mark.parametrize("entry, is_cache", CACHE_VERDICTS.items(), ids=CACHE_VERDICTS.keys())
-def test_only_ignored_paths_inside_cache_directories_count_as_cache(entry, is_cache, load_script):
+def test_only_ignored_regenerable_outputs_count_as_cache(entry, is_cache, load_script):
     module = load_script("merged-branch-cleanup")
 
     assert module.is_cache(entry) is is_cache
+
+
+@pytest.mark.unit
+def test_cache_rules_are_named_immutable_string_tuples(load_script):
+    module = load_script("merged-branch-cleanup")
+
+    for rules in (module.CACHE_DIRS, module.CACHE_FILES):
+        assert isinstance(rules, (tuple, frozenset)) and rules
+        assert all(isinstance(rule, str) for rule in rules)
+
+
+REGENERABLE = ("next-env.d.ts", "tsconfig.tsbuildinfo", "test-results/a.png",
+               "playwright-report/index.html", ".coverage", ".DS_Store")
+REGENERABLE_IGNORES = ("next-env.d.ts", "*.tsbuildinfo", "test-results/", "playwright-report/",
+                       ".coverage", ".DS_Store")
+
+
+def write_files(base, names):
+    for name in names:
+        (base / name).parent.mkdir(parents=True, exist_ok=True)
+        (base / name).write_text("regenerable\n")
+
+
+@pytest.mark.integration
+def test_worktree_whose_only_ignored_files_are_regenerable_outputs_is_removed(
+    git_world, run_cleanup
+):
+    git_world.add_branch(BRANCH)
+    ignore(git_world, *REGENERABLE_IGNORES)
+    built = git_world.worktree("built", BRANCH)
+    write_files(built, REGENERABLE)
+
+    run = run_cleanup(*cli(git_world))
+
+    assert run.code == 0, run.stderr
+    expected = [f"worktree:{built}", f"local:{BRANCH}", f"origin:{BRANCH}"]
+    assert sorted(run.data["deleted"]) == sorted(expected)
+    assert run.data["left"] == [] and not built.exists()
+
+
+@pytest.mark.integration
+def test_regenerable_outputs_plus_ignored_env_keep_the_worktree(git_world, run_cleanup):
+    git_world.add_branch(BRANCH)
+    ignore(git_world, *REGENERABLE_IGNORES, ".env")
+    held = git_world.worktree("held", BRANCH)
+    write_files(held, REGENERABLE)
+    (held / ".env").write_bytes(b"SECRET=keep-me\n")
+
+    run = run_cleanup(*cli(git_world))
+
+    assert run.code == 0, run.stderr
+    left = left_map(run.data)
+    assert set(left) == {f"worktree:{held}", f"local:{BRANCH}"}
+    assert ".env" in left[f"worktree:{held}"]
+    assert (held / ".env").read_bytes() == b"SECRET=keep-me\n"
+    assert run.data["deleted"] == [f"origin:{BRANCH}"]
 
 
 @pytest.mark.integration
@@ -373,6 +459,195 @@ def test_repo_may_be_a_linked_worktree_that_is_removed(git_world, run_cleanup):
     assert not linked.exists()
     mutating = [c for c in run.calls if c[2] in {"update-ref", "push"} or c[2:4] == ("worktree", "remove")]
     assert mutating and all(Path(call[1]).resolve() == git_world.clone for call in mutating)
+
+
+# --- --local-only: the remote copy is never touched ----------------------------------------
+
+LOCAL_ONLY_WHY = "origin copy kept: --local-only"
+
+
+def remote_calls(run):
+    """Every git call that could write to a remote: any push, or a lease/delete flag."""
+    return [call for call in run.calls
+            if call[2] == "push" or any(arg.startswith("--force-with-lease") for arg in call)]
+
+
+@pytest.mark.integration
+def test_local_only_never_pushes_and_keeps_a_merged_origin_copy(git_world, run_cleanup):
+    git_world.add_branch(BRANCH)
+    held = git_world.worktree("one", BRANCH)
+    origin_tip = git_world.sha(f"refs/heads/{BRANCH}", cwd=git_world.origin)
+
+    run = run_cleanup(*cli(git_world, "--local-only"))
+
+    assert run.code == 0, run.stderr
+    assert "push" not in run.subcommands and remote_calls(run) == []
+    assert git_world.sha(f"refs/heads/{BRANCH}", cwd=git_world.origin) == origin_tip
+    assert left_map(run.data) == {f"origin:{BRANCH}": LOCAL_ONLY_WHY}
+    assert sorted(run.data["deleted"]) == sorted([f"worktree:{held}", f"local:{BRANCH}"])
+    assert not any(ref.startswith("origin:") for ref in run.data["deleted"])
+
+
+@pytest.mark.integration
+def test_local_only_reports_an_unmerged_origin_copy_once(git_world, run_cleanup):
+    git_world.add_branch(BRANCH)
+    extra = move_origin_ahead(git_world, BRANCH)
+
+    run = run_cleanup(*cli(git_world, "--local-only"))
+
+    assert run.code == 0, run.stderr
+    entries = [entry for entry in run.data["left"] if entry["ref"].startswith("origin:")]
+    assert entries == [{"ref": f"origin:{BRANCH}", "why": LOCAL_ONLY_WHY}]
+    assert run.data["deleted"] == [f"local:{BRANCH}"]
+    assert git_world.sha(f"refs/heads/{BRANCH}", cwd=git_world.origin) == extra
+    assert "push" not in run.subcommands
+
+
+@pytest.mark.integration
+def test_local_only_without_an_origin_copy_leaves_no_remote_entry(git_world, run_cleanup):
+    git_world.add_branch(BRANCH)
+    git_world.git("push", "-q", "origin", "--delete", BRANCH)
+
+    run = run_cleanup(*cli(git_world, "--local-only"))
+
+    assert run.code == 0, run.stderr
+    assert run.data["deleted"] == [f"local:{BRANCH}"]
+    assert not any(entry["ref"].startswith("origin:") for entry in run.data["left"])
+
+
+@pytest.mark.integration
+def test_local_only_keeps_worktree_holding_an_ignored_env(git_world, run_cleanup):
+    git_world.add_branch(BRANCH)
+    ignore(git_world, ".env")
+    held = git_world.worktree("env", BRANCH)
+    (held / ".env").write_bytes(b"LOCAL_SETTING=keep-me\n")
+
+    run = run_cleanup(*cli(git_world, "--local-only"))
+
+    assert run.code == 0, run.stderr
+    left = left_map(run.data)
+    assert set(left) == {f"worktree:{held}", f"local:{BRANCH}", f"origin:{BRANCH}"}
+    assert "ignored" in left[f"worktree:{held}"] and ".env" in left[f"worktree:{held}"]
+    assert (held / ".env").read_bytes() == b"LOCAL_SETTING=keep-me\n"
+    assert run.data["deleted"] == []
+    assert f"refs/heads/{BRANCH}" in git_world.refs(git_world.clone)
+
+
+@pytest.mark.integration
+def test_local_only_removes_clean_worktree_and_deletes_branch_compare_and_swap(
+    git_world, run_cleanup
+):
+    git_world.add_branch(BRANCH)
+    held = git_world.worktree("clean", BRANCH)
+    tip = git_world.sha(f"refs/heads/{BRANCH}")
+
+    run = run_cleanup(*cli(git_world, "--local-only"))
+
+    assert run.code == 0, run.stderr
+    assert sorted(run.data["deleted"]) == sorted([f"worktree:{held}", f"local:{BRANCH}"])
+    assert not held.exists() and f"refs/heads/{BRANCH}" not in git_world.refs(git_world.clone)
+    deletes = [call[2:] for call in run.calls if call[2] == "update-ref"]
+    assert deletes == [("update-ref", "-d", f"refs/heads/{BRANCH}", tip)]
+    for call in run.calls:
+        if call[2] == "worktree":
+            assert not UNSAFE & set(call), call
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("operation", ["rebase", "bisect"])
+def test_local_only_keeps_branch_being_rebased_or_bisected(operation, git_world, run_cleanup):
+    add_branch_with_commits(git_world, BRANCH, 3)
+    busy = git_world.worktree("busy", BRANCH)
+    steps = {"rebase": ("rebase", "--force-rebase", "--exec", "false", "HEAD~2"),
+             "bisect": ("bisect", "start", BRANCH, "trunk")}[operation]
+    git_world.git(*steps, cwd=busy, check=False)
+    assert git_world.out("branch", "--show-current", cwd=busy) == "", "worktree must be detached"
+    tip = git_world.sha(BRANCH)
+
+    run = run_cleanup(*cli(git_world, "--local-only"))
+
+    assert run.code == 0, run.stderr
+    left = left_map(run.data)
+    assert set(left) == {f"local:{BRANCH}", f"origin:{BRANCH}"}
+    assert "rebase or bisect" in left[f"local:{BRANCH}"]
+    assert left[f"origin:{BRANCH}"] == LOCAL_ONLY_WHY
+    assert git_world.sha(f"refs/heads/{BRANCH}") == tip and busy.exists()
+    assert "update-ref" not in run.subcommands and "push" not in run.subcommands
+
+
+@pytest.mark.integration
+def test_local_only_keeps_an_unmerged_local_branch(git_world, run_cleanup):
+    git_world.add_branch(BRANCH, merged=False)
+    held = git_world.worktree("held", BRANCH)
+    before = snapshot(git_world)
+
+    run = run_cleanup(*cli(git_world, "--local-only"))
+
+    assert run.code == 0, run.stderr
+    assert run.data["deleted"] == []
+    left = left_map(run.data)
+    assert set(left) == {f"worktree:{held}", f"local:{BRANCH}", f"origin:{BRANCH}"}
+    assert f"not merged into {TARGET}" in left[f"local:{BRANCH}"]
+    assert left[f"origin:{BRANCH}"] == LOCAL_ONLY_WHY
+    assert snapshot(git_world) == before
+    assert not {"update-ref", "push"} & set(run.subcommands)
+
+
+@pytest.mark.integration
+def test_local_only_dry_run_plans_no_remote_delete_and_changes_nothing(git_world, run_cleanup):
+    git_world.add_branch(BRANCH)
+    first, second = git_world.worktree("one", BRANCH), git_world.worktree("two", BRANCH)
+    before = snapshot(git_world)
+
+    run = run_cleanup(*cli(git_world, "--local-only", "--dry-run"))
+
+    assert run.code == 0, run.stderr
+    assert run.data["dry_run"] is True
+    expected = [f"worktree:{first}", f"worktree:{second}", f"local:{BRANCH}"]
+    assert sorted(run.data["deleted"]) == sorted(expected)
+    assert run.data["left"] == [{"ref": f"origin:{BRANCH}", "why": LOCAL_ONLY_WHY}]
+    assert "fetch" not in run.subcommands
+    assert snapshot(git_world) == before
+    assert not MUTATING & (set(run.subcommands) - {"worktree"})
+    assert {call[3] for call in run.calls if call[2] == "worktree"} == {"list"}
+
+
+@pytest.mark.unit
+def test_docstring_contract_and_help_name_local_only(load_script, run_cleanup):
+    doc = load_script("merged-branch-cleanup").__doc__
+    contract = " ".join(doc.split("Contract:")[1].split("Safety:")[0].split())
+
+    helped = run_cleanup("--help")
+
+    assert "[--local-only]" in contract
+    assert "never touches the remote copy" in contract and 'reported in "left"' in contract
+    assert helped.code == 0 and "--local-only" in helped.stdout
+
+
+LOCAL_ONLY_REFUSALS = {
+    "main": ("main", TARGET),
+    "protected-upper": ("DEV", TARGET),
+    "default-branch": ("trunk", TARGET),
+    "own-target": ("feat/r", "origin/feat/r"),
+    "missing-target": (BRANCH, "origin/does-not-exist"),
+    "tip-expression": (BRANCH, f"{BRANCH}~0"),
+    "option-like-branch": ("-rf", TARGET),
+}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("branch, target", LOCAL_ONLY_REFUSALS.values(),
+                         ids=LOCAL_ONLY_REFUSALS.keys())
+def test_refusals_still_apply_with_local_only(branch, target, git_world, run_cleanup,
+                                              assert_refused):
+    git_world.add_branch(BRANCH, merged=False)
+    before = snapshot(git_world)
+
+    run = run_cleanup(*cli(git_world, "--local-only", branch=branch, target=target))
+
+    assert_refused(run)
+    assert "unrecognized" not in run.data["error"], "the flag must parse before it can be refused"
+    assert snapshot(git_world) == before
 
 
 # --- AC 11: refusals (exit 2, JSON error, nothing but read-only git) -----------------------
