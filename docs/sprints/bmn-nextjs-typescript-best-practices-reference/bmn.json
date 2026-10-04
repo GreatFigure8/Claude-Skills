@@ -1,6 +1,6 @@
 {
   "run": "bmn-nextjs-typescript-best-practices-reference",
-  "phase": "review1",
+  "phase": "fix1",
   "integration": "feat/nextjs-typescript-best-practices-reference",
   "worktree": "/Users/jonathanstevenson/Source/claude-skills-nextjs-typescript-best-practices-reference",
   "live": "dev",
@@ -443,8 +443,11 @@
     "Next.js 16.3.8 is current stable as of 2026-10-04 (npm latest, nextjs.org/docs label, Sept 2026 security post); every topic file's as-of line uses it.",
     "Skeleton story built while topic planners were still researching (it has no deps) to overlap wall-clock.",
     "Planners noted docs conflicts (e.g. Vercel vs nextjs.org limits, Zod 3 in the forms guide vs Zod 4, AI SDK drift); each goes under 'Not confirmed by the docs' in its topic file, never stated as a rule.",
-    "origin/dev moved to plugin 1.6.1 (harden run) during this run; merge kept 1.7.0 (higher) in plugin.json and its pinned test."
+    "origin/dev moved to plugin 1.6.1 (harden run) during this run; merge kept 1.7.0 (higher) in plugin.json and its pinned test.",
+    "REVIEW\u2460 diffed the run's own merge into dev (59279a3^1..59279a3) instead of dev_base...review1, because dev also took another run's changes after dev_base.",
+    "FIX\u2460 ownership by file: 'run' findings are routed to the story owning the file they sit in (R1-A5, R1-C6 \u2192 entry-point story; R1-B17 helper dedupe \u2192 entry-point story; R1-C31 WebVitals \u2192 performance owns, testing links). The cross-topic session-helper finding (R1-B15/R1-C9) is fixed by every topic fixer against one decided contract: src/lib/dal.ts ('server-only') exports getSession(): Promise<Session|null> (no redirect; Route Handlers, SSE, APIs) and verifySession(): Promise<Session> (redirects to /login; pages, layouts, Server Actions); imports use @/lib/dal; snippets use the canonical src/ layout and src/lib/actions/ for Server Actions.",
+    "Lint decision for R1-A5: new projects use ESLint with eslint-config-next (TS-12); a repo that already uses Biome keeps it; the gate runs the repo's configured linter (eslint . or biome check .)."
   ],
   "blocker": null,
-  "updated": "2026-10-04T04:15:00Z"
+  "updated": "2026-10-04T04:40:00Z"
 }
