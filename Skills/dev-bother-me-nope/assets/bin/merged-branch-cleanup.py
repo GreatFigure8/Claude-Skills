@@ -2,31 +2,32 @@
 """merged-branch-cleanup.py — delete one merged branch, every worktree holding it, local and remote.
 
 Purpose:
-  After a merge, remove every linked worktree that has the branch checked out, delete the local
-  branch and its remote copy, but only once git proves the tip is in --target. Whatever it cannot
-  prove or cannot safely remove is kept and reported in "left".
+  Remove every linked worktree holding the branch, then the local branch and its remote copy, once git
+  proves the tip is in --target. What it cannot prove or safely remove is kept and reported in "left".
 
 Contract:
   merged-branch-cleanup.py --repo <path> --branch <name> --target <ref>
-                           [--remote origin] [--no-fetch] [--dry-run]
+                           [--remote origin] [--no-fetch] [--dry-run] [--local-only]
   stdout, one JSON object: {"branch", "target", "dry_run", "deleted": [...], "left": [{"ref", "why"}]}
   Refs are "worktree:<abs path>", "local:<branch>" and "<remote>:<branch>". Exit 0 = it ran
   (inspect "left"). Exit 2 = refused or usage error: stdout {"error": "..."}, nothing changed.
-  --dry-run runs no fetch, changes nothing and prints the plan.
+  --dry-run runs no fetch, changes nothing and prints the plan. --local-only never touches the remote
+  copy (no push, delete or lease); one that exists is kept and reported in "left".
 
 Safety:
   Refuses protected names (main master dev develop prod production release staging, any case), the
   remote's default branch (asked of the remote when <remote>/HEAD is unset; refused if unknowable),
   a --target that is not a branch or tag name or is the branch itself, malformed names and a
   non-work-tree repo. Proves ancestry with `merge-base --is-ancestor` before any delete. Keeps main,
-  locked and dirty worktrees (dirty counts ignored files outside CACHE_DIRS, which `worktree remove`
-  would delete) and the local branch while a rebase or bisect of it runs. Never forces, unlocks or
-  prunes other worktrees. Deletes are compare-and-swap on the checked SHA (update-ref -d, push
-  --force-with-lease). Git runs as an argument list via `git -C <path>`, and never checkout,
+  locked and dirty worktrees (dirty: any ignored file `worktree remove` would delete, except
+  CACHE_DIRS/CACHE_FILES) and the local branch while a rebase or bisect of it runs. Never forces,
+  unlocks or prunes other worktrees. Deletes are compare-and-swap on the checked SHA (update-ref -d,
+  push --force-with-lease). Git runs as an argument list via `git -C <path>`, and never checkout,
   switch, reset, stash, merge, rebase or pull.
 """
 
 import argparse
+import fnmatch
 import json
 import os
 import subprocess
@@ -35,9 +36,11 @@ from collections import namedtuple
 from pathlib import Path
 
 PROTECTED = frozenset({"main", "master", "dev", "develop", "prod", "production", "release", "staging"})
-# Ignored directories that tooling regenerates; any other ignored path keeps its worktree.
-CACHE_DIRS = frozenset({"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".venv",
-                        "node_modules", ".next"})
+# Ignored outputs tools regenerate (exact fnmatchcase): any directory of the path, or its file name.
+CACHE_DIRS = ("__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".venv", "node_modules",
+              ".next", ".tox", ".nox", ".turbo", ".parcel-cache", "htmlcov", "test-results",
+              "playwright-report", "*.egg-info")
+CACHE_FILES = ("next-env.d.ts", "*.tsbuildinfo", ".coverage", ".coverage.*", ".DS_Store", ".eslintcache")
 # A rebase or bisect in progress; git's own branch delete refuses the branch these files name.
 BUSY_FILES = ("rebase-merge/head-name", "rebase-apply/head-name", "BISECT_START")
 GIT_READ_TIMEOUT_S = 30
@@ -58,7 +61,7 @@ class JsonArgumentParser(argparse.ArgumentParser):
 
 
 # Immutable records: what the options say, what a survey found, what the plan decides.
-Options = namedtuple("Options", "repo branch target remote fetch dry_run target_ref", defaults=(None,))
+Options = namedtuple("Options", "repo branch target remote fetch dry_run local_only target_ref")
 Worktree = namedtuple("Worktree", "path branch is_main locked prunable")  # locked: None or reason
 Holder = namedtuple("Holder", "worktree dirty")  # dirty: status entries that block removal
 Copy = namedtuple("Copy", "sha merged problem")  # sha None = no such ref
@@ -79,38 +82,33 @@ def parse_args(argv):
     parser.add_argument("--remote", default="origin")
     parser.add_argument("--no-fetch", action="store_true", help="skip `git fetch --prune`")
     parser.add_argument("--dry-run", action="store_true", help="print the plan, change nothing")
+    parser.add_argument("--local-only", action="store_true", help="never touch the remote copy")
     args = parser.parse_args(argv)
     if not args.repo:
         raise Refusal("usage: --repo must not be empty")
     return Options(os.path.abspath(args.repo), args.branch, args.target, args.remote,
-                   not args.no_fetch, args.dry_run)
+                   not args.no_fetch, args.dry_run, args.local_only, None)
 
 
 def failure_line(text):
     """The most telling line of a failure: a rejection or error line, else the first line."""
     lines = [line.strip() for line in text.splitlines() if line.strip()]
-    for line in lines:
-        if "rejected" in line or line.startswith(("error:", "fatal:")):
-            return line
-    return lines[0] if lines else "git failed with no output"
-
-
-def git_result(code, out, err):
-    return GitResult(code, code == 0, out, out.strip(), failure_line(err or out))
+    telling = [line for line in lines if "rejected" in line or line.startswith(("error:", "fatal:"))]
+    return (telling + lines + ["git failed with no output"])[0]
 
 
 def run_git(cwd, *args, timeout=GIT_READ_TIMEOUT_S):
     """Run `git -C cwd args`; never raises, a timeout or a missing git is a non-zero result."""
-    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
     try:
         proc = subprocess.run(["git", "-C", cwd, *args], capture_output=True, text=True,
-                              encoding="utf-8", errors="replace", env=env, timeout=timeout,
-                              check=False)
+                              encoding="utf-8", errors="replace", timeout=timeout, check=False,
+                              env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+        code, out, err = proc.returncode, proc.stdout, proc.stderr
     except subprocess.TimeoutExpired:
-        return git_result(124, "", f"git {args[0]} timed out after {timeout}s")
+        code, out, err = 124, "", f"git {args[0]} timed out after {timeout}s"
     except OSError as exc:
-        return git_result(127, "", f"cannot run git: {exc}")
-    return git_result(proc.returncode, proc.stdout, proc.stderr)
+        code, out, err = 127, "", f"cannot run git: {exc}"
+    return GitResult(code, code == 0, out, out.strip(), failure_line(err or out))
 
 
 def short_branch(full_ref):
@@ -164,8 +162,7 @@ def default_branch(opts):
 
 
 def resolve_target(opts):
-    """Pin --target to the full branch or tag ref it names. A commit or an expression such as
-    `<branch>~0` is refused: it would let the branch prove its own merge."""
+    """Pin --target to the full branch or tag ref it names; a commit or `<branch>~0` is refused."""
     if resolve_commit(opts.repo, opts.target) is None:
         raise Refusal(f"--target {opts.target!r} does not resolve to a commit")
     full = run_git(opts.repo, "rev-parse", "--symbolic-full-name", opts.target).text
@@ -208,8 +205,11 @@ def check_copy(repo, ref, target_sha):
 
 
 def is_cache(entry):
-    """An ignored status entry inside a regenerable cache directory, e.g. `!! pkg/__pycache__/`."""
-    return entry.startswith("!! ") and not CACHE_DIRS.isdisjoint(entry[3:].split("/")[:-1])
+    """An ignored entry under a CACHE_DIRS directory or named like CACHE_FILES; exact, case-sensitive."""
+    *dirs, name = entry[3:].split("/")
+    checks = [(part, CACHE_DIRS) for part in dirs] + [(name, CACHE_FILES)]
+    return entry.startswith("!! ") and any(fnmatch.fnmatchcase(text, pattern)
+                                          for text, patterns in checks for pattern in patterns)
 
 
 def dirty_paths(worktree):
@@ -263,8 +263,7 @@ def survey(opts):
         local=check_copy(opts.repo, f"{HEADS}{opts.branch}", target_sha),
         remote_copy=check_copy(opts.repo, f"{REMOTES}{opts.remote}/{opts.branch}", target_sha),
         fetch_error=fetched.reason if fetched and not fetched.ok else None,
-        holders=find_holders(opts.branch, worktrees), busy=busy_with(opts),
-    )
+        holders=find_holders(opts.branch, worktrees), busy=busy_with(opts))
 
 
 # plan: pure, decides what is deleted and what is left
@@ -286,9 +285,8 @@ def blocker(holder):
         return "main checkout is never removed or switched"
     if wt.locked is not None:
         return f"locked: {wt.locked or 'no reason given'}; never unlocked"
-    if dirty:
-        return f"uncommitted or ignored files ({len(dirty)} paths, e.g. {dirty[0]}); never forced"
-    return None
+    return f"uncommitted or ignored files ({len(dirty)} paths, e.g. {dirty[0]}); never forced" \
+        if dirty else None
 
 
 def plan_local(s, blocked):
@@ -298,8 +296,7 @@ def plan_local(s, blocked):
         return (Left(f"local:{s.branch}", s.busy),), False
     if not blocked:
         return (), True
-    in_main = any(h.worktree.is_main for h in blocked)
-    why = "checked out in the main checkout" if in_main \
+    why = "checked out in the main checkout" if any(h.worktree.is_main for h in blocked) \
         else "checked out in worktree " + ", ".join(h.worktree.path for h in blocked)
     return (Left(f"local:{s.branch}", why),), False
 
@@ -328,10 +325,14 @@ def plan_merged(s):
     return Plan(remove, delete_local, delete_remote, held + local_left + remote_left)
 
 
-def plan_cleanup(s):
-    if s.local.sha is not None and not s.local.merged:
-        return plan_unmerged(s)
-    return plan_merged(s)
+def plan_cleanup(s, local_only=False):
+    plan = plan_unmerged(s) if s.local.sha is not None and not s.local.merged else plan_merged(s)
+    if not local_only:
+        return plan
+    # --local-only: the remote copy is never deleted; one that exists is reported once, in left
+    ref = f"{s.remote}:{s.branch}"
+    kept = (Left(ref, f"{s.remote} copy kept: --local-only"),) if s.remote_copy.sha else ()
+    return plan._replace(delete_remote=False, left=tuple(i for i in plan.left if i.ref != ref) + kept)
 
 
 # execute: every mutating call runs as `git -C <main checkout>`
@@ -381,7 +382,7 @@ def main(argv=None):
     try:
         opts = validate(parse_args(sys.argv[1:] if argv is None else argv))
         found = survey(opts)
-        plan = plan_cleanup(found)
+        plan = plan_cleanup(found, opts.local_only)
         deleted, left = (planned_deletions(found, plan), plan.left) if opts.dry_run \
             else execute(found, plan)
     except Refusal as refusal:
