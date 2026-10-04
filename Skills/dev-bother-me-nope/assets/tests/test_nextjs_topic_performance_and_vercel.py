@@ -263,3 +263,102 @@ def test_patterns_code_uses_no_deprecated_api():
 
 def test_topic_never_instructs_a_vercel_deploy():
     assert DEPLOY_COMMAND.search(_text()) is None
+
+
+# --- FIX1: REVIEW1 findings R1-C17, R1-C25 to R1-C28 and R1-C31 ------------------------------------
+
+AUGUST_RELEASE = "https://nextjs.org/blog/august-2026-security-release"
+REMOTE_PATTERN_ENTRY = re.compile(r"\{[^{}]*\bhostname\s*:[^{}]*\}")
+DO_MARK = "**Do**"
+
+
+def _rule(rule_id: str) -> str:
+    return next(item for found, item in h.rule_items(_text()) if found == rule_id)
+
+
+def _ts_fences_with(*needles: str) -> tuple[str, ...]:
+    return tuple(body for body in _ts_bodies(_text()) if all(needle in body for needle in needles))
+
+
+def _do_halves() -> tuple[str, ...]:
+    """The part of each Anti-patterns item after its ``**Do**`` line."""
+    return tuple(body.split(DO_MARK, 1)[1] for _, body in h.anti_patterns(_text()) if DO_MARK in body)
+
+
+def test_avif_rule_cites_the_august_2026_release_and_names_the_disabling_version():
+    rule = _rule("PERF-6")
+    assert AUGUST_RELEASE in rule
+    assert "16.3.3" in rule
+    assert "AVIF" in rule
+
+
+def test_no_rule_advises_adding_avif():
+    advice = [item for _, item in h.rule_items(_text()) if re.search(r"\badd AVIF\b", item, re.IGNORECASE)]
+    assert not advice, "a rule still tells the reader to add AVIF"
+
+
+def test_no_example_enables_the_avif_format():
+    offenders = [body for body in _ts_bodies(_text()) if "image/avif" in body]
+    assert not offenders, f"{len(offenders)} example(s) enable image/avif"
+
+
+def test_august_release_is_listed_in_sources():
+    assert AUGUST_RELEASE in h.source_urls(_text())
+
+
+def test_web_vitals_reporter_posts_to_the_shared_endpoint():
+    reporters = _ts_fences_with("useReportWebVitals", "sendBeacon")
+    assert len(reporters) == 1
+    assert "'/api/vitals'" in reporters[0]
+    assert "example.com" not in reporters[0]
+    assert "/api/vitals" in _rule("PERF-26")
+
+
+def test_web_vitals_component_is_defined_once():
+    assert len(_ts_fences_with("export function WebVitals")) == 1
+
+
+def test_cron_secret_check_is_constant_time_on_bytes():
+    cron_fences = _ts_fences_with("CRON_SECRET")
+    assert len(cron_fences) >= 2, "expected the cron pattern and its Do block"
+    for body in cron_fences:
+        assert "timingSafeEqual" in body
+        assert "from 'node:crypto'" in body
+        assert "Buffer.from(" in body
+        assert re.search(r"\b\w+\.length\s*[!=]==\s*\w+\.length\b", body), "no byte-length check"
+        assert "!== `Bearer" not in body, "cron secret compared with !=="
+
+
+def test_cron_rule_requires_a_constant_time_compare():
+    rule = _rule("PERF-39")
+    assert "timingSafeEqual" in rule
+    assert "node:crypto" in rule
+
+
+def test_every_request_json_call_is_guarded_with_a_400():
+    callers = _ts_fences_with("request.json()")
+    assert callers, "no example reads a JSON body"
+    for body in callers:
+        assert "try {" in body and "catch" in body, "request.json() is unguarded"
+        assert "status: 400" in body
+        assert "invalid_json" in body
+
+
+def test_shiki_html_is_not_wrapped_in_a_second_pre():
+    shiki = _ts_fences_with("codeToHtml")
+    assert len(shiki) == 1
+    assert "<pre" not in shiki[0], "codeToHtml already returns a <pre> element"
+    assert "dangerouslySetInnerHTML" in shiki[0]
+
+
+def test_remote_pattern_examples_set_every_field_but_the_wildcard_dont():
+    patterns = h.section(_text(), "Patterns")
+    blocks = (*(body for _, body in h.code_blocks(patterns, ("ts",))), *_do_halves())
+    entries = [entry for body in blocks for entry in REMOTE_PATTERN_ENTRY.findall(body)]
+    assert entries, "no remotePatterns entry found"
+    missing = [entry for entry in entries if "port:" not in entry]
+    assert not missing, f"remotePatterns entries without port: {missing}"
+
+
+def test_remote_pattern_rule_names_port():
+    assert "port: ''" in _rule("PERF-5")
