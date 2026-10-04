@@ -1,0 +1,25 @@
+TEST2 unit results for app-router-routing-and-metadata
+base 7acb627 (origin/dev), 2026-10-04
+full suite: 1247 passed (coverage run 199.90s; verbose rerun 117.86s)
+
+FIX tests named in this story's FIX① section (outcome in the verbose run):
+  PASSED x1    test_nextjs_topic_routing_and_metadata.py::test_every_server_action_authenticates_and_authorizes_before_writing
+  PASSED x1    test_nextjs_topic_routing_and_metadata.py::test_layout_examples_use_layout_props_with_group_free_literals
+  PASSED x1    test_nextjs_topic_routing_and_metadata.py::test_router_calls_type_non_literal_hrefs_as_route
+  PASSED x1    test_nextjs_topic_routing_and_metadata.py::test_safe_path_guard_resolves_the_url_and_compares_origins
+  PASSED x1    test_nextjs_topic_routing_and_metadata.py::test_sources_list_the_as_of_version_source
+
+tests named in the TEST1 criterion map:
+  PASSED x1    test_nextjs_topic_routing_and_metadata.py::test_canonical_layout_is_linked_from_the_topic
+  PASSED x1    test_nextjs_topic_routing_and_metadata.py::test_every_anti_pattern_pairs_a_dont_with_a_do
+  PASSED x1    test_nextjs_topic_routing_and_metadata.py::test_every_checklist_item_names_an_rt_rule
+  PASSED x2    test_nextjs_topic_routing_and_metadata.py::test_not_confirmed_section_lists_the_urls_checked
+  PASSED x1    test_nextjs_topic_routing_and_metadata.py::test_routing_topic_cites_no_other_topics_rule_ids
+  PASSED x1    test_nextjs_topic_routing_and_metadata.py::test_routing_topic_covers_required_concepts
+  PASSED x1    test_nextjs_topic_routing_and_metadata.py::test_routing_topic_examples_never_type_as_any
+  PASSED x1    test_nextjs_topic_routing_and_metadata.py::test_routing_topic_has_at_least_fifteen_rt_rules
+  PASSED x5    test_nextjs_topic_routing_and_metadata.py::test_routing_topic_has_worked_example
+  PASSED x1    test_nextjs_topic_routing_and_metadata.py::test_routing_topic_replaces_the_stub
+  PASSED x1    test_nextjs_reference.py::test_rule_ids_are_unique_across_topic_files
+  PASSED x1    test_nextjs_topic_routing_and_metadata.py::test_rules_state_the_parallel_route_default_requirement
+  PASSED x2    test_nextjs_topic_routing_and_metadata.py::test_version_notes_name_the_major_and_link_nextjs_org

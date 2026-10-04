@@ -402,3 +402,29 @@ after, TS 5.9.3 and 7.0.2, lib ES2020 and lib ESNext: tsc --strict clean (all ei
 - R1-C22 stops for good on `stream-error`, and the UI offers the retry, as it already does for `'closed'`.
 - R1-C14's reader is a new file because `readSse` is SSE-only; it shares `bodyReader` and `HttpStatusError` with it.
 - To stay within 800 lines, the Rules and Not-confirmed sections were reflowed to one line per item instead of dropping prose.
+
+## TEST2: unit (2026-10-04)
+
+Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-2`, cut from the detached run base `origin/dev` `7acb627` (the run branch after the FIX① merges). Tester: `tests-unit-2`. No code was changed; verification pass after FIX①.
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Full suite with coverage | `uv run --quiet --with pytest --with pytest-cov python -m pytest Skills/dev-bother-me-nope/assets/tests -q --cov=Skills/dev-bother-me-nope/assets/tests --cov-report=term` | **1247 passed in 199.90s (0:03:19)**, exit 0, 0 failed, 0 skipped. Log: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring/evidence/test2-unit-full-suite.txt` |
+| Per-test outcomes | same suite with `-v -p no:cacheprovider` | 1247 PASSED, 0 other (117.86s). Per-story lists: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/server-sent-events-and-streaming-responses/evidence/test2-unit-results.txt` |
+| Lint | `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope` | `All checks passed!` |
+
+### Coverage
+
+- `test_nextjs_topic_sse_and_streaming.py`: **99%** (162 of 163 statements; line 83).
+- `references/nextjs/sse-and-streaming.md`: Markdown, coverage n/a.
+- Whole suite: **99%** (4605 of 4642 statements). Target 80% met; `nextjs_doc_helpers.py` is the shared parser every story's tests use.
+
+### FIX① tests
+
+- **14 of 14** test names this story's FIX① section lists exist and PASS (none missing, none failing).
+
+### [unit] criteria still map to passing tests
+
+- TEST1 criterion map: 11 PASS, 0 FAIL. Re-checked now: **23 of 23** tests it cites exist and PASS. Every criterion still maps to at least one passing test; the one-off criteria (grounding evidence, scope) are unchanged and not re-run here.
+
+**Result:** 14 FIX① tests PASS, 11 criteria PASS, 0 FAIL.

@@ -1,0 +1,34 @@
+TEST2 unit results for data-fetching-server-actions-and-forms
+base 7acb627 (origin/dev), 2026-10-04
+full suite: 1247 passed (coverage run 199.90s; verbose rerun 117.86s)
+
+FIX tests named in this story's FIX① section (outcome in the verbose run):
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_a_rule_sends_cache_components_params_into_suspense
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_cache_components_patterns_do_not_await_params_in_the_page
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_df14_forbids_returning_void_when_a_check_fails
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_every_pattern_names_the_caching_model_it_assumes
+  PASSED x10   test_nextjs_reference.py::test_file_is_at_most_800_lines
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_patterns_intro_defines_the_two_caching_models
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_server_actions_live_in_src_lib_actions
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_session_helpers_are_imported_from_the_dal_module
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_snippet_paths_use_the_src_layout
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_top_level_await_params_sits_only_in_previous_model_patterns
+  PASSED x9    test_nextjs_reference.py::test_topic_cites_only_its_own_rule_ids
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_validating_actions_return_typed_state_never_void
+
+tests named in the TEST1 criterion map:
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_checklist_rule_ids_exist
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_every_checklist_item_names_a_df_rule
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_every_dont_is_paired_with_a_do
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_every_use_server_block_calls_an_auth_check
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_examples_never_use_any
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_mutation_examples_link_the_security_topic
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_redirect_rule_says_outside_try_and_after_revalidation
+  PASSED x1    test_nextjs_reference.py::test_rule_ids_are_unique_across_topic_files
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_rules_state_redirect_outside_try_catch
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_topic_has_at_least_15_df_rules
+  PASSED x5    test_nextjs_topic_data_fetching_and_mutations.py::test_topic_has_required_example
+  PASSED x2    test_nextjs_topic_route_handlers_and_apis.py::test_topic_is_not_a_stub
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_topic_names_every_required_concept
+  PASSED x1    test_nextjs_topic_data_fetching_and_mutations.py::test_topic_uses_only_df_rule_ids
+  PASSED x4    test_nextjs_topic_testing_and_observability.py::test_version_notes_name_the_major_and_link_nextjs

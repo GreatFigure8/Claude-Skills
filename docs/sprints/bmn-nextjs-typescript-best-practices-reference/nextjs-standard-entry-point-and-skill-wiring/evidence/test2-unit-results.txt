@@ -1,0 +1,93 @@
+TEST2 unit results for nextjs-standard-entry-point-and-skill-wiring
+base 7acb627 (origin/dev), 2026-10-04
+full suite: 1247 passed (coverage run 199.90s; verbose rerun 117.86s)
+
+FIX tests named in this story's FIX① section (outcome in the verbose run):
+  PASSED x1    test_nextjs_doc_helpers.py::test_a_backtick_fence_is_not_closed_by_tildes
+  PASSED x1    test_nextjs_doc_helpers.py::test_cites_source_ignores_a_backticked_convention_tag
+  PASSED x1    test_nextjs_wiring.py::test_common_preamble_reads_routed_references
+  PASSED x1    test_nextjs_doc_helpers.py::test_contract_readers_ignore_a_deeper_heading_with_a_contract_name
+  PASSED x3    test_nextjs_wiring.py::test_fullstack_standards_is_always_conditional
+  PASSED x1    test_nextjs_reference.py::test_non_negotiable_2_never_adds_middleware
+  PASSED x1    test_nextjs_reference.py::test_non_negotiable_9_is_one_lint_rule_the_gate_can_run
+  SUPERSEDED   test_reviewer_brief_keeps_fullstack_standards (renamed or replaced in FIX①; successor test_reviewer_brief_keeps_fullstack_standards_when_available: PASSED x1)
+  PASSED x1    test_nextjs_wiring.py::test_reviewer_brief_keeps_fullstack_standards_when_available
+  PASSED x1    test_nextjs_doc_helpers.py::test_section_prefers_the_shallowest_heading_over_an_earlier_deeper_one
+  PASSED x1    test_nextjs_wiring.py::test_skill_frontmatter_description_pinned
+  PASSED x1    test_nextjs_wiring.py::test_skill_intake_routes_references_through_their_own_field
+  PASSED x1    test_nextjs_wiring.py::test_skill_test1_uses_the_typescript_tooling
+  PASSED x1    test_nextjs_wiring.py::test_stack_routing_http_black_box_is_the_request_fixture_not_fetch
+  PASSED x1    test_nextjs_wiring.py::test_stack_routing_maps_each_column_to_a_scout_field
+  PASSED x1    test_nextjs_wiring.py::test_stack_routing_route_table_has_a_read_column
+  PASSED x1    test_nextjs_wiring.py::test_stack_routing_test_surfaces_names_typescript_tooling
+  PASSED x1    test_nextjs_wiring.py::test_stack_routing_type_gate_runs_typegen_first
+  PASSED x1    test_nextjs_wiring.py::test_stack_routing_typescript_gates_run_types_then_lint_then_build
+  SUPERSEDED   test_stack_routing_typescript_row_names_the_reference_in_both_cells (renamed or replaced in FIX①; successor test_stack_routing_typescript_row_reads_the_reference_never_loads_it: PASSED x1)
+  PASSED x1    test_nextjs_wiring.py::test_stack_routing_typescript_row_reads_the_reference_never_loads_it
+  PASSED x1    test_nextjs_wiring.py::test_stack_scout_returns_references_in_their_own_field
+  PASSED x1    test_nextjs_doc_helpers.py::test_stray_rule_lines_flag_a_column_zero_fence_and_prose
+  PASSED x1    test_nextjs_wiring.py::test_tester_brief_uses_the_typescript_row_tooling
+  PASSED x1    test_nextjs_doc_helpers.py::test_tilde_fences_are_fences
+  PASSED x9    test_nextjs_reference.py::test_topic_rules_are_well_formed_and_numbered
+  PASSED x3    test_nextjs_doc_helpers.py::test_topic_tests_use_the_shared_any_check_and_major
+  PASSED x10   test_nextjs_doc_helpers.py::test_uses_any_type_catches_every_spelling
+  PASSED x5    test_nextjs_doc_helpers.py::test_uses_any_type_ignores_comments_identifiers_and_strings
+
+tests named in the TEST1 criterion map:
+  PASSED x1    test_nextjs_reference.py::test_authoring_contract_states_the_contract
+  PASSED x1    test_nextjs_wiring.py::test_brief_lines_say_what_each_agent_does_with_the_rule_ids
+  PASSED x4    test_nextjs_wiring.py::test_brief_reads_the_nextjs_reference_for_typescript
+  PASSED x1    test_nextjs_reference.py::test_entry_point_as_of_line_directly_follows_h1
+  PASSED x1    test_nextjs_reference.py::test_entry_point_h1_is_the_standard_title
+  PASSED x1    test_nextjs_reference.py::test_entry_point_h2_sections_in_order
+  PASSED x1    test_nextjs_reference.py::test_entry_version_notes_cite_and_point_to_topics
+  PASSED x5    test_skill_text_rules.py::test_every_helper_invocation_uses_the_plugin_root_form
+  PASSED x1    test_nextjs_reference.py::test_every_indexed_topic_file_exists
+  PASSED x10   test_nextjs_reference.py::test_every_prose_url_is_listed_in_sources
+  PASSED x1    test_nextjs_reference.py::test_every_topic_file_on_disk_has_an_index_row
+  PASSED x10   test_nextjs_reference.py::test_every_url_host_is_allowed
+  PASSED x10   test_nextjs_reference.py::test_file_is_at_most_800_lines
+  PASSED x1    test_nextjs_reference.py::test_folder_tree_additions_are_marked_and_sourced
+  PASSED x1    test_nextjs_reference.py::test_folder_tree_comments_use_space_hash_space
+  PASSED x1    test_nextjs_reference.py::test_folder_tree_is_one_text_fence
+  PASSED x1    test_nextjs_reference.py::test_folder_tree_keeps_draft_comments
+  PASSED x1    test_nextjs_reference.py::test_folder_tree_keeps_draft_order
+  PASSED x1    test_nextjs_reference.py::test_folder_tree_keeps_every_draft_entry_at_its_path
+  PASSED x1    test_nextjs_reference.py::test_folder_tree_uses_box_drawing_lines_only
+  PASSED x1    test_nextjs_doc_helpers.py::test_helpers_module_is_stdlib_only_small_and_immutable
+  PASSED x1    test_nextjs_reference.py::test_how_agents_use_this_covers_every_agent
+  PASSED x1    test_nextjs_reference.py::test_how_agents_use_this_states_precedence
+  PASSED x1    test_nextjs_doc_helpers.py::test_is_stub_detects_the_marker_line
+  PASSED x10   test_nextjs_reference.py::test_no_bare_code_fences
+  PASSED x10   test_nextjs_reference.py::test_no_todo_or_tbd
+  PASSED x1    test_nextjs_reference.py::test_non_negotiables_are_few_linked_and_cited
+  PASSED x8    test_nextjs_wiring.py::test_other_briefs_do_not_mention_the_reference
+  PASSED x1    test_nextjs_reference.py::test_placement_rules_follow_the_tree_and_cite_or_tag
+  PASSED x1    test_nextjs_reference.py::test_placement_rules_scope_the_layout_to_new_projects
+  PASSED x2    test_nextjs_wiring.py::test_planner_and_reviewer_briefs_ask_for_rule_ids
+  REMOVED      test_plugin_json_is_version_1_6_0 (FIX①/TEST1 records its removal, replaced by test_plugin_json_is_version_1_7_0: PASSED x1)
+  PASSED x1    test_skill_text_rules.py::test_plugin_json_is_version_1_7_0
+  PASSED x1    test_nextjs_wiring.py::test_plugin_json_only_the_version_moved
+  PASSED x10   test_nextjs_reference.py::test_primary_source_floor
+  PASSED x10   test_nextjs_reference.py::test_relative_links_resolve
+  RENAMED      test_reviewer_brief_keeps_fullstack_standards -> test_reviewer_brief_keeps_fullstack_standards_when_available: PASSED x1
+  PASSED x1    test_nextjs_wiring.py::test_reviewer_return_json_shape_is_unchanged
+  RENAMED      test_skill_frontmatter_description_unchanged -> test_skill_frontmatter_description_pinned: PASSED x1
+  PASSED x1    test_nextjs_wiring.py::test_skill_intake_links_the_nextjs_reference
+  PASSED x1    test_nextjs_wiring.py::test_skill_review1_links_the_reference_next_to_fullstack_standards
+  PASSED x10   test_nextjs_reference.py::test_sources_is_a_bullet_list_of_unique_https_urls
+  PASSED x5    test_skill_text_rules.py::test_squash_is_only_ever_forbidden
+  PASSED x1    test_nextjs_wiring.py::test_stack_routing_intro_covers_reference_files
+  PASSED x1    test_nextjs_wiring.py::test_stack_routing_keeps_fullstack_standards_when_available
+  PASSED x1    test_nextjs_wiring.py::test_stack_routing_never_approximate_sentence_unchanged
+  PASSED x1    test_nextjs_wiring.py::test_stack_routing_says_references_are_read_not_loaded
+  PASSED x1    test_nextjs_wiring.py::test_stack_routing_test_surfaces_keeps_the_python_rows
+  PASSED x1    test_nextjs_wiring.py::test_stack_routing_test_surfaces_names_typescript_tooling
+  RENAMED      test_stack_routing_typescript_row_names_the_reference_in_both_cells -> test_stack_routing_typescript_row_reads_the_reference_never_loads_it: PASSED x1
+  PASSED x9    test_nextjs_reference.py::test_stub_marker_names_the_owning_story
+  PASSED x1    test_nextjs_doc_helpers.py::test_stub_slug_returns_the_owning_slug
+  PASSED x1    test_nextjs_reference.py::test_stubs_have_h1_as_of_marker_and_version_source
+  PASSED x9    test_nextjs_reference.py::test_topic_as_of_matches_the_entry_point
+  PASSED x1    test_nextjs_reference.py::test_topic_index_columns
+  PASSED x1    test_nextjs_reference.py::test_topic_index_links_point_into_nextjs_dir
+  PASSED x1    test_nextjs_reference.py::test_topic_index_rows_match_topics_in_order

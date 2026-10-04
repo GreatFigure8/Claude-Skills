@@ -352,3 +352,29 @@ path. No snippet calls `getSession()` or `verifySession()` itself (the signup ac
    defaults to true since TypeScript 5.0, which this file does not cite.
 4. The test module uses `helpers._fenced_indexes`, a private helper; the helper file is outside this
    story's scope, so no public wrapper was added.
+
+## TEST2: unit (2026-10-04)
+
+Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-2`, cut from the detached run base `origin/dev` `7acb627` (the run branch after the FIX① merges). Tester: `tests-unit-2`. No code was changed; verification pass after FIX①.
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Full suite with coverage | `uv run --quiet --with pytest --with pytest-cov python -m pytest Skills/dev-bother-me-nope/assets/tests -q --cov=Skills/dev-bother-me-nope/assets/tests --cov-report=term` | **1247 passed in 199.90s (0:03:19)**, exit 0, 0 failed, 0 skipped. Log: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring/evidence/test2-unit-full-suite.txt` |
+| Per-test outcomes | same suite with `-v -p no:cacheprovider` | 1247 PASSED, 0 other (117.86s). Per-story lists: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/typescript-config-and-typing-patterns/evidence/test2-unit-results.txt` |
+| Lint | `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope` | `All checks passed!` |
+
+### Coverage
+
+- `test_nextjs_topic_typescript.py`: **98%** (160 of 164 statements; lines 67-68, 243, 251).
+- `references/nextjs/typescript.md`: Markdown, coverage n/a.
+- Whole suite: **99%** (4605 of 4642 statements). Target 80% met; `nextjs_doc_helpers.py` is the shared parser every story's tests use.
+
+### FIX① tests
+
+- **12 of 12** test names this story's FIX① section lists exist and PASS (none missing, none failing).
+
+### [unit] criteria still map to passing tests
+
+- TEST1 criterion map: 10 PASS, 0 FAIL. Re-checked now: **18 of 18** tests it cites exist and PASS. Every criterion still maps to at least one passing test; the one-off criteria (grounding evidence, scope) are unchanged and not re-run here.
+
+**Result:** 12 FIX① tests PASS, 10 criteria PASS, 0 FAIL.

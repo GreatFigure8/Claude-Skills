@@ -1,0 +1,34 @@
+TEST2 unit results for testing-errors-and-observability
+base 7acb627 (origin/dev), 2026-10-04
+full suite: 1247 passed (coverage run 199.90s; verbose rerun 117.86s)
+
+FIX tests named in this story's FIX① section (outcome in the verbose run):
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_log_error_spreads_caller_fields_before_the_reserved_keys
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_on_request_error_example_redacts_the_message_and_guards_the_reporter
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_playwright_config_gives_each_checkout_its_own_port
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_playwright_reuses_an_existing_server_only_on_request
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_snippets_and_rules_use_the_canonical_src_layout
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_unstable_rethrow_example_renders_the_post_it_loaded
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_vitest_coverage_excludes_what_test_2_and_test_10_keep_off_the_unit_surface
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_web_vitals_reporter_is_owned_by_perf_26_and_not_copied
+
+tests named in the TEST1 criterion map:
+  PASSED x2    test_nextjs_topic_testing_and_observability.py::test_every_anti_pattern_pairs_dont_with_do
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_every_review_checklist_item_names_a_rule
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_gate_commands_agree_with_stack_routing
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_gate_scripts_example_uses_eslint_never_next_lint
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_has_global_error_example
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_has_instrumentation_example
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_has_playwright_config_example
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_has_segment_error_boundary_example
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_has_vitest_config_example
+  PASSED x2    test_nextjs_topic_testing_and_observability.py::test_required_terms_are_present
+  PASSED x1    test_nextjs_reference.py::test_rule_ids_are_unique_across_topic_files
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_rule_ids_use_only_the_test_prefix
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_rules_map_onto_bmn_test_surfaces
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_rules_separate_expected_errors_from_global_error
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_rules_state_async_server_component_limit_with_testing_guide_link
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_topic_file_has_at_least_15_test_rules
+  PASSED x2    test_nextjs_topic_testing_and_observability.py::test_topic_file_is_not_a_stub
+  PASSED x1    test_nextjs_topic_testing_and_observability.py::test_typescript_examples_never_use_any
+  PASSED x4    test_nextjs_topic_testing_and_observability.py::test_version_notes_name_the_major_and_link_nextjs
