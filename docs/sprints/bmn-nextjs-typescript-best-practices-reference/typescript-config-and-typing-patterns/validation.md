@@ -148,3 +148,100 @@ contract tests are the ones `test_nextjs_reference.py` runs for every topic file
 1. AC9 (grounding evidence) is a one-off check by design ("not a permanent test"). It was re-run here with the plan's set-equality method and passed.
 2. AC10 scope is checked against the story's merge into the run branch (`git diff --name-only <merge>^1 <merge>`), because `origin/feat/...` has since moved on. The suite and ruff are checked on the final tree.
 3. Where the criterion text asks for content beyond what its test asserts (for example, the shape of an example), the test is taken as the verification the story names; factual correctness of the claims against nextjs.org and vercel.com is the REVIEW① lens, not a unit test.
+
+## TEST1 content
+
+Run 2026-10-04 on a detached worktree at `origin/dev` `59279a3` (branch `wip/nextjs-typescript-best-practices-reference/tests-content-1`). This repo ships Markdown, so the black-box surface is the content: live sources, and the TypeScript snippets compiled in a real Next.js 16.3.8 project. File under test: `Skills/dev-bother-me-nope/skills/dev-bother-me-nope/references/nextjs/typescript.md`.
+
+### 1. Live sources
+
+Command (per URL, 8 in parallel): `curl -sL -A <desktop browser UA> --max-time 20 --max-redirs 10 -o /dev/null -w "%{http_code}|%{url_effective}|%{num_redirects}" <url>`. A URL passes only when the final status is 2xx and the final URL is the same page (host without `www.`, path without trailing slash). Scope: every URL in the `## Sources` section.
+
+Result: **41 URLs, 41 pass, 0 fail**. (Across all ten files: 283 unique URLs, 283 pass, 0 fail; every one returned HTTP 200 with no redirect.)
+
+| URL | HTTP | Redirects | Result |
+| --- | --- | --- | --- |
+| https://developer.mozilla.org/en-US/docs/Web/API/Request/json | 200 | 0 | pass |
+| https://nextjs.org/blog/next-15-5 | 200 | 0 | pass |
+| https://nextjs.org/blog/next-16 | 200 | 0 | pass |
+| https://nextjs.org/blog/next-16-3 | 200 | 0 | pass |
+| https://nextjs.org/blog/september-2026-security-release | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/cli/next | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/config/eslint | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/config/next-config-js/typedRoutes | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/config/next-config-js/typescript | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/config/next-config-js/useTypeScriptCli | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/config/typescript | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/directives/use-server | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/file-conventions/layout | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/file-conventions/page | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/file-conventions/route | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/file-conventions/src-folder | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/functions/generate-metadata | 200 | 0 | pass |
+| https://nextjs.org/docs/app/getting-started/installation | 200 | 0 | pass |
+| https://nextjs.org/docs/app/getting-started/server-and-client-components | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/data-security | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/environment-variables | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/forms | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/migrating/from-vite | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/upgrading/version-16 | 200 | 0 | pass |
+| https://react.dev/reference/rsc/use-server | 200 | 0 | pass |
+| https://vercel.com/docs/environment-variables/system-environment-variables | 200 | 0 | pass |
+| https://www.typescriptlang.org/docs/handbook/2/everyday-types.html | 200 | 0 | pass |
+| https://www.typescriptlang.org/docs/handbook/2/functions.html | 200 | 0 | pass |
+| https://www.typescriptlang.org/docs/handbook/2/narrowing.html | 200 | 0 | pass |
+| https://www.typescriptlang.org/docs/handbook/2/objects.html | 200 | 0 | pass |
+| https://www.typescriptlang.org/docs/handbook/declaration-files/do-s-and-don-ts.html | 200 | 0 | pass |
+| https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-9.html | 200 | 0 | pass |
+| https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-9.html | 200 | 0 | pass |
+| https://www.typescriptlang.org/docs/handbook/release-notes/typescript-6-0.html | 200 | 0 | pass |
+| https://www.typescriptlang.org/tsconfig/ | 200 | 0 | pass |
+| https://www.typescriptlang.org/tsconfig/isolatedModules.html | 200 | 0 | pass |
+| https://www.typescriptlang.org/tsconfig/noUncheckedIndexedAccess.html | 200 | 0 | pass |
+| https://zod.dev/api | 200 | 0 | pass |
+| https://zod.dev/basics | 200 | 0 | pass |
+| https://zod.dev/error-formatting | 200 | 0 | pass |
+| https://zod.dev/v4/changelog | 200 | 0 | pass |
+
+### 2. Snippet type-check
+
+Method (same for every story; the scratch project lives outside the repo and is not committed):
+
+- Scratch dir `/private/tmp/claude-501/-Users-jonathanstevenson-Source-claude-skills/b71aefe4-ae21-4000-aa3e-8b70fbcfbe94/scratchpad/tscheck-test1/w1/app`, `npm install --save-exact next@16.3.8 react react-dom typescript@7.0.2 @types/react @types/react-dom @types/node zod server-only client-only vitest @playwright/test @testing-library/react vite-tsconfig-paths @vitejs/plugin-react shiki jose ai @vercel/otel @vercel/firewall @opentelemetry/api` (resolved: next 16.3.8, react and react-dom 19.3.0, typescript 7.0.2, @types/react and @types/react-dom 19.3.0, @types/node 26.6.4, zod 4.6.5, server-only 0.0.1, client-only 0.0.1, vitest 5.0.3, @playwright/test 1.63.0, @testing-library/react 16.3.3, vite-tsconfig-paths 6.1.1, @vitejs/plugin-react 6.1.1, shiki 4.5.0, jose 6.2.12, ai 7.0.127, @vercel/otel 2.1.3, @vercel/firewall 1.2.5, @opentelemetry/api 1.9.1; all from npm). typescript 6.0.3 and 5.9.3 were installed beside it for the cross-check and the parse pass.
+- Every ```` ```ts ```` and ```` ```tsx ```` fence of the ten files was extracted (218 fences: 160 Do/Pattern/rule, 58 inside the Don't half of an Anti-patterns entry). Each doc becomes one virtual Next.js project under `app/proj/<doc>/`: a fence whose first line is a `// path/to/file.ts` comment is written at that path (first occurrence only, Don't halves never), so `@/` and relative imports between fences resolve to the real fence; every other fence is its own module under `_loose/`. `next typegen` runs per project so the global `PageProps`, `LayoutProps` and `RouteContext` types exist; dummy `page.tsx`, `layout.tsx`, `route.ts` and `@slot` files are created for the route literals the fences use.
+- Compiler config: the doc's own P1 `tsconfig.json` (`strict: true`, `noUncheckedIndexedAccess`, `lib: ES2020`, `moduleResolution: bundler`, ...) with `paths` `@/*` -> `./*` and `./src/*`; command `node node_modules/typescript/bin/tsc --noEmit --pretty false -p tsconfig.json` (TypeScript 7.0.2) in each project. Cross-checks: TypeScript 6.0.3 with the same config, and TypeScript 7.0.2 with the `create-next-app` default compilerOptions (`strict`, `target ES2017`, `lib dom/dom.iterable/esnext`).
+- Prelude (declared, never silent): a fence that is a fragment gets only (a) `export {}` when it has no import or export, (b) a wrapper `async function __fragment() {` ... `}` when it is a bare statement list (TS1108 `return` outside a function), (c) an `import` of a well-known Next.js, React or Zod name (`z`, `redirect`, `notFound`, `revalidateTag`, `updateTag`, `cookies`, `Suspense`, ...) that the fence uses but does not import, (d) `declare var name: any` for any other free name the fence uses but does not define, (e) an any-typed stub module for a local `@/` or `./` import that no fence in the doc defines, (f) a typed export on the doc's own module when the doc says the module holds more than it shows. The records below say which fence got which.
+- A fence with a parse error cannot be typechecked, so it is parked outside the project and reported on its own.
+
+Result for `typescript.md`: **21 fences = 15 Do/Pattern/rule + 6 Don't half. Do/Pattern/rule: 15 pass, 0 fail.**
+
+Cross-checks for this file: TypeScript 6.0.3 with the same config reports 0 Do-fence error(s); TypeScript 7.0.2 with the `create-next-app` default compilerOptions reports 0.
+
+#### Failures (Do/Pattern/rule fences)
+
+None.
+
+#### Pass with a declared prelude that deserves a look
+
+None.
+
+#### Prelude record
+
+- 3 of 15 Do/Pattern/rule fences begin with a `// path` comment and sit at that path in the virtual project; the other 12 are standalone modules under `_loose/`.
+- `export {}` was appended to 0 fences that had no import or export (fences none); that only makes the fragment a module so names do not collide.
+- No other prelude was needed.
+
+#### Don't half (expected to be wrong; recorded, not failed)
+
+| Fence | Outcome |
+| --- | --- |
+| #11 (line 475) Don't read params synchronously or hand-type page props (TS-13, TS-16) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #13 (line 496) Don't cast request bodies to a type (TS-19, TS-32) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #15 (line 526) Don't skip type errors in the build (TS-5, TS-6) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #16 (line 551) Don't look up NEXT_PUBLIC_ variables dynamically (TS-25) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #18 (line 569) Don't read error.message on an untyped catch variable (TS-34) | type error as intended: TS18046 'error' is of type 'unknown'. |
+| #20 (line 599) Don't type a Server Action's state as any (TS-22, TS-28) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+
+#### JSON fences
+
+- all five JSON fences (lines 236, 282, 537, 628, 638) parse as JSON. The three with `compilerOptions` (236, 628, 638) were also fed to `tsc --noEmit -p` as a tsconfig on 7.0.2, 6.0.3 and 5.9.3: P1 (line 236) and the Do config (line 638) exit 0 on all three; the Don't `baseUrl` config (line 628) is rejected by 7.0.2 (TS5102 `baseUrl` removed, TS5090 non-relative path) and by 6.0.3 (TS5101 deprecated) and accepted by 5.9.3, which is exactly what TS-9 and the Don't say.

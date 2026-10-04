@@ -137,3 +137,119 @@ contract tests are the ones `test_nextjs_reference.py` runs for every topic file
 1. AC9 (grounding evidence) is a one-off check by design ("not a permanent test"). It was re-run here with the plan's set-equality method and passed.
 2. AC10 scope is checked against the story's merge into the run branch (`git diff --name-only <merge>^1 <merge>`), because `origin/feat/...` has since moved on. The suite and ruff are checked on the final tree.
 3. Where the criterion text asks for content beyond what its test asserts (for example, the shape of an example), the test is taken as the verification the story names; factual correctness of the claims against nextjs.org and vercel.com is the REVIEW① lens, not a unit test.
+
+## TEST1 content
+
+Run 2026-10-04 on a detached worktree at `origin/dev` `59279a3` (branch `wip/nextjs-typescript-best-practices-reference/tests-content-1`). This repo ships Markdown, so the black-box surface is the content: live sources, and the TypeScript snippets compiled in a real Next.js 16.3.8 project. File under test: `Skills/dev-bother-me-nope/skills/dev-bother-me-nope/references/nextjs/data-fetching-and-mutations.md`.
+
+### 1. Live sources
+
+Command (per URL, 8 in parallel): `curl -sL -A <desktop browser UA> --max-time 20 --max-redirs 10 -o /dev/null -w "%{http_code}|%{url_effective}|%{num_redirects}" <url>`. A URL passes only when the final status is 2xx and the final URL is the same page (host without `www.`, path without trailing slash). Scope: every URL in the `## Sources` section.
+
+Result: **39 URLs, 39 pass, 0 fail**. (Across all ten files: 283 unique URLs, 283 pass, 0 fail; every one returned HTTP 200 with no redirect.)
+
+| URL | HTTP | Redirects | Result |
+| --- | --- | --- | --- |
+| https://nextjs.org/blog/next-16 | 200 | 0 | pass |
+| https://nextjs.org/blog/next-16-2 | 200 | 0 | pass |
+| https://nextjs.org/blog/next-16-3 | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/components/form | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/config/next-config-js/serverActions | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/directives/use-server | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/functions/after | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/functions/fetch | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/functions/redirect | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/functions/refresh | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/functions/revalidatePath | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/functions/revalidateTag | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/functions/updateTag | 200 | 0 | pass |
+| https://nextjs.org/docs/app/getting-started/error-handling | 200 | 0 | pass |
+| https://nextjs.org/docs/app/getting-started/fetching-data | 200 | 0 | pass |
+| https://nextjs.org/docs/app/getting-started/mutating-data | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/authentication | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/backend-for-frontend | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/client-side-data-fetching | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/data-security | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/forms | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/interactive-apps | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/offline-support | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/server-actions | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/upgrading/version-15 | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/upgrading/version-16 | 200 | 0 | pass |
+| https://react.dev/reference/react-dom/components/form | 200 | 0 | pass |
+| https://react.dev/reference/react-dom/hooks/useFormStatus | 200 | 0 | pass |
+| https://react.dev/reference/react/cache | 200 | 0 | pass |
+| https://react.dev/reference/react/use | 200 | 0 | pass |
+| https://react.dev/reference/react/useActionState | 200 | 0 | pass |
+| https://react.dev/reference/react/useOptimistic | 200 | 0 | pass |
+| https://react.dev/reference/react/useTransition | 200 | 0 | pass |
+| https://react.dev/reference/rsc/server-functions | 200 | 0 | pass |
+| https://react.dev/reference/rsc/use-server | 200 | 0 | pass |
+| https://vercel.com/docs/functions/functions-api-reference | 200 | 0 | pass |
+| https://zod.dev/basics | 200 | 0 | pass |
+| https://zod.dev/error-formatting | 200 | 0 | pass |
+| https://zod.dev/v4/changelog | 200 | 0 | pass |
+
+### 2. Snippet type-check
+
+Method (same for every story; the scratch project lives outside the repo and is not committed):
+
+- Scratch dir `/private/tmp/claude-501/-Users-jonathanstevenson-Source-claude-skills/b71aefe4-ae21-4000-aa3e-8b70fbcfbe94/scratchpad/tscheck-test1/w1/app`, `npm install --save-exact next@16.3.8 react react-dom typescript@7.0.2 @types/react @types/react-dom @types/node zod server-only client-only vitest @playwright/test @testing-library/react vite-tsconfig-paths @vitejs/plugin-react shiki jose ai @vercel/otel @vercel/firewall @opentelemetry/api` (resolved: next 16.3.8, react and react-dom 19.3.0, typescript 7.0.2, @types/react and @types/react-dom 19.3.0, @types/node 26.6.4, zod 4.6.5, server-only 0.0.1, client-only 0.0.1, vitest 5.0.3, @playwright/test 1.63.0, @testing-library/react 16.3.3, vite-tsconfig-paths 6.1.1, @vitejs/plugin-react 6.1.1, shiki 4.5.0, jose 6.2.12, ai 7.0.127, @vercel/otel 2.1.3, @vercel/firewall 1.2.5, @opentelemetry/api 1.9.1; all from npm). typescript 6.0.3 and 5.9.3 were installed beside it for the cross-check and the parse pass.
+- Every ```` ```ts ```` and ```` ```tsx ```` fence of the ten files was extracted (218 fences: 160 Do/Pattern/rule, 58 inside the Don't half of an Anti-patterns entry). Each doc becomes one virtual Next.js project under `app/proj/<doc>/`: a fence whose first line is a `// path/to/file.ts` comment is written at that path (first occurrence only, Don't halves never), so `@/` and relative imports between fences resolve to the real fence; every other fence is its own module under `_loose/`. `next typegen` runs per project so the global `PageProps`, `LayoutProps` and `RouteContext` types exist; dummy `page.tsx`, `layout.tsx`, `route.ts` and `@slot` files are created for the route literals the fences use.
+- Compiler config: the doc's own P1 `tsconfig.json` (`strict: true`, `noUncheckedIndexedAccess`, `lib: ES2020`, `moduleResolution: bundler`, ...) with `paths` `@/*` -> `./*` and `./src/*`; command `node node_modules/typescript/bin/tsc --noEmit --pretty false -p tsconfig.json` (TypeScript 7.0.2) in each project. Cross-checks: TypeScript 6.0.3 with the same config, and TypeScript 7.0.2 with the `create-next-app` default compilerOptions (`strict`, `target ES2017`, `lib dom/dom.iterable/esnext`).
+- Prelude (declared, never silent): a fence that is a fragment gets only (a) `export {}` when it has no import or export, (b) a wrapper `async function __fragment() {` ... `}` when it is a bare statement list (TS1108 `return` outside a function), (c) an `import` of a well-known Next.js, React or Zod name (`z`, `redirect`, `notFound`, `revalidateTag`, `updateTag`, `cookies`, `Suspense`, ...) that the fence uses but does not import, (d) `declare var name: any` for any other free name the fence uses but does not define, (e) an any-typed stub module for a local `@/` or `./` import that no fence in the doc defines, (f) a typed export on the doc's own module when the doc says the module holds more than it shows. The records below say which fence got which.
+- A fence with a parse error cannot be typechecked, so it is parked outside the project and reported on its own.
+
+Result for `data-fetching-and-mutations.md`: **30 fences = 22 Do/Pattern/rule + 8 Don't half. Do/Pattern/rule: 22 pass, 0 fail.**
+
+Cross-checks for this file: TypeScript 6.0.3 with the same config reports 0 Do-fence error(s); TypeScript 7.0.2 with the `create-next-app` default compilerOptions reports 0.
+
+#### Failures (Do/Pattern/rule fences)
+
+None.
+
+#### Pass with a declared prelude that deserves a look
+
+None.
+
+#### Prelude record
+
+- 14 of 22 Do/Pattern/rule fences begin with a `// path` comment and sit at that path in the virtual project; the other 8 are standalone modules under `_loose/`.
+- `export {}` was appended to 6 fences that had no import or export (fences #16, #22, #24, #26, #28, #30); that only makes the fragment a module so names do not collide.
+- Other preludes (Do/Pattern/rule fences only):
+
+| Fence | Prelude |
+| --- | --- |
+| #01 (line 183) P1 Parallel fetching in an async Server Component (DF-4) | any-typed stub module: `lib/dal/artists.ts`, `app/artist/[username]/albums.ts` |
+| #02 (line 206) P2 Request-scoped deduplication with React `cache` in the DAL (DF-2, DF-6) | any-typed stub module: `lib/db.ts`, `lib/dto.ts` |
+| #03 (line 223) P3 Preload before blocking work (DF-7) | any-typed stub module: `lib/dal/items.ts` |
+| #04 (line 237) P3 Preload before blocking work (DF-7) | any-typed stub module: `lib/dal/items.ts` |
+| #05 (line 252) P4 Stream a promise to a Client Component with `use(` (DF-8) | any-typed stub module: `lib/dal/comments.ts` |
+| #06 (line 269) P4 Stream a promise to a Client Component with `use(` (DF-8) | any-typed stub module: `lib/dto.ts` |
+| #08 (line 305) P5 Validate `FormData`, return typed state, invalidate, then redirect (DF-12 to DF-17, DF-21) | any-typed stub module: `lib/dal/session.ts`, `lib/dal/posts.ts` |
+| #11 (line 398) P7 Extra arguments with `.bind(` (DF-13, DF-19) | any-typed stub module: `lib/dal/session.ts` |
+| #13 (line 447) P8 Optimistic toggle from an event handler (DF-16, DF-22, DF-23) | any-typed stub module: `lib/dal/session.ts`, `lib/dal/likes.ts` |
+| #14 (line 467) P9 Post-response work with `after(` in a Server Action (DF-15, DF-25) | any-typed stub module: `lib/dal/session.ts`, `lib/dal/posts.ts`, `lib/audit.ts` |
+| #16 (line 507) Don't await independent requests one after another | free names declared `any`: `getArtist`, `username`, `getAlbums` |
+| #18 (line 526) Don't fetch your own Route Handler from a Server Component | any-typed stub module: `lib/dal/posts.ts` |
+| #20 (line 551) Don't check the session only in the page | free names declared `any`: `verifySession`, `canDeleteRecords`, `db` |
+| #22 (line 581) Don't call `redirect(` inside `try`/`catch` | wrapped in `async function __fragment()`; import added: `revalidatePath` from `next/cache`, `redirect` from `next/navigation`; free names declared `any`: `createPost`, `userId`, `data` |
+| #24 (line 603) Don't throw expected errors or return raw records | wrapped in `async function __fragment()`; import added: `z` from `zod`; free names declared `any`: `parsed`, `updatePost`, `userId`, `id` |
+| #26 (line 624) Don't use a Server Action to fetch data | import added: `Suspense` from `react`; free names declared `any`: `Posts`, `getPosts` |
+| #28 (line 643) Don't call `revalidateTag` with one argument | import added: `updateTag` from `next/cache`, `revalidateTag` from `next/cache` |
+| #30 (line 661) Don't copy Zod 3 error APIs into Zod 4 | import added: `z` from `zod`; free names declared `any`: `input` |
+
+- Typed prelude on `data-fetching-and-mutations#02`: typed export `updateUserName(userId: string, name: string): Promise<void>` added to `lib/dal/users.ts`, which fence #11 imports but #02 does not show.
+
+#### Don't half (expected to be wrong; recorded, not failed)
+
+| Fence | Outcome |
+| --- | --- |
+| #15 (line 500) Don't await independent requests one after another | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #17 (line 519) Don't fetch your own Route Handler from a Server Component | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #19 (line 538) Don't check the session only in the page | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #21 (line 570) Don't call `redirect(` inside `try`/`catch` | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #23 (line 596) Don't throw expected errors or return raw records | type error as intended: TS18004 No value exists in scope for the shorthand property 'id'. Either declare one or provide an initializer. |
+| #25 (line 615) Don't use a Server Action to fetch data | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #27 (line 637) Don't call `revalidateTag` with one argument | type error as intended: TS2554 Expected 2 arguments, but got 1. |
+| #29 (line 654) Don't copy Zod 3 error APIs into Zod 4 | type error as intended: TS2769 No overload matches this call. |
