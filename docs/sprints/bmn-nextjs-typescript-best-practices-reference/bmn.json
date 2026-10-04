@@ -24,9 +24,15 @@
       "slug": "nextjs-standard-entry-point-and-skill-wiring",
       "title": "Entry point, index and bmn wiring",
       "deps": [],
-      "status": "built",
+      "status": "merged",
       "branch": "wip/nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring",
-      "merges": [],
+      "merges": [
+        {
+          "branch": "wip/nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring",
+          "tip": "b7891b8c35c446f7f18d5ed7883e2ceef1c343c4",
+          "merge": "6b4e4d45a6383dfaf966d675a6325733054ed4ab"
+        }
+      ],
       "detail": ""
     },
     {
@@ -147,7 +153,12 @@
   ],
   "integration_pushed": true,
   "cleanup": {
-    "deleted": [],
+    "deleted": [
+      "worktree:/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a51cd9ab228642eb5",
+      "local:wip/nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring",
+      "origin:wip/nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring",
+      "local:worktree-agent-a51cd9ab228642eb5"
+    ],
     "left": []
   },
   "repo_policy": {
@@ -182,5 +193,5 @@
     "Planners noted docs conflicts (e.g. Vercel vs nextjs.org limits, Zod 3 in the forms guide vs Zod 4, AI SDK drift); each goes under 'Not confirmed by the docs' in its topic file, never stated as a rule."
   ],
   "blocker": null,
-  "updated": "2026-10-04T01:45:00Z"
+  "updated": "2026-10-04T01:55:00Z"
 }
