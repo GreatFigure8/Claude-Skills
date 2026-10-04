@@ -357,6 +357,146 @@
       "base": "59279a32e2a701a243f433e9e48ce3846d84821d",
       "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ad53425f9db41e217",
       "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/performance-and-vercel-platform-fix",
+      "kind": "wip",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-afd2e36e3bb7ac2d7",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-afd2e36e3bb7ac2d7",
+      "kind": "harness",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-afd2e36e3bb7ac2d7",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/app-router-routing-and-metadata-fix",
+      "kind": "wip",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ac38c34b04bcb009c",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-ac38c34b04bcb009c",
+      "kind": "harness",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ac38c34b04bcb009c",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/proxy-auth-and-security-fix",
+      "kind": "wip",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a5c09556ea4347efe",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-a5c09556ea4347efe",
+      "kind": "harness",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a5c09556ea4347efe",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/typescript-config-and-typing-patterns-fix",
+      "kind": "wip",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a9b7e67483bbb95f6",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-a9b7e67483bbb95f6",
+      "kind": "harness",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a9b7e67483bbb95f6",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/testing-errors-and-observability-fix",
+      "kind": "wip",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a98f4acd9d1427406",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-a98f4acd9d1427406",
+      "kind": "harness",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a98f4acd9d1427406",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring-fix",
+      "kind": "wip",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a73fba97b5ac67ba2",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-a73fba97b5ac67ba2",
+      "kind": "harness",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a73fba97b5ac67ba2",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/rendering-caching-and-streaming-ssr-fix",
+      "kind": "wip",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a0983f2ca52de1137",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-a0983f2ca52de1137",
+      "kind": "harness",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a0983f2ca52de1137",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/data-fetching-server-actions-and-forms-fix",
+      "kind": "wip",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a5ebbdefd62b84dbf",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-a5ebbdefd62b84dbf",
+      "kind": "harness",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a5ebbdefd62b84dbf",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/route-handlers-and-api-design-fix",
+      "kind": "wip",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a547a1c548f948208",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-a547a1c548f948208",
+      "kind": "harness",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a547a1c548f948208",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/server-sent-events-and-streaming-responses-fix",
+      "kind": "wip",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ac791ecccb4c280a8",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-ac791ecccb4c280a8",
+      "kind": "harness",
+      "base": "8188c54",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ac791ecccb4c280a8",
+      "pushed": false
     }
   ],
   "integration_pushed": true,
@@ -446,8 +586,9 @@
     "origin/dev moved to plugin 1.6.1 (harden run) during this run; merge kept 1.7.0 (higher) in plugin.json and its pinned test.",
     "REVIEW\u2460 diffed the run's own merge into dev (59279a3^1..59279a3) instead of dev_base...review1, because dev also took another run's changes after dev_base.",
     "FIX\u2460 ownership by file: 'run' findings are routed to the story owning the file they sit in (R1-A5, R1-C6 \u2192 entry-point story; R1-B17 helper dedupe \u2192 entry-point story; R1-C31 WebVitals \u2192 performance owns, testing links). The cross-topic session-helper finding (R1-B15/R1-C9) is fixed by every topic fixer against one decided contract: src/lib/dal.ts ('server-only') exports getSession(): Promise<Session|null> (no redirect; Route Handlers, SSE, APIs) and verifySession(): Promise<Session> (redirects to /login; pages, layouts, Server Actions); imports use @/lib/dal; snippets use the canonical src/ layout and src/lib/actions/ for Server Actions.",
-    "Lint decision for R1-A5: new projects use ESLint with eslint-config-next (TS-12); a repo that already uses Biome keeps it; the gate runs the repo's configured linter (eslint . or biome check .)."
+    "Lint decision for R1-A5: new projects use ESLint with eslint-config-next (TS-12); a repo that already uses Biome keeps it; the gate runs the repo's configured linter (eslint . or biome check .).",
+    "FIX\u2460 entry-point fixer ordered the TS gate types \u2192 lint \u2192 build; testing-and-observability.md TEST-37 may still list lint first (left for REVIEW\u2461)."
   ],
   "blocker": null,
-  "updated": "2026-10-04T04:40:00Z"
+  "updated": "2026-10-04T05:40:00Z"
 }
