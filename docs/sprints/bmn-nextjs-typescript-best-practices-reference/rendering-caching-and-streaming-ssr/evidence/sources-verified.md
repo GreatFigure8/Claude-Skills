@@ -18,9 +18,9 @@ file that link it (Patterns, Anti-patterns, Version notes, Review checklist, Not
 | 4 | https://nextjs.org/docs/app/api-reference/directives/use-client | 2026-10-04 | RC-6 | none |
 | 5 | https://nextjs.org/docs/app/getting-started/caching | 2026-10-04 | RC-1, RC-15, RC-16, RC-17, RC-19, RC-20, RC-23, RC-27, RC-38, RC-42, RC-45 | Not confirmed by the docs, Patterns |
 | 6 | https://nextjs.org/docs/app/api-reference/config/next-config-js/cacheComponents | 2026-10-04 | RC-3, RC-4, RC-46 | Version notes |
-| 7 | https://nextjs.org/docs/app/api-reference/directives/use-cache | 2026-10-04 | RC-19, RC-23, RC-24, RC-25, RC-26, RC-27 | Not confirmed by the docs, Version notes |
+| 7 | https://nextjs.org/docs/app/api-reference/directives/use-cache | 2026-10-04 | RC-19, RC-23, RC-24, RC-25, RC-26, RC-27, RC-30 | Version notes |
 | 8 | https://nextjs.org/docs/app/api-reference/directives/use-cache-private | 2026-10-04 | RC-24 | Version notes |
-| 9 | https://nextjs.org/docs/app/api-reference/directives/use-cache-remote | 2026-10-04 | RC-27 | Not confirmed by the docs, Version notes |
+| 9 | https://nextjs.org/docs/app/api-reference/directives/use-cache-remote | 2026-10-04 | RC-27, RC-30 | Version notes |
 | 10 | https://nextjs.org/docs/app/api-reference/functions/cacheLife | 2026-10-04 | RC-20, RC-21, RC-22 | Patterns |
 | 11 | https://nextjs.org/docs/app/api-reference/functions/cacheTag | 2026-10-04 | RC-28 | none |
 | 12 | https://nextjs.org/docs/app/getting-started/revalidating | 2026-10-04 | RC-19, RC-35 | none |
@@ -55,7 +55,7 @@ file that link it (Patterns, Anti-patterns, Version notes, Review checklist, Not
 | 41 | https://nextjs.org/blog/next-16 | 2026-10-04 | RC-32, RC-36 | Not confirmed by the docs, Version notes |
 | 42 | https://nextjs.org/blog/next-16-3 | 2026-10-04 | none | Not confirmed by the docs, Version notes |
 | 43 | https://vercel.com/docs/frameworks/full-stack/nextjs | 2026-10-04 | RC-38 | Version notes |
-| 44 | https://vercel.com/docs/caching/runtime-cache | 2026-10-04 | RC-27 | Not confirmed by the docs |
+| 44 | https://vercel.com/docs/caching/runtime-cache | 2026-10-04 | RC-27, RC-30 | none |
 | 45 | https://react.dev/reference/rsc/use-client | 2026-10-04 | RC-6, RC-7 | none |
 | 46 | https://react.dev/reference/react/Suspense | 2026-10-04 | RC-41 | none |
 
@@ -70,3 +70,11 @@ file that link it (Patterns, Anti-patterns, Version notes, Review checklist, Not
   `next@16.3.8` and `react@19` types, with stand-in declarations for `PageProps`, `LayoutProps` and the
   application helpers (`db`, `auth` and the like). The only diagnostic is the deliberate one-argument
   `revalidateTag` call in the anti-pattern block, which confirms the documented TypeScript error.
+- FIX① (2026-10-04) re-fetched as Markdown, each with front matter `version: 16.3.8`: `use cache`,
+  `use cache: remote`, `unstable_cache`, Caching, Migrating to Cache Components, `cacheTag`, `revalidateTag`,
+  `loading.js` and Caching and Revalidating (Previous Model), plus Vercel Runtime Cache. RC-30 and the
+  migration table now carry the persistence difference those pages state; RC-28 carries the `cacheTag` limits
+  as written; RC-40 sends Cache Components repos to the Proxy check in `loading.js` Status Codes. The former
+  "Not confirmed" item on `'use cache: remote'` and redeploys was dropped: `use cache: remote` now says
+  outright that remote entries do not persist across deploys. The 23 Do/Pattern fences were re-type-checked
+  (validation.md, FIX①).
