@@ -77,3 +77,46 @@ Assumptions:
 - `git branch -D <protected>` locally stays allowed (the brief scopes R1-6 to `git push --delete` / `:ref`); the helper
   refuses protected names itself. Recorded in the doc's blind spots.
 - Wrapper value-flag tables are not exhaustive; wrappers outside the list are named as blind spots in the doc.
+
+## TEST2 (unit/integration, after FIX①) — base `origin/dev` 190ff8e
+
+Surface: unit/integration (no browser/api/mcp surface in this run). Branch `wip/merged-branch-cleanup-and-no-squash-merges/tests-unit-2`.
+
+Commands:
+- `uv run --quiet --with pytest --with coverage python -m coverage run --rcfile=<scratch> -m pytest Skills/dev-bother-me-nope/assets/tests -q` (`patch = subprocess`, `include = */assets/bin/*.py`): **476 passed** in 107.5 s (Python 3.13.13).
+- `uv run --quiet --python /usr/bin/python3 --with pytest python -m pytest Skills/dev-bother-me-nope/assets/tests -q`: **476 passed** in 112.3 s (Python 3.9.6). TEST1's two 3.9 failures are gone.
+- `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope`: All checks passed.
+- Integration smoke (`evidence/test2-integration-smoke.txt`, **8 of 8** checks): `deploy-guard.py` run under `/usr/bin/python3` with PreToolUse JSON in a tmp repo with an active run fixture (`docs/sprints/bmn-demo/bmn.json`, phase build):
+  - block (exit 2): `git merge --squash x`, `timeout 60 gh pr merge 5 --squash`, `sh -ec 'git merge --squash x'`, `gh pr merge 5 --merge`, `git push origin --delete dev`
+  - allow (exit 0): `gh pr merge 5 --merge --delete-branch`, `git push origin --delete wip/x/y`, and `git merge --squash x` in a repo with no active run.
+
+Evidence and coverage: `evidence/test2-coverage.txt`, `evidence/test2-integration-smoke.txt`. `deploy-guard.py` **93%** (476 stmts, 32 missed; 724 lines), target 80%. TEST1 measured 94% of 416 stmts; FIX① added the wrapper and protected-delete code, and the 32 missed lines are defensive branches rather than rules.
+
+| AC | Test (`test_merge_guard.py` unless noted) | TEST2 |
+| --- | --- | --- |
+| 1 git squash blocked | `test_blocks_git_squash_merges[...]`; smoke `git merge --squash x`, `sh -ec '...'` | PASS |
+| 2 gh pr merge squash blocked | `test_blocks_gh_pr_squash_merges[...]`, `test_allows_pr_merges_that_delete_the_branch_and_other_gh[...]`; smoke `timeout 60 gh pr merge 5 --squash` | PASS |
+| 3 PR merge that keeps the branch blocked | `test_blocks_pr_merges_that_keep_the_source_branch[...]`; smoke `--merge` blocks, `--merge --delete-branch` allows | PASS |
+| 4 gh api squash blocked | `test_blocks_api_squash_merges[...]`, `test_allows_api_calls_that_do_not_squash[...]` | PASS |
+| 5 MCP squash blocked | `test_blocks_mcp_squash_merges[...]`, `test_allows_mcp_merges_that_do_not_squash[...]`, `test_mcp_squash_on_other_tools_is_ignored` | PASS |
+| 6 text and lookalikes allowed | `test_merge_lookalikes_are_allowed[...]` | PASS |
+| 7 approval prefix does not unlock | `test_approval_prefix_does_not_unlock_merge_rules[...]`, `test_approval_prefix_does_not_unlock_wrapped_merges[...]`, `test_approval_still_passes_wrapped_deploys[...]` | PASS |
+| 8 messages | `test_merge_block_message_names_the_allowed_forms[...]`, `test_merge_block_message_for_mcp`, `test_deploy_block_message_is_unchanged`, `test_protected_delete_message_names_the_branch_spec` | PASS |
+| 9 idle outside an active run | `test_merge_rules_idle_outside_an_active_run[...]`; smoke: no-run repo allows squash | PASS |
+| 10 branch cleanup never blocked | `test_branch_cleanup_is_never_blocked[...]`, `test_compare_and_delete_of_a_remote_branch_is_allowed[...]`, `test_allows_deleting_wip_and_run_branches_and_pushing_dev[...]`; smoke `git push origin --delete wip/x/y` allows | PASS |
+| 11 docs | `test_deploy_guards_doc_lists_merge_rules`, `test_guard_docstring_mentions_merge_rules`, `test_doc_names_the_unwrapped_wrappers`, `test_doc_lists_the_protected_branch_deletes` | PASS |
+| 12 gates | ruff clean; `test_guard_stays_under_800_lines` (724), `test_every_guard_function_is_under_50_lines`, `test_merge_rule_functions_do_not_mutate`; 476 passed on 3.13 and 3.9 | PASS |
+
+FIX① items, re-checked at TEST2:
+
+| Id | Check | TEST2 |
+| --- | --- | --- |
+| R1-5 wrappers with options | smoke `timeout 60 gh pr merge 5 --squash` and `sh -ec 'git merge --squash x'` block; `test_blocks_merges_behind_wrappers_that_take_options[...]`, `test_blocks_deploys_behind_wrappers_that_take_options[...]` | PASS |
+| R1-6 protected branch deletes | smoke `git push origin --delete dev` blocks, `--delete wip/x/y` allows; `test_blocks_deleting_protected_branches_on_origin[...]`, `test_blocks_deleting_the_default_branch[...]` | PASS |
+
+Result: 12 PASS, 0 FAIL (plus R1-5 and R1-6 PASS).
+
+### TEST2 Assumptions
+
+- Coverage comes from the 3.13 run. The 3.9 run is pass/fail only, as in TEST1.
+- The smoke `git push origin --delete dev` runs in a tmp repo with no `refs/remotes/origin/HEAD`, so it exercises the named-branch rule (`dev` in `DELETE_PROTECTED`), not the remote-default-branch rule. `test_blocks_deleting_the_default_branch[...]` covers the latter.

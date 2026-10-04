@@ -1,0 +1,47 @@
+setup: bare origin + clone (dev), feat/run (clean+dirty worktrees), feat/envkeep (clean worktree with ignored .env), feat/unmerged (worktree, not merged)
+$ merged-branch-cleanup.py --branch feat/run --target origin/dev --dry-run
+  exit=0
+  {"branch": "feat/run", "deleted": ["worktree:<tmp>/wt-feat_run-clean", "origin:feat/run"], "dry_run": true, "left": [{"ref": "worktree:<tmp>/wt-feat_run-dirty", "why": "uncommitted or ignored files (1 paths, e.g. ?? scratch-notes.txt); never forced"}, {"ref": "local:feat/run", "why": "checked out in worktree <tmp>/wt-feat_run-dirty"}], "target": "origin/dev"}
+PASS  dry-run exits 0, reports dry_run, changes nothing
+$ merged-branch-cleanup.py --branch feat/unmerged --target origin/dev 
+  exit=0
+  {"branch": "feat/unmerged", "deleted": [], "dry_run": false, "left": [{"ref": "worktree:<tmp>/wt-feat_unmerged-wt", "why": "not merged into origin/dev"}, {"ref": "local:feat/unmerged", "why": "not merged into origin/dev"}, {"ref": "origin:feat/unmerged", "why": "not merged into origin/dev"}], "target": "origin/dev"}
+PASS  unmerged branch: exit 0, nothing deleted, worktree + local + origin left with a reason  [["worktree:<tmp>/wt-feat_unmerged-wt", "local:feat/unmerged", "origin:feat/unmerged"]]
+$ merged-branch-cleanup.py --branch feat/run --target origin/dev 
+  exit=0
+  {"branch": "feat/run", "deleted": ["worktree:<tmp>/wt-feat_run-clean", "origin:feat/run"], "dry_run": false, "left": [{"ref": "worktree:<tmp>/wt-feat_run-dirty", "why": "uncommitted or ignored files (1 paths, e.g. ?? scratch-notes.txt); never forced"}, {"ref": "local:feat/run", "why": "checked out in worktree <tmp>/wt-feat_run-dirty"}], "target": "origin/dev"}
+PASS  feat/run: clean worktree removed
+PASS  feat/run: dirty worktree left intact with a reason (never forced)  [{"worktree:<tmp>/wt-feat_run-dirty": "uncommitted or ignored files (1 paths, e.g. ?? scratch-notes.txt); never forced", "local:feat/run": "checked out in worktree <tmp>/wt-feat_run-dirty"}]
+PASS  feat/run: local branch left (still checked out in the dirty worktree), with a reason  [["local:feat/run", "worktree:<tmp>/wt-feat_run-dirty"]]
+PASS  feat/run: merged origin copy deleted
+$ merged-branch-cleanup.py --branch feat/envkeep --target origin/dev 
+  exit=0
+  {"branch": "feat/envkeep", "deleted": ["origin:feat/envkeep"], "dry_run": false, "left": [{"ref": "worktree:<tmp>/wt-feat_envkeep-wt", "why": "uncommitted or ignored files (1 paths, e.g. !! .env); never forced"}, {"ref": "local:feat/envkeep", "why": "checked out in worktree <tmp>/wt-feat_envkeep-wt"}], "target": "origin/dev"}
+PASS  feat/envkeep: clean worktree holding an ignored .env is kept, .env intact  [{"worktree:<tmp>/wt-feat_envkeep-wt": "uncommitted or ignored files (1 paths, e.g. !! .env); never forced", "local:feat/envkeep": "checked out in worktree <tmp>/wt-feat_envkeep-wt"}]
+PASS  feat/envkeep: local branch kept while its worktree is kept
+$ merged-branch-cleanup.py --branch feat/cacheonly --target origin/dev 
+  exit=0
+  {"branch": "feat/cacheonly", "deleted": ["worktree:<tmp>/wt-feat_cacheonly-wt", "local:feat/cacheonly", "origin:feat/cacheonly"], "dry_run": false, "left": [], "target": "origin/dev"}
+PASS  feat/cacheonly: worktree whose only ignored files are caches is removed, branch deleted
+$ merged-branch-cleanup.py --branch feat/unmerged --target 21aec45e39690dead0b1c7c40cfb7c8282bf1e25 
+  exit=2
+  {"error": "--target '21aec45e39690dead0b1c7c40cfb7c8282bf1e25' must name a branch or tag, not a commit"}
+PASS  --target '21aec45e39690dead0b1c7c40cfb7c8282bf1e25' refused (exit 2, JSON error, nothing changed)  [--target '21aec45e39690dead0b1c7c40cfb7c8282bf1e25' must name a branch or tag, not a commi]
+$ merged-branch-cleanup.py --branch feat/unmerged --target feat/unmerged~0 
+  exit=2
+  {"error": "--target 'feat/unmerged~0' must name a branch or tag, not a commit"}
+PASS  --target 'feat/unmerged~0' refused (exit 2, JSON error, nothing changed)  [--target 'feat/unmerged~0' must name a branch or tag, not a commit]
+$ merged-branch-cleanup.py --branch feat/unmerged --target origin/dev~0 
+  exit=2
+  {"error": "--target 'origin/dev~0' must name a branch or tag, not a commit"}
+PASS  --target 'origin/dev~0' refused (exit 2, JSON error, nothing changed)  [--target 'origin/dev~0' must name a branch or tag, not a commit]
+$ merged-branch-cleanup.py --branch feat/unmerged --target origin/dev^{commit} 
+  exit=2
+  {"error": "--target 'origin/dev^{commit}' must name a branch or tag, not a commit"}
+PASS  --target 'origin/dev^{commit}' refused (exit 2, JSON error, nothing changed)  [--target 'origin/dev^{commit}' must name a branch or tag, not a commit]
+$ merged-branch-cleanup.py --branch dev --target origin/dev 
+  exit=2
+  {"error": "branch 'dev' is protected and is never deleted"}
+PASS  --branch dev refused (exit 2)
+
+14 of 14 checks pass
