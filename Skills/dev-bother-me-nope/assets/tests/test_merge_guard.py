@@ -521,7 +521,8 @@ def test_guard_docstring_mentions_merge_rules():
 # ---- AC12: shape of the code ----
 
 MERGE_RULE_FUNCTIONS = [
-    "skip_wrapper_args", "shell_command_string", "push_deletes", "ref_destination",
+    "skip_wrapper_args", "shell_command_strings", "shell_option_string", "deleted_protected_ref",
+    "check_git", "push_deletes", "ref_destination",
     "is_abbrev", "git_merge_squashes", "check_git_merge", "pflag_items", "long_flag",
     "short_cluster", "is_true", "check_gh", "check_gh_pr_merge", "check_gh_api",
     "is_squash_field", "merge_reason", "check_mcp_merge", "block_message",

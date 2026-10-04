@@ -15,13 +15,14 @@ merge_method=squash, the GitHub MCP `merge_pull_request` with merge_method=squas
 `gh pr merge` that omits --delete-branch (a merged PR's source branch is deleted). Merge commits
 only: `git merge --no-ff`, `gh pr merge <n> --merge --delete-branch`. The branch guard keeps the
 integration branches: `git push --delete`/`:ref` never removes a protected branch (main master
-prod production release dev develop staging, or the remote's default branch), approved deploy or
-not; if one should go, Jonathan deletes it himself. DELETE_PROTECTED is held equal to
-merged-branch-cleanup.py's PROTECTED by test_protected_branch_parity.py. Branch cleanup
-(`git push origin --delete <wip or run branch>`, `git branch -D`, `git worktree remove|prune`)
-is never blocked. Wrappers that take options or values (`timeout 60`, `sudo -u me`, `nice -n 5`,
-`env -u X`, `xargs -n1`, `xargs --replace`) and shell command strings (`sh -ec '…'`,
-`fish --command '…'`) are unwrapped before matching.
+prod production release dev develop staging, or the remote's default branch; `heads/dev` is
+`refs/heads/dev` to git), approved deploy or not; if one should go, Jonathan deletes it himself.
+DELETE_PROTECTED is held equal to merged-branch-cleanup.py's PROTECTED by
+test_protected_branch_parity.py. Branch cleanup (`git push origin --delete <wip or run branch>`,
+`git branch -D`, `git worktree remove|prune`) is never blocked. Wrappers that take options or
+values (`timeout 60`, `sudo -u me`, `nice -n 5`, `env -u X`, `xargs -n1`, `xargs --replace`) and
+shell command strings (`sh -ec '…'`, `fish --command '…'`, `fish -C '…'`) are unwrapped before
+matching.
 
 Shipped as a plugin hook, so it fires in every session; it only acts inside a git repo with a
 dev-bother-me-nope run in progress (docs/sprints/bmn-*/bmn.json whose phase isn't done or
@@ -48,7 +49,10 @@ HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n[ \t]*\2[ \t]*(?=\n|$)
 WHICH_SUBST = re.compile(r"\$\(\s*(?:which|command\s+-v)\s+([\w.-]+)\s*\)|`\s*which\s+([\w.-]+)\s*`")
 SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh", "fish"})
 SHELL_VALUE_FLAGS = frozenset({"-o", "+o", "-O", "+O", "--rcfile", "--init-file"})
-COMMAND_LONG_FLAG = "--command"  # fish's spelling of -c: the command string follows or is `=`-joined
+COMMAND_LONG_FLAGS = frozenset({"--command"})  # fish's spelling of -c: the string follows or is `=`-joined
+FISH_LONG_FLAGS = COMMAND_LONG_FLAGS | {"--init-command"}  # fish runs its `-C` strings before `-c`
+FISH_INIT_SHORT = re.compile(r"-[^-cC]*C(.*)", re.DOTALL)  # fish's -C, bundled or not (noclobber in bash)
+BRANCH_REF_PREFIX = re.compile(r"^(?:refs/)?heads/")
 SIMPLE_WRAPPERS = frozenset({"env", "time", "nohup", "sudo", "command", "exec", "xargs",
                              "npx", "bunx", "nice", "timeout"})
 DURATION_WRAPPERS = frozenset({"timeout"})
@@ -225,28 +229,48 @@ def skip_wrapper_args(wrapper, tokens):
     return rest[1:] if wrapper in DURATION_WRAPPERS else rest
 
 
-def shell_command_string(args):
-    """The string a `sh -c` / `bash -ec` / `bash -o pipefail -lc` / `fish --command[=]` runs; None
-    when the shell runs a script file or reads stdin (a `-c` after the script name belongs to the
-    script)."""
-    has_c, skip_next = False, False
-    for i, arg in enumerate(args):
-        if skip_next:
-            skip_next = False
+def shell_option_string(shell, arg, following):
+    """(string, extra args used) of an option that carries a command string, else None:
+    `--command[=]S` for any shell, `--init-command[=]S` and `-C S` / `-lC S` / `-CS` for fish."""
+    is_fish = shell == "fish"
+    name, has_value, value = arg.partition("=")
+    short = FISH_INIT_SHORT.fullmatch(arg) if is_fish else None
+    if name in (FISH_LONG_FLAGS if is_fish else COMMAND_LONG_FLAGS):
+        attached = value if has_value else None
+    elif short:
+        attached = short[1] or None
+    else:
+        return None
+    if attached is not None:
+        return attached, 0
+    return (following[0], 1) if following else None
+
+
+def shell_command_strings(shell, args):
+    """Every string the shell runs from its own command line, in order: the command string of
+    `sh -c` / `bash -ec` / `bash -o pipefail -lc` / `fish --command[=]`, and fish's `-C` /
+    `--init-command[=]` strings. () when the shell runs a script file or reads stdin."""
+    found, has_c, i = (), False, 0
+    while i < len(args):
+        arg, following = args[i], args[i + 1:i + 2]
+        i += 1
+        option = shell_option_string(shell, arg, following)
+        if option:
+            found, i = (*found, option[0]), i + option[1]
         elif arg in SHELL_VALUE_FLAGS:
-            skip_next = True
-        elif arg == COMMAND_LONG_FLAG:
-            return args[i + 1] if i + 1 < len(args) else None
-        elif arg.startswith(f"{COMMAND_LONG_FLAG}="):
-            return arg.partition("=")[2]
+            i += 1
         elif arg.startswith("--"):
             continue
         elif arg[:1] in ("-", "+") and len(arg) > 1:
             has_c = has_c or "c" in arg[1:]
-            skip_next = arg[-1] in ("o", "O")
+            i += 1 if arg[-1] in ("o", "O") else 0
+        elif has_c:
+            found, has_c = (*found, arg), False
+            if shell != "fish":
+                break
         else:
-            return arg if has_c else None
-    return None
+            break
+    return found
 
 
 def unwrap(tokens):
@@ -355,8 +379,9 @@ def git_subcommand(args):
 
 
 def ref_destination(spec):
-    """The branch a push refspec writes to (or deletes): `+src:refs/heads/dev` -> `dev`."""
-    return spec.lstrip("+").rsplit(":", 1)[-1].removeprefix("refs/heads/")
+    """The branch a push refspec writes to (or deletes): `+src:refs/heads/dev` -> `dev`. git's
+    rev-parse rules also resolve `heads/dev` to refs/heads/dev, so either prefix goes, once."""
+    return BRANCH_REF_PREFIX.sub("", spec.lstrip("+").rsplit(":", 1)[-1], count=1)
 
 
 def push_deletes(push_args):
@@ -384,15 +409,22 @@ def default_branch(cwd, remote):
     return ""
 
 
-def deleted_protected_ref(push_args, remote, refspecs, cwd):
+def deleted_protected_ref(push, cwd):
     """The refspec that deletes a protected branch or the remote's default branch, else None.
-    A delete is `--delete <branch>` or an empty-source refspec (`:dev`, `+:dev`)."""
-    delete_mode = push_deletes(push_args)
+    A delete is `--delete <branch>` or an empty-source refspec (`:dev`, `+:dev`). The default
+    branch is read at most once, and only when no refspec is a protected name already."""
+    options, remote, refspecs = push
+    delete_mode = push_deletes(options)
+    default = None
     for spec in refspecs:
-        if not (delete_mode or spec.lstrip("+").startswith(":")):
-            continue
         dest = ref_destination(spec).casefold()
-        if dest and (dest in DELETE_PROTECTED or dest == default_branch(cwd, remote).casefold()):
+        if not dest or not (delete_mode or spec.lstrip("+").startswith(":")):
+            continue
+        if dest in DELETE_PROTECTED:
+            return spec
+        if default is None:
+            default = default_branch(cwd, remote).casefold()
+        if dest == default:
             return spec
     return None
 
@@ -403,17 +435,16 @@ def push_parts(args):
     rest = git_subcommand(args)
     if not rest or rest[0] != "push":
         return None
-    push_args = rest[1:]
+    push_args = tuple(rest[1:])
     words = positional(push_args, PUSH_VALUE_OPTIONS)
-    return push_args, (words[0] if words else ""), words[1:]
+    return push_args, (words[0] if words else ""), tuple(words[1:])
 
 
-def check_git(args, cwd):
-    parts = push_parts(args)
-    if parts is None:
+def check_git(push, cwd):
+    if push is None:
         return None
-    push_args, _remote, refspecs = parts
-    if "--all" in push_args or "--mirror" in push_args:
+    options, _remote, refspecs = push
+    if "--all" in options or "--mirror" in options:
         return "`git push --all/--mirror` would push production branches"
     if not refspecs:
         branch = current_branch(cwd)
@@ -426,13 +457,9 @@ def check_git(args, cwd):
     return None
 
 
-def branch_reason(prog, args, cwd):
+def branch_reason(push, cwd):
     """Why a `git push` deletes a protected branch on origin (never a deploy step), else None."""
-    parts = push_parts(args) if prog == "git" else None
-    if parts is None:
-        return None
-    push_args, remote, refspecs = parts
-    doomed = deleted_protected_ref(push_args, remote, refspecs, cwd)
+    doomed = deleted_protected_ref(push, cwd) if push is not None else None
     return f"`git push … {doomed}` deletes a protected branch" if doomed else None
 
 
@@ -648,17 +675,18 @@ def merge_reason(prog, args):
     return None
 
 
-def unliftable_block(prog, args, ctx):
-    """The merge-guard or branch-guard Block for this command, else None. The approval prefix
-    never lifts either, so `check_segment` asks before it looks at approval."""
+def unliftable_block(prog, args, push, ctx):
+    """The merge-guard or branch-guard Block for this command (`push`: its parsed `git push`, if
+    it is one), else None. The approval prefix never lifts either, so `check_segment` asks
+    before it looks at approval."""
     merge = merge_reason(prog, args)
     if merge:
         return Block(MERGE_GUARD, merge)
-    branch = branch_reason(prog, args, ctx["cwd"])
+    branch = branch_reason(push, ctx["cwd"])
     return Block(BRANCH_GUARD, branch) if branch else None
 
 
-def deploy_reason(prog, args, ctx):
+def deploy_reason(prog, args, push, ctx):
     if prog == "vercel":
         return check_vercel(args)
     if prog == "supabase":
@@ -666,7 +694,7 @@ def deploy_reason(prog, args, ctx):
     if prog in ("psql", "pg_restore"):
         return check_remote_sql_client(prog, args)
     if prog == "git":
-        return check_git(args, ctx["cwd"])
+        return check_git(push, ctx["cwd"])
     return None
 
 
@@ -677,16 +705,18 @@ def check_segment(tokens, ctx):
     if not tokens:
         return None, ctx
     prog, args = program_name(tokens[0]), tokens[1:]
-    script = shell_command_string(args) if prog in SHELLS else None
-    if script is not None:
+    scripts = shell_command_strings(prog, args) if prog in SHELLS else ()
+    if scripts:
         inner = {**ctx, "approved": approved or ctx["approved"]}
-        return check_bash(script, inner), ctx
-    unliftable = unliftable_block(prog, args, ctx)
+        blocks = (check_bash(script, inner) for script in scripts)
+        return next((block for block in blocks if block), None), ctx
+    push = push_parts(args) if prog == "git" else None
+    unliftable = unliftable_block(prog, args, push, ctx)
     if unliftable:
         return unliftable, ctx
     if approved or ctx["approved"]:
         return None, ctx
-    deploy = deploy_reason(prog, args, ctx)
+    deploy = deploy_reason(prog, args, push, ctx)
     return (Block(DEPLOY_GUARD, deploy) if deploy else None), with_link(ctx, prog, args)
 
 

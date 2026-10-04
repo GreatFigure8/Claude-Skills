@@ -82,16 +82,19 @@ before the approval pass-through and is never lifted by it.
   GNU `xargs --replace`, `--max-lines` and `--eof` take a value only after `=`
   (`xargs --replace=R …`), so `xargs --replace git merge --squash x` is read like
   `xargs git merge --squash x`; `xargs -I {}`, `-L 1`, `-E EOF` and `--max-args 1` still take
-  the next word. fish's spelling is read too: `fish -c '…'`, `fish --command '…'` and
+  the next word. fish's spellings are read too: `fish -c '…'`, `fish --command '…'` and
   `fish --command='…'` (`--command` is read for every shell; no other long flag changes
-  meaning). `timeout 60 git merge --squash x` and `sudo -u me gh pr merge 12 -s -d` are blocked
+  meaning), and the strings fish runs before its `-c` command, `fish -C '…'`,
+  `fish --init-command '…'` and `fish --init-command='…'` (read for fish only: bash's `-C` is
+  noclobber). `timeout 60 git merge --squash x` and `sudo -u me gh pr merge 12 -s -d` are blocked
   like the bare commands; `bash run.sh -c 'git merge --squash x'` is a script's argument, not a
   shell command string, and is not read.
 - Deleting a protected branch on origin: `git push origin --delete dev` (the protected names
   are `main`, `master`, `prod`, `production`, `release`, `dev`, `develop` and `staging`, plus
   the remote's default branch read from `refs/remotes/<remote>/HEAD`; any case),
   `git push -d origin dev`, and the empty-source refspecs `git push origin :dev` /
-  `+:refs/heads/dev`. This is a branch-guard
+  `+:refs/heads/dev`. git resolves `heads/<name>` to `refs/heads/<name>`, so
+  `git push origin --delete heads/dev` and `:heads/dev` are the same block. This is a branch-guard
   block, not a deploy-guard or merge-guard one: `BMN_USER_APPROVED_DEPLOY=1` never lifts it, also
   inside `sh -c`, and its refusal begins `Blocked by dev-bother-me-nope branch guard:` without
   offering the prefix. Jonathan deletes a protected branch himself. The eight names are one list
@@ -131,15 +134,17 @@ covered by the repo settings INTAKE sets: `allow_squash_merge=false` and
 `-F key=@file` bodies, GraphQL variables not named `mergeMethod`, `curl` against the REST API,
 git aliases, `branch.<name>.mergeOptions=--squash`, `eval`, wrappers outside the list above
 (`doas`, `ionice`, `stdbuf`, `setsid`, `caffeinate`, `watch`, `script -c`, `env -S '<string>'`),
-abbreviated long options of a wrapper (`xargs --max-a 1`, `fish --comm '…'`), value flags of the
-runners `uv run`, `poetry run`, `pnpm exec` and `npx -y`, bundled git short flags such as
-`-qm`, a protected branch deleted with `git push --prune <refspec>` (the guard reads only
-`--delete`, `-d` and empty-source refspecs), and a protected branch deleted with `git branch -D`
-locally (only the origin delete is guarded; `merged-branch-cleanup.py` refuses protected names
-itself). Two consequences are accepted. `gh` refuses `--delete-branch` on a
-merge-queue branch, so a run cannot merge such a PR (bmn merges with `git merge --no-ff` and
-has no merge queue). `gh pr merge --auto … -d` deletes nothing itself; GitHub deletes the
-branch when the auto-merge lands only if `delete_branch_on_merge=true`.
+abbreviated long options of a wrapper (`xargs --max-a 1`, `fish --comm '…'`, `fish --init '…'`),
+value flags of the runners `uv run`, `poetry run`, `pnpm exec` and `npx -y`, bundled git short
+flags such as `-qm`, a protected branch deleted with `git push --prune <refspec>` (the guard
+reads only `--delete`, `-d` and empty-source refspecs), a protected branch deleted with
+`git branch -D` locally (only the origin delete is guarded; `merged-branch-cleanup.py` refuses
+protected names itself), and a protected branch deleted through the GitHub API
+(`gh api -X DELETE repos/<o>/<r>/git/refs/heads/<protected>`) or the GitHub MCP server's branch
+tools, neither of which the guard reads. Two consequences are accepted. `gh` refuses
+`--delete-branch` on a merge-queue branch, so a run cannot merge such a PR (bmn merges with
+`git merge --no-ff` and has no merge queue). `gh pr merge --auto … -d` deletes nothing itself;
+GitHub deletes the branch when the auto-merge lands only if `delete_branch_on_merge=true`.
 
 ## How the work stays testable without deploying
 
