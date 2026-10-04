@@ -1,6 +1,6 @@
 {
   "run": "bmn-merged-branch-cleanup-and-no-squash-merges",
-  "phase": "intake",
+  "phase": "plan",
   "integration": "feat/merged-branch-cleanup-and-no-squash-merges",
   "worktree": "/Users/jonathanstevenson/Source/claude-skills-merged-branch-cleanup-and-no-squash-merges",
   "live": "dev",
@@ -10,7 +10,7 @@
     "review2": null
   },
   "stack": {
-    "kind": null,
+    "kind": "library",
     "ui": false,
     "supabase": false,
     "vercel": false,
@@ -19,9 +19,37 @@
     "supabase_dev_ref": null,
     "supabase_main_ref": null
   },
-  "stories": [],
+  "stories": [
+    {
+      "slug": "skill-text-merged-branch-cleanup-and-merge-commits-only",
+      "title": "Skill text: delete every merged branch and its worktrees, merge commits only (1.6.0)",
+      "deps": [],
+      "status": "split",
+      "branch": "wip/merged-branch-cleanup-and-no-squash-merges/skill-text-merged-branch-cleanup-and-merge-commits-only",
+      "merges": [],
+      "detail": ""
+    },
+    {
+      "slug": "deploy-guard-blocks-squash-merges",
+      "title": "The deploy guard blocks squash merges and PR merges that keep the source branch",
+      "deps": [],
+      "status": "split",
+      "branch": "wip/merged-branch-cleanup-and-no-squash-merges/deploy-guard-blocks-squash-merges",
+      "merges": [],
+      "detail": ""
+    },
+    {
+      "slug": "merged-branch-cleanup-and-repo-merge-policy-scripts",
+      "title": "Merged-branch cleanup and repo merge-policy helper scripts",
+      "deps": [],
+      "status": "split",
+      "branch": "wip/merged-branch-cleanup-and-no-squash-merges/merged-branch-cleanup-and-repo-merge-policy-scripts",
+      "merges": [],
+      "detail": ""
+    }
+  ],
   "temp_refs": [],
-  "integration_pushed": false,
+  "integration_pushed": true,
   "cleanup": {
     "deleted": [],
     "left": []
@@ -41,7 +69,9 @@
     "feedback": []
   },
   "handoff": null,
-  "assumptions": [],
+  "assumptions": [
+    "Scope: dev-bother-me-nope only (see stack.md assumptions 1-6)"
+  ],
   "blocker": null,
-  "updated": "2026-10-04T01:00:06.821514+00:00"
+  "updated": "2026-10-04T01:10:21.493010+00:00"
 }
