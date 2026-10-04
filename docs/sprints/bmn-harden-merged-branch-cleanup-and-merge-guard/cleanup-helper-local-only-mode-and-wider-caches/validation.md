@@ -59,3 +59,37 @@ data is lost.
    plugin copy, because 1.6.0 has no `--local-only`.
 2. The fixture's remote default branch is `trunk`; the target is `origin/dev`, as in a real run.
 3. Evidence: `evidence/smoke.py` (the script) and `evidence/smoke-story1-out.txt` (its story 1 output).
+
+## FIX①
+
+Branch `wip/harden-merged-branch-cleanup-and-merge-guard/cleanup-helper-local-only-mode-and-wider-caches-fix`
+from `origin/fix/harden-merged-branch-cleanup-and-merge-guard`. Each item was reproduced by a test that failed
+first (25 new tests failed, then passed). Gates after the fix: pytest 622 passed on the default Python and on
+/usr/bin/python3 (3.9.6); `ruff check` clean; the helper is 399 lines (limit 399), every function under 50.
+
+- **R1-1** → fixed. Reproduction: `test_pushed_keeps_a_worktree_holding_an_ignored_env` (a pushed, unmerged
+  branch whose worktree holds an ignored `.env`), plus the text tests
+  `test_move_out_tidy_runs_the_helper_for_every_branch_it_removes`,
+  `test_move_out_tidy_says_which_files_keep_a_worktree` and
+  `test_move_computers_never_hand_runs_worktree_remove_or_branch_delete`. They failed because MOVE-OUT step 5
+  hand-ran `git worktree remove` and `git branch -D`. Fix: `move-computers.md` MOVE-OUT now has a separate step 6
+  that runs `merged-branch-cleanup.py` per branch. The helper has a new flag, `--pushed` (implies `--local-only`),
+  whose only valid `--target` is the branch's own `<remote>/<branch>`; the proof is "pushed", not "merged", so a
+  machine move can tidy a pushed, unmerged branch without any hand-run delete. Every existing check still runs
+  (dirty/ignored files, locked, main, rebase/bisect, compare-and-swap delete) and the origin copy is never touched.
+  Own-branch targets are still refused without `--pushed` (existing tests, unchanged), so a typo in a CLEANUP call
+  cannot lift the merge proof. Harness branches use `--local-only --target origin/<type>/<run-slug>`.
+- **R1-6** → fixed. Reproduction: `test_local_only_plan_*` (9 cases) build a `--local-only` Survey and expect
+  `plan_remote` and `plan_unmerged` to decide the origin copy themselves; they failed because `Survey` had no
+  `local_only` and `plan_cleanup` post-filtered by ref string. Fix: `Survey.local_only` (default False) is read in
+  `plan_remote`, which reports `origin:<branch>` once ("origin copy kept: --local-only") whatever the copy's
+  state or a fetch error; `plan_unmerged` takes that entry from `plan_remote`; `plan_cleanup(s)` no longer filters.
+
+### FIX① assumptions
+
+1. `--pushed` is a separate flag rather than letting `--local-only` accept an own-branch target: criterion 7 pins
+   own-target as refused with `--local-only`, and a separate flag keeps that refusal for every CLEANUP call.
+2. Harness branches in the move tidy are proven against `origin/<type>/<run-slug>` (the pushed run branch) rather
+   than by the old "no unique commits" rev-list rule; a harness branch with its own commits is kept and listed.
+3. The "Left on <host>" handoff section is committed at step 5, before the tidy; the tidy's kept items also go in the
+   closing message (step 8). The ordering predates this fix.
