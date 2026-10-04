@@ -34,7 +34,8 @@ ACTIVE_REPO = new_repo()
 def run_guard(payload):
     payload = {"cwd": str(ACTIVE_REPO), **payload}
     return subprocess.run(
-        [sys.executable, str(GUARD)], input=json.dumps(payload), capture_output=True, text=True
+        [sys.executable, str(GUARD)], input=json.dumps(payload), capture_output=True, text=True,
+        check=False,
     )
 
 
@@ -160,7 +161,9 @@ def test_blocks_mcp_write_sql_but_allows_reads():
 
 def test_ignores_unrelated_mcp_tools_and_malformed_input():
     assert mcp("mcp__github__create_issue").returncode == 0
-    assert subprocess.run([sys.executable, str(GUARD)], input="not json", text=True).returncode == 0
+    malformed = subprocess.run([sys.executable, str(GUARD)], input="not json", text=True,
+                               check=False)
+    assert malformed.returncode == 0
 
 
 def test_supabase_sql_detected_by_project_id_on_uuid_named_server():
