@@ -1,6 +1,6 @@
 {
   "run": "bmn-nextjs-typescript-best-practices-reference",
-  "phase": "report",
+  "phase": "done",
   "integration": "feat/nextjs-typescript-best-practices-reference",
   "worktree": "/Users/jonathanstevenson/Source/claude-skills-nextjs-typescript-best-practices-reference",
   "live": "dev",
@@ -675,7 +675,10 @@
       "local:wip/nextjs-typescript-best-practices-reference/tests-content-2",
       "origin:wip/nextjs-typescript-best-practices-reference/tests-content-2",
       "local:worktree-agent-ac3b3c13579213f4e",
-      "local:worktree-agent-af540002f1b4bb63f"
+      "local:worktree-agent-af540002f1b4bb63f",
+      "worktree:/Users/jonathanstevenson/Source/claude-skills-nextjs-typescript-best-practices-reference",
+      "local:feat/nextjs-typescript-best-practices-reference",
+      "origin:feat/nextjs-typescript-best-practices-reference"
     ],
     "left": []
   },
@@ -718,5 +721,5 @@
     "TEST\u2461 content surface re-checks only the fences and Sources URLs FIX\u2460 changed (Jonathan asked why the run was slow; full content check already ran at TEST\u2460)."
   ],
   "blocker": null,
-  "updated": "2026-10-04T08:00:00Z"
+  "updated": "2026-10-04T08:20:00Z"
 }

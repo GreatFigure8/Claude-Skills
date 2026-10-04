@@ -98,7 +98,9 @@ LOW (22): R2-A4–A8, R2-B2–B7, B9, B10 and R2-C5–C12. These are weak test g
 `repo-merge-policy.py` → `already-set` on `GreatFigure8/Claude-Skills` (`allow_squash_merge=false`, `delete_branch_on_merge=true`). Unchanged.
 
 ## Git cleanup
-Filled in by CLEANUP below.
+**Run branch** `feat/nextjs-typescript-best-practices-reference` · worktree `../claude-skills-nextjs-typescript-best-practices-reference`: deleted (local + origin) — merged into `dev`.
+**Deleted, per branch:** every `wip/nextjs-typescript-best-practices-reference/*` story, fix and test branch (local + origin) and its paired `worktree-agent-*` harness branch; all harness worktrees removed (99 entries in `bmn.json.cleanup.deleted`).
+**Left:** nothing.
 
 ## Evidence
 Run-level `review.md` (REVIEW① and REVIEW②), per-story `validation.md` (TEST①, FIX①, TEST②) and `evidence/` (sources-verified lists, Node/tsc harness output).
