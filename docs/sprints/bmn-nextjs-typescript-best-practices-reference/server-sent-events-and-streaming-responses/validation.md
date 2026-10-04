@@ -108,3 +108,54 @@ implementation has to be correct:
    supported. Whether that covers middleware isn't stated on either host. The skeleton's `STUB_TITLES`
    keeps "Server-Sent Events" capitalised, and this file keeps that H1.
 9. No Supabase, Vercel, env var or migration is involved. `deploy_pending` is `[]`.
+
+## TEST1: unit (2026-10-04)
+
+Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-1`, cut from the detached run base `origin/dev` `59279a3` (the run branch tip after
+the wave-2 merges, with origin/dev merged in). Tester: `tests-unit-1`. No code was changed; this is a
+verification pass.
+
+### Commands and results
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Full suite with coverage | `uv run --quiet --with pytest --with pytest-cov python -m pytest Skills/dev-bother-me-nope/assets/tests -q --cov=Skills/dev-bother-me-nope/assets/tests --cov-report=term` | **1026 passed in 95.32s (0:01:35)**, exit 0, 0 failed, 0 skipped. Log: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring/evidence/test1-unit-full-suite.txt` |
+| Lint | `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope` | `All checks passed!` |
+| Story tests, verbose | `pytest test_nextjs_topic_sse_and_streaming.py test_nextjs_reference.py ... -v` (483 tests across the nextjs files and `test_skill_text_rules.py`) | 483 PASSED, 0 other. The tests this map cites are listed in `evidence/test1-unit-results.txt` |
+| TERMS and example needles | one-off script comparing this story's criterion 3 and 4 lists with the test | story TERMS (24) equal the test's TERMS (24), same order: True; story example needles missing from the test source: 0 |
+| URL sets | one-off script comparing `## Sources` of `references/nextjs/sse-and-streaming.md` with the URLs in `evidence/sources-verified.md` | 52 cited, 52 listed, nothing only in one of them. All 52 evidence rows carry fetch date 2026-10-04 and a non-empty Backs cell |
+| Scope | one-off `git diff --name-only <merge>^1 <merge>` for this story's merge `eacca37` | 4 files, all inside the story scope (the topic file, `test_nextjs_topic_sse_and_streaming.py`, and files under `docs/sprints/bmn-nextjs-typescript-best-practices-reference/server-sent-events-and-streaming-responses/`); outside scope: none |
+
+### Coverage
+
+- `references/nextjs/sse-and-streaming.md`: Markdown, coverage n/a. It is exercised by the generic contract tests and by `test_nextjs_topic_sse_and_streaming.py`; the file is 29 rules, 795 lines (cap 800).
+- `nextjs_doc_helpers.py` (shared parser the tests use): **99%** (243 of 245 statements). Uncovered: line 180 (an unterminated code fence at end of file) and line 294 (`h1` of an empty file). Target 80% met.
+- `test_nextjs_topic_sse_and_streaming.py`: **100%** (96 of 96 statements). Whole suite: **99%** (3604 of 3635).
+
+### Criterion map
+
+All [unit] criteria of `story.md`, mapped to the test or one-off check that covers them. The generic
+contract tests are the ones `test_nextjs_reference.py` runs for every topic file; none is skipped
+(the suite has no skips), so each ran on `sse-and-streaming.md`.
+
+| AC | Criterion | Covering test(s) / check | Result |
+| --- | --- | --- | --- |
+| 1 | Contract | generic contract tests (17 x `[sse-and-streaming.md]` + `test_rule_ids_are_unique_across_topic_files`)<br>`test_sse_topic_uses_only_sse_rule_ids` | PASS |
+| 2 | Not a stub, at least 15 SSE rules | `test_sse_topic_is_no_longer_a_stub`<br>`test_sse_topic_has_at_least_15_rules` | PASS |
+| 3 | Required terms | `test_sse_topic_names_every_required_concept` | PASS |
+| 4 | Examples (SSE handler, frame encoding, heartbeat, Last-Event-ID, EventSource hook, getReader; no `any`) | `test_sse_topic_has_route_handler_example`<br>`test_sse_topic_has_frame_encoding_example`<br>`test_sse_topic_has_heartbeat_cleared_example`<br>`test_sse_topic_has_last_event_id_resume_example`<br>`test_sse_topic_has_client_event_source_hook_example`<br>`test_sse_topic_has_fetch_reader_example`<br>`test_sse_examples_never_use_any` | PASS |
+| 5 | SSE handler complete: GET, abort, cancel(, frames | `test_sse_route_handler_example_releases_on_abort_and_cancel`<br>`test_sse_frame_encoder_writes_id_event_data_and_blank_line` | PASS |
+| 6 | Vercel section: `maxDuration` and a vercel.com link in `## Rules` | `test_sse_rules_set_max_duration_with_vercel_link`<br>`test_sse_route_handler_example_closes_before_max_duration` | PASS |
+| 7 | Client facts sourced to MDN/WHATWG | `test_sse_rules_state_event_source_client_facts`<br>`test_sse_sources_include_mdn_or_whatwg` | PASS |
+| 8 | Version notes name the major and link nextjs.org | `test_sse_version_notes_name_the_major_and_link_nextjs` | PASS |
+| 9 | Reviewer-ready | `test_sse_review_checklist_items_each_name_an_sse_rule`<br>`test_sse_anti_patterns_pair_every_dont_with_a_do`<br>`test_sse_checklist_and_anti_patterns_cite_only_defined_rules` | PASS |
+| 10 | Grounding evidence (one-off) | one-off set-equality check, see below | PASS |
+| 11 | Scope and gates (one-off + suite + ruff) | one-off `git diff --name-only` check, full suite, ruff (see below)<br>`test_sse_not_confirmed_section_exists_and_cites_urls` | PASS |
+
+**Totals:** 11 PASS, 0 FAIL, 0 uncovered.
+
+### TEST1 assumptions
+
+1. AC9 (grounding evidence) is a one-off check by design ("not a permanent test"). It was re-run here with the plan's set-equality method and passed.
+2. AC10 scope is checked against the story's merge into the run branch (`git diff --name-only <merge>^1 <merge>`), because `origin/feat/...` has since moved on. The suite and ruff are checked on the final tree.
+3. Where the criterion text asks for content beyond what its test asserts (for example, the shape of an example), the test is taken as the verification the story names; factual correctness of the claims against nextjs.org and vercel.com is the REVIEW① lens, not a unit test.

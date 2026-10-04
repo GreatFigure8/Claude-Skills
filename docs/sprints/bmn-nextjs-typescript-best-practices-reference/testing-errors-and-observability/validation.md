@@ -67,3 +67,53 @@ The 50 `## Sources` URLs equal the 50 URLs in `evidence/sources-verified.md`. Ev
 - `references/stack-routing.md`, TypeScript / Next.js row: it says the HTTP black-box surface is "`fetch` against the running server". TEST-1 and TEST-15 say Playwright's `request` fixture against the same `webServer` (convention). Both hit the same server, and the row's gate commands (`tsc --noEmit`, `eslint .`, `next build`) agree with TEST-37. The row could name the `request` fixture.
 - `references/nextjs.md` non-negotiables 9 and 10 and its 16.3 `catchError` version note agree with TEST-37, TEST-28 and TEST-24. No defect found there.
 - The merged helpers and generic tests needed no change for this topic.
+
+## TEST1: unit (2026-10-04)
+
+Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-1`, cut from the detached run base `origin/dev` `59279a3` (the run branch tip after
+the wave-2 merges, with origin/dev merged in). Tester: `tests-unit-1`. No code was changed; this is a
+verification pass.
+
+### Commands and results
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Full suite with coverage | `uv run --quiet --with pytest --with pytest-cov python -m pytest Skills/dev-bother-me-nope/assets/tests -q --cov=Skills/dev-bother-me-nope/assets/tests --cov-report=term` | **1026 passed in 95.32s (0:01:35)**, exit 0, 0 failed, 0 skipped. Log: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring/evidence/test1-unit-full-suite.txt` |
+| Lint | `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope` | `All checks passed!` |
+| Story tests, verbose | `pytest test_nextjs_topic_testing_and_observability.py test_nextjs_reference.py ... -v` (483 tests across the nextjs files and `test_skill_text_rules.py`) | 483 PASSED, 0 other. The tests this map cites are listed in `evidence/test1-unit-results.txt` |
+| TERMS and example needles | one-off script comparing this story's criterion 3 and 4 lists with the test | story TERMS (21) equal the test's TERMS (21), same order: True; story example needles missing from the test source: 0 |
+| URL sets | one-off script comparing `## Sources` of `references/nextjs/testing-and-observability.md` with the URLs in `evidence/sources-verified.md` | 50 cited, 50 listed, nothing only in one of them. All 50 evidence rows carry fetch date 2026-10-04 and a non-empty Backs cell |
+| Scope | one-off `git diff --name-only <merge>^1 <merge>` for this story's merge `a5bb5b2` | 4 files, all inside the story scope (the topic file, `test_nextjs_topic_testing_and_observability.py`, and files under `docs/sprints/bmn-nextjs-typescript-best-practices-reference/testing-errors-and-observability/`); outside scope: none |
+
+### Coverage
+
+- `references/nextjs/testing-and-observability.md`: Markdown, coverage n/a. It is exercised by the generic contract tests and by `test_nextjs_topic_testing_and_observability.py`; the file is 38 rules, 752 lines (cap 800).
+- `nextjs_doc_helpers.py` (shared parser the tests use): **99%** (243 of 245 statements). Uncovered: line 180 (an unterminated code fence at end of file) and line 294 (`h1` of an empty file). Target 80% met.
+- `test_nextjs_topic_testing_and_observability.py`: **100%** (94 of 94 statements). Whole suite: **99%** (3604 of 3635).
+
+### Criterion map
+
+All [unit] criteria of `story.md`, mapped to the test or one-off check that covers them. The generic
+contract tests are the ones `test_nextjs_reference.py` runs for every topic file; none is skipped
+(the suite has no skips), so each ran on `testing-and-observability.md`.
+
+| AC | Criterion | Covering test(s) / check | Result |
+| --- | --- | --- | --- |
+| 1 | Contract | generic contract tests (17 x `[testing-and-observability.md]` + `test_rule_ids_are_unique_across_topic_files`)<br>`test_rule_ids_use_only_the_test_prefix` | PASS |
+| 2 | Not a stub, at least 15 TEST rules | `test_topic_file_is_not_a_stub`<br>`test_topic_file_has_at_least_15_test_rules` | PASS |
+| 3 | Required terms | `test_required_terms_are_present` | PASS |
+| 4 | Examples (vitest config, playwright config, instrumentation, global-error, error.tsx digest; no `any`) | `test_has_vitest_config_example`<br>`test_has_playwright_config_example`<br>`test_has_instrumentation_example`<br>`test_has_global_error_example`<br>`test_has_segment_error_boundary_example`<br>`test_typescript_examples_never_use_any` | PASS |
+| 5 | Rules map onto bmn test surfaces; async Server Components limit with a testing-guide link | `test_rules_map_onto_bmn_test_surfaces`<br>`test_rules_state_async_server_component_limit_with_testing_guide_link` | PASS |
+| 6 | Expected errors vs error boundaries; what `global-error` renders | `test_rules_separate_expected_errors_from_global_error` | PASS |
+| 7 | Version notes name the major and link nextjs.org | `test_version_notes_name_the_major_and_link_nextjs` | PASS |
+| 8 | Reviewer-ready | `test_every_review_checklist_item_names_a_rule`<br>`test_every_anti_pattern_pairs_dont_with_do` | PASS |
+| 9 | Grounding evidence (one-off) | one-off set-equality check, see below | PASS |
+| 10 | Scope and gates (one-off + suite + ruff) | one-off `git diff --name-only` check, full suite, ruff (see below)<br>`test_gate_commands_agree_with_stack_routing`<br>`test_gate_scripts_example_uses_eslint_never_next_lint` | PASS |
+
+**Totals:** 10 PASS, 0 FAIL, 0 uncovered.
+
+### TEST1 assumptions
+
+1. AC9 (grounding evidence) is a one-off check by design ("not a permanent test"). It was re-run here with the plan's set-equality method and passed.
+2. AC10 scope is checked against the story's merge into the run branch (`git diff --name-only <merge>^1 <merge>`), because `origin/feat/...` has since moved on. The suite and ruff are checked on the final tree.
+3. Where the criterion text asks for content beyond what its test asserts (for example, the shape of an example), the test is taken as the verification the story names; factual correctness of the claims against nextjs.org and vercel.com is the REVIEW① lens, not a unit test.

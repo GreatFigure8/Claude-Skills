@@ -111,3 +111,54 @@ in assumption 1, which is a plan-side adaptation and not a skeleton defect.
 
 None. No migration, no config, no env var in this repo (names in snippets such as
 `VERCEL_WEBHOOK_SECRET` and `APP_ORIGIN` are illustrative). `deploy_pending: []`.
+
+## TEST1: unit (2026-10-04)
+
+Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-1`, cut from the detached run base `origin/dev` `59279a3` (the run branch tip after
+the wave-2 merges, with origin/dev merged in). Tester: `tests-unit-1`. No code was changed; this is a
+verification pass.
+
+### Commands and results
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Full suite with coverage | `uv run --quiet --with pytest --with pytest-cov python -m pytest Skills/dev-bother-me-nope/assets/tests -q --cov=Skills/dev-bother-me-nope/assets/tests --cov-report=term` | **1026 passed in 95.32s (0:01:35)**, exit 0, 0 failed, 0 skipped. Log: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring/evidence/test1-unit-full-suite.txt` |
+| Lint | `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope` | `All checks passed!` |
+| Story tests, verbose | `pytest test_nextjs_topic_route_handlers_and_apis.py test_nextjs_reference.py ... -v` (483 tests across the nextjs files and `test_skill_text_rules.py`) | 483 PASSED, 0 other. The tests this map cites are listed in `evidence/test1-unit-results.txt` |
+| TERMS and example needles | one-off script comparing this story's criterion 3 and 4 lists with the test | story TERMS (24) equal the test's TERMS (24), same order: True; story example needles missing from the test source: 0 |
+| URL sets | one-off script comparing `## Sources` of `references/nextjs/route-handlers-and-apis.md` with the URLs in `evidence/sources-verified.md` | 48 cited, 48 listed, nothing only in one of them. All 48 evidence rows carry fetch date 2026-10-04 and a non-empty Backs cell |
+| Scope | one-off `git diff --name-only <merge>^1 <merge>` for this story's merge `57e8d97` | 4 files, all inside the story scope (the topic file, `test_nextjs_topic_route_handlers_and_apis.py`, and files under `docs/sprints/bmn-nextjs-typescript-best-practices-reference/route-handlers-and-api-design/`); outside scope: none |
+
+### Coverage
+
+- `references/nextjs/route-handlers-and-apis.md`: Markdown, coverage n/a. It is exercised by the generic contract tests and by `test_nextjs_topic_route_handlers_and_apis.py`; the file is 39 rules, 719 lines (cap 800).
+- `nextjs_doc_helpers.py` (shared parser the tests use): **99%** (243 of 245 statements). Uncovered: line 180 (an unterminated code fence at end of file) and line 294 (`h1` of an empty file). Target 80% met.
+- `test_nextjs_topic_route_handlers_and_apis.py`: **100%** (118 of 118 statements). Whole suite: **99%** (3604 of 3635).
+
+### Criterion map
+
+All [unit] criteria of `story.md`, mapped to the test or one-off check that covers them. The generic
+contract tests are the ones `test_nextjs_reference.py` runs for every topic file; none is skipped
+(the suite has no skips), so each ran on `route-handlers-and-apis.md`.
+
+| AC | Criterion | Covering test(s) / check | Result |
+| --- | --- | --- | --- |
+| 1 | Contract | generic contract tests (17 x `[route-handlers-and-apis.md]` + `test_rule_ids_are_unique_across_topic_files`)<br>`test_topic_uses_only_api_rule_ids` | PASS |
+| 2 | Not a stub, at least 18 API rules | `test_topic_is_not_a_stub`<br>`test_topic_has_at_least_18_api_rules` | PASS |
+| 3 | Required terms | `test_topic_covers_required_terms` | PASS |
+| 4 | Examples (validated POST, RouteContext, webhook raw body, CORS preflight; no `any`) | `test_validated_post_example_returns_error_shape`<br>`test_dynamic_segment_example_uses_typed_route_context`<br>`test_webhook_example_verifies_signature_on_raw_body`<br>`test_cors_example_answers_preflight`<br>`test_examples_contain_no_any` | PASS |
+| 5 | Error shape declared once under Patterns, tagged (convention), used by the POST example | `test_error_shape_declared_once_under_patterns_as_convention`<br>`test_post_example_references_error_shape`<br>`test_pattern_handlers_returning_errors_use_error_shape` | PASS |
+| 6 | Mutating handlers call a session or auth check (webhook exempt) | `test_mutating_handler_examples_check_session_or_auth` | PASS |
+| 7 | Route Handler vs Server Action rule; Server Component must not fetch own handler | `test_rules_frame_route_handler_versus_server_action`<br>`test_rules_forbid_server_component_fetching_own_route_handler` | PASS |
+| 8 | Version notes name the major and link nextjs.org | `test_version_notes_name_major_and_link_nextjs` | PASS |
+| 9 | Reviewer-ready | `test_review_checklist_items_name_existing_api_rules`<br>`test_anti_patterns_pair_dont_with_do` | PASS |
+| 10 | Grounding evidence (one-off) | one-off set-equality check, see below | PASS |
+| 11 | Scope and gates (one-off + suite + ruff) | one-off `git diff --name-only` check, full suite, ruff (see below)<br>`test_not_confirmed_section_states_no_rules`<br>`test_links_sibling_topics_instead_of_duplicating` | PASS |
+
+**Totals:** 11 PASS, 0 FAIL, 0 uncovered.
+
+### TEST1 assumptions
+
+1. AC9 (grounding evidence) is a one-off check by design ("not a permanent test"). It was re-run here with the plan's set-equality method and passed.
+2. AC10 scope is checked against the story's merge into the run branch (`git diff --name-only <merge>^1 <merge>`), because `origin/feat/...` has since moved on. The suite and ruff are checked on the final tree.
+3. Where the criterion text asks for content beyond what its test asserts (for example, the shape of an example), the test is taken as the verification the story names; factual correctness of the claims against nextjs.org and vercel.com is the REVIEW① lens, not a unit test.

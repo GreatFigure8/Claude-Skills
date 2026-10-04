@@ -1,0 +1,42 @@
+# TEST1 unit results for data-fetching-server-actions-and-forms
+
+Branch wip/nextjs-typescript-best-practices-reference/tests-unit-1, base origin/dev 59279a3, 2026-10-04.
+Full-suite result: 1026 passed in 95.32s (0:01:35). Each line is one pytest node id from the verbose run of the
+nextjs tests that this story's criterion map cites; `36` ids, all PASSED.
+
+test_nextjs_reference.py::test_every_prose_url_is_listed_in_sources[data-fetching-and-mutations.md] PASSED
+test_nextjs_reference.py::test_every_url_host_is_allowed[data-fetching-and-mutations.md] PASSED
+test_nextjs_reference.py::test_file_is_at_most_800_lines[data-fetching-and-mutations.md] PASSED
+test_nextjs_reference.py::test_no_bare_code_fences[data-fetching-and-mutations.md] PASSED
+test_nextjs_reference.py::test_no_todo_or_tbd[data-fetching-and-mutations.md] PASSED
+test_nextjs_reference.py::test_primary_source_floor[data-fetching-and-mutations.md] PASSED
+test_nextjs_reference.py::test_relative_links_resolve[data-fetching-and-mutations.md] PASSED
+test_nextjs_reference.py::test_rule_ids_are_unique_across_topic_files PASSED
+test_nextjs_reference.py::test_sources_is_a_bullet_list_of_unique_https_urls[data-fetching-and-mutations.md] PASSED
+test_nextjs_reference.py::test_stub_marker_names_the_owning_story[data-fetching-and-mutations.md] PASSED
+test_nextjs_reference.py::test_topic_as_of_matches_the_entry_point[data-fetching-and-mutations.md] PASSED
+test_nextjs_reference.py::test_topic_cites_only_its_own_rule_ids[data-fetching-and-mutations.md] PASSED
+test_nextjs_reference.py::test_topic_meets_the_floors[data-fetching-and-mutations.md] PASSED
+test_nextjs_reference.py::test_topic_not_confirmed_section_lists_urls_and_no_rules[data-fetching-and-mutations.md] PASSED
+test_nextjs_reference.py::test_topic_rules_are_well_formed_and_numbered[data-fetching-and-mutations.md] PASSED
+test_nextjs_reference.py::test_topic_rules_cite_a_source_or_convention[data-fetching-and-mutations.md] PASSED
+test_nextjs_reference.py::test_topic_sections_follow_the_contract[data-fetching-and-mutations.md] PASSED
+test_nextjs_reference.py::test_topic_version_notes_name_the_major[data-fetching-and-mutations.md] PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_checklist_rule_ids_exist PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_every_checklist_item_names_a_df_rule PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_every_dont_is_paired_with_a_do PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_every_use_server_block_calls_an_auth_check PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_examples_never_use_any PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_mutation_examples_link_the_security_topic PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_redirect_rule_says_outside_try_and_after_revalidation PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_rules_state_redirect_outside_try_catch PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_topic_has_at_least_15_df_rules PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_topic_has_required_example[action-state-form] PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_topic_has_required_example[optimistic-update] PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_topic_has_required_example[parallel-fetching] PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_topic_has_required_example[request-dedup-cache] PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_topic_has_required_example[validated-server-action] PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_topic_is_not_a_stub PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_topic_names_every_required_concept PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_topic_uses_only_df_rule_ids PASSED
+test_nextjs_topic_data_fetching_and_mutations.py::test_version_notes_name_the_major_and_link_nextjs PASSED
