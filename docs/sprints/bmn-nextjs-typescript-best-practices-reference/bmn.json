@@ -24,7 +24,7 @@
       "slug": "nextjs-standard-entry-point-and-skill-wiring",
       "title": "Entry point, index and bmn wiring",
       "deps": [],
-      "status": "merged",
+      "status": "tested",
       "branch": "wip/nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring",
       "merges": [
         {
@@ -41,7 +41,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "merged",
+      "status": "tested",
       "branch": "wip/nextjs-typescript-best-practices-reference/typescript-config-and-typing-patterns",
       "merges": [
         {
@@ -58,7 +58,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "merged",
+      "status": "tested",
       "branch": "wip/nextjs-typescript-best-practices-reference/app-router-routing-and-metadata",
       "merges": [
         {
@@ -75,7 +75,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "merged",
+      "status": "tested",
       "branch": "wip/nextjs-typescript-best-practices-reference/rendering-caching-and-streaming-ssr",
       "merges": [
         {
@@ -92,7 +92,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "merged",
+      "status": "tested",
       "branch": "wip/nextjs-typescript-best-practices-reference/data-fetching-server-actions-and-forms",
       "merges": [
         {
@@ -109,7 +109,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "merged",
+      "status": "tested",
       "branch": "wip/nextjs-typescript-best-practices-reference/route-handlers-and-api-design",
       "merges": [
         {
@@ -126,7 +126,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "merged",
+      "status": "tested",
       "branch": "wip/nextjs-typescript-best-practices-reference/server-sent-events-and-streaming-responses",
       "merges": [
         {
@@ -143,7 +143,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "merged",
+      "status": "tested",
       "branch": "wip/nextjs-typescript-best-practices-reference/proxy-auth-and-security",
       "merges": [
         {
@@ -160,7 +160,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "merged",
+      "status": "tested",
       "branch": "wip/nextjs-typescript-best-practices-reference/performance-and-vercel-platform",
       "merges": [
         {
@@ -177,7 +177,7 @@
       "deps": [
         "nextjs-standard-entry-point-and-skill-wiring"
       ],
-      "status": "merged",
+      "status": "tested",
       "branch": "wip/nextjs-typescript-best-practices-reference/testing-errors-and-observability",
       "merges": [
         {
@@ -401,7 +401,15 @@
       "worktree:/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-af349621f954023a4",
       "local:wip/nextjs-typescript-best-practices-reference/testing-errors-and-observability",
       "origin:wip/nextjs-typescript-best-practices-reference/testing-errors-and-observability",
-      "local:worktree-agent-af349621f954023a4"
+      "local:worktree-agent-af349621f954023a4",
+      "worktree:/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a0305833713ca08b9",
+      "local:wip/nextjs-typescript-best-practices-reference/tests-unit-1",
+      "origin:wip/nextjs-typescript-best-practices-reference/tests-unit-1",
+      "worktree:/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ad53425f9db41e217",
+      "local:wip/nextjs-typescript-best-practices-reference/tests-content-1",
+      "origin:wip/nextjs-typescript-best-practices-reference/tests-content-1",
+      "local:worktree-agent-a0305833713ca08b9",
+      "local:worktree-agent-ad53425f9db41e217"
     ],
     "left": []
   },
@@ -438,5 +446,5 @@
     "origin/dev moved to plugin 1.6.1 (harden run) during this run; merge kept 1.7.0 (higher) in plugin.json and its pinned test."
   ],
   "blocker": null,
-  "updated": "2026-10-04T04:00:00Z"
+  "updated": "2026-10-04T04:15:00Z"
 }
