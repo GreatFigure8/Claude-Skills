@@ -73,6 +73,18 @@ active the hook's second rule family (the *merge guard*) refuses every squash me
   and a GraphQL `mergeMethod: SQUASH`.
 - The GitHub MCP tool `merge_pull_request` (any server name) with `merge_method` or
   `mergeMethod` set to `squash`, any case.
+- All of the above behind a wrapper, which the guard strips first, flags and values included:
+  `timeout [-k 5] 60`, `sudo [-u me]`, `nice [-n 5]`, `nohup`, `env [-u X]`, `command`,
+  `xargs [-n1]`, and `sh -c '…'` / `bash -lc '…'` / `sh -ec '…'` / `bash -o pipefail -c '…'`
+  (bundled flags, the command string is checked as its own command, nested to any depth).
+  `timeout 60 git merge --squash x` and `sudo -u me gh pr merge 12 -s -d` are blocked like
+  the bare commands; `bash run.sh -c 'git merge --squash x'` is a script's argument, not a
+  shell command string, and is not read.
+- Deleting a protected branch on origin: `git push origin --delete dev` (also `develop`,
+  `staging`, `main`, `master`, `prod`, `production`, `release`, the remote's default branch
+  read from `refs/remotes/<remote>/HEAD`, any case), `git push -d origin dev`, and the
+  empty-source refspecs `git push origin :dev` / `+:refs/heads/dev`. This is a deploy-guard
+  block, not a merge-guard one. Pushing to `dev` stays allowed.
 
 **Allowed**
 - `git merge --no-ff <branch>`, and for a PR `gh pr merge <n> --merge --delete-branch`.
@@ -80,10 +92,11 @@ active the hook's second rule family (the *merge guard*) refuses every squash me
 - `gh pr merge --disable-auto` and `gh pr merge --help` (they merge nothing), `gh pr view`,
   `gh pr create`, `gh pr list`, and `gh api` calls that do not squash, such as
   `gh api -X PATCH repos/o/r -F allow_squash_merge=false -F delete_branch_on_merge=true`.
-- Branch cleanup is never blocked: `git push origin --delete <branch>` (also with
+- Branch cleanup is never blocked: `git push origin --delete <wip or run branch>` (also with
   `--force-with-lease=<ref>:<sha>`, a compare-and-delete), `git branch -D`,
-  `git worktree remove`, `git worktree prune`. Deleting a protected branch (`main`, ...) stays
-  blocked by the deploy rules.
+  `git worktree remove`, `git worktree prune`. Deleting a protected branch on origin
+  (`main`, `dev`, the default branch, ...) stays blocked, with or without a
+  `--force-with-lease`.
 
 The guard reads each command the way the tool does, so it neither over- nor under-blocks. git
 value flags (`-m`, `-F`, `-s <strategy>`, `-X`) are skipped, so `git merge -s ours x` and
@@ -103,8 +116,11 @@ covered by the repo settings INTAKE sets: `allow_squash_merge=false` and
 
 **Known blind spots** (an accident guard, not a sandbox): `gh api --input <file>` and
 `-F key=@file` bodies, GraphQL variables not named `mergeMethod`, `curl` against the REST API,
-git aliases, `branch.<name>.mergeOptions=--squash`, `eval` and `bash -lc`, and bundled git
-short flags such as `-qm`. Two consequences are accepted. `gh` refuses `--delete-branch` on a
+git aliases, `branch.<name>.mergeOptions=--squash`, `eval`, wrappers outside the list above
+(`doas`, `ionice`, `stdbuf`, `setsid`, `caffeinate`, `watch`, `script -c`, `env -S '<string>'`),
+value flags of the runners `uv run`, `poetry run`, `pnpm exec` and `npx -y`, bundled git short
+flags such as `-qm`, and a protected branch deleted with `git branch -D` locally (only the
+origin delete is guarded; `merged-branch-cleanup.py` refuses protected names itself). Two consequences are accepted. `gh` refuses `--delete-branch` on a
 merge-queue branch, so a run cannot merge such a PR (bmn merges with `git merge --no-ff` and
 has no merge queue). `gh pr merge --auto … -d` deletes nothing itself; GitHub deletes the
 branch when the auto-merge lands only if `delete_branch_on_merge=true`.
