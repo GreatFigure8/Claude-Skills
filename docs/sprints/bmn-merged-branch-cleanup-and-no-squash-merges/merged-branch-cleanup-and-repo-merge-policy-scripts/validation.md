@@ -53,3 +53,49 @@ Result: 20 PASS, 1 FAIL.
 ## Assumptions
 
 - The smoke's "origin copy kept" expectation for the dirty-worktree case was first written too strictly; the story and stack contract delete the origin copy once it is an ancestor of `origin/dev`, independent of the local worktree, so the smoke asserts that.
+
+## FIX①
+
+Branch `wip/merged-branch-cleanup-and-no-squash-merges/merged-branch-cleanup-and-repo-merge-policy-scripts-fix`, cut from `origin/feat/merged-branch-cleanup-and-no-squash-merges` (784f54d). Every item was reproduced first: the named test was written against the unfixed script and failed for the reason the review gives, then the fix made it pass.
+
+| Id | Result | Test (failure before the fix) |
+| --- | --- | --- |
+| R1-1 (HIGH) | fixed | `test_worktree_holding_an_ignored_file_is_kept_with_the_file`. Before the fix the worktree holding an ignored `.env` was reported deleted and `left` was empty. Two tests pin the cache rule: `test_worktree_whose_only_ignored_files_are_caches_is_removed` and `test_only_ignored_paths_inside_cache_directories_count_as_cache` (10 cases). |
+| R1-2 | fixed | `test_refuses_target_that_is_a_commit_expression_not_a_ref[{branch}~0, {branch}@{{0}}, {branch}^{{commit}}, {sha}]`. Before the fix each one exited 0 and deleted the unmerged `local:` and `origin:` copies. The `trunk..{branch}` case was already refused. |
+| R1-3 | fixed | `test_branch_being_rebased_or_bisected_keeps_local_branch[rebase, bisect]`. Before the fix `local:wip/r/a` was deleted under a stopped `rebase --exec false` and under a running `bisect`. |
+| R1-4 | fixed | `test_script_imports_stdlib_only` (both scripts) under `/usr/bin/python3` 3.9.6, which raised `AttributeError: sys.stdlib_module_names`. This is also the TEST① failure. `test_pre_310_stdlib_fallback_accepts_the_imports_and_rejects_third_party` runs the fallback on every interpreter. |
+| R1-8 | fixed | `test_stale_entry_holding_the_branch_is_removed_and_other_stale_entries_kept`, which replaces `test_stale_worktree_entry_is_pruned_before_scan`. Before the fix a repo-wide `worktree prune` also dropped another branch's stale entry, and the branch's own entry was never reported. |
+| R1-9 | fixed | `test_refuses_default_branch_when_origin_head_is_not_set_locally`: before the fix it exited 0 and deleted `local:trunk`. `test_refuses_when_the_default_branch_cannot_be_determined`: before the fix it exited 0 and deleted the local branch. |
+| TEST① failure | fixed | Same item as R1-4. |
+
+Gates:
+- `uv run --quiet --with pytest python -m pytest Skills/dev-bother-me-nope/assets/tests -q`: **361 passed** (Python 3.13).
+- The same suite under `uv run --quiet --python /usr/bin/python3 ...`: **361 passed** (Python 3.9.6, the version the hook runs on).
+- `uv run --quiet --with ruff ruff check` on the four changed Python files: all checks passed.
+- `merged-branch-cleanup.py` is 397 lines, under the 400-line limit.
+
+### Assumptions (FIX①)
+
+- **R1-1, the cache judgement call.** An ignored path blocks removal, and so keeps the local branch, unless it sits inside one of these directories (`CACHE_DIRS`): `__pycache__`, `.pytest_cache`, `.ruff_cache`, `.mypy_cache`, `.venv`, `node_modules` and `.next`.
+  - Tooling rebuilds these from tracked files, and they appear in nearly every worktree after a test run or an install. Refusing them would make the cleanup a no-op.
+  - Everything else ignored still blocks: `.env`, local databases, `build/`, `dist/`, Playwright reports, and a *file* named like a cache directory. `build/` and `dist/` are left out on purpose, because they can hold hand-made artifacts.
+  - A file inside a cache directory (e.g. `node_modules/x/.env`) counts as cache. This is an accepted risk.
+  - Status runs as `status --porcelain -z --untracked-files=normal --ignored=matching --ignore-submodules=none`. The explicit flags override repo config such as `status.showUntrackedFiles=no`.
+  - An ignored file created between the status check and `git worktree remove` is not covered.
+- **R1-2.** `--target` must resolve, through `rev-parse --symbolic-full-name`, to exactly one `refs/heads/`, `refs/remotes/` or `refs/tags/` ref, and ancestry is then proved against that ref. A bare SHA is refused even when it is a real merge commit. Every call site in SKILL.md and briefs.md passes `origin/dev` or `origin/{integration}`.
+- **R1-3.** The script reads the same state files git checks: `rebase-merge/head-name`, `rebase-apply/head-name` and `BISECT_START`, in the common dir and in every `worktrees/<id>` admin dir.
+  - Only the local branch is kept. A merged origin copy is still deleted under the lease, which matches the dirty-worktree rule.
+  - An unreadable state dir counts as busy.
+- **R1-8.** There is no repo-wide `worktree prune` any more.
+  - A stale entry that holds *this* branch and whose directory no longer exists is removed with a targeted `git worktree remove <path>`. That drops only its admin dir, and no files exist to lose.
+  - Stale entries of other branches are never touched.
+  - A worktree of this branch on an unmounted volume loses its admin entry, but its files stay put. This is within the contract ("every worktree holding the branch").
+- **R1-9.** When `<remote>/HEAD` isn't set locally, the script asks `git ls-remote --symref <remote> HEAD`. This is read-only and runs under `--dry-run` and `--no-fetch` too.
+  - An unreachable remote is a refusal: exit 2, and nothing is changed.
+  - A remote that advertises no HEAD symref has no default branch to protect, so the script proceeds.
+- **Line budget.** These changes were made to stay under the 400-line limit without behaviour change:
+  - `GitResult` became a plain namedtuple built by `git_result`.
+  - The three `require_*` checks became `require_repo`.
+  - `strip_remote` was dropped, because `short_branch` now always gets full refs.
+  - The fetch was inlined into `survey`.
+- **R1-4.** When `sys.stdlib_module_names` is missing, the stdlib check falls back to `sys.builtin_module_names` plus the modules `pkgutil` finds in the interpreter's `stdlib`, `platstdlib` and `lib-dynload` dirs.

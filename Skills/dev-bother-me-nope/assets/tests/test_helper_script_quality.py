@@ -6,8 +6,10 @@ scripts themselves: executable, stdlib only, small, documented, no shared mutabl
 """
 import ast
 import os
+import pkgutil
 import re
 import sys
+import sysconfig
 from pathlib import Path
 
 import pytest
@@ -29,6 +31,31 @@ def module_assignments(tree):
     return [node for node in tree.body if isinstance(node, (ast.Assign, ast.AnnAssign))]
 
 
+def top_level_imports(script):
+    imported = set()
+    for node in ast.walk(parse(script)):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name.split(".")[0] for alias in node.names)
+        if isinstance(node, ast.ImportFrom):
+            assert node.level == 0, "relative import"
+            imported.add((node.module or "").split(".")[0])
+    return imported
+
+
+def stdlib_from_interpreter_dirs():
+    """The stdlib as this interpreter installs it: builtins plus its stdlib and lib-dynload dirs."""
+    paths = sysconfig.get_paths()
+    dirs = {paths["stdlib"], paths["platstdlib"], os.path.join(paths["platstdlib"], "lib-dynload")}
+    found = {module.name for module in pkgutil.iter_modules(sorted(dirs))}
+    return frozenset(found | set(sys.builtin_module_names))
+
+
+def stdlib_names():
+    """sys.stdlib_module_names exists from Python 3.10; the hooks also run on macOS's 3.9."""
+    names = getattr(sys, "stdlib_module_names", None)
+    return frozenset(names) if names is not None else stdlib_from_interpreter_dirs()
+
+
 @pytest.mark.unit
 @pytest.mark.parametrize("script", SCRIPTS, ids=IDS)
 def test_script_is_executable_with_env_python3_shebang(script):
@@ -39,14 +66,17 @@ def test_script_is_executable_with_env_python3_shebang(script):
 @pytest.mark.unit
 @pytest.mark.parametrize("script", SCRIPTS, ids=IDS)
 def test_script_imports_stdlib_only(script):
-    imported = set()
-    for node in ast.walk(parse(script)):
-        if isinstance(node, ast.Import):
-            imported.update(alias.name.split(".")[0] for alias in node.names)
-        if isinstance(node, ast.ImportFrom):
-            assert node.level == 0, "relative import"
-            imported.add((node.module or "").split(".")[0])
-    assert imported and imported <= set(sys.stdlib_module_names), imported - set(sys.stdlib_module_names)
+    imported = top_level_imports(script)
+    assert imported and imported <= stdlib_names(), imported - stdlib_names()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("script", SCRIPTS, ids=IDS)
+def test_pre_310_stdlib_fallback_accepts_the_imports_and_rejects_third_party(script):
+    fallback = stdlib_from_interpreter_dirs()
+
+    assert top_level_imports(script) <= fallback, top_level_imports(script) - fallback
+    assert not {"pytest", "requests", "yaml"} & fallback
 
 
 @pytest.mark.unit
