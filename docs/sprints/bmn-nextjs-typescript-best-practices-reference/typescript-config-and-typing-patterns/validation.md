@@ -245,3 +245,110 @@ None.
 #### JSON fences
 
 - all five JSON fences (lines 236, 282, 537, 628, 638) parse as JSON. The three with `compilerOptions` (236, 628, 638) were also fed to `tsc --noEmit -p` as a tsconfig on 7.0.2, 6.0.3 and 5.9.3: P1 (line 236) and the Do config (line 638) exit 0 on all three; the Don't `baseUrl` config (line 628) is rejected by 7.0.2 (TS5102 `baseUrl` removed, TS5090 non-relative path) and by 6.0.3 (TS5101 deprecated) and accepted by 5.9.3, which is exactly what TS-9 and the Don't say.
+
+## FIX①
+
+Branch `wip/nextjs-typescript-best-practices-reference/typescript-config-and-typing-patterns-fix`,
+cut from `origin/feat/nextjs-typescript-best-practices-reference` (`8188c54`). Date: 2026-10-04. Files
+touched: `references/nextjs/typescript.md`, `assets/tests/test_nextjs_topic_typescript.py`,
+`evidence/sources-verified.md` and this file.
+
+### Result per finding
+
+| id | Result | Test that failed first, now passing |
+| --- | --- | --- |
+| R1-A3 (= R1-C4, TEST① fence #06) | **fixed** | `test_p1_tsconfig_lib_reaches_es2022_builtins`, `test_p1_tsconfig_include_matches_create_next_app`, `test_ts4_names_the_dev_types_include`; scratch `tsc` below |
+| R1-A4 | **fixed** | `test_rules_say_route_literals_drop_groups_and_slots`, `test_a_pattern_shows_a_route_group_folder_with_its_literal` (plus the regression guard `test_route_literals_in_code_never_contain_groups_or_slots`, green before and after); scratch `tsc` below |
+| R1-A13 | **fixed** | `test_patterns_never_call_the_throwing_parse`, `test_public_env_pattern_validates_with_safe_parse` |
+| R1-A16 | **fixed** | `test_anti_pattern_markers_ignore_text_inside_a_longer_fence`, `test_module_uses_the_contract_for_prefixes_fences_and_checklist` |
+| R1-A5 (TS-12 side) | **fixed** | `test_ts12_lets_a_biome_repo_keep_its_linter`, `test_review_checklist_covers_the_lint_rule` |
+
+RED run (new tests only, against the first-draft `typescript.md` and test module): **11 failed, 18
+passed** in `test_nextjs_topic_typescript.py`. The 11 failures are the tests in the table minus the
+regression guard. GREEN: the same file **29 passed**; the topic file and `test_nextjs_reference.py`
+together **214 passed**; full suite **1038 passed** (1026 at TEST① plus the 12 new tests); ruff
+`All checks passed!`. `typescript.md` is 798 lines (cap 800).
+
+### R1-A3: scratch `tsc`
+
+Scratch project (not committed): `.../scratchpad/fix1-typescript/proj`. Next.js 16.3.8, TypeScript
+5.9.3 (cross-check 7.0.2), Zod 4.6.5, `@types/react` 19, `@types/node` 26.6.4 (the version TEST①
+used). Layout is the canonical `src/` tree with a `(dashboard)` group and an `@analytics` slot.
+
+| Run | Result |
+| --- | --- |
+| Old P1 (`lib: ES2020`), `next typegen && tsc --noEmit` | TS2550 on `.at()` (`number[]`), `replaceAll`, `Object.hasOwn`, `Promise.withResolvers`, TS2554 on `new Error(msg, { cause })`; and TS2550 `Property 'at' does not exist on type '[string, string][]'` on **the real fence #06 of `sse-and-streaming.md`** (line 21 of the fence) |
+| New P1 (`create-next-app` shape, `lib: [dom, dom.iterable, esnext]`) | the same `modern.ts` and `sse-fence.ts` compile with no error, on TypeScript 5.9.3 and 7.0.2 |
+| New P1, with P2 and P4 to P10 laid out as written (`src/app/blog/[slug]/page.tsx`, `src/app/(dashboard)/dashboard/layout.tsx`, `src/app/users/[id]/route.ts`, `src/lib/env.ts`, `src/lib/public-env.ts`, `src/lib/actions/signup-state.ts`, `src/lib/actions/signup.ts`, `src/features/auth/components/signup-message.tsx`, `src/lib/plans.ts`) | no error on TypeScript 5.9.3 and 7.0.2 |
+| `next typegen` run with the new P1 as `tsconfig.json` | leaves the file unchanged (it had added `.next/dev/types/**/*.ts` to the old P1) |
+
+Grounding, cited in the file: `create-next-app@16.3.8 app --ts --app --src-dir --eslint --import-alias "@/*" --use-npm --skip-install --disable-git --yes`
+was run, and its `tsconfig.json` is what P1 now copies (`target ES2017`, `lib dom, dom.iterable,
+esnext`, `module esnext`, `jsx react-jsx`, `paths @/*` to `./src/*`, `include` of `next-env.d.ts`,
+`**/*.ts`, `**/*.tsx`, `.next/types/**/*.ts`, `.next/dev/types/**/*.ts`, `**/*.mts`). Docs pages read
+live: `config/typescript` (the `.next/types/**/*.ts` include; `next-env.d.ts` must be in `include`),
+`cli/next` (typegen writes `.next/dev/types` in development), `architecture/supported-browsers`
+(Chrome, Edge, Firefox 111+, Safari 16.4+) and `guides/migrating/from-vite` (its example tsconfig is
+the source of the old `ES2020` `lib`). No docs page lists the `create-next-app` tsconfig, so that is
+recorded under Not confirmed by the docs.
+
+### R1-A4: scratch `tsc`
+
+`next typegen` 16.3.8 on the tree above wrote `type AppRoutes = "/blog/[slug]" | "/dashboard"` and
+`type LayoutRoutes = "/" | "/dashboard"`, with `LayoutSlotMap` `"/": "modal"` and `"/dashboard":
+"analytics"`: the `(dashboard)` group and every `@slot` folder are gone from the literals, and a
+layout in a group folder is `"/"`. A second tree whose only layouts are `(shop)/layout.tsx` and
+`(marketing)/layout.tsx` generated `LayoutRoutes = "/"`. `tsc` on `checks/literals.tsx`:
+`PageProps<'/dashboard'>`, `LayoutProps<'/dashboard'>` (with `props.analytics`), `LayoutProps<'/'>`
+(with `props.modal`), `PageProps<'/blog/[slug]'>` and `RouteContext<'/users/[id]'>` compile; the
+literals an agent would write from the old TS-13, `PageProps<'/(dashboard)/dashboard'>`,
+`LayoutProps<'/(dashboard)'>` and `LayoutProps<'/dashboard/@analytics'>`, each fail with TS2344
+`does not satisfy the constraint 'AppRoutes'` or `'LayoutRoutes'`, on 5.9.3 and 7.0.2. The docs
+(`page.js`, `layout.js`) never show a grouped literal, so TS-13 says so and the point sits under Not
+confirmed by the docs.
+
+### R1-A13
+
+P8 now calls `safeParse`, throws once at module load with
+`Object.keys(z.flattenError(error).fieldErrors)` (names, never values), and exports `parsed.data`.
+Zod 4.6.5 check: a missing variable gives `success: false` and the key `NEXT_PUBLIC_ANALYTICS_ID`; a
+present one gives `success: true` and the object. No block in `## Patterns` calls `.parse(` any more
+(TS-19).
+
+### R1-A16
+
+The test module takes `RULE_PREFIX` and the other topic prefixes from `helpers.TOPICS`, decides which
+lines are inside a fence with the contract parser (`helpers._fenced_indexes`) instead of toggling on
+every line that starts with three backticks, and counts checklist items with
+`helpers.checklist_items`.
+
+### R1-A5, TS-12's side
+
+Decision from the run notes: a new project lints with ESLint and `eslint-config-next`, a repo that
+already uses Biome keeps it, and the gate runs the repo's configured linter. TS-12 now says that,
+still bans `next lint`, and cites the `create-next-app` page (`--eslint` is the default, `--biome` is
+offered). P3 notes that `lint` is the ESLint form, and a checklist item cites TS-12. `nextjs.md` NN-9
+and the stack-routing gate belong to another fixer.
+
+### Session helper contract
+
+Snippets in `typescript.md` that touch sessions or paths follow the run's contract: P9 now lives in
+`src/lib/actions/` (action and state module) and `src/features/auth/components/`, and its comment
+points at `@/lib/dal` and `verifySession()`; P5's comment uses the `src/app/(dashboard)/dashboard/`
+path. No snippet calls `getSession()` or `verifySession()` itself (the signup action is anonymous).
+
+### Assumptions
+
+1. To get back under 800 lines two Version notes bullets were dropped: the image-file `params`
+   promises (owned by `routing-and-metadata.md`) and the `middleware.ts` to `proxy.ts` rename (owned
+   by `proxy-auth-and-security.md`). The story's five required candidates are all still there. One
+   Not confirmed item was dropped (the blog's `--experimental-next-config-strip-types` flag against
+   the docs' automatic detection) and two were merged (the `create-next-app` tsconfig and the fields
+   Next.js rewrites). No rule lost a claim.
+2. Evidence: `evidence/sources-verified.md` gained rows for `cli/create-next-app` and
+   `architecture/supported-browsers` (both read live in FIX①). URL sets equal: `sources 43 evidence 43
+   symmetric difference []`.
+3. P1 dropped `forceConsistentCasingInFileNames`: the `create-next-app` file has no such line, and it
+   defaults to true since TypeScript 5.0, which this file does not cite.
+4. The test module uses `helpers._fenced_indexes`, a private helper; the helper file is outside this
+   story's scope, so no public wrapper was added.
