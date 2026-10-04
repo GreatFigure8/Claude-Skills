@@ -55,7 +55,6 @@ REQUIRED_EXAMPLES = {
 }
 
 INVALIDATION_APIS = ("revalidateTag", "updateTag", "revalidatePath", "refresh")
-ANY_TYPE_RE = re.compile(r":\s*any\b|<any>|as any\b")
 RC_ID_RE = re.compile(r"\bRC-(\d+)\b")
 ANY_RULE_ID_RE = re.compile(r"\*\*([A-Z]+)-\d+\*\*")
 FENCE_OPEN_RE = re.compile(r"^\s*`{3,}\S")
@@ -144,7 +143,7 @@ def test_rendering_topic_has_required_example(topic_text, needles):
 def test_rendering_topic_examples_have_no_any(topic_text):
     blocks = h.code_blocks(topic_text, ("ts", "tsx"))
     assert len(blocks) >= MIN_TS_BLOCKS
-    offenders = [body.splitlines()[0] for _, body in blocks if ANY_TYPE_RE.search(body)]
+    offenders = [body.splitlines()[0] for _, body in blocks if h.uses_any_type(body)]
     assert not offenders, f"ts/tsx blocks that use any: {offenders}"
 
 

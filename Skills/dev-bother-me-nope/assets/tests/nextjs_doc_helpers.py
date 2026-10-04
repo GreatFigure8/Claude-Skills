@@ -10,8 +10,9 @@ None, bool), except ``missing_terms``, which returns a ``list``. A function that
 named section raises ``LookupError`` (``section``) or, for the list-returning section readers
 (``source_urls``, ``malformed_source_lines``, ``rule_items``, ``checklist_items``,
 ``anti_patterns``), returns ``()`` when the section is absent, so the contract test for the
-missing section reports it instead of an unrelated crash. Headings and list markers inside
-fenced code blocks are never structure.
+missing section reports it instead of an unrelated crash. The contract readers look up their
+section at H2 only, and ``section`` picks the shallowest matching heading. Headings, URLs and
+list markers inside fenced code blocks (backtick or tilde fences) are never structure.
 """
 
 from __future__ import annotations
@@ -109,7 +110,7 @@ RULE_ID_RE = re.compile(
 
 _HEADING_RE = re.compile(r"^ {0,3}(?P<hashes>#{1,6})\s+(?P<title>.+?)\s*$")
 _H1_RE = re.compile(r"^#\s+(?P<title>.+?)\s*$")
-_FENCE_OPEN_RE = re.compile(r"^(?P<ticks>`{3,})(?P<info>.*)$")
+_FENCE_OPEN_RE = re.compile(r"^(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 _INLINE_CODE_RE = re.compile(r"(?<!`)(`+)(?!`).+?(?<!`)\1(?!`)")
 _NUMBER_MARKER_RE = re.compile(r"^\d+\.\s+")
 _NUMBERED_START_RE = re.compile(r"^\d+\. ")
@@ -118,6 +119,19 @@ _LINK_TARGET_RE = re.compile(r"""\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)""")
 _SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.\-]*:")
 _SEPARATOR_CELL_RE = re.compile(r":?-+:?")
 _DONT_RE = re.compile(r"^Don['’]t")
+_ITEM_OR_HEADING_RE = re.compile(r"^(?:\d+\. |#{3,6} )")
+_LINE_COMMENT_RE = re.compile(r"(?:^|(?<=\s))//.*$", re.MULTILINE)
+_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
+ANY_TYPE_RE = re.compile(
+    r":\s*any\b"  # annotation: x: any
+    r"|\bas\s+any\b"  # assertion: value as any
+    r"|<\s*any\s*[,>]"  # first type argument: <any>, Array<any>
+    r"|,\s*any\s*[,>\]]"  # later type argument or tuple member: Record<string, any>
+    r"|\bany\s*\[\]"  # array: any[]
+    r"|[|&]\s*any\b|\bany\s*[|&]"  # union or intersection member
+    r"|=\s*any\s*(?:;|$)",  # alias: type X = any
+    re.MULTILINE,
+)
 _TRAILING_PUNCTUATION = ".,;:!?"
 
 # --- small builders --------------------------------------------------------------------
@@ -149,21 +163,21 @@ def major(version: str) -> str:
 # --- fences ----------------------------------------------------------------------------
 
 
-def _closes_fence(stripped: str, ticks: int) -> bool:
-    """True for a line made only of a backtick run at least ``ticks`` long."""
+def _closes_fence(stripped: str, fence: str) -> bool:
+    """True for a line made only of ``fence``'s character, at least as long as ``fence``."""
     run = stripped.rstrip()
-    return len(run) >= ticks and set(run) == {"`"}
+    return len(run) >= len(fence) and set(run) == {fence[0]}
 
 
 def _fence_spans(lines: list[str]) -> tuple[tuple[int, int, str, bool], ...]:
     """(first line, last line, lang, closed) of each fence, 0-based and inclusive.
 
-    An opener starts (left-stripped) with three or more backticks. It closes on a
-    left-stripped line made only of an equal or longer backtick run. An unclosed fence runs
-    to the end of the text.
+    An opener starts (left-stripped) with three or more backticks or three or more tildes. It
+    closes on a left-stripped line made only of the same character, in an equal or longer
+    run. An unclosed fence runs to the end of the text.
     """
     spans = []
-    start = ticks = None
+    start = fence = None
     lang = ""
     for index, line in enumerate(lines):
         stripped = line.lstrip()
@@ -172,8 +186,8 @@ def _fence_spans(lines: list[str]) -> tuple[tuple[int, int, str, bool], ...]:
             if opener:
                 info = opener.group("info").strip()
                 lang = info.split()[0] if info else ""
-                start, ticks = index, len(opener.group("ticks"))
-        elif _closes_fence(stripped, ticks):
+                start, fence = index, opener.group("fence")
+        elif _closes_fence(stripped, fence):
             spans.append((start, index, lang, True))
             start = None
     if start is not None:
@@ -254,23 +268,31 @@ def headings(text: str, level: int) -> tuple[str, ...]:
     return tuple(title for _, found, title in _heads(text.splitlines()) if found == level)
 
 
-def section(text: str, heading: str, *, prefix: bool = False) -> str:
-    """Body of the first heading titled ``heading`` (or starting with it when ``prefix``).
+def section(text: str, heading: str, *, prefix: bool = False, level: int | None = None) -> str:
+    """Body of the heading titled ``heading`` (or starting with it when ``prefix``).
 
-    The body runs to the next heading of the same or a higher level. Raises ``LookupError``
-    when no heading matches.
+    Only headings of ``level`` match when it is given. Otherwise the shallowest matching
+    heading wins, and the first of those, so a ``### Sources`` inside ``## Patterns`` never
+    shadows ``## Sources``. The body runs to the next heading of the same or a higher level.
+    Raises ``LookupError`` when no heading matches.
     """
     lines = text.splitlines()
     heads = _heads(lines)
-    for position, (_, _, title) in enumerate(heads):
-        if title == heading or (prefix and title.startswith(heading)):
-            return _body_of(lines, heads, position)
-    raise LookupError(f"no heading {heading!r}")
+    matches = tuple(
+        (found, position)
+        for position, (_, found, title) in enumerate(heads)
+        if (title == heading or (prefix and title.startswith(heading)))
+        and (level is None or found == level)
+    )
+    if not matches:
+        raise LookupError(f"no heading {heading!r}")
+    return _body_of(lines, heads, min(matches)[1])
 
 
 def _section_or_empty(text: str, heading: str) -> str:
+    """Body of the H2 ``heading`` (a contract section), or ``""`` when there is none."""
     try:
-        return section(text, heading)
+        return section(text, heading, level=2)
     except LookupError:
         return ""
 
@@ -378,8 +400,11 @@ def malformed_source_lines(text: str) -> tuple[str, ...]:
 
 
 def cites_source(item_text: str) -> bool:
-    """True when the item carries the convention tag or a link to an allowed host."""
-    if CONVENTION_TAG in item_text:
+    """True when the item carries the convention tag or a link to an allowed host, in prose.
+
+    A tag or URL inside inline code or a fence is an example, not a citation.
+    """
+    if CONVENTION_TAG in prose(item_text):
         return True
     return any(url_host(url) in ALLOWED_SOURCE_HOSTS for url in all_urls(item_text))
 
@@ -421,6 +446,41 @@ def rule_items(text: str) -> tuple[tuple[str, str], ...]:
         match = RULE_RE.match(body)
         pairs.append((match.group("id") if match else "", body))
     return tuple(pairs)
+
+
+def _indented_fence_indexes(lines: list[str]) -> frozenset[int]:
+    """Indexes of every line inside a fence whose opener is indented (a list item's fence)."""
+    return frozenset(
+        i
+        for start, end, _, _ in _fence_spans(lines)
+        if lines[start][:1].isspace()
+        for i in range(start, end + 1)
+    )
+
+
+def stray_rule_lines(text: str) -> tuple[str, ...]:
+    """Lines under ``## Rules`` that are not part of a numbered item or an H3+ heading.
+
+    A line belongs to an item when it is indented, or inside a fence an indented item line
+    opened. Everything else at column 0 is stray: prose, and a fence opened at column 0 with
+    its body and closer.
+    """
+    lines = _section_or_empty(text, "Rules").splitlines()
+    owned = _indented_fence_indexes(lines)
+    return tuple(
+        line.rstrip()
+        for index, line in enumerate(lines)
+        if index not in owned
+        and line.strip()
+        and not line[0].isspace()
+        and not _ITEM_OR_HEADING_RE.match(line)
+    )
+
+
+def uses_any_type(code: str) -> bool:
+    """True when TypeScript ``code`` uses the ``any`` type outside comments."""
+    bare = _LINE_COMMENT_RE.sub("", _BLOCK_COMMENT_RE.sub("", code))
+    return ANY_TYPE_RE.search(bare) is not None
 
 
 def rule_ids_cited(text: str) -> tuple[str, ...]:

@@ -48,7 +48,6 @@ TERMS = (
 )
 
 AUTH_CALL = re.compile(r"(?i)(session|auth)\w*\(")
-ANY_TYPE = re.compile(r":\s*any\b|<any>|\bas any\b|any\[\]")
 DF_ID = re.compile(r"\bDF-\d+\b")
 BOLD_RULE_ID = re.compile(r"\*\*([A-Z]+-\d+)\*\*")
 DONT_MARKER = re.compile(r"^\*\*Don['’]t:\*\*\n+```(?:ts|tsx)\b", re.MULTILINE)
@@ -106,7 +105,7 @@ def test_topic_has_required_example(needles):
 def test_examples_never_use_any():
     blocks = h.code_blocks(_text(), ("ts", "tsx"))
     assert blocks, "no ts/tsx examples to check"
-    offenders = [body.splitlines()[0] for _, body in blocks if ANY_TYPE.search(body)]
+    offenders = [body.splitlines()[0] for _, body in blocks if h.uses_any_type(body)]
     assert not offenders, f"blocks that use the any type: {offenders}"
 
 
@@ -149,7 +148,7 @@ def test_redirect_rule_says_outside_try_and_after_revalidation():
 
 def test_version_notes_name_the_major_and_link_nextjs():
     text = _text()
-    major = h.as_of_version(text).split(".")[0]
+    major = h.major(h.as_of_version(text))
     notes = h.section(text, "Version notes")
     assert notes.strip()
     assert f"Next.js {major}" in notes
