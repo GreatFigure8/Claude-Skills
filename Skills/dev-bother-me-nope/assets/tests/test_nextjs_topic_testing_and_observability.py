@@ -206,3 +206,104 @@ def test_gate_scripts_example_uses_eslint_never_next_lint():
     assert gate_blocks, "no json block with the gate scripts"
     assert any('"lint": "eslint ."' in body for body in gate_blocks)
     assert not any("next lint" in body for body in gate_blocks)
+
+
+# --- FIX①: REVIEW① findings R1-C7, R1-C9, R1-C18, R1-C19, R1-C29, R1-C30, R1-C31 --------------------
+
+
+def _rule(rule_id: str) -> str:
+    for found_id, item in h.rule_items(_text()):
+        if found_id == rule_id:
+            return item
+    raise AssertionError(f"{rule_id} is not in ## Rules")
+
+
+def _block(*needles: str) -> str:
+    """The first ts/tsx fence that holds every needle."""
+    for _, body in _ts_blocks():
+        if all(needle in body for needle in needles):
+            return body
+    raise AssertionError(f"no ts/tsx block holds {needles}")
+
+
+def test_vitest_coverage_excludes_what_test_2_and_test_10_keep_off_the_unit_surface():
+    # R1-C7: include src/** with an 80% floor counted async pages, layouts, instrumentation and
+    # 'use server' files at 0%, so a typical App Router story could never pass TEST-37.
+    config = _block("defineConfig", "jsdom")
+    assert "exclude:" in config, "the coverage config has no exclude list"
+    excluded = config[config.index("exclude:") :].split("]", 1)[0]
+    for needle in ("page", "layout", "instrumentation", "lib/actions", "*.d.ts", "generated"):
+        assert needle in excluded, f"coverage.exclude does not cover {needle!r}"
+    assert "coverage.exclude" in _rule("TEST-7")
+
+
+def test_playwright_config_gives_each_checkout_its_own_port():
+    # R1-C18: a shared default port (3100) defeated TEST-13 in every worktree.
+    configs = [
+        body for _, body in _ts_blocks() if "webServer" in body and "npm run dev" not in body
+    ]
+    assert configs, "no Playwright config examples"
+    for body in configs:
+        shared = re.findall(r"\?\?\s*\d{4}|-p\s+\d{4}|localhost:\d{4}", body)
+        assert not shared, f"a Playwright config hard-codes a port: {shared}"
+    main = _block("defineConfig", "webServer", "E2E_PORT")
+    assert "process.cwd()" in main, "no per-checkout fallback port"
+    assert "E2E_PORT" in _rule("TEST-13")
+
+
+def test_playwright_reuses_an_existing_server_only_on_request():
+    # R1-C18: reuseExistingServer: !process.env.CI attaches to another checkout or a stale build.
+    for _, body in _ts_blocks():
+        assert not re.search(r"reuseExistingServer:\s*!process\.env\.CI\s*[,}]", body)
+    assert "E2E_REUSE_SERVER" in _block("defineConfig", "webServer", "E2E_PORT")
+    assert "E2E_REUSE_SERVER" in _rule("TEST-13")
+
+
+def test_on_request_error_example_redacts_the_message_and_guards_the_reporter():
+    # R1-C19: the pattern posted raw err.message and awaited fetch with no try/catch or timeout.
+    block = _block("onRequestError", "register")
+    assert ".message" not in block, "the reporter must not send err.message"
+    assert "request.headers" not in block and "request.path" not in block
+    assert "try {" in block and "catch" in block, "the reporter call is not in a try/catch"
+    assert "AbortSignal.timeout" in block, "the reporter call has no timeout"
+    rule = _rule("TEST-28")
+    assert "err.message" in rule and "try/catch" in rule and "timeout" in rule
+
+
+def test_unstable_rethrow_example_renders_the_post_it_loaded():
+    # R1-C29: the awaited result was discarded, so success rendered "unavailable" too.
+    block = _block("unstable_rethrow", "export default async function Page")
+    assert re.search(r"=\s*await\s+load\w+\(\)", block), "the loaded value is discarded"
+    unavailable = [line for line in block.splitlines() if "unavailable" in line]
+    assert unavailable and all("if (" in line for line in unavailable), (
+        "'unavailable' must render only when the load failed"
+    )
+
+
+def test_log_error_spreads_caller_fields_before_the_reserved_keys():
+    # R1-C30: ...fields came last, so a caller could overwrite errorId and level.
+    block = _block("logError", "console.error")
+    spread = block.index("...fields")
+    for reserved in ("level: 'error'", "message,", "errorId,", "errorType:"):
+        assert spread < block.index(reserved), f"...fields must come before {reserved!r}"
+
+
+def test_web_vitals_reporter_is_owned_by_perf_26_and_not_copied():
+    # R1-C31: the WebVitals component and rule lived here and in performance-and-vercel.md.
+    assert not [body for _, body in _ts_blocks() if "useReportWebVitals" in body]
+    assert "WebVitals component" not in h.section(_text(), "Patterns")
+    rule = _rule("TEST-32")
+    assert "(performance-and-vercel.md)" in rule and "`PERF-26`" in rule
+    assert "useReportWebVitals" in rule
+
+
+def test_snippets_and_rules_use_the_canonical_src_layout():
+    # R1-C9: the nextjs.md layout puts routes under src/app and Server Actions under src/lib/actions.
+    text = _text()
+    assert not re.search(r"`app/[\w\[(@.-]", text), "a path drops the src/ prefix"
+    assert not re.search(r"^### app/", text, re.MULTILINE)
+    assert "'../app/" not in text
+    actions = [body for _, body in _ts_blocks() if "'use server'" in body.splitlines()[:2]]
+    assert actions, "no 'use server' examples"
+    assert all(body.startswith("// src/lib/actions/") for body in actions)
+    assert "src/lib/actions/" in _rule("TEST-10")

@@ -25,16 +25,16 @@ Neighbouring topics own their detail: route conventions for `not-found` in [rout
 4. **TEST-4** Set up Vitest the way the Next.js guide does: install `vitest @vitejs/plugin-react jsdom @testing-library/react @testing-library/dom vite-tsconfig-paths` as dev dependencies, and write `vitest.config.mts` with `defineConfig` from `vitest/config`, `plugins: [tsconfigPaths(), react()]` and `test.environment: 'jsdom'` ([Vitest guide](https://nextjs.org/docs/app/guides/testing/vitest)). Vitest's `environment` defaults to `'node'`, and `jsdom` gives a browser-like one ([environment option](https://vitest.dev/config/environment)).
 5. **TEST-5** Configure Jest only through `next/jest`: `nextJest({ dir: './' })`, then `testEnvironment: 'jsdom'` and `coverageProvider: 'v8'`, and `export default createJestConfig(config)` so that `next/jest` can load the async Next.js config; add `moduleNameMapper` entries for path aliases. `next/jest` sets up the Next.js Compiler transform, auto-mocks stylesheets, images and `next/font`, loads `.env` files and ignores `node_modules` and `.next` ([Jest guide](https://nextjs.org/docs/app/guides/testing/jest)).
 6. **TEST-6** Run unit tests once in gates with `vitest run` (or `jest`), because the `vitest` script watches for changes by default ([Vitest guide](https://nextjs.org/docs/app/guides/testing/vitest), [Vitest getting started](https://vitest.dev/guide/)).
-7. **TEST-7** Write each test before its code (RED, then GREEN) and hold unit coverage at 80% or more; both are Jonathan's bmn rules (convention), not docs requirements. In Vitest, enforce the floor through `coverage.thresholds` with the v8 provider (`@vitest/coverage-v8`) and set `coverage.include` so files no test imports still count ([coverage options](https://vitest.dev/config/coverage), [coverage guide](https://vitest.dev/guide/coverage)). The Next.js Jest guide sets only `coverageProvider: 'v8'` ([Jest guide](https://nextjs.org/docs/app/guides/testing/jest)).
+7. **TEST-7** Write each test before its code (RED, then GREEN) and hold unit coverage at 80% or more; both are Jonathan's bmn rules (convention), not docs requirements. In Vitest, enforce the floor through `coverage.thresholds` with the v8 provider (`@vitest/coverage-v8`), set `coverage.include` so files no test imports still count, and set `coverage.exclude` for everything TEST-2 and TEST-10 keep off the unit surface: route-file pages and layouts, `instrumentation.ts`, `instrumentation-client.ts`, `'use server'` files and generated types. `coverage.exclude` defaults to `[]` on the options page, so list test files and test folders too; without these excludes an App Router story counts those files at 0% and cannot reach the floor ([coverage options](https://vitest.dev/config/coverage), [coverage guide](https://vitest.dev/guide/coverage)). The Next.js Jest guide sets only `coverageProvider: 'v8'` ([Jest guide](https://nextjs.org/docs/app/guides/testing/jest)).
 8. **TEST-8** Commit test defaults in `.env.test` and never depend on `.env.local` in tests, because Next.js does not load `.env.local` in the `test` environment. In Vitest, load env vars the way Next.js does, with `loadEnvConfig(process.cwd())` from `@next/env` in a setup file; `next/jest` already loads `.env` files ([environment variables](https://nextjs.org/docs/app/guides/environment-variables), [Jest guide](https://nextjs.org/docs/app/guides/testing/jest)).
 9. **TEST-9** Unit-test a Route Handler as a plain function (convention): import its exported `GET` or `POST`, call it with a Web `Request`, and assert on the returned `Response`. Run those files with `// @vitest-environment node`. Route Handlers use the Web Request and Response APIs ([route.js](https://nextjs.org/docs/app/api-reference/file-conventions/route)), and Vitest accepts a per-file environment comment ([environment option](https://vitest.dev/config/environment)).
-10. **TEST-10** Move Server Action logic into plain functions that take parsed input and return a typed result, and unit-test those (convention). Cover the `'use server'` action itself end to end, because Request-time APIs such as `cookies()` and `headers()` must run inside a request scope ([error message](https://nextjs.org/docs/messages/next-dynamic-api-wrong-context)) and `redirect()` throws a `NEXT_REDIRECT` error ([redirect](https://nextjs.org/docs/app/api-reference/functions/redirect)).
+10. **TEST-10** Move Server Action logic into plain functions that take parsed input and return a typed result, and unit-test those (convention). Keep each `'use server'` file thin and in `src/lib/actions/`, as in the layout in [nextjs.md](../nextjs.md), so TEST-7 can exclude that one folder from unit coverage. Cover the `'use server'` action itself end to end, because Request-time APIs such as `cookies()` and `headers()` must run inside a request scope ([error message](https://nextjs.org/docs/messages/next-dynamic-api-wrong-context)) and `redirect()` throws a `NEXT_REDIRECT` error ([redirect](https://nextjs.org/docs/app/api-reference/functions/redirect)).
 11. **TEST-11** Unit-test `proxy.ts` matching and rewrites with the experimental helpers `unstable_doesProxyMatch`, `isRewrite` and `getRewrittenUrl` from `next/experimental/testing/server`, which the docs label experimental ([proxy.js](https://nextjs.org/docs/app/api-reference/file-conventions/proxy)). Detail lives in [proxy-auth-and-security.md](proxy-auth-and-security.md).
 
 ### End-to-end tests
 
-12. **TEST-12** Run Playwright E2E against a production build, as the Next.js guide recommends, and let Playwright's `webServer` start it ([Playwright guide](https://nextjs.org/docs/app/guides/testing/playwright)). Set `command: 'npm run build && npm run start'` (`next build`, then `next start`; joining the two documented steps in one command is a convention), `url`, `reuseExistingServer: !process.env.CI` and `use.baseURL`, and raise `webServer.timeout` above its 60000 ms default when the build needs longer ([webServer docs](https://playwright.dev/docs/test-webserver)).
-13. **TEST-13** Give each worktree's E2E run its own port: pass `next start -p <port>` and point `webServer.url` and `baseURL` at it, so `reuseExistingServer` never attaches to another checkout's server (convention). `next start` takes `-p` or `--port` ([CLI reference](https://nextjs.org/docs/app/api-reference/cli/next)), and `reuseExistingServer: true` re-uses a server already on the port or url ([webServer docs](https://playwright.dev/docs/test-webserver)).
+12. **TEST-12** Run Playwright E2E against a production build, as the Next.js guide recommends, and let Playwright's `webServer` start it ([Playwright guide](https://nextjs.org/docs/app/guides/testing/playwright)). Set `command: 'npm run build && npm run start'` (`next build`, then `next start`; joining the two documented steps in one command is a convention), `url`, `use.baseURL` and `reuseExistingServer` as TEST-13 says, and raise `webServer.timeout` above its 60000 ms default when the build needs longer ([webServer docs](https://playwright.dev/docs/test-webserver)).
+13. **TEST-13** Give each checkout's E2E run its own port, and reuse a running server only on request (convention). Read the port from `E2E_PORT`, which the runner sets per checkout, and when it is unset derive one from the checkout's path instead of defaulting to a shared port. Pass it to `next start -p <port>` and point `webServer.url` and `baseURL` at it. Set `reuseExistingServer` to true only when `E2E_REUSE_SERVER=1` and `CI` is unset, because a reused server can be another checkout's build or a stale build of this one, which gives a false green. `next start` takes `-p` or `--port` ([CLI reference](https://nextjs.org/docs/app/api-reference/cli/next)); `reuseExistingServer: true` re-uses a server already on the port or url, and `false` throws when a process is already listening there ([webServer docs](https://playwright.dev/docs/test-webserver)).
 14. **TEST-14** Use visibility-aware locators in E2E: `getByRole`, `getByLabel`, `getByPlaceholder`, or `.filter({ visible: true })` after `locator()`. Cache Components keeps preserved routes in the DOM as hidden Activity content with `display: none`, so a bare `locator()` can match hidden elements ([preserving UI state](https://nextjs.org/docs/app/guides/preserving-ui-state)).
 15. **TEST-15** Cover a Route Handler's HTTP contract with Playwright's `request` fixture against the same `webServer`, which respects `use.baseURL` ([API testing](https://playwright.dev/docs/api-testing)). It is bmn's HTTP black-box surface for a Next.js repo (convention).
 16. **TEST-16** Assert a promised instant navigation under Cache Components with `instant()` from `@next/playwright`. Run it against `next dev`, or against `next start` with `experimental.exposeTestingApiInProductionBuild: true` ([instant navigation](https://nextjs.org/docs/app/guides/instant-navigation), [Next.js 16.3](https://nextjs.org/blog/next-16-3)). 16.x change: the helper is new in 16.3.
@@ -46,23 +46,23 @@ Neighbouring topics own their detail: route conventions for `not-found` in [rout
 19. **TEST-19** Throw for uncaught exceptions (bugs) and let error boundaries catch them: add an `error.tsx` to each route segment that needs its own fallback, and errors bubble up to the nearest parent boundary. `error.tsx` does not wrap the `layout.tsx` or `template.tsx` of its own segment ([error handling](https://nextjs.org/docs/app/getting-started/error-handling), [error.js](https://nextjs.org/docs/app/api-reference/file-conventions/error)).
 20. **TEST-20** Start every `error.tsx` and `global-error.tsx` with `'use client'`, type the props `{ error: Error & { digest?: string }; retry: () => void }`, and recover with `retry()`, which re-fetches and re-renders the boundary's children; use `reset()` only to clear error state without re-fetching ([error.js](https://nextjs.org/docs/app/api-reference/file-conventions/error)). 16.x change: `retry` became stable in 16.3, and `unstable_retry` arrived in 16.2.
 21. **TEST-21** Show a generic message in error UI and correlate through `error.digest`; never present a Server Component error's `error.message` as detail, because production forwards a generic message plus the digest ([error.js](https://nextjs.org/docs/app/api-reference/file-conventions/error)). Handing the user the digest as a reference id is a convention, and Vercel advises returning an error id instead of raw messages or stacks ([structured logs guide](https://vercel.com/kb/guide/add-structured-application-logs-to-vercel-functions)).
-22. **TEST-22** Add `app/global-error.tsx`: it must render its own `<html>` and `<body>`, define the global styles and fonts it needs, and set the page title with React `<title>`, because `metadata` and `generateMetadata` exports are not supported there. It replaces the root layout while active ([error.js, Global Error](https://nextjs.org/docs/app/api-reference/file-conventions/error), [production checklist](https://nextjs.org/docs/app/guides/production-checklist)).
+22. **TEST-22** Add `src/app/global-error.tsx`: it must render its own `<html>` and `<body>`, define the global styles and fonts it needs, and set the page title with React `<title>`, because `metadata` and `generateMetadata` exports are not supported there. It replaces the root layout while active ([error.js, Global Error](https://nextjs.org/docs/app/api-reference/file-conventions/error), [production checklist](https://nextjs.org/docs/app/guides/production-checklist)).
 23. **TEST-23** Call `redirect()`, `permanentRedirect()`, `notFound()` and `forbidden()` outside any `try` block, because each works by throwing and a `try/catch` suppresses it ([redirect](https://nextjs.org/docs/app/api-reference/functions/redirect), [permanentRedirect](https://nextjs.org/docs/app/api-reference/functions/permanentRedirect), [notFound](https://nextjs.org/docs/app/api-reference/functions/not-found), [forbidden](https://nextjs.org/docs/app/api-reference/functions/forbidden), experimental). Where a `catch` cannot be avoided, call `unstable_rethrow(err)` first in it; it is unstable and not recommended for production, so prefer moving the call out of the `try` ([unstable_rethrow](https://nextjs.org/docs/app/api-reference/functions/unstable_rethrow)).
 24. **TEST-24** Build component-level error boundaries with `catchError` from `next/error` instead of a hand-rolled React class boundary: it lets `redirect()` and `notFound()` pass through, its `retry()` re-fetches and re-renders Server Components, and its error state clears on client navigation. Do not wrap an `error.tsx` export in it ([catchError](https://nextjs.org/docs/app/api-reference/functions/catchError)). 16.x change: stable since 16.3, after `unstable_catchError` in 16.2 ([Next.js 16.3](https://nextjs.org/blog/next-16-3)).
 25. **TEST-25** Catch errors from event handlers and async callbacks yourself and keep them in `useState` or `useReducer`, because error boundaries only catch errors during rendering. Unhandled errors inside `startTransition` do bubble to the nearest boundary ([error handling](https://nextjs.org/docs/app/getting-started/error-handling)).
-26. **TEST-26** Pair every `notFound()` call with a `not-found.tsx` that renders the 404 UI ([error handling](https://nextjs.org/docs/app/getting-started/error-handling)). The root `app/not-found.tsx` also handles unmatched URLs, takes no props, is a Server Component by default and may be `async`. A streamed response returns `200` and a non-streamed one returns `404` ([not-found.js](https://nextjs.org/docs/app/api-reference/file-conventions/not-found), [notFound](https://nextjs.org/docs/app/api-reference/functions/not-found)). Route-level conventions live in [routing-and-metadata.md](routing-and-metadata.md).
+26. **TEST-26** Pair every `notFound()` call with a `not-found.tsx` that renders the 404 UI ([error handling](https://nextjs.org/docs/app/getting-started/error-handling)). The root `src/app/not-found.tsx` also handles unmatched URLs, takes no props, is a Server Component by default and may be `async`. A streamed response returns `200` and a non-streamed one returns `404` ([not-found.js](https://nextjs.org/docs/app/api-reference/file-conventions/not-found), [notFound](https://nextjs.org/docs/app/api-reference/functions/not-found)). Route-level conventions live in [routing-and-metadata.md](routing-and-metadata.md).
 
 ### Observability
 
 27. **TEST-27** Put `instrumentation.ts` in the project root (or in `src/` when one is used), never inside `app/`, and export `register()`, which runs once per server instance and completes before requests are served. Do side-effect imports inside `register`, and import Node-only SDKs only when `process.env.NEXT_RUNTIME === 'nodejs'`, because `register` runs in all environments ([instrumentation guide](https://nextjs.org/docs/app/guides/instrumentation), [instrumentation.js](https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation)).
-28. **TEST-28** Export `onRequestError`, typed `Instrumentation.onRequestError` from `next`, to report server errors with route context: `await` all async work inside it, narrow `err: unknown` before reading `message` or `digest`, and report `request.path`, `request.method`, `context.routePath` and `context.routeType` rather than the raw headers (convention, because headers can carry cookies and tokens) ([instrumentation.js](https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation)).
+28. **TEST-28** Export `onRequestError`, typed `Instrumentation.onRequestError` from `next`, to report server errors with route context: `await` all async work inside it, narrow `err: unknown` before reading `digest`, and send `err.digest` and the error's `name`, never `err.message`, because messages can carry PII. Report `request.method`, `context.routePath` and `context.routeType`, and leave out `request.headers` and `request.path`, which can carry cookies, tokens, query strings and ids (convention). Wrap the reporter call in `try/catch` and bound it with `AbortSignal.timeout(...)`, so a slow or failing reporter can neither break nor stall the request path (convention) ([instrumentation.js](https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation)).
 29. **TEST-29** Use `@vercel/otel` for OpenTelemetry: call `registerOTel({ serviceName })` inside `register()`. Configure `NodeSDK` by hand only in a Node-only module such as `instrumentation.node.ts`, because it is not compatible with the Edge runtime and Edge support needs `@vercel/otel`. Set `NEXT_OTEL_VERBOSE=1` for more spans, and `NEXT_OTEL_FETCH_DISABLED=1` when a custom fetch instrumentation replaces the built-in fetch span ([OpenTelemetry guide](https://nextjs.org/docs/app/guides/open-telemetry), [Vercel instrumentation](https://vercel.com/docs/tracing/instrumentation)).
 30. **TEST-30** Add custom spans with `@opentelemetry/api` (`trace.getTracer(...).startActiveSpan(...)`) and always end the span in `finally`. Vercel does not support custom spans from functions that use the Edge runtime ([OpenTelemetry guide](https://nextjs.org/docs/app/guides/open-telemetry), [Vercel instrumentation](https://vercel.com/docs/tracing/instrumentation)).
 31. **TEST-31** Put client-side error tracking and analytics that must start before hydration in `instrumentation-client.ts` (project root or `src/`). Keep it synchronous and light, because development warns when it takes over 16 ms and asynchronous work is not awaited; wrap tracking code in `try/catch`; export `onRouterTransitionStart(url, navigationType)` for navigation breadcrumbs ([instrumentation-client](https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation-client)).
-32. **TEST-32** Report Web Vitals with `useReportWebVitals` from `next/web-vitals`: call it in a small `'use client'` `WebVitals` component that the root layout renders, pass a module-level callback so its reference never changes and nothing is reported twice, and send with `navigator.sendBeacon`, falling back to `fetch` with `keepalive: true` ([useReportWebVitals](https://nextjs.org/docs/app/api-reference/functions/use-report-web-vitals), [analytics](https://nextjs.org/docs/app/guides/analytics)). On Vercel, `<SpeedInsights />` from `@vercel/speed-insights/next` in the root layout is the managed option ([Speed Insights quickstart](https://vercel.com/docs/speed-insights/quickstart)); detail lives in [performance-and-vercel.md](performance-and-vercel.md).
+32. **TEST-32** Report Web Vitals with `useReportWebVitals` from `next/web-vitals`, in a small `'use client'` component that the root layout renders ([useReportWebVitals](https://nextjs.org/docs/app/api-reference/functions/use-report-web-vitals), [analytics](https://nextjs.org/docs/app/guides/analytics)). One reporter owns this: copy the component, its module-level callback and its endpoint from rule `PERF-26` in [performance-and-vercel.md](performance-and-vercel.md) and never write a second one. On Vercel, `<SpeedInsights />` from `@vercel/speed-insights/next` in the root layout is the managed option ([Speed Insights quickstart](https://vercel.com/docs/speed-insights/quickstart)); detail lives in [performance-and-vercel.md](performance-and-vercel.md).
 33. **TEST-33** Treat the `logging` option in `next.config.ts` as development-terminal configuration only: its keys are `fetches`, `serverFunctions`, `incomingRequests` and `browserToTerminal`, and the reference describes each as a development-mode setting ([logging](https://nextjs.org/docs/app/api-reference/config/next-config-js/logging), [structured logs guide](https://vercel.com/kb/guide/add-structured-application-logs-to-vercel-functions)).
 34. **TEST-34** Write production logs as one JSON object per `console.*` call and use `console.error` for errors, because stderr is the Error level in Vercel Runtime Logs. Stay within 256 log lines, 256 KB per line and 1 MB per request ([Runtime Logs](https://vercel.com/docs/logs/runtime), [structured logs guide](https://vercel.com/kb/guide/add-structured-application-logs-to-vercel-functions)).
-35. **TEST-35** Strip secrets and PII before anything reaches `console.*` or an error reporter, and return an error id (or the `digest`) to the client instead of raw messages or stacks ([structured logs guide](https://vercel.com/kb/guide/add-structured-application-logs-to-vercel-functions)).
+35. **TEST-35** Strip secrets and PII before anything reaches `console.*` or an error reporter, and return an error id (or the `digest`) to the client instead of raw messages or stacks. Log the id you return, and put caller-supplied fields before `level`, `message` and `errorId` so a caller cannot overwrite them (convention) ([structured logs guide](https://vercel.com/kb/guide/add-structured-application-logs-to-vercel-functions)).
 
 ### Debugging and gates
 
@@ -72,11 +72,11 @@ Neighbouring topics own their detail: route conventions for `not-found` in [rout
 
 ## Patterns
 
-Snippets are typed for strict TypeScript and use only APIs the cited pages show. Endpoints such as `https://errors.example.com/report` and `/api/vitals` are placeholders.
+Snippets are typed for strict TypeScript and use only APIs the cited pages show. Paths follow the `src/` layout in [nextjs.md](../nextjs.md). Endpoints such as `https://errors.example.com/report` and `/api/client-errors` are placeholders.
 
 ### vitest.config.mts (TEST-4, TEST-7)
 
-The guide's config, plus the 80% coverage floor.
+The guide's config, plus the 80% coverage floor and the files TEST-2 and TEST-10 keep out of it.
 
 ```ts
 import { defineConfig } from 'vitest/config'
@@ -90,6 +90,17 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
+      // TEST-2 and TEST-10 keep these off the unit surface; Playwright covers them.
+      exclude: [
+        'src/app/**/{page,layout,template,default,loading,error,global-error,not-found}.tsx',
+        'src/instrumentation.ts',
+        'src/instrumentation-client.ts',
+        'src/lib/actions/**',
+        '**/*.d.ts',
+        'src/generated/**',
+        '**/tests/**',
+        '**/*.{test,spec}.{ts,tsx}',
+      ],
       // 80% floor: bmn convention (TEST-7)
       thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
     },
@@ -99,7 +110,7 @@ export default defineConfig({
 
 ### Route Handler unit test (TEST-9)
 
-The handler in `app/api/hello/route.ts`, then its test beside it.
+The handler in `src/app/api/hello/route.ts`, then its test beside it.
 
 ```ts
 export async function GET(request: Request): Promise<Response> {
@@ -122,7 +133,7 @@ test('GET greets the caller by name', async () => {
 
 ### Server Action logic as a pure function (TEST-10, TEST-18)
 
-The service returns an expected error as a value, and its test needs no request scope.
+The service in `src/features/posts/services/validate-post.ts` returns an expected error as a value, and its test needs no request scope.
 
 ```ts
 export type ValidationResult =
@@ -151,19 +162,32 @@ test('a blank title comes back as an expected error', () => {
 
 ### playwright.config.ts (TEST-12, TEST-13)
 
-A production build on its own port, started by Playwright.
+A production build on this checkout's own port, started by Playwright. A running server is reused only when asked.
 
 ```ts
+import { createHash } from 'node:crypto'
 import { defineConfig } from '@playwright/test'
 
-const PORT = Number(process.env.E2E_PORT ?? 3100)
+const PORT_BASE = 3100
+const PORT_SPAN = 900
+
+// The runner sets E2E_PORT per checkout; without it, derive a port from this checkout's path.
+function checkoutPort(): number {
+  const fromEnv = Number(process.env.E2E_PORT)
+  if (Number.isInteger(fromEnv) && fromEnv > 0) return fromEnv
+  const digest = createHash('sha256').update(process.cwd()).digest()
+  return PORT_BASE + (digest.readUInt16BE(0) % PORT_SPAN)
+}
+
+const PORT = checkoutPort()
 const baseURL = `http://localhost:${PORT}`
 
 export default defineConfig({
   webServer: {
     command: `npm run build && npm run start -- -p ${PORT}`,
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    // Reuse only on request and never in CI: a reused server may be another checkout or a stale build.
+    reuseExistingServer: process.env.E2E_REUSE_SERVER === '1' && !process.env.CI,
     timeout: 180_000,
   },
   use: { baseURL },
@@ -194,36 +218,50 @@ test('GET /api/hello returns the greeting', async ({ request }) => {
 })
 ```
 
-### instrumentation.ts (TEST-27, TEST-28, TEST-29, TEST-35)
+### src/instrumentation.ts (TEST-27, TEST-28, TEST-29, TEST-35)
 
-OpenTelemetry in `register`, and `onRequestError` reporting chosen fields only.
+OpenTelemetry in `register`, and `onRequestError` reporting chosen fields only, with the reporter call guarded.
 
 ```ts
 import { registerOTel } from '@vercel/otel'
 import { type Instrumentation } from 'next'
+
+const REPORT_TIMEOUT_MS = 2_000
 
 export function register(): void {
   registerOTel({ serviceName: 'next-app' })
 }
 
 export const onRequestError: Instrumentation.onRequestError = async (err, request, context) => {
-  const message = err instanceof Error ? err.message : String(err)
   const digest =
     typeof err === 'object' && err !== null && 'digest' in err ? String(err.digest) : undefined
+  const errorType = err instanceof Error ? err.name : typeof err
 
-  // Headers can carry cookies and tokens, so send chosen fields only (TEST-28, TEST-35).
-  await fetch('https://errors.example.com/report', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message,
-      digest,
-      path: request.path,
-      method: request.method,
-      routePath: context.routePath,
-      routeType: context.routeType,
-    }),
-  })
+  // Never send the error message, the request path or headers: they can carry PII, ids, cookies and tokens (TEST-28, TEST-35).
+  try {
+    await fetch('https://errors.example.com/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        digest,
+        errorType,
+        method: request.method,
+        routePath: context.routePath,
+        routeType: context.routeType,
+      }),
+      signal: AbortSignal.timeout(REPORT_TIMEOUT_MS),
+    })
+  } catch (reportErr: unknown) {
+    // A failed or slow reporter must not break the request path; log the type and digest only.
+    console.error(
+      JSON.stringify({
+        level: 'error',
+        message: 'error report failed',
+        reporterError: reportErr instanceof Error ? reportErr.name : typeof reportErr,
+        digest,
+      }),
+    )
+  }
 }
 ```
 
@@ -246,7 +284,7 @@ export async function loadDashboardTraced() {
 }
 ```
 
-### app/dashboard/error.tsx (TEST-20, TEST-21)
+### src/app/dashboard/error.tsx (TEST-20, TEST-21)
 
 A segment boundary typed with `error.digest` and `retry`. It renders no `<html>`.
 
@@ -278,7 +316,7 @@ export default function ErrorPage({
 }
 ```
 
-### app/global-error.tsx (TEST-22)
+### src/app/global-error.tsx (TEST-22)
 
 The root boundary renders the whole document.
 
@@ -311,26 +349,28 @@ export default function GlobalError({
 
 ### unstable_rethrow when a catch is unavoidable (TEST-23)
 
-The framework interrupt passes through; every other error is handled.
+The framework interrupt passes through, every other error is handled, and the loaded title renders on success.
 
 ```tsx
 import { notFound, unstable_rethrow } from 'next/navigation'
 
-async function loadPost(): Promise<unknown> {
-  const res = await fetch('https://api.example.com/posts/1')
+async function loadPostTitle(): Promise<string> {
+  const res = await fetch('https://api.example.com/posts/1/title')
   if (res.status === 404) notFound()
   if (!res.ok) throw new Error(res.statusText)
-  return res.json()
+  return res.text()
 }
 
 export default async function Page() {
+  let title: string | null = null
   try {
-    await loadPost()
+    title = await loadPostTitle()
   } catch (err: unknown) {
     unstable_rethrow(err)
-    console.error(err)
+    console.error('loadPostTitle failed:', err instanceof Error ? err.name : typeof err)
   }
-  return <p>The post is unavailable.</p>
+  if (title === null) return <p>The post is unavailable.</p>
+  return <h1>{title}</h1>
 }
 ```
 
@@ -357,7 +397,7 @@ function ErrorFallback(props: { title: string }, { retry }: ErrorInfo) {
 export default catchError(ErrorFallback)
 ```
 
-### instrumentation-client.ts (TEST-31)
+### src/instrumentation-client.ts (TEST-31)
 
 Synchronous, light and wrapped in `try/catch`.
 
@@ -379,35 +419,9 @@ export function onRouterTransitionStart(
 }
 ```
 
-### WebVitals component (TEST-32)
-
-Rendered by the root layout. The callback is module-level, so its reference is stable.
-
-```tsx
-'use client'
-
-import { useReportWebVitals } from 'next/web-vitals'
-
-type ReportWebVitalsCallback = Parameters<typeof useReportWebVitals>[0]
-
-const reportWebVitals: ReportWebVitalsCallback = (metric) => {
-  const body = JSON.stringify(metric)
-  if (navigator.sendBeacon) {
-    navigator.sendBeacon('/api/vitals', body)
-  } else {
-    void fetch('/api/vitals', { body, method: 'POST', keepalive: true })
-  }
-}
-
-export function WebVitals(): null {
-  useReportWebVitals(reportWebVitals)
-  return null
-}
-```
-
 ### Structured error logger (TEST-34, TEST-35)
 
-One JSON line per call on `console.error`. It returns the error id for the client.
+One JSON line per call on `console.error`. It returns the error id for the client. Caller fields come first, so they can never overwrite `level`, `message`, `errorId` or `errorType`.
 
 ```ts
 type LogFields = Record<string, string | number | boolean | null>
@@ -416,11 +430,11 @@ export function logError(message: string, err: unknown, fields: LogFields = {}):
   const errorId = crypto.randomUUID()
   console.error(
     JSON.stringify({
+      ...fields,
       level: 'error',
       message,
       errorId,
       errorType: err instanceof Error ? err.name : typeof err,
-      ...fields,
     }),
   )
   return errorId
@@ -450,7 +464,7 @@ export function logError(message: string, err: unknown, fields: LogFields = {}):
 ```tsx
 import { render } from '@testing-library/react'
 import { test } from 'vitest'
-import Page from '../app/dashboard/page'
+import Page from '@/app/dashboard/page'
 
 test('dashboard', async () => {
   render(await Page())
@@ -471,6 +485,7 @@ test('dashboard', async ({ page }) => {
 ### Don't: call redirect() inside try (TEST-23)
 
 ```ts
+// src/lib/actions/create-post.ts
 'use server'
 
 import { redirect } from 'next/navigation'
@@ -489,6 +504,7 @@ export async function createPost(formData: FormData): Promise<void> {
 **Do:** call it after the work, outside any `try`, and return expected errors as values (TEST-18).
 
 ```ts
+// src/lib/actions/create-post.ts
 'use server'
 
 import { redirect } from 'next/navigation'
@@ -503,6 +519,7 @@ export async function createPost(formData: FormData): Promise<void> {
 ### Don't: throw for a validation failure (TEST-18)
 
 ```ts
+// src/lib/actions/create-post.ts
 'use server'
 
 export async function createPost(formData: FormData): Promise<void> {
@@ -516,6 +533,7 @@ export async function createPost(formData: FormData): Promise<void> {
 **Do:** return the expected error as state for `useActionState`; the full pattern is in [data-fetching-and-mutations.md](data-fetching-and-mutations.md).
 
 ```ts
+// src/lib/actions/create-post.ts
 'use server'
 
 export type PostState = { message: string }
@@ -606,18 +624,21 @@ export default defineConfig({
 })
 ```
 
-**Do:** build and start on its own port, and point `baseURL` at it.
+**Do:** build and start on this checkout's own port (`E2E_PORT`, set by the runner), point `baseURL` at it, and do not reuse a running server; the full config is under Patterns.
 
 ```ts
 import { defineConfig } from '@playwright/test'
 
+const PORT = Number(process.env.E2E_PORT)
+const baseURL = `http://localhost:${PORT}`
+
 export default defineConfig({
   webServer: {
-    command: 'npm run build && npm run start -- -p 3100',
-    url: 'http://localhost:3100',
-    reuseExistingServer: !process.env.CI,
+    command: `npm run build && npm run start -- -p ${PORT}`,
+    url: baseURL,
+    reuseExistingServer: false,
   },
-  use: { baseURL: 'http://localhost:3100' },
+  use: { baseURL },
 })
 ```
 
@@ -661,9 +682,9 @@ Changes in Next.js 16 that touch this topic, up to 16.3. Each item was confirmed
 
 - [ ] TEST-1, TEST-2: every acceptance criterion maps to a test surface, and async Server Components have Playwright coverage rather than a Vitest or Jest render.
 - [ ] TEST-4, TEST-5: the runner config matches the Next.js guide (`vitest.config.mts` with `jsdom`, or Jest through `next/jest`).
-- [ ] TEST-6, TEST-7: the gate runs unit tests once, with coverage at 80% or more and `coverage.include` set.
+- [ ] TEST-6, TEST-7: the gate runs unit tests once, with coverage at 80% or more, `coverage.include` set, and `coverage.exclude` listing async pages and layouts, instrumentation, `'use server'` files, generated types and tests.
 - [ ] TEST-9, TEST-10: Route Handler and action logic is unit-tested as plain functions, and request-scope paths are covered end to end.
-- [ ] TEST-12, TEST-13: E2E runs against a production build on its own port, with `reuseExistingServer: !process.env.CI`.
+- [ ] TEST-12, TEST-13: E2E runs against a production build on a per-checkout port (`E2E_PORT`, or one derived from the path) and reuses a running server only with `E2E_REUSE_SERVER=1` outside CI.
 - [ ] TEST-14: E2E locators are visibility-aware (`getByRole`, `getByLabel`, `.filter({ visible: true })`).
 - [ ] TEST-15: Route Handler contracts are covered with Playwright's `request` fixture.
 - [ ] TEST-17: every error and not-found path has an E2E test.
@@ -675,9 +696,10 @@ Changes in Next.js 16 that touch this topic, up to 16.3. Each item was confirmed
 - [ ] TEST-23: no `redirect()`, `notFound()`, `permanentRedirect()` or `forbidden()` sits inside a `try`.
 - [ ] TEST-25: event-handler and async errors go to state, not to a boundary.
 - [ ] TEST-26: every `notFound()` has a `not-found.tsx`.
-- [ ] TEST-27, TEST-28: `instrumentation.ts` sits at the root or in `src/`, gates Node-only imports on `NEXT_RUNTIME`, awaits `onRequestError` and narrows `unknown`.
-- [ ] TEST-31, TEST-32: client instrumentation is synchronous and light, and the Web Vitals callback has a stable reference.
-- [ ] TEST-34, TEST-35: logs are JSON, errors use `console.error`, and no PII or raw headers are logged.
+- [ ] TEST-27, TEST-28: `instrumentation.ts` sits at the root or in `src/`, gates Node-only imports on `NEXT_RUNTIME`, awaits `onRequestError`, narrows `unknown`, never sends `err.message`, and guards the reporter call with `try/catch` and a timeout.
+- [ ] TEST-31: client instrumentation is synchronous and light, and wrapped in `try/catch`.
+- [ ] TEST-32: Web Vitals use the one reporter from `performance-and-vercel.md` (`PERF-26`), with no second copy.
+- [ ] TEST-34, TEST-35: logs are JSON, errors use `console.error`, no PII or raw headers are logged, and caller fields cannot overwrite `errorId`.
 - [ ] TEST-37, TEST-38: gates are `eslint .`, `next typegen && tsc --noEmit`, `next build` and `playwright test`, with no `next lint` and no `ignoreBuildErrors`.
 
 ## Not confirmed by the docs
