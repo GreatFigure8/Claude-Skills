@@ -102,3 +102,110 @@ file would have is added. Nothing from the scratch project is committed.
 9. No deploy, no Supabase, no env vars or migrations. Env var names (`SESSION_SECRET`,
    `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`, `DANGEROUSLY_DEPLOY_VULNERABLE_CVE_2025_66478`) appear only
    as documentation text. No `deploy_pending` entries.
+
+## TEST1 content
+
+Run 2026-10-04 on a detached worktree at `origin/dev` `59279a3` (branch `wip/nextjs-typescript-best-practices-reference/tests-content-1`). This repo ships Markdown, so the black-box surface is the content: live sources, and the TypeScript snippets compiled in a real Next.js 16.3.8 project. File under test: `Skills/dev-bother-me-nope/skills/dev-bother-me-nope/references/nextjs/proxy-auth-and-security.md`.
+
+### 1. Live sources
+
+Command (per URL, 8 in parallel): `curl -sL -A <desktop browser UA> --max-time 20 --max-redirs 10 -o /dev/null -w "%{http_code}|%{url_effective}|%{num_redirects}" <url>`. A URL passes only when the final status is 2xx and the final URL is the same page (host without `www.`, path without trailing slash). Scope: every URL in the `## Sources` section.
+
+Result: **43 URLs, 43 pass, 0 fail**. (Across all ten files: 283 unique URLs, 283 pass, 0 fail; every one returned HTTP 200 with no redirect.)
+
+| URL | HTTP | Redirects | Result |
+| --- | --- | --- | --- |
+| https://nextjs.org/blog/CVE-2025-66478 | 200 | 0 | pass |
+| https://nextjs.org/blog/august-2026-security-release | 200 | 0 | pass |
+| https://nextjs.org/blog/july-2026-security-release | 200 | 0 | pass |
+| https://nextjs.org/blog/next-16 | 200 | 0 | pass |
+| https://nextjs.org/blog/next-16-1 | 200 | 0 | pass |
+| https://nextjs.org/blog/next-16-2 | 200 | 0 | pass |
+| https://nextjs.org/blog/next-16-3 | 200 | 0 | pass |
+| https://nextjs.org/blog/next-security-release-program | 200 | 0 | pass |
+| https://nextjs.org/blog/nextjs-security-update-september-22-2026 | 200 | 0 | pass |
+| https://nextjs.org/blog/security-nextjs-server-components-actions | 200 | 0 | pass |
+| https://nextjs.org/blog/security-update-2025-12-11 | 200 | 0 | pass |
+| https://nextjs.org/blog/september-2026-security-release | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/config/next-config-js/headers | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/config/next-config-js/serverActions | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/config/next-config-js/taint | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/directives/use-server | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/file-conventions/proxy | 200 | 0 | pass |
+| https://nextjs.org/docs/app/api-reference/functions/cookies | 200 | 0 | pass |
+| https://nextjs.org/docs/app/getting-started/proxy | 200 | 0 | pass |
+| https://nextjs.org/docs/app/getting-started/server-and-client-components | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/authentication | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/authentication-with-cache-components | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/backend-for-frontend | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/content-security-policy | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/data-security | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/environment-variables | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/self-hosting | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/server-actions | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/upgrading/codemods | 200 | 0 | pass |
+| https://nextjs.org/docs/app/guides/upgrading/version-16 | 200 | 0 | pass |
+| https://react.dev/reference/react/cache | 200 | 0 | pass |
+| https://react.dev/reference/react/experimental_taintObjectReference | 200 | 0 | pass |
+| https://react.dev/reference/react/experimental_taintUniqueValue | 200 | 0 | pass |
+| https://react.dev/reference/rsc/use-server | 200 | 0 | pass |
+| https://vercel.com/blog/postmortem-on-next-js-middleware-bypass | 200 | 0 | pass |
+| https://vercel.com/changelog/environment-variables-now-use-config-and-secret-types | 200 | 0 | pass |
+| https://vercel.com/changelog/new-deployments-of-vulnerable-next-js-applications-are-now-blocked-by | 200 | 0 | pass |
+| https://vercel.com/docs/deployment-protection | 200 | 0 | pass |
+| https://vercel.com/docs/environment-variables | 200 | 0 | pass |
+| https://vercel.com/docs/environment-variables/rotating-secrets | 200 | 0 | pass |
+| https://vercel.com/docs/environment-variables/sensitive-environment-variables | 200 | 0 | pass |
+| https://vercel.com/docs/vercel-firewall | 200 | 0 | pass |
+| https://zod.dev/basics | 200 | 0 | pass |
+
+### 2. Snippet type-check
+
+Method (same for every story; the scratch project lives outside the repo and is not committed):
+
+- Scratch dir `/private/tmp/claude-501/-Users-jonathanstevenson-Source-claude-skills/b71aefe4-ae21-4000-aa3e-8b70fbcfbe94/scratchpad/tscheck-test1/w1/app`, `npm install --save-exact next@16.3.8 react react-dom typescript@7.0.2 @types/react @types/react-dom @types/node zod server-only client-only vitest @playwright/test @testing-library/react vite-tsconfig-paths @vitejs/plugin-react shiki jose ai @vercel/otel @vercel/firewall @opentelemetry/api` (resolved: next 16.3.8, react and react-dom 19.3.0, typescript 7.0.2, @types/react and @types/react-dom 19.3.0, @types/node 26.6.4, zod 4.6.5, server-only 0.0.1, client-only 0.0.1, vitest 5.0.3, @playwright/test 1.63.0, @testing-library/react 16.3.3, vite-tsconfig-paths 6.1.1, @vitejs/plugin-react 6.1.1, shiki 4.5.0, jose 6.2.12, ai 7.0.127, @vercel/otel 2.1.3, @vercel/firewall 1.2.5, @opentelemetry/api 1.9.1; all from npm). typescript 6.0.3 and 5.9.3 were installed beside it for the cross-check and the parse pass.
+- Every ```` ```ts ```` and ```` ```tsx ```` fence of the ten files was extracted (218 fences: 160 Do/Pattern/rule, 58 inside the Don't half of an Anti-patterns entry). Each doc becomes one virtual Next.js project under `app/proj/<doc>/`: a fence whose first line is a `// path/to/file.ts` comment is written at that path (first occurrence only, Don't halves never), so `@/` and relative imports between fences resolve to the real fence; every other fence is its own module under `_loose/`. `next typegen` runs per project so the global `PageProps`, `LayoutProps` and `RouteContext` types exist; dummy `page.tsx`, `layout.tsx`, `route.ts` and `@slot` files are created for the route literals the fences use.
+- Compiler config: the doc's own P1 `tsconfig.json` (`strict: true`, `noUncheckedIndexedAccess`, `lib: ES2020`, `moduleResolution: bundler`, ...) with `paths` `@/*` -> `./*` and `./src/*`; command `node node_modules/typescript/bin/tsc --noEmit --pretty false -p tsconfig.json` (TypeScript 7.0.2) in each project. Cross-checks: TypeScript 6.0.3 with the same config, and TypeScript 7.0.2 with the `create-next-app` default compilerOptions (`strict`, `target ES2017`, `lib dom/dom.iterable/esnext`).
+- Prelude (declared, never silent): a fence that is a fragment gets only (a) `export {}` when it has no import or export, (b) a wrapper `async function __fragment() {` ... `}` when it is a bare statement list (TS1108 `return` outside a function), (c) an `import` of a well-known Next.js, React or Zod name (`z`, `redirect`, `notFound`, `revalidateTag`, `updateTag`, `cookies`, `Suspense`, ...) that the fence uses but does not import, (d) `declare var name: any` for any other free name the fence uses but does not define, (e) an any-typed stub module for a local `@/` or `./` import that no fence in the doc defines, (f) a typed export on the doc's own module when the doc says the module holds more than it shows. The records below say which fence got which.
+- A fence with a parse error cannot be typechecked, so it is parked outside the project and reported on its own.
+
+Result for `proxy-auth-and-security.md`: **20 fences = 14 Do/Pattern/rule + 6 Don't half. Do/Pattern/rule: 14 pass, 0 fail.**
+
+Cross-checks for this file: TypeScript 6.0.3 with the same config reports 0 Do-fence error(s); TypeScript 7.0.2 with the `create-next-app` default compilerOptions reports 0.
+
+#### Failures (Do/Pattern/rule fences)
+
+None.
+
+#### Pass with a declared prelude that deserves a look
+
+None.
+
+#### Prelude record
+
+- 6 of 14 Do/Pattern/rule fences begin with a `// path` comment and sit at that path in the virtual project; the other 8 are standalone modules under `_loose/`.
+- `export {}` was appended to 3 fences that had no import or export (fences #09, #11, #20); that only makes the fragment a module so names do not collide.
+- Other preludes (Do/Pattern/rule fences only):
+
+| Fence | Prelude |
+| --- | --- |
+| #02 (line 265) Data Access Layer | any-typed stub module: `lib/prisma.ts` |
+| #04 (line 347) Server Action that authorises before it mutates | any-typed stub module: `lib/prisma.ts` |
+| #05 (line 378) Route Handler | any-typed stub module: `lib/reports.ts` |
+| #09 (line 493) Don't make Proxy the only gate (SEC-4, SEC-5) | free names declared `any`: `decrypt`, `request`, `verifySession` |
+| #11 (line 516) Don't check auth only on the page (SEC-21) | free names declared `any`: `verifySession`, `prisma` |
+| #13 (line 540) Don't trust the client's row (SEC-21, SEC-22) | import added: `z` from `zod`; free names declared `any`: `verifySession`, `prisma` |
+| #16 (line 583) Don't return raw records to the client (SEC-13, SEC-16, SEC-23) | import added: `z` from `zod`; free names declared `any`: `verifySession`, `prisma` |
+| #18 (line 607) Don't mutate cookies during render (SEC-10) | any-typed stub module: `_loose/actions.ts` |
+| #20 (line 627) Don't set secrets in Proxy response headers (SEC-6) | wrapped in `async function __fragment()`; import added: `NextResponse` from `next/server`; free names declared `any`: `headers` |
+
+#### Don't half (expected to be wrong; recorded, not failed)
+
+| Fence | Outcome |
+| --- | --- |
+| #08 (line 481) Don't make Proxy the only gate (SEC-4, SEC-5) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #10 (line 502) Don't check auth only on the page (SEC-21) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #12 (line 529) Don't trust the client's row (SEC-21, SEC-22) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #15 (line 572) Don't return raw records to the client (SEC-13, SEC-16, SEC-23) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #17 (line 597) Don't mutate cookies during render (SEC-10) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
+| #19 (line 618) Don't set secrets in Proxy response headers (SEC-6) | compiles (the mistake is a runtime, security or caching rule, not a type error) |
