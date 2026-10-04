@@ -1,0 +1,113 @@
+=== story 2: deploy-guard-protected-deletes-and-wrapper-gaps
+PASS S2.C1 approved protected delete blocked w/ branch-guard prefix, no approval advice :: BMN_USER_APPROVED_DEPLOY=1 git push origin --delete dev
+PASS S2.C1 approved protected delete blocked w/ branch-guard prefix, no approval advice :: BMN_USER_APPROVED_DEPLOY=1 git push origin :main
+PASS S2.C1 approved protected delete blocked w/ branch-guard prefix, no approval advice :: BMN_USER_APPROVED_DEPLOY=1 git push -d origin staging
+PASS S2.C1 approved protected delete blocked w/ branch-guard prefix, no approval advice :: BMN_USER_APPROVED_DEPLOY=1 git push origin +:refs/heads/release
+PASS S2.C1 approved protected delete blocked w/ branch-guard prefix, no approval advice :: BMN_USER_APPROVED_DEPLOY=1 sh -c 'git push origin --delete dev'
+PASS S2.C1 approved protected delete blocked w/ branch-guard prefix, no approval advice :: BMN_USER_APPROVED_DEPLOY=1 sudo -u me bash -lc 'git push origin --delete develop'
+PASS S2.C1 approved protected delete blocked w/ branch-guard prefix, no approval advice :: BMN_USER_APPROVED_DEPLOY=1 git -C . push origin --delete DEV
+PASS S2.C1 approved protected delete blocked w/ branch-guard prefix, no approval advice :: BMN_USER_APPROVED_DEPLOY=1 git push origin --delete trunk
+PASS S2.C2 message names the refspec + 'deletes a protected branch'
+PASS S2.C2 message says Jonathan deletes it himself / never inside a run
+PASS S2.C2 unapproved protected delete -> branch guard :: git push origin --delete dev
+PASS S2.C3 approved deploy push passes :: BMN_USER_APPROVED_DEPLOY=1 git push origin main
+PASS S2.C3 approved vercel deploy --prod passes :: BMN_USER_APPROVED_DEPLOY=1 vercel deploy --prod
+PASS S2.C3 approved shell deploy passes :: BMN_USER_APPROVED_DEPLOY=1 sh -c 'git push origin main'
+PASS S2.C3 unapproved push to main -> deploy guard :: git push origin main
+PASS S2.C4 allowed cleanup :: git push origin --delete wip/demo/a
+PASS S2.C4 allowed cleanup :: BMN_USER_APPROVED_DEPLOY=1 git push origin --delete feat/run-branch
+PASS S2.C4 allowed cleanup :: git push origin --force-with-lease=refs/heads/wip/x:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --delete wip/x
+PASS S2.C4 allowed cleanup :: git push origin --delete wip/x/y
+PASS S2.C4 allowed cleanup :: git push origin dev
+PASS S2.C4 allowed cleanup :: git push origin :wip/x
+PASS S2.C4 allowed cleanup :: git branch -D wip/x
+PASS S2.C4 allowed cleanup :: git worktree remove /tmp/x
+PASS S2.C4 allowed cleanup :: git worktree prune
+PASS S2.C4 allowed cleanup :: gh pr merge 5 --merge --delete-branch
+PASS S2.C4 allowed cleanup :: git merge --no-ff x
+PASS S2.C5 xargs GNU optional-value long flags :: xargs --replace git merge --squash x
+PASS S2.C5 xargs GNU optional-value long flags :: xargs --max-lines git merge --squash x
+PASS S2.C5 xargs GNU optional-value long flags :: xargs --eof git merge --squash x
+PASS S2.C5 xargs GNU optional-value long flags :: xargs --replace=R git merge --squash R
+PASS S2.C5 xargs GNU optional-value long flags :: xargs --max-lines=1 gh pr merge 12 --squash --delete-branch
+PASS S2.C5 xargs GNU optional-value long flags :: xargs --replace vercel deploy --prod
+PASS S2.C5 xargs GNU optional-value long flags :: xargs -I{} git merge --squash {}
+PASS S2.C6 value-taking xargs flags still consume :: xargs -I {} git merge --squash {}
+PASS S2.C6 value-taking xargs flags still consume :: xargs -L 1 git merge --squash x
+PASS S2.C6 value-taking xargs flags still consume :: xargs -n 1 git merge --squash x
+PASS S2.C6 value-taking xargs flags still consume :: xargs --max-args 1 git merge --squash x
+PASS S2.C6 value-taking xargs flags still consume :: xargs -E EOF git merge --squash x
+PASS S2.C6 value-taking xargs flags still consume :: xargs --process-slot-var SLOT git merge --squash x
+PASS S2.C6 benign xargs allowed :: xargs -I {} git status {}
+PASS S2.C6 benign xargs allowed :: xargs --replace echo squash
+PASS S2.C7 fish command string read (merge) :: fish --command='git merge --squash x'
+PASS S2.C7 fish command string read (merge) :: fish --command 'git merge --squash x'
+PASS S2.C7 fish command string read (merge) :: fish -c 'git merge --squash x'
+PASS S2.C7 fish command string read (merge) :: BMN_USER_APPROVED_DEPLOY=1 fish --command 'git merge --squash x'
+PASS S2.C7 fish --command push --delete dev -> branch guard :: fish --command='git push origin --delete dev'
+PASS S2.C7 fish benign/argument not read :: fish --command='git status'
+PASS S2.C7 fish benign/argument not read :: fish script.fish --command 'git merge --squash x'
+PASS S2.C7 --command read for every shell (sh) :: sh --command 'git merge --squash x'
+PASS S2.C7 --command read for every shell (bash) :: bash --command 'git merge --squash x'
+PASS S2.C7 --command read for every shell (zsh) :: zsh --command 'git merge --squash x'
+PASS S2.C7 --command read for every shell (dash) :: dash --command 'git merge --squash x'
+PASS S2.C7 --command read for every shell (ksh) :: ksh --command 'git merge --squash x'
+PASS RUNCTX approved delete dev :: BMN_USER_APPROVED_DEPLOY=1 git push origin --delete dev
+PASS RUNCTX xargs --replace squash :: xargs --replace git merge --squash x
+PASS RUNCTX xargs -I{} squash :: xargs -I{} git merge --squash {}
+PASS RUNCTX fish --command squash :: fish --command='git merge --squash x'
+PASS RUNCTX gh pr merge allowed :: gh pr merge 5 --merge --delete-branch
+PASS RUNCTX delete wip branch allowed :: git push origin --delete wip/x/y
+PASS RUNCTX inactive repo: guard does nothing outside a run :: git push origin --delete dev
+PASS S2.C8 wrapper bullet names xargs --replace and fish -c / --command
+PASS S2.C8 blind spots paragraph does not list xargs --replace / fish --command as blind
+PASS S2.C8 blind spot still listed: eval
+PASS S2.C8 blind spot still listed: doas
+PASS S2.C8 blind spot still listed: env -S
+PASS S2.C12 protected-delete bullet: branch-guard block never lifted by the prefix
+PASS S2.C12 'approval prefix does not apply' paragraph covers protected deletes
+PASS S2.C12 doc says list checked against merged-branch-cleanup.py by a test
+PASS S2.C12 guard docstring says the same (branch guard never lifted + parity)
+PASS PARITY guard DELETE_PROTECTED == helper PROTECTED (lowercase sets)
+PASS PARITY eight names
+PASS PARITY mutated guard copy reports exactly {'qa'} guard-only
+PASS PARITY mutated helper copy reports exactly {'qa'} helper-only
+PASS PARITY every protected name appears in guard docstring and doc bullet
+PASS S2.C13 guard < 800 lines, no function >= 50 lines
+PASS S2.C13 guard runs on /usr/bin/python3 3.9
+=== probes beyond the criteria
+PASS PROBE blocked :: git push origin :refs/heads/dev
+PASS PROBE blocked :: git push --delete origin dev
+PASS PROBE blocked :: BMN_USER_APPROVED_DEPLOY=1 git push --delete origin Dev
+PASS PROBE blocked :: git push origin --delete refs/heads/main
+PASS PROBE blocked :: git push origin --delete wip/x dev
+PASS PROBE blocked :: BMN_USER_APPROVED_DEPLOY=1 env git push origin --delete dev
+PASS PROBE blocked :: BMN_USER_APPROVED_DEPLOY=1 xargs --replace git push origin --delete dev
+PASS PROBE blocked :: xargs --null git merge --squash x
+PASS PROBE blocked :: xargs -r git merge --squash x
+PASS PROBE blocked :: xargs -0 -n1 git merge --squash
+PASS PROBE blocked :: xargs --max-procs 4 git merge --squash x
+PASS PROBE blocked :: xargs --no-run-if-empty git merge --squash x
+PASS PROBE blocked :: xargs -t -r --verbose git merge --squash x
+PASS PROBE blocked :: xargs -i git merge --squash {}
+PASS PROBE blocked :: xargs -l git merge --squash x
+PASS PROBE blocked :: xargs -e git merge --squash x
+PASS PROBE blocked :: find . | xargs --replace git push origin --delete dev
+PASS PROBE blocked :: fish --login --command='git merge --squash x'
+PASS PROBE blocked :: fish -lc 'git merge --squash x'
+PASS PROBE blocked :: fish --command 'git push origin --delete main'
+PASS PROBE blocked :: timeout 5 xargs --replace git merge --squash x
+PASS PROBE blocked :: sudo -u me fish --command 'git merge --squash x'
+PASS PROBE blocked :: fish --command='fish --command="git merge --squash x"'
+PASS PROBE blocked :: xargs --replace git push origin main
+PASS PROBE blocked :: xargs --replace -t git merge --squash x
+PASS PROBE allowed :: xargs --replace git status
+PASS PROBE allowed :: xargs --max-lines=1 git log
+PASS PROBE allowed :: fish --command='git log'
+PASS PROBE allowed :: echo xargs --replace git merge --squash x
+PASS PROBE allowed :: git push origin --delete wip/dev
+PASS PROBE allowed :: git push origin --delete dev-x
+PASS PROBE allowed :: git push origin --delete feature/dev
+PASS PROBE allowed :: git push origin :wip/main/x
+
+SUMMARY pass=188 fail=0 work=<tmp>
