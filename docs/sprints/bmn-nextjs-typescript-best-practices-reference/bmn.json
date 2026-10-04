@@ -1,6 +1,6 @@
 {
   "run": "bmn-nextjs-typescript-best-practices-reference",
-  "phase": "test1",
+  "phase": "review1",
   "integration": "feat/nextjs-typescript-best-practices-reference",
   "worktree": "/Users/jonathanstevenson/Source/claude-skills-nextjs-typescript-best-practices-reference",
   "live": "dev",
@@ -329,6 +329,34 @@
       "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
       "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a8804188f1b892f8e",
       "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/tests-unit-1",
+      "kind": "wip",
+      "base": "59279a32e2a701a243f433e9e48ce3846d84821d",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a0305833713ca08b9",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-a0305833713ca08b9",
+      "kind": "harness",
+      "base": "59279a32e2a701a243f433e9e48ce3846d84821d",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a0305833713ca08b9",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/tests-content-1",
+      "kind": "wip",
+      "base": "59279a32e2a701a243f433e9e48ce3846d84821d",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ad53425f9db41e217",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-ad53425f9db41e217",
+      "kind": "harness",
+      "base": "59279a32e2a701a243f433e9e48ce3846d84821d",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ad53425f9db41e217",
+      "pushed": false
     }
   ],
   "integration_pushed": true,
@@ -410,5 +438,5 @@
     "origin/dev moved to plugin 1.6.1 (harden run) during this run; merge kept 1.7.0 (higher) in plugin.json and its pinned test."
   ],
   "blocker": null,
-  "updated": "2026-10-04T03:20:00Z"
+  "updated": "2026-10-04T04:00:00Z"
 }
