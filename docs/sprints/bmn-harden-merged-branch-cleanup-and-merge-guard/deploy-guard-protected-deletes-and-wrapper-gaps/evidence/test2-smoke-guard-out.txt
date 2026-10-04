@@ -1,0 +1,67 @@
+PASS block: BMN_USER_APPROVED_DEPLOY=1 git push origin --delete dev  -> Blocked by dev-bother-me-nope branch guard:
+PASS branch-guard advice does not offer the approval prefix
+PASS block: xargs --replace git merge --squash x  -> Blocked by dev-bother-me-nope merge guard:
+PASS block: xargs -I{} git merge --squash {}  -> Blocked by dev-bother-me-nope merge guard:
+PASS block: xargs -I {} git merge --squash {}  -> Blocked by dev-bother-me-nope merge guard:
+PASS block: fish --command='git merge --squash x'  -> Blocked by dev-bother-me-nope merge guard:
+PASS allow: gh pr merge 5 --merge --delete-branch
+PASS allow: git push origin --delete wip/x/y
+PASS block: BMN_USER_APPROVED_DEPLOY=1 git push origin :main  -> Blocked by dev-bother-me-nope branch guard:
+PASS block: BMN_USER_APPROVED_DEPLOY=1 git push -d origin staging  -> Blocked by dev-bother-me-nope branch guard:
+PASS block: BMN_USER_APPROVED_DEPLOY=1 git push origin +:refs/heads/release  -> Blocked by dev-bother-me-nope branch guard:
+PASS block: BMN_USER_APPROVED_DEPLOY=1 sh -c 'git push origin --delete dev'  -> Blocked by dev-bother-me-nope branch guard:
+PASS block: BMN_USER_APPROVED_DEPLOY=1 sudo -u me bash -lc 'git push origin --delete develop'  -> Blocked by dev-bother-me-nope branch guard:
+PASS block: BMN_USER_APPROVED_DEPLOY=1 git -C . push origin --delete DEV  -> Blocked by dev-bother-me-nope branch guard:
+PASS block: BMN_USER_APPROVED_DEPLOY=1 git push origin --delete trunk  -> Blocked by dev-bother-me-nope branch guard:
+PASS block: git push origin --delete trunk  -> Blocked by dev-bother-me-nope branch guard:
+PASS block: git push origin --delete dev  -> Blocked by dev-bother-me-nope branch guard:
+PASS allow: BMN_USER_APPROVED_DEPLOY=1 git push origin main
+PASS allow: BMN_USER_APPROVED_DEPLOY=1 vercel deploy --prod
+PASS block: git push origin main  -> Blocked by dev-bother-me-nope deploy guard:
+PASS allow: BMN_USER_APPROVED_DEPLOY=1 sh -c 'git push origin main'
+PASS allow: git push origin --delete wip/demo/a
+PASS allow: BMN_USER_APPROVED_DEPLOY=1 git push origin --delete feat/run-branch
+PASS allow: git push origin --force-with-lease=refs/heads/wip/x:abc123 --delete wip/x
+PASS block: xargs --max-lines git merge --squash x  -> Blocked by dev-bother-me-nope merge guard:
+PASS block: xargs --eof git merge --squash x  -> Blocked by dev-bother-me-nope merge guard:
+PASS block: xargs --replace=R git merge --squash R  -> Blocked by dev-bother-me-nope merge guard:
+PASS block: xargs --max-lines=1 gh pr merge 12 --squash --delete-branch  -> Blocked by dev-bother-me-nope merge guard:
+PASS block: xargs --replace vercel deploy --prod  -> Blocked by dev-bother-me-nope deploy guard:
+PASS block: xargs -L 1 git merge --squash x  -> Blocked by dev-bother-me-nope merge guard:
+PASS block: xargs -n 1 git merge --squash x  -> Blocked by dev-bother-me-nope merge guard:
+PASS block: xargs --max-args 1 git merge --squash x  -> Blocked by dev-bother-me-nope merge guard:
+PASS block: xargs -E EOF git merge --squash x  -> Blocked by dev-bother-me-nope merge guard:
+PASS block: xargs --process-slot-var SLOT git merge --squash x  -> Blocked by dev-bother-me-nope merge guard:
+PASS allow: xargs -I {} git status {}
+PASS allow: xargs --replace echo squash
+PASS block: fish --command 'git merge --squash x'  -> Blocked by dev-bother-me-nope merge guard:
+PASS block: fish -c 'git merge --squash x'  -> Blocked by dev-bother-me-nope merge guard:
+PASS block: fish --command='git push origin --delete dev'  -> Blocked by dev-bother-me-nope branch guard:
+PASS block: BMN_USER_APPROVED_DEPLOY=1 fish --command 'git merge --squash x'  -> Blocked by dev-bother-me-nope merge guard:
+PASS allow: fish --command='git status'
+PASS allow: fish script.fish --command 'git merge --squash x'
+PASS allow: git push origin --delete dev
+PASS allow: xargs --replace git merge --squash x
+PASS parity: guard DELETE_PROTECTED == helper PROTECTED
+PASS parity: every protected name in guard docstring and deploy-guards.md
+PASS deploy-guards.md: protected-delete is a branch-guard block never lifted; wrapper bullet names xargs --replace and fish --command
+PASS deploy-guards.md: xargs --replace and fish --command named
+PASS deploy-guards.md: blind spots paragraph does not list xargs --replace / fish; eval, doas, env -S remain
+PASS AC10 is_cache True for all 19 listed regenerable entries
+PASS AC11 is_cache False for .env/near-misses/untracked/modified/case variants
+PASS AC8 SKILL CLEANUP + cleaner brief route unpushed case via --local-only helper command
+PASS AC8 no hand-run text 'worktree remove <path>' in CLEANUP/cleaner
+PASS AC8 no hand-run text 'update-ref -d' in CLEANUP/cleaner
+PASS AC8 no hand-run text 'merge-base --is-ancestor "$sha"' in CLEANUP/cleaner
+PASS AC8 no hand-run text 'sha=$(' in CLEANUP/cleaner
+PASS AC8 no hand-run text 'the helper has no flag' in CLEANUP/cleaner
+PASS AC8 origin:<integration> / 'origin copy not pushed by this run' still stated
+PASS AC9 leftover sweep passes --local-only when integration_pushed false
+PASS AC9 every helper invocation uses ${CLAUDE_PLUGIN_ROOT}/assets/bin form
+PASS AC14 SKILL CLEANUP: 'worktree prune' only in a never-sentence
+PASS AC14 cleaner brief: 'worktree prune' only in a never-sentence
+PASS AC14 cleaner text has no repo-wide prune instruction (sections non-empty)
+PASS AC15 plugin.json version (story says 1.6.1; dev already at 1.7.0 so it must be >= 1.6.1)
+plugin version 1.7.0
+
+SMOKE-GUARD 64 pass, 0 fail
