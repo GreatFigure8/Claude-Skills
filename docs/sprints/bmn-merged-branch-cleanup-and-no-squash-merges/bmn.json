@@ -1,6 +1,6 @@
 {
   "run": "bmn-merged-branch-cleanup-and-no-squash-merges",
-  "phase": "review1",
+  "phase": "fix1",
   "integration": "feat/merged-branch-cleanup-and-no-squash-merges",
   "worktree": "/Users/jonathanstevenson/Source/claude-skills-merged-branch-cleanup-and-no-squash-merges",
   "live": "dev",
@@ -135,7 +135,10 @@
       "worktree-agent-aa07c02af642a0543 (local)",
       "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a2dbcee5d3cf7beb2 (worktree)",
       "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a3bb30180729f2c5e (worktree)",
-      "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-aa07c02af642a0543 (worktree)"
+      "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-aa07c02af642a0543 (worktree)",
+      "wip/merged-branch-cleanup-and-no-squash-merges/tests-unit-1 (local+origin)",
+      "worktree-agent-a29d2e12223eaba6c (local)",
+      "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a29d2e12223eaba6c (worktree)"
     ],
     "left": []
   },
@@ -155,10 +158,11 @@
   },
   "handoff": null,
   "assumptions": [
-    "Scope: dev-bother-me-nope only (see stack.md assumptions 1-6)"
+    "Scope: dev-bother-me-nope only (see stack.md assumptions 1-6)",
+    "R1-6 (owner run) is in deploy-guard.py, so the deploy-guard fixer takes it alongside R1-5 to avoid two fixers editing one file"
   ],
   "blocker": null,
-  "updated": "2026-10-04T01:56:17.170104+00:00",
+  "updated": "2026-10-04T02:04:12.505246+00:00",
   "dev_merges": [
     {
       "phase": "merge1",
