@@ -1,0 +1,63 @@
+{
+  "run": "bmn-harden-merged-branch-cleanup-and-merge-guard",
+  "phase": "split",
+  "integration": "fix/harden-merged-branch-cleanup-and-merge-guard",
+  "worktree": "/Users/jonathanstevenson/Source/claude-skills-harden-merged-branch-cleanup-and-merge-guard",
+  "live": "dev",
+  "dev_base": "d8b709f914fbbd40e0c7f77a2a4549114ec6e20f",
+  "review_shas": {
+    "review1": null,
+    "review2": null
+  },
+  "stack": {
+    "kind": "library",
+    "ui": false,
+    "supabase": false,
+    "vercel": false,
+    "vercel_json": [],
+    "dev_push_deploys": false,
+    "supabase_dev_ref": null,
+    "supabase_main_ref": null
+  },
+  "stories": [],
+  "temp_refs": [],
+  "integration_pushed": true,
+  "cleanup": {
+    "deleted": [],
+    "left": []
+  },
+  "deploy_pending": {
+    "vercel": [],
+    "supabase_migrations": []
+  },
+  "supabase_dev_applied": [],
+  "design": {
+    "needed": false,
+    "project_id": null,
+    "url": null,
+    "round": 0,
+    "options": [],
+    "picked": null,
+    "feedback": []
+  },
+  "repo_policy": {
+    "repo": "GreatFigure8/Claude-Skills",
+    "status": "changed",
+    "changes": {
+      "allow_squash_merge": {
+        "old": true,
+        "new": false
+      },
+      "delete_branch_on_merge": {
+        "old": false,
+        "new": true
+      }
+    }
+  },
+  "handoff": null,
+  "assumptions": [
+    "see stack.md assumptions 1-6"
+  ],
+  "blocker": null,
+  "updated": "2026-10-04T07:38:23.728032+00:00"
+}

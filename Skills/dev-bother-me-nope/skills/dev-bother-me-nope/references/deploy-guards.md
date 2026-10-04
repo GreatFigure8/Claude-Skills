@@ -60,7 +60,9 @@ orchestrator may, and only after Jonathan's chat instruction.
 Jonathan's standing rule: history stays, and a merged PR's source branch goes. While a run is
 active the hook's second rule family (the *merge guard*) refuses every squash merge and every
 `gh pr merge` that would leave its source branch on origin. A merge-guard refusal begins
-`Blocked by dev-bother-me-nope merge guard:` and names the allowed forms.
+`Blocked by dev-bother-me-nope merge guard:` and names the allowed forms. The third family, the
+*branch guard*, refuses deleting a protected branch on origin; like the merge guard it runs
+before the approval pass-through and is never lifted by it.
 
 **Blocked**
 - `git merge --squash`, `git pull --squash` (also `git -C <dir> merge --squash`, `--no-ff
@@ -77,14 +79,24 @@ active the hook's second rule family (the *merge guard*) refuses every squash me
   `timeout [-k 5] 60`, `sudo [-u me]`, `nice [-n 5]`, `nohup`, `env [-u X]`, `command`,
   `xargs [-n1]`, and `sh -c '…'` / `bash -lc '…'` / `sh -ec '…'` / `bash -o pipefail -c '…'`
   (bundled flags, the command string is checked as its own command, nested to any depth).
-  `timeout 60 git merge --squash x` and `sudo -u me gh pr merge 12 -s -d` are blocked like
-  the bare commands; `bash run.sh -c 'git merge --squash x'` is a script's argument, not a
+  GNU `xargs --replace`, `--max-lines` and `--eof` take a value only after `=`
+  (`xargs --replace=R …`), so `xargs --replace git merge --squash x` is read like
+  `xargs git merge --squash x`; `xargs -I {}`, `-L 1`, `-E EOF` and `--max-args 1` still take
+  the next word. fish's spelling is read too: `fish -c '…'`, `fish --command '…'` and
+  `fish --command='…'` (`--command` is read for every shell; no other long flag changes
+  meaning). `timeout 60 git merge --squash x` and `sudo -u me gh pr merge 12 -s -d` are blocked
+  like the bare commands; `bash run.sh -c 'git merge --squash x'` is a script's argument, not a
   shell command string, and is not read.
-- Deleting a protected branch on origin: `git push origin --delete dev` (also `develop`,
-  `staging`, `main`, `master`, `prod`, `production`, `release`, the remote's default branch
-  read from `refs/remotes/<remote>/HEAD`, any case), `git push -d origin dev`, and the
-  empty-source refspecs `git push origin :dev` / `+:refs/heads/dev`. This is a deploy-guard
-  block, not a merge-guard one. Pushing to `dev` stays allowed.
+- Deleting a protected branch on origin: `git push origin --delete dev` (the protected names
+  are `main`, `master`, `prod`, `production`, `release`, `dev`, `develop` and `staging`, plus
+  the remote's default branch read from `refs/remotes/<remote>/HEAD`; any case),
+  `git push -d origin dev`, and the empty-source refspecs `git push origin :dev` /
+  `+:refs/heads/dev`. This is a branch-guard
+  block, not a deploy-guard or merge-guard one: `BMN_USER_APPROVED_DEPLOY=1` never lifts it, also
+  inside `sh -c`, and its refusal begins `Blocked by dev-bother-me-nope branch guard:` without
+  offering the prefix. Jonathan deletes a protected branch himself. The eight names are one list
+  in `deploy-guard.py` (`DELETE_PROTECTED`) and `merged-branch-cleanup.py` (`PROTECTED`), held
+  equal by `test_protected_branch_parity.py`. Pushing to `dev` stays allowed.
 
 **Allowed**
 - `git merge --no-ff <branch>`, and for a PR `gh pr merge <n> --merge --delete-branch`.
@@ -106,8 +118,9 @@ follow spf13/pflag v1.0.10, the parser inside gh: `-t "-s fix"` is a value, not 
 (`echo 'gh pr merge --squash'`, `git log --grep=squash`) never trigger it.
 
 **The approval prefix does not apply.** `BMN_USER_APPROVED_DEPLOY=1` is a deploy pass-through
-only: the merge rules still run with it, also inside `bash -c`. "No more squash merging" has no
-in-run exception. If Jonathan ever wants a squash, he runs it himself.
+only: the merge rules and the branch guard (protected-branch deletes) still run with it, also
+inside `bash -c`. "No more squash merging" has no in-run exception, and neither has deleting
+`dev`. If Jonathan ever wants a squash or a protected branch gone, he runs it himself.
 
 **Outside a run, and the repo setting.** The hook acts only while a run is unfinished (phase
 not `done` or `blocked`). Merges made outside a run, in the GitHub UI or in other sessions, are
@@ -118,9 +131,12 @@ covered by the repo settings INTAKE sets: `allow_squash_merge=false` and
 `-F key=@file` bodies, GraphQL variables not named `mergeMethod`, `curl` against the REST API,
 git aliases, `branch.<name>.mergeOptions=--squash`, `eval`, wrappers outside the list above
 (`doas`, `ionice`, `stdbuf`, `setsid`, `caffeinate`, `watch`, `script -c`, `env -S '<string>'`),
-value flags of the runners `uv run`, `poetry run`, `pnpm exec` and `npx -y`, bundled git short
-flags such as `-qm`, and a protected branch deleted with `git branch -D` locally (only the
-origin delete is guarded; `merged-branch-cleanup.py` refuses protected names itself). Two consequences are accepted. `gh` refuses `--delete-branch` on a
+abbreviated long options of a wrapper (`xargs --max-a 1`, `fish --comm '…'`), value flags of the
+runners `uv run`, `poetry run`, `pnpm exec` and `npx -y`, bundled git short flags such as
+`-qm`, a protected branch deleted with `git push --prune <refspec>` (the guard reads only
+`--delete`, `-d` and empty-source refspecs), and a protected branch deleted with `git branch -D`
+locally (only the origin delete is guarded; `merged-branch-cleanup.py` refuses protected names
+itself). Two consequences are accepted. `gh` refuses `--delete-branch` on a
 merge-queue branch, so a run cannot merge such a PR (bmn merges with `git merge --no-ff` and
 has no merge queue). `gh pr merge --auto … -d` deletes nothing itself; GitHub deletes the
 branch when the auto-merge lands only if `delete_branch_on_merge=true`.
@@ -157,5 +173,5 @@ Only the named step, only for the named target. Prefix the CLI command with
 `BMN_USER_APPROVED_DEPLOY=1` (the guard's pass-through), show the output, confirm it
 landed (e.g. `supabase migration list --linked`), tick it off in `report.md`, and commit.
 MCP deploy tools stay blocked even then — use the CLI. Approval never carries to the next
-step or the next project. The prefix never applies to the merge rules — see *Merge commits
-only* above.
+step or the next project. The prefix never applies to the merge rules or the branch guard — see
+*Merge commits only* above.
