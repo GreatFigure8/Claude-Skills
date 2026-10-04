@@ -62,3 +62,38 @@ cannot refuse it. Accident guard, not a sandbox.
 1. The hook was driven exactly as Claude Code does, a JSON payload on stdin with the active-run fixture
    `docs/sprints/bmn-demo/bmn.json` (phase `build`) in a tmp clone whose `refs/remotes/origin/HEAD` is `trunk`.
 2. The same smoke run covers both stories; its story 2 output is `evidence/smoke-story2-out.txt`.
+
+## FIX①
+
+Fixer branch `wip/harden-merged-branch-cleanup-and-merge-guard/deploy-guard-protected-deletes-and-wrapper-gaps-fix`,
+cut from `origin/fix/harden-merged-branch-cleanup-and-merge-guard` @ `5c27dfd`. Reproducing tests are in
+`Skills/dev-bother-me-nope/assets/tests/test_guard_review1_gaps.py`. Before the fix, 43 of its 62 tests failed (every
+one for the stated reason: the hook exited 0 where 2 was expected, or counted 2 parses / N default-branch lookups
+where 1 was expected, or a doc string was missing); the rest pin behaviour that already held.
+
+| Id | Result | Evidence |
+| --- | --- | --- |
+| R1-2 | fixed | `test_heads_slash_name_is_a_protected_delete` (16 cases: eight spellings, with and without the approval prefix), `test_heads_form_of_the_default_branch_is_a_protected_delete`, `test_pushing_to_a_production_branch_through_heads_is_a_deploy_block`; allowed cleanup pinned by `test_heads_form_cleanup_stays_allowed_with_and_without_the_prefix`, including a branch literally named `heads/dev` (`refs/heads/heads/dev`). `ref_destination` now strips one `refs/heads/` or `heads/` prefix (regex `BRANCH_REF_PREFIX`). |
+| R1-3 | fixed | `test_blocks_squash_merges_behind_fish_init_commands` (12 cases: `-C S`, `-lC S`, `--init-command S`, `--init-command=S`, before or after `-c`, a second `-C`, with a script file, behind `sudo`, with the approval prefix, and `bash -C -c` still read), `test_fish_init_command_reaches_the_deploy_and_branch_guards`, `test_fish_init_leaves_harmless_commands_and_script_arguments_alone`. `shell_command_string` became `shell_command_strings`: it returns every string the shell runs and `check_segment` checks each. `-C` and `--init-command` are read for fish only (bash's `-C` is noclobber). |
+| R1-4 | fixed (documented, not guarded) | `test_doc_blind_spots_name_gh_api_ref_deletes_and_the_github_mcp_branch_tools`: *Known blind spots* now names `gh api -X DELETE repos/<o>/<r>/git/refs/heads/<protected>` and the GitHub MCP server's branch tools. |
+| R1-5 | fixed | `test_each_push_segment_is_parsed_once` (spy on `push_parts`: 1 call per `git push` segment, was 2) and `test_the_default_branch_is_looked_up_at_most_once_per_push` (spy on `default_branch`: 1 lookup for `--delete a b c d`, was 4; 0 when a refspec is already a protected name or the push deletes nothing). `check_segment` parses the push once and hands it to `unliftable_block` and `deploy_reason`; `deleted_protected_ref` looks the default branch up lazily, once, keeping first-match order (`test_a_default_branch_match_still_names_the_first_doomed_refspec`). |
+
+Docs touched with the fixes: `references/deploy-guards.md` (wrapper bullet names `fish -C` / `--init-command`; protected-delete
+bullet names the `heads/<name>` form; blind spots add `fish --init`, `gh api -X DELETE …/git/refs/heads/<protected>` and the
+GitHub MCP branch tools) and the guard's module docstring, each pinned by a test in the new file.
+
+Gates after FIX①: `uv run --quiet --with pytest python -m pytest Skills/dev-bother-me-nope/assets/tests -q` 658 passed;
+the same with `--python /usr/bin/python3` (3.9.6) 658 passed; `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope/assets`
+all checks passed. `deploy-guard.py` is 797 lines (limit 800); no function reaches 50 lines.
+
+### Assumptions (FIX①)
+
+1. R1-4 is closed by documenting the two blind spots, not by guarding `gh api -X DELETE`: the story's out-of-scope note
+   already leaves the GitHub MCP tools as listed blind spots, and `deploy-guard.py` has 3 lines of headroom under its
+   800-line cap. A guard for the REST path is a new goal if Jonathan wants one.
+2. fish was not installed on this machine, so its grammar rests on its documented `-C`/`--init-command` text (evaluated
+   after the config, before the `-c` command) and the same getopt rules the `--command` support already assumes. Only
+   the documented spellings are read; abbreviations (`--init`) are listed as blind spots.
+3. `git push <remote> heads/<name>` (no colon) also resolves to the production branch, so the deploy family reads it
+   through the same `ref_destination`.
+4. The guard keeps plain tuples for the parsed push, as before; a NamedTuple would not fit under the 800-line cap.
