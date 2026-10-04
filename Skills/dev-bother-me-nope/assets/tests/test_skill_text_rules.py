@@ -1,4 +1,4 @@
-"""Text-presence tests for the 1.6.0 rules: merge commits only, every merged branch deleted.
+"""Text-presence tests for the 1.6.x rules: merge commits only, every merged branch deleted.
 
 Each test reads the plugin's Markdown/JSON and asserts the named section holds the required
 commands and phrases. Section lookup is by heading text so the tests survive line shifts.
@@ -182,9 +182,9 @@ def _bmn_json_schema():
 # --- AC1: plugin.json -------------------------------------------------------------
 
 
-def test_plugin_json_is_version_1_6_0():
+def test_plugin_json_is_version_1_6_1():
     data = json.loads(_read(PLUGIN_JSON))
-    assert data["version"] == "1.6.0"
+    assert data["version"] == "1.6.1"
 
 
 def test_plugin_description_names_merge_commits_and_branch_cleanup():
@@ -551,18 +551,44 @@ def test_unpushed_run_branch_is_still_deleted_locally(where):
     )
 
 
+LOCAL_ONLY_CALLS = {
+    "SKILL.md CLEANUP": "--repo <main checkout> --branch <integration> --target origin/dev --local-only",
+    "cleaner brief": "--repo {repo_path} --branch {integration} --target origin/dev --local-only",
+}
+HAND_RUN_REMNANTS = (
+    "worktree remove <path>",
+    "update-ref -d",
+    'merge-base --is-ancestor "$sha"',
+    "sha=$(",
+    "the helper has no flag",
+    "git branch -D",
+)
+
+
 @pytest.mark.parametrize("where", ["SKILL.md CLEANUP", "cleaner brief"])
 def test_unpushed_run_branch_names_the_local_only_steps(where):
-    step = _norm(_run_branch_steps()[where])
-    assert re.search(r"no (flag|switch|option)[^.]*origin copy", step), "must say it has no flag"
+    step = _run_branch_steps()[where]
     _assert_has(
         step,
-        "merge-base --is-ancestor",
-        "worktree remove <path>",
-        "without --force",
-        "update-ref -d refs/heads/",
+        "python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py " + LOCAL_ONLY_CALLS[where],
+        "--local-only",
+        "origin:",
     )
-    assert "git branch -D" not in step
+    _assert_lacks(step, *HAND_RUN_REMNANTS)
+
+
+def test_leftover_sweep_passes_local_only_when_the_run_did_not_push():
+    sweep = _paragraph(_skill(), "**Leftover sweep")
+    _assert_has(sweep, "--local-only", "integration_pushed", "--target origin/dev")
+    assert re.search(r"--local-only[^.]*integration_pushed[^.]*false", _norm(sweep))
+
+
+@pytest.mark.parametrize("where", ["SKILL.md CLEANUP", "cleaner brief"])
+def test_cleanup_text_never_runs_a_repo_wide_worktree_prune(where):
+    section = _section(_skill(), "10b · CLEANUP") if where == "SKILL.md CLEANUP" else _brief("cleaner")
+    pruning = [item for item in _sentences(section) if re.search(r"worktree\s+prune", item)]
+    unforbidden = [item for item in pruning if not re.search(r"\bnever\b", item, re.IGNORECASE)]
+    assert not unforbidden, unforbidden
 
 
 @pytest.mark.parametrize("where", ["SKILL.md CLEANUP", "cleaner brief"])

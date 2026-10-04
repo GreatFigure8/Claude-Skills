@@ -221,7 +221,9 @@ hasn't committed. A run from before 1.5.0 maps its old phase first: `review1` �
 **Leftover sweep:** a `done` or `blocked` run whose `cleanup.left` names its run
 branch, and that branch is now in `origin/dev` (Jonathan merged it), gets CLEANUP's run
 step now:
-`python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo <main checkout> --branch <run branch> --target origin/dev`.
+`python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo <main checkout> --branch <run branch> --target origin/dev`,
+adding `--local-only` when that run's `integration_pushed` is false (the sweep never deletes an
+origin copy the run didn't push).
 
 A run resumed at `phase: design` with `design.picked: null` re-asks the design question
 from the options already in `bmn.json` — it doesn't redesign.
@@ -471,20 +473,17 @@ touches only what `bmn.json` names:
    The local branch, the origin copy and every worktree on the branch (the run worktree
    included, when clean) go only if the branch is an ancestor of `origin/dev`. Anything the
    helper leaves ("origin has commits not in dev", `dev_push_deploys`, blocked before merging,
-   a dirty run worktree) is recorded with its reason; then `git worktree prune`.
-   Only the origin copy is gated on `integration_pushed`. When it is false and
-   `origin/<integration>` exists anyway, this run didn't push that copy, so it stays and goes
-   into `left` as `origin:<integration>`, "origin copy not pushed by this run" — but the local
-   branch and every worktree on it are still deleted. The helper has no flag that skips the
-   origin copy (it always deletes one that is merged), so run its local part by hand, with
-   its rules: `sha=$(git -C <main checkout> rev-parse refs/heads/<integration>)`;
-   `git -C <main checkout> merge-base --is-ancestor "$sha" origin/dev` must exit 0, else
-   delete nothing and record why; `git -C <main checkout> worktree remove <path>` without
-   --force for every worktree on the branch that isn't the main checkout (git refuses a dirty
-   or locked one, which goes into `left`); then, once none holds it,
-   `git -C <main checkout> update-ref -d refs/heads/<integration> "$sha"` (a branch that moved
-   since is kept). Record `worktree:<path>` and `local:<integration>` in `deleted`, as the
-   helper does.
+   a dirty run worktree) is recorded with its reason. Never run `git worktree prune`: it is
+   repo-wide and would discard another branch's worktree record.
+   Only the origin copy is gated on `integration_pushed`. When it is false, append
+   `--local-only` to that command:
+   `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo <main checkout> --branch <integration> --target origin/dev --local-only`.
+   If `origin/<integration>` exists anyway, this run didn't push that copy, so the helper never
+   pushes to, deletes or leases it and lists it in `left` as `origin:<integration>`; record that
+   entry as "origin copy not pushed by this run" (replacing the helper's reason). The local
+   branch and every worktree on it are still deleted, with all of the helper's checks: ancestry
+   of `origin/dev`, the rebase and bisect check, no `--force`, and a worktree holding ignored
+   files other than regenerable build output is kept.
 3. **Record.** When step 2 deleted the branch, first `git -C <repo> worktree add --detach
    <dev_worktree> origin/dev`; then edit `report.md` (the *Git cleanup* section), `bmn.json`
    (`cleanup`; `phase: blocked` when `blocker` is non-null, else `done`) and every
