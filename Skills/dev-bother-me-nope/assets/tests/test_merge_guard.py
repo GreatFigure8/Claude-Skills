@@ -12,6 +12,8 @@ from test_deploy_guard import GUARD, bash, guard_in, mcp, new_repo, run_guard, s
 
 MERGE_PREFIX = "Blocked by dev-bother-me-nope merge guard:"
 DEPLOY_PREFIX = "Blocked by dev-bother-me-nope deploy guard:"
+BRANCH_PREFIX = "Blocked by dev-bother-me-nope branch guard:"
+APPROVED = "BMN_USER_APPROVED_DEPLOY=1"
 PLUGIN_ROOT = GUARD.parents[2]
 DEPLOY_GUARDS_DOC = (PLUGIN_ROOT / "skills" / "dev-bother-me-nope" / "references"
                      / "deploy-guards.md")
@@ -279,7 +281,7 @@ def test_compare_and_delete_of_a_remote_branch_is_allowed(command):
 def test_push_delete_of_a_protected_branch_stays_blocked():
     result = bash("git push origin --delete main")
     assert result.returncode == 2
-    assert "deploy guard:" in result.stderr
+    assert result.stderr.startswith(BRANCH_PREFIX)
 
 
 # ---- FIX1 R1-5: wrappers that take options or values, and bundled shell -c ----
@@ -427,7 +429,7 @@ ALLOWED_BRANCH_PUSHES = [
 def test_blocks_deleting_protected_branches_on_origin(command):
     result = bash(command)
     assert result.returncode == 2, command
-    assert result.stderr.startswith(DEPLOY_PREFIX), command
+    assert result.stderr.startswith(BRANCH_PREFIX), command
 
 
 @pytest.mark.parametrize("command", ALLOWED_BRANCH_PUSHES)
@@ -438,7 +440,10 @@ def test_allows_deleting_wip_and_run_branches_and_pushing_dev(command):
 def test_protected_delete_message_names_the_branch_spec():
     result = bash("git push origin --delete dev")
     assert result.stderr.startswith(
-        f"{DEPLOY_PREFIX} `git push … dev` deletes a protected branch. ")
+        f"{BRANCH_PREFIX} `git push … dev` deletes a protected branch. ")
+    assert "never deleted inside a bmn run" in result.stderr
+    assert "Jonathan deletes it himself" in result.stderr
+    assert "BMN_USER_APPROVED_DEPLOY" not in result.stderr
 
 
 def repo_with_default_branch(name):
@@ -458,7 +463,7 @@ def test_blocks_deleting_the_default_branch(command):
     root = repo_with_default_branch("trunk")
     result = guard_in(root, command)
     assert result.returncode == 2, command
-    assert result.stderr.startswith(DEPLOY_PREFIX), command
+    assert result.stderr.startswith(BRANCH_PREFIX), command
 
 
 @pytest.mark.parametrize("command", [
@@ -520,6 +525,7 @@ MERGE_RULE_FUNCTIONS = [
     "is_abbrev", "git_merge_squashes", "check_git_merge", "pflag_items", "long_flag",
     "short_cluster", "is_true", "check_gh", "check_gh_pr_merge", "check_gh_api",
     "is_squash_field", "merge_reason", "check_mcp_merge", "block_message",
+    "push_parts", "branch_reason", "unliftable_block",
 ]
 MUTATING_CALLS = frozenset({"append", "extend", "insert", "pop", "remove", "sort", "clear",
                             "update"})
@@ -585,3 +591,164 @@ def test_doc_lists_the_protected_branch_deletes():
     section = merge_section(DEPLOY_GUARDS_DOC.read_text())
     for text in ("git push origin --delete dev", ":dev", "default branch", "--force-with-lease"):
         assert text in section, text
+
+
+# ---- R2-4: the approval prefix never lifts a protected-branch delete (branch guard) ----
+
+APPROVED_PROTECTED_DELETES = [
+    f"{APPROVED} git push origin --delete dev",
+    f"{APPROVED} git push origin :main",
+    f"{APPROVED} git push -d origin staging",
+    f"{APPROVED} git push origin +:refs/heads/release",
+    f"{APPROVED} sh -c 'git push origin --delete dev'",
+    f"{APPROVED} sudo -u me bash -lc 'git push origin --delete develop'",
+    f"{APPROVED} git -C . push origin --delete DEV",
+]
+
+CLEANUP_DELETES = [
+    "git push origin --delete wip/demo/a",
+    "git push origin --delete feat/run-branch",
+    "git push origin --force-with-lease=refs/heads/wip/x:0a1b2c3d --delete wip/x",
+    *ALLOWED_DELETES,
+    *ALLOWED_BRANCH_PUSHES,
+]
+
+
+@pytest.mark.parametrize("command", APPROVED_PROTECTED_DELETES)
+def test_approval_prefix_does_not_lift_protected_deletes(command):
+    result = bash(command)
+    assert result.returncode == 2, command
+    assert result.stderr.startswith(BRANCH_PREFIX), command
+    assert "BMN_USER_APPROVED_DEPLOY" not in result.stderr, command
+
+
+def test_approved_delete_of_the_default_branch_stays_blocked():
+    root = repo_with_default_branch("trunk")
+    command = f"{APPROVED} git push origin --delete trunk"
+    result = guard_in(root, command)
+    assert result.returncode == 2, command
+    assert result.stderr.startswith(BRANCH_PREFIX), command
+
+
+@pytest.mark.parametrize("command", CLEANUP_DELETES)
+def test_cleanup_deletes_stay_allowed_with_and_without_the_prefix(command):
+    assert bash(command).returncode == 0, command
+    assert bash(f"{APPROVED} {command}").returncode == 0, command
+
+
+# ---- R2-5: GNU xargs long flags with an optional value, and `fish --command` ----
+
+@pytest.mark.parametrize("command", [
+    "xargs --replace git merge --squash x",
+    "xargs --max-lines git merge --squash x",
+    "xargs --eof git merge --squash x",
+    "xargs --replace=R git merge --squash R",
+    "xargs --max-lines=1 gh pr merge 12 --squash --delete-branch",
+])
+def test_blocks_merges_behind_gnu_xargs_long_flags(command):
+    assert_merge_blocked(bash(command), command)
+
+
+def test_blocks_deploys_behind_gnu_xargs_long_flags():
+    result = bash("xargs --replace vercel deploy --prod")
+    assert result.returncode == 2
+    assert result.stderr.startswith(DEPLOY_PREFIX)
+
+
+@pytest.mark.parametrize("flags", [
+    "-I {}", "-L 1", "-n 1", "--max-args 1", "-E EOF", "--process-slot-var SLOT",
+])
+def test_xargs_value_flags_still_consume_their_value(flags):
+    command = f"xargs {flags} git merge --squash x"
+    assert_merge_blocked(bash(command), command)
+
+
+@pytest.mark.parametrize("command", ["xargs -I {} git status {}", "xargs --replace echo squash"])
+def test_xargs_value_flags_leave_harmless_commands_alone(command):
+    assert bash(command).returncode == 0, command
+
+
+@pytest.mark.parametrize("command", [
+    "fish --command='git merge --squash x'",
+    "fish --command 'git merge --squash x'",
+    "fish -c 'git merge --squash x'",
+    f"{APPROVED} fish --command 'git merge --squash x'",
+])
+def test_blocks_squash_merges_behind_fish_command(command):
+    assert_merge_blocked(bash(command), command)
+
+
+def test_fish_command_reaches_the_branch_guard():
+    result = bash("fish --command='git push origin --delete dev'")
+    assert result.returncode == 2
+    assert result.stderr.startswith(BRANCH_PREFIX)
+
+
+@pytest.mark.parametrize("command", [
+    "fish --command='git status'",
+    "fish script.fish --command 'git merge --squash x'",
+])
+def test_fish_allows_harmless_strings_and_script_arguments(command):
+    assert bash(command).returncode == 0, command
+
+
+@pytest.mark.parametrize("shell", ["sh", "bash", "zsh", "dash", "ksh", "fish"])
+def test_command_long_flag_is_read_for_every_shell(shell):
+    command = f"{shell} --command 'git merge --squash x'"
+    assert_merge_blocked(bash(command), command)
+
+
+def test_no_other_long_shell_flag_changes_meaning():
+    command = "bash --norc --login -c 'git merge --squash x'"
+    assert_merge_blocked(bash(command), command)
+    assert bash("bash --norc --login run.sh").returncode == 0
+
+
+# ---- R2-4 / R2-5 docs: what the guard covers and what it does not ----
+
+def normalised(text):
+    return " ".join(text.split())
+
+
+def list_item(doc, start):
+    """The markdown bullet beginning `start`, up to the next bullet or blank line."""
+    begin = doc.index(start)
+    ends = [doc.find(sep, begin + 1) for sep in ("\n- ", "\n\n")]
+    return normalised(doc[begin:min(end for end in ends if end != -1)])
+
+
+def test_doc_names_xargs_long_flags_and_fish_command():
+    wrapper = list_item(merge_section(DEPLOY_GUARDS_DOC.read_text()),
+                        "- All of the above behind a wrapper")
+    for text in ("xargs --replace", "fish -c", "fish --command"):
+        assert text in wrapper, text
+
+
+def test_doc_blind_spots_omit_covered_xargs_and_fish_forms():
+    spots = blind_spots(DEPLOY_GUARDS_DOC.read_text())
+    for covered in ("xargs --replace", "fish -c", "fish --command"):
+        assert covered not in spots, covered
+    assert "git push --prune" in spots
+
+
+def test_doc_calls_protected_deletes_a_branch_guard_block():
+    bullet = list_item(DEPLOY_GUARDS_DOC.read_text(), "- Deleting a protected branch on origin")
+    for text in ("branch-guard block", "BMN_USER_APPROVED_DEPLOY=1", "never lifts",
+                 "Blocked by dev-bother-me-nope branch guard:"):
+        assert text in bullet, text
+    assert "deploy-guard block" not in bullet
+
+
+def test_doc_approval_paragraph_covers_protected_deletes():
+    doc = normalised(DEPLOY_GUARDS_DOC.read_text())
+    start = doc.index("**The approval prefix does not apply.**")
+    paragraph = doc[start:start + doc[start:].index("**Outside a run")]
+    assert "protected" in paragraph and "branch guard" in paragraph
+    assert "branch guard" in doc[doc.index("## When approved"):]
+
+
+def test_guard_docstring_says_the_prefix_never_lifts_protected_deletes():
+    docstring = normalised(ast.get_docstring(guard_tree()))
+    for text in ("branch guard", "never lifts", "merged-branch-cleanup.py",
+                 "test_protected_branch_parity.py", "xargs --replace", "fish --command"):
+        assert text in docstring, text

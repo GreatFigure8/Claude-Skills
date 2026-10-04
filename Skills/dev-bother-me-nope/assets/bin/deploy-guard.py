@@ -8,17 +8,20 @@ BMN_USER_APPROVED_DEPLOY=1 (set only when Jonathan said "deploy" in chat). One e
 .claude/bmn.config.json — never MAIN. Anything it cannot parse is allowed — this is an
 accident guard, not a sandbox.
 
-A second rule family, the merge guard, keeps history: it blocks every squash merge
-(`git merge|pull --squash`, `gh pr merge --squash`/`-s`, `gh api` with merge_method=squash, the
-GitHub MCP `merge_pull_request` with merge_method=squash) and every `gh pr merge` that omits
---delete-branch (a merged PR's source branch is deleted). Merge commits only: `git merge
---no-ff`, `gh pr merge <n> --merge --delete-branch`. The approval prefix is a deploy-only
-pass-through, so it never unlocks a merge rule; branch cleanup (`git push origin --delete`,
-`git branch -D`, `git worktree remove|prune`) is never blocked, except that `git push
---delete`/`:ref` never removes a protected branch (main master prod production release dev
-develop staging, or the remote's default branch). Wrappers that take options or values
-(`timeout 60`, `sudo -u me`, `nice -n 5`, `env -u X`, `xargs -n1`) and bundled shell flags
-(`sh -ec '…'`) are unwrapped before matching.
+Two more rule families are checked before that approval pass-through, so the prefix is a
+deploy-only pass-through that never lifts either of them. The merge guard keeps history: it
+blocks every squash merge (`git merge|pull --squash`, `gh pr merge --squash`/`-s`, `gh api` with
+merge_method=squash, the GitHub MCP `merge_pull_request` with merge_method=squash) and every
+`gh pr merge` that omits --delete-branch (a merged PR's source branch is deleted). Merge commits
+only: `git merge --no-ff`, `gh pr merge <n> --merge --delete-branch`. The branch guard keeps the
+integration branches: `git push --delete`/`:ref` never removes a protected branch (main master
+prod production release dev develop staging, or the remote's default branch), approved deploy or
+not; if one should go, Jonathan deletes it himself. DELETE_PROTECTED is held equal to
+merged-branch-cleanup.py's PROTECTED by test_protected_branch_parity.py. Branch cleanup
+(`git push origin --delete <wip or run branch>`, `git branch -D`, `git worktree remove|prune`)
+is never blocked. Wrappers that take options or values (`timeout 60`, `sudo -u me`, `nice -n 5`,
+`env -u X`, `xargs -n1`, `xargs --replace`) and shell command strings (`sh -ec '…'`,
+`fish --command '…'`) are unwrapped before matching.
 
 Shipped as a plugin hook, so it fires in every session; it only acts inside a git repo with a
 dev-bother-me-nope run in progress (docs/sprints/bmn-*/bmn.json whose phase isn't done or
@@ -45,6 +48,7 @@ HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n[ \t]*\2[ \t]*(?=\n|$)
 WHICH_SUBST = re.compile(r"\$\(\s*(?:which|command\s+-v)\s+([\w.-]+)\s*\)|`\s*which\s+([\w.-]+)\s*`")
 SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh", "fish"})
 SHELL_VALUE_FLAGS = frozenset({"-o", "+o", "-O", "+O", "--rcfile", "--init-file"})
+COMMAND_LONG_FLAG = "--command"  # fish's spelling of -c: the command string follows or is `=`-joined
 SIMPLE_WRAPPERS = frozenset({"env", "time", "nohup", "sudo", "command", "exec", "xargs",
                              "npx", "bunx", "nice", "timeout"})
 DURATION_WRAPPERS = frozenset({"timeout"})
@@ -55,9 +59,10 @@ WRAPPER_VALUE_FLAGS = MappingProxyType({
     "timeout": frozenset({"-s", "--signal", "-k", "--kill-after"}),
     "nice": frozenset({"-n", "--adjustment"}),
     "env": frozenset({"-u", "--unset", "-C", "--chdir", "-S", "--split-string", "-P"}),
+    # GNU `--replace`, `--max-lines` and `--eof` take a value only after `=` (optional_argument).
     "xargs": frozenset({"-n", "--max-args", "-P", "--max-procs", "-I", "-L", "-s", "--max-chars",
-                        "-d", "--delimiter", "-E", "-a", "--arg-file", "--replace",
-                        "--max-lines", "--eof", "--process-slot-var", "-J", "-R", "-S"}),
+                        "-d", "--delimiter", "-E", "-a", "--arg-file",
+                        "--process-slot-var", "-J", "-R", "-S"}),
     "time": frozenset({"-f", "--format", "-o", "--output"}),
     "exec": frozenset({"-a"}),
     "npx": frozenset({"-p", "--package"}),
@@ -112,6 +117,7 @@ SQL_READ_START = re.compile(r"^(select|with|explain|show)\b")
 
 DEPLOY_GUARD = "deploy"
 MERGE_GUARD = "merge"
+BRANCH_GUARD = "branch"
 GIT_MERGE_SUBCOMMANDS = frozenset({"merge", "pull"})
 GIT_MERGE_VALUE_FLAGS = frozenset({
     "-m", "--message", "-F", "--file", "-s", "--strategy", "-X", "--strategy-option",
@@ -140,6 +146,10 @@ MERGE_ADVICE = ("Merge commits only: squash merges flatten history and are never
 DEPLOY_ADVICE = ("Jonathan decides every deploy and every remote database change — add it to "
                  "the report's Deploy checklist instead. (Only if he said 'deploy' in chat "
                  f"this session: prefix the command with {APPROVAL_VAR}=1.)")
+BRANCH_ADVICE = ("A protected branch is never deleted inside a bmn run, approved deploy or not; "
+                 "if it should go, Jonathan deletes it himself.")
+GUARD_ADVICE = MappingProxyType({DEPLOY_GUARD: DEPLOY_ADVICE, MERGE_GUARD: MERGE_ADVICE,
+                                 BRANCH_GUARD: BRANCH_ADVICE})
 
 
 class Block(NamedTuple):
@@ -216,14 +226,19 @@ def skip_wrapper_args(wrapper, tokens):
 
 
 def shell_command_string(args):
-    """The string a `sh -c` / `bash -ec` / `bash -o pipefail -lc` runs; None when the shell runs
-    a script file or reads stdin (a `-c` after the script name belongs to the script)."""
+    """The string a `sh -c` / `bash -ec` / `bash -o pipefail -lc` / `fish --command[=]` runs; None
+    when the shell runs a script file or reads stdin (a `-c` after the script name belongs to the
+    script)."""
     has_c, skip_next = False, False
-    for arg in args:
+    for i, arg in enumerate(args):
         if skip_next:
             skip_next = False
         elif arg in SHELL_VALUE_FLAGS:
             skip_next = True
+        elif arg == COMMAND_LONG_FLAG:
+            return args[i + 1] if i + 1 < len(args) else None
+        elif arg.startswith(f"{COMMAND_LONG_FLAG}="):
+            return arg.partition("=")[2]
         elif arg.startswith("--"):
             continue
         elif arg[:1] in ("-", "+") and len(arg) > 1:
@@ -382,15 +397,24 @@ def deleted_protected_ref(push_args, remote, refspecs, cwd):
     return None
 
 
-def check_git(args, cwd):
+def push_parts(args):
+    """(push options and words, remote, refspecs) of a `git push`; None for any other git
+    command. The first positional word is the remote, the rest are refspecs."""
     rest = git_subcommand(args)
     if not rest or rest[0] != "push":
         return None
     push_args = rest[1:]
+    words = positional(push_args, PUSH_VALUE_OPTIONS)
+    return push_args, (words[0] if words else ""), words[1:]
+
+
+def check_git(args, cwd):
+    parts = push_parts(args)
+    if parts is None:
+        return None
+    push_args, _remote, refspecs = parts
     if "--all" in push_args or "--mirror" in push_args:
         return "`git push --all/--mirror` would push production branches"
-    words = positional(push_args, PUSH_VALUE_OPTIONS)
-    remote, refspecs = (words[0] if words else ""), words[1:]
     if not refspecs:
         branch = current_branch(cwd)
         if branch in PROTECTED_BRANCHES:
@@ -399,6 +423,15 @@ def check_git(args, cwd):
     for spec in refspecs:
         if ref_destination(spec) in PROTECTED_BRANCHES:
             return f"`git push … {spec}` pushes a production branch"
+    return None
+
+
+def branch_reason(prog, args, cwd):
+    """Why a `git push` deletes a protected branch on origin (never a deploy step), else None."""
+    parts = push_parts(args) if prog == "git" else None
+    if parts is None:
+        return None
+    push_args, remote, refspecs = parts
     doomed = deleted_protected_ref(push_args, remote, refspecs, cwd)
     return f"`git push … {doomed}` deletes a protected branch" if doomed else None
 
@@ -479,8 +512,9 @@ def with_link(ctx, prog, args):
 
 
 # ---------------------------------------------------------------- merge guard
-# Merge commits only: no squash merge, and a PR merge deletes its source branch. Checked before
-# the deploy approval pass-through, so BMN_USER_APPROVED_DEPLOY never unlocks these rules.
+# Merge commits only: no squash merge, and a PR merge deletes its source branch. Its sibling, the
+# branch guard, never deletes a protected branch on origin. Both are checked before the deploy
+# approval pass-through (`unliftable_block`), so BMN_USER_APPROVED_DEPLOY never unlocks them.
 
 def is_abbrev(arg, full, shortest):
     """git accepts any unambiguous prefix of a long option; `shortest` is the shortest one."""
@@ -614,6 +648,16 @@ def merge_reason(prog, args):
     return None
 
 
+def unliftable_block(prog, args, ctx):
+    """The merge-guard or branch-guard Block for this command, else None. The approval prefix
+    never lifts either, so `check_segment` asks before it looks at approval."""
+    merge = merge_reason(prog, args)
+    if merge:
+        return Block(MERGE_GUARD, merge)
+    branch = branch_reason(prog, args, ctx["cwd"])
+    return Block(BRANCH_GUARD, branch) if branch else None
+
+
 def deploy_reason(prog, args, ctx):
     if prog == "vercel":
         return check_vercel(args)
@@ -627,8 +671,8 @@ def deploy_reason(prog, args, ctx):
 
 
 def check_segment(tokens, ctx):
-    """(Block or None, ctx for the next segment). A shell `-c` string is checked as its own
-    command; the approval prefix reaches its deploys but never its merges."""
+    """(Block or None, ctx for the next segment). A shell command string is checked as its own
+    command; the approval prefix reaches its deploys but never its merges or protected deletes."""
     approved, tokens = unwrap(tokens)
     if not tokens:
         return None, ctx
@@ -637,9 +681,9 @@ def check_segment(tokens, ctx):
     if script is not None:
         inner = {**ctx, "approved": approved or ctx["approved"]}
         return check_bash(script, inner), ctx
-    merge = merge_reason(prog, args)
-    if merge:
-        return Block(MERGE_GUARD, merge), ctx
+    unliftable = unliftable_block(prog, args, ctx)
+    if unliftable:
+        return unliftable, ctx
     if approved or ctx["approved"]:
         return None, ctx
     deploy = deploy_reason(prog, args, ctx)
@@ -694,9 +738,8 @@ def check_mcp(tool_name, tool_input):
 
 
 def block_message(block):
-    if block.guard == MERGE_GUARD:
-        return f"Blocked by dev-bother-me-nope merge guard: {block.reason}. {MERGE_ADVICE}"
-    return f"Blocked by dev-bother-me-nope deploy guard: {block.reason}. {DEPLOY_ADVICE}"
+    return (f"Blocked by dev-bother-me-nope {block.guard} guard: {block.reason}. "
+            f"{GUARD_ADVICE[block.guard]}")
 
 
 def main():
