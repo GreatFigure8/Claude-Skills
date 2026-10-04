@@ -2,37 +2,34 @@
 """merged-branch-cleanup.py — delete one merged branch, every worktree holding it, local and remote.
 
 Purpose:
-  Once a branch is merged, remove every linked worktree that has it checked out, delete the local
-  branch and delete its copy on the remote, but only after git proves the branch's commits are in
-  --target. Anything it cannot prove or cannot safely remove is kept and reported in "left".
+  After a merge, remove every linked worktree that has the branch checked out, delete the local
+  branch and its remote copy, but only once git proves the tip is in --target. Whatever it cannot
+  prove or cannot safely remove is kept and reported in "left".
 
 Contract:
   merged-branch-cleanup.py --repo <path> --branch <name> --target <ref>
                            [--remote origin] [--no-fetch] [--dry-run]
-  stdout, one JSON object:
-    {"branch": ..., "target": ..., "dry_run": false, "deleted": [...], "left": [{"ref", "why"}]}
-  A ref is "worktree:<abs path>", "local:<branch>" or "<remote>:<branch>".
-  Exit 0 = it ran (inspect "left"). Exit 2 = refused or usage error: stdout is {"error": "..."}
-  and nothing was changed. --dry-run changes nothing (no fetch, no prune) and prints the plan.
+  stdout, one JSON object: {"branch", "target", "dry_run", "deleted": [...], "left": [{"ref", "why"}]}
+  Refs are "worktree:<abs path>", "local:<branch>" and "<remote>:<branch>". Exit 0 = it ran
+  (inspect "left"). Exit 2 = refused or usage error: stdout {"error": "..."}, nothing changed.
+  --dry-run runs no fetch and no prune, changes nothing and prints the plan.
 
 Safety:
-  Refuses protected names (main, master, dev, develop, prod, production, release, staging, any
-  case), the remote's default branch, the target's own branch, option-like or malformed names and
-  a repo that is not a work tree. Ancestry is proved with `merge-base --is-ancestor` before any
-  delete. Never uses --force, never unlocks, and never removes or switches the main checkout;
-  dirty, locked and main-checkout worktrees are kept. Deletes are compare-and-swap on the checked
-  SHA (`update-ref -d <ref> <sha>`, `push --force-with-lease=<ref>:<sha> --delete`), so a branch
-  that moved after the check is kept. Every git call is an argument list run as `git -C <path>`;
-  checkout, switch, reset, stash, merge, rebase and pull are never run.
+  Refuses protected names (main master dev develop prod production release staging, any case), the
+  remote's default branch, the target's own branch, malformed names and a non-work-tree repo.
+  Proves ancestry with `merge-base --is-ancestor` before any delete. Never --force, never unlocks,
+  never removes or switches the main checkout; dirty, locked and main worktrees are kept. Deletes
+  are compare-and-swap on the checked SHA (update-ref -d, push --force-with-lease), so a branch
+  that moved after the check is kept. Git runs as an argument list via `git -C <path>`, and never
+  checkout, switch, reset, stash, merge, rebase or pull.
 """
-from __future__ import annotations
 
 import argparse
 import json
 import os
 import subprocess
 import sys
-from dataclasses import dataclass
+from collections import namedtuple
 
 PROTECTED = frozenset({"main", "master", "dev", "develop", "prod", "production", "release",
                        "staging"})
@@ -53,21 +50,19 @@ class JsonArgumentParser(argparse.ArgumentParser):
         raise Refusal(f"usage: {message}")
 
 
-@dataclass(frozen=True)
-class Options:
-    repo: str
-    branch: str
-    target: str
-    remote: str
-    fetch: bool
-    dry_run: bool
+# Immutable records: what the options say, what a survey found, what the plan decides.
+Options = namedtuple("Options", "repo branch target remote fetch dry_run")
+Worktree = namedtuple("Worktree", "path branch is_main locked prunable")  # locked: None or reason
+Holder = namedtuple("Holder", "worktree dirty")  # dirty: porcelain status lines
+Copy = namedtuple("Copy", "sha merged problem")  # sha None = no such ref
+Survey = namedtuple("Survey", "branch target remote main_path local remote_copy fetch_error "
+                              "holders")
+Left = namedtuple("Left", "ref why")
+Plan = namedtuple("Plan", "remove delete_local delete_remote left")
 
 
-@dataclass(frozen=True)
-class GitResult:
-    code: int
-    out: str
-    err: str
+class GitResult(namedtuple("GitResult", "code out err")):
+    __slots__ = ()
 
     @property
     def ok(self):
@@ -82,57 +77,7 @@ class GitResult:
         return failure_line(self.err or self.out)
 
 
-@dataclass(frozen=True)
-class Worktree:
-    path: str
-    branch: str | None
-    is_main: bool
-    locked: str | None
-    prunable: bool
-
-
-@dataclass(frozen=True)
-class Holder:
-    worktree: Worktree
-    dirty: tuple
-
-
-@dataclass(frozen=True)
-class Copy:
-    sha: str | None
-    merged: bool
-    problem: str
-
-
-@dataclass(frozen=True)
-class Survey:
-    branch: str
-    target: str
-    remote: str
-    main_path: str
-    local: Copy
-    remote_copy: Copy
-    fetch_error: str | None
-    holders: tuple
-
-
-@dataclass(frozen=True)
-class Left:
-    ref: str
-    why: str
-
-
-@dataclass(frozen=True)
-class Plan:
-    remove: tuple
-    delete_local: bool
-    delete_remote: bool
-    left: tuple
-
-
-# --- arguments and git plumbing ---------------------------------------------------------------
-
-
+# arguments and git plumbing
 def parse_args(argv):
     parser = JsonArgumentParser(prog="merged-branch-cleanup.py", allow_abbrev=False,
                                 description="Delete a merged branch and every worktree holding it.")
@@ -194,9 +139,7 @@ def resolve_commit(repo, ref):
     return result.text if result.ok and result.text else None
 
 
-# --- refusals: static checks first, then read-only git ----------------------------------------
-
-
+# refusals: static checks first, then read-only git
 def refuse_static(opts):
     name = opts.branch
     if not name or name.startswith(("-", "refs/")):
@@ -253,43 +196,18 @@ def validate(opts):
         raise Refusal(f"{opts.branch!r} is the target's own branch; it cannot be merged into itself")
 
 
-# --- survey: read what exists ------------------------------------------------------------------
-
-
+# survey: read what exists
 def worktree_from_fields(fields, is_main):
-    path, branch, locked, prunable = "", None, None, False
-    for field in fields:
-        key, _, value = field.partition(" ")
-        if key == "worktree":
-            path = value
-        elif key == "branch":
-            branch = short_branch(value)
-        elif key == "locked":
-            locked = value
-        elif key == "prunable":
-            prunable = True
-    return Worktree(path, branch, is_main, locked, prunable)
+    attrs = dict(field.partition(" ")[::2] for field in fields)
+    branch = short_branch(attrs["branch"]) if "branch" in attrs else None
+    return Worktree(attrs.get("worktree", ""), branch, is_main, attrs.get("locked"),
+                    "prunable" in attrs)
 
 
 def parse_worktrees(text):
     """Parse `git worktree list --porcelain -z`; the first entry is the main checkout."""
-    entries, current = [], []
-    for field in text.split("\0"):
-        if field:
-            current.append(field)
-        elif current:
-            entries.append(current)
-            current = []
-    if current:
-        entries.append(current)
-    return tuple(worktree_from_fields(fields, index == 0) for index, fields in enumerate(entries))
-
-
-def list_worktrees(repo):
-    result = run_git(repo, "worktree", "list", "--porcelain", "-z")
-    if not result.ok:
-        raise Refusal(f"cannot list worktrees, so nothing was deleted: {result.reason}")
-    return parse_worktrees(result.out)
+    blocks = [block.split("\0") for block in text.split("\0\0") if block.strip("\0")]
+    return tuple(worktree_from_fields(fields, index == 0) for index, fields in enumerate(blocks))
 
 
 def check_copy(repo, ref, target_sha):
@@ -332,7 +250,10 @@ def survey(opts):
     target_sha = resolve_commit(opts.repo, opts.target)
     if target_sha is None:
         raise Refusal(f"--target {opts.target!r} no longer resolves to a commit")
-    worktrees = list_worktrees(opts.repo)
+    listing = run_git(opts.repo, "worktree", "list", "--porcelain", "-z")
+    if not listing.ok:
+        raise Refusal(f"cannot list worktrees, so nothing was deleted: {listing.reason}")
+    worktrees = parse_worktrees(listing.out)
     return Survey(
         branch=opts.branch, target=opts.target, remote=opts.remote, main_path=worktrees[0].path,
         local=check_copy(opts.repo, f"{HEADS}{opts.branch}", target_sha),
@@ -341,20 +262,14 @@ def survey(opts):
     )
 
 
-# --- plan: pure, decides what is deleted and what is left -------------------------------------
-
-
-def not_merged_why(survey_, copy):
-    return copy.problem or f"not merged into {survey_.target}"
-
-
+# plan: pure, decides what is deleted and what is left
 def plan_unmerged(s):
-    why = not_merged_why(s, s.local)
+    why = s.local.problem or f"not merged into {s.target}"
     held = tuple(Left(f"worktree:{h.worktree.path}", why) for h in s.holders)
     left = held + (Left(f"local:{s.branch}", why),)
     if s.remote_copy.sha is not None:
         remote_why = (f"kept with unmerged local:{s.branch}" if s.remote_copy.merged
-                      else not_merged_why(s, s.remote_copy))
+                      else s.remote_copy.problem or f"not merged into {s.target}")
         left += (Left(f"{s.remote}:{s.branch}", remote_why),)
     return Plan((), False, False, left)
 
@@ -371,18 +286,16 @@ def blocker(holder):
     return None
 
 
-def holder_why(blocked):
-    if any(h.worktree.is_main for h in blocked):
-        return "checked out in the main checkout"
-    return "checked out in worktree " + ", ".join(h.worktree.path for h in blocked)
-
-
 def plan_local(s, blocked):
     if s.local.sha is None:
         return (), False
     if not blocked:
         return (), True
-    return (Left(f"local:{s.branch}", holder_why(blocked)),), False
+    if any(h.worktree.is_main for h in blocked):
+        why = "checked out in the main checkout"
+    else:
+        why = "checked out in worktree " + ", ".join(h.worktree.path for h in blocked)
+    return (Left(f"local:{s.branch}", why),), False
 
 
 def plan_remote(s):
@@ -415,35 +328,24 @@ def plan_cleanup(s):
     return plan_merged(s)
 
 
-# --- execute: every mutating call runs as `git -C <main checkout>` ----------------------------
-
-
-def remove_worktrees(main, paths):
-    deleted, left = (), ()
-    for path in paths:
-        result = run_git(main, "worktree", "remove", path)
-        if result.ok:
-            deleted += (f"worktree:{path}",)
-        else:
-            left += (Left(f"worktree:{path}", result.reason),)
-    return deleted, left
+# execute: every mutating call runs as `git -C <main checkout>`
+def attempt(main, ref, *git_args, timeout=GIT_READ_TIMEOUT_S):
+    """One mutating git call: success deletes `ref`, failure leaves it with git's own reason."""
+    result = run_git(main, *git_args, timeout=timeout)
+    return ((ref,), ()) if result.ok else ((), (Left(ref, result.reason),))
 
 
 def delete_local_branch(main, branch, sha):
-    result = run_git(main, "update-ref", "-d", f"{HEADS}{branch}", sha)
-    if not result.ok:
-        return (), (Left(f"local:{branch}", result.reason),)
-    run_git(main, "config", "--remove-section", f"branch.{branch}")  # best effort, may not exist
-    return (f"local:{branch}",), ()
+    done, failed = attempt(main, f"local:{branch}", "update-ref", "-d", f"{HEADS}{branch}", sha)
+    if done:
+        run_git(main, "config", "--remove-section", f"branch.{branch}")  # best effort
+    return done, failed
 
 
 def delete_remote_branch(main, remote, branch, sha):
     ref = f"{HEADS}{branch}"
-    result = run_git(main, "push", remote, "--delete", f"--force-with-lease={ref}:{sha}", ref,
-                     timeout=GIT_NETWORK_TIMEOUT_S)
-    if not result.ok:
-        return (), (Left(f"{remote}:{branch}", result.reason),)
-    return (f"{remote}:{branch}",), ()
+    return attempt(main, f"{remote}:{branch}", "push", remote, "--delete",
+                   f"--force-with-lease={ref}:{sha}", ref, timeout=GIT_NETWORK_TIMEOUT_S)
 
 
 def planned_deletions(s, plan):
@@ -454,23 +356,20 @@ def planned_deletions(s, plan):
 
 
 def execute(s, plan):
-    deleted, left = remove_worktrees(s.main_path, plan.remove)
+    main, deleted, left = s.main_path, (), ()
+    for path in plan.remove:
+        done, failed = attempt(main, f"worktree:{path}", "worktree", "remove", path)
+        deleted, left = deleted + done, left + failed
     if plan.delete_local and left:
         stuck = left[0].ref.partition(":")[2]
         left += (Left(f"local:{s.branch}", f"worktree not removed: {stuck}"),)
     elif plan.delete_local:
-        done, failed = delete_local_branch(s.main_path, s.branch, s.local.sha)
+        done, failed = delete_local_branch(main, s.branch, s.local.sha)
         deleted, left = deleted + done, left + failed
     if plan.delete_remote:
-        done, failed = delete_remote_branch(s.main_path, s.remote, s.branch, s.remote_copy.sha)
+        done, failed = delete_remote_branch(main, s.remote, s.branch, s.remote_copy.sha)
         deleted, left = deleted + done, left + failed
     return deleted, plan.left + left
-
-
-def report(opts, deleted, left):
-    return {"branch": opts.branch, "target": opts.target, "dry_run": opts.dry_run,
-            "deleted": list(deleted),
-            "left": [{"ref": item.ref, "why": item.why} for item in left]}
 
 
 def main(argv=None):
@@ -479,14 +378,14 @@ def main(argv=None):
         validate(opts)
         found = survey(opts)
         plan = plan_cleanup(found)
-        if opts.dry_run:
-            deleted, left = planned_deletions(found, plan), plan.left
-        else:
-            deleted, left = execute(found, plan)
+        deleted, left = (planned_deletions(found, plan), plan.left) if opts.dry_run \
+            else execute(found, plan)
     except Refusal as refusal:
         print(json.dumps({"error": str(refusal)}))
         return EXIT_REFUSED
-    print(json.dumps(report(opts, deleted, left)))
+    print(json.dumps({"branch": opts.branch, "target": opts.target, "dry_run": opts.dry_run,
+                      "deleted": list(deleted),
+                      "left": [{"ref": item.ref, "why": item.why} for item in left]}))
     return EXIT_RAN
 
 

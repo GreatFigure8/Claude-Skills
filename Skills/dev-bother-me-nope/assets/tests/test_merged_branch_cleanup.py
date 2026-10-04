@@ -4,7 +4,6 @@ Run: uv run --quiet --with pytest python -m pytest Skills/dev-bother-me-nope/ass
 Fixtures (real throwaway repos, git shim, fake gh) live in conftest.py.
 """
 import shutil
-from dataclasses import FrozenInstanceError
 from pathlib import Path
 
 import pytest
@@ -440,5 +439,5 @@ def test_plan_keeps_local_branch_while_any_worktree_holds_it(load_script):
     assert set(refs) == {"worktree:/w/lock", "local:wip/x"}
     assert "/w/lock" in refs["local:wip/x"]
     assert survey.holders == (free, locked)
-    with pytest.raises(FrozenInstanceError):
+    with pytest.raises(AttributeError):
         plan.delete_local = True
