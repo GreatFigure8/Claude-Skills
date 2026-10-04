@@ -499,6 +499,123 @@ def test_table_rows_skip_the_separator_row():
     assert h.table_rows("no table") == ()
 
 
+# --- FIX①: contract-parser gaps (R1-A15) -----------------------------------------------------
+
+TILDE = "~" * 3
+
+
+def test_section_prefers_the_shallowest_heading_over_an_earlier_deeper_one():
+    text = (
+        "# T\n\n## Patterns\n\n### Sources\n\n- not a url\n\n"
+        "## Sources\n\n- https://nextjs.org/docs\n"
+    )
+    assert "https://nextjs.org/docs" in h.section(text, "Sources")
+    assert h.source_urls(text) == ("https://nextjs.org/docs",)
+    assert h.malformed_source_lines(text) == ()
+    assert h.section(text, "Sources", level=3).strip() == "- not a url"
+    with pytest.raises(LookupError):
+        h.section(text, "Patterns", level=3)
+
+
+def test_contract_readers_ignore_a_deeper_heading_with_a_contract_name():
+    text = (
+        "# T\n\n## Scope\n\n### Rules\n\n1. not a rule\n\n"
+        "## Rules\n\n1. **TS-1** Do it. (convention)\n\n"
+        "## Patterns\n\n### Review checklist\n\n- [ ] not here\n\n"
+        "## Review checklist\n\n- [ ] here\n"
+    )
+    assert h.rule_items(text) == (("TS-1", "**TS-1** Do it. (convention)"),)
+    assert h.checklist_items(text) == ("- [ ] here",)
+
+
+def test_tilde_fences_are_fences():
+    text = (
+        f"# T\n\n{TILDE}\n# not a heading\nhttps://example.org/inside\n{TILDE}\n\n"
+        f"{TILDE}ts\nconst a = 1\n{FENCE}\nstill inside\n{TILDE}\n\n"
+        "## After\n"
+    )
+    assert h.headings(text, 1) == ("T",)
+    assert h.headings(text, 2) == ("After",)
+    assert h.all_urls(text) == ()
+    assert h.bare_fence_lines(text) == (3,)
+    assert h.code_blocks(text, ("ts",)) == (("ts", f"const a = 1\n{FENCE}\nstill inside"),)
+
+
+def test_a_backtick_fence_is_not_closed_by_tildes():
+    text = f"{FENCE}ts\nconst a = 1\n{TILDE}\n# inside\n{FENCE}\n\n# Outside\n"
+    assert h.headings(text, 1) == ("Outside",)
+    assert h.code_blocks(text) == (("ts", f"const a = 1\n{TILDE}\n# inside"),)
+
+
+def test_stray_rule_lines_flag_a_column_zero_fence_and_prose():
+    text = (
+        "## Rules\n\n1. **TS-1** Do it. (convention)\n"
+        f"   {FENCE}ts\nconst indented = true\n   {FENCE}\n"
+        "### A group heading\n\n2. **TS-2** Do more. (convention)\n"
+        f"{FENCE}ts\nconst stray = 1\n{FENCE}\n"
+        "`code` then prose at column 0\n\n## Patterns\n\nfree text\n"
+    )
+    assert h.stray_rule_lines(text) == (
+        f"{FENCE}ts",
+        "const stray = 1",
+        FENCE,
+        "`code` then prose at column 0",
+    )
+    assert h.stray_rule_lines(TOPIC) == ()
+    assert h.stray_rule_lines("# T\n") == ()
+
+
+def test_cites_source_ignores_a_backticked_convention_tag():
+    assert h.cites_source("**TS-1** Do it `(convention)`.") is False
+    assert h.cites_source("**TS-1** Do it, see `(convention)` (convention).") is True
+
+
+# --- FIX①: one shared "no any" check (R1-B17) ------------------------------------------------
+
+ANY_SPELLINGS = (
+    "let a: any = 1",
+    "const b = value as any",
+    "const c = <any>value",
+    "const d: Array<any> = []",
+    "const e: Record<string, any> = {}",
+    "type F = Promise<any>",
+    "const g: any[] = []",
+    "type H = [string, any]",
+    "type I = string | any",
+    "type J = any",
+)
+NOT_ANY = (
+    "// works for any request: any",
+    "/* any: any */ const ok = 1",
+    "const anyValue = company.many",
+    "type Mode = 'any' | 'all'",
+    "const unknownValue: unknown = input",
+)
+DUPLICATING_TOPIC_TESTS = (
+    "test_nextjs_topic_rendering_and_caching.py",
+    "test_nextjs_topic_data_fetching_and_mutations.py",
+    "test_nextjs_topic_route_handlers_and_apis.py",
+)
+
+
+@pytest.mark.parametrize("code", ANY_SPELLINGS)
+def test_uses_any_type_catches_every_spelling(code):
+    assert h.uses_any_type(code), code
+
+
+@pytest.mark.parametrize("code", NOT_ANY)
+def test_uses_any_type_ignores_comments_identifiers_and_strings(code):
+    assert not h.uses_any_type(code), code
+
+
+@pytest.mark.parametrize("name", DUPLICATING_TOPIC_TESTS)
+def test_topic_tests_use_the_shared_any_check_and_major(name):
+    source = (Path(__file__).parent / name).read_text(encoding="utf-8")
+    assert "any\\b" not in source and "any\\[" not in source, "own copy of the no-any regex"
+    assert ".split('.')[0]" not in source and '.split(".")[0]' not in source, "own major()"
+    assert "uses_any_type" in source
+
+
 # --- the module itself -----------------------------------------------------------------------
 
 ALLOWED_IMPORTS = frozenset({"__future__", "re", "types", "typing", "urllib", "pathlib"})

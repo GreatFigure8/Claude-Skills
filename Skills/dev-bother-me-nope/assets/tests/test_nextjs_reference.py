@@ -122,7 +122,6 @@ TREE_INDENT_WIDTH = 4
 INDEX_FILE_CELL_RE = re.compile(r"^\[`(?P<file>[^`]+)`\]\(nextjs/(?P<target>[^)]+)\)$")
 TODO_RE = re.compile(r"\b(?:TODO|TBD)\b")
 UNNUMBERED_ITEM_RE = re.compile(r"^(?P<number>\d+)\. ")
-HEADING_LINE_RE = re.compile(r"^#{3,6} ")
 STRAY_RULE_ID_RE = re.compile(r"\*\*[A-Z]+-\d+\*\*")
 PLUGIN_ROOT_PATH = (
     "${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs.md"
@@ -389,12 +388,7 @@ def test_topic_rules_are_well_formed_and_numbered(name):
         assert UNNUMBERED_ITEM_RE.match(raw).group("number") == str(position), raw[:30]
         first_word = match.group("body").split()[0]
         assert first_word not in h.SUBJECT_WORDS, f"{rule_id} starts with {first_word!r}"
-    stray = [
-        line
-        for line in h.prose(h.section(text, "Rules")).splitlines()
-        if line.strip() and not line[0].isspace()
-        and not UNNUMBERED_ITEM_RE.match(line) and not HEADING_LINE_RE.match(line)
-    ]
+    stray = h.stray_rule_lines(text)
     assert not stray, f"only list items belong in ## Rules: {stray[:2]}"
 
 
@@ -559,6 +553,39 @@ def test_non_negotiables_are_few_linked_and_cited():
         unknown = [link for link in topics if link.removeprefix("nextjs/") not in h.TOPICS]
         assert not unknown, f"links to a file that is not a topic: {unknown}"
         assert h.cites_source(item), f"no allowed-host link or (convention): {item[:70]}"
+
+
+def _non_negotiable(number):
+    return h.numbered_items(h.section(_entry(), "Non-negotiables"))[number - 1]
+
+
+def test_non_negotiable_2_never_adds_middleware():
+    """R1-A6/R1-C6: no new middleware.ts, even for Edge; SEC-1 says the same."""
+    item = _non_negotiable(2)
+    assert "unless you need the Edge runtime" not in item
+    _assert_has_phrases(
+        item,
+        (
+            "Never add a `middleware.ts`",
+            "keep an existing `middleware.ts` only while it depends on the Edge runtime",
+            "plan its move to `proxy.ts`",
+            "`middleware-to-proxy` codemod",
+        ),
+    )
+
+
+def test_non_negotiable_9_is_one_lint_rule_the_gate_can_run():
+    """R1-A5: NN-9, TS-12 and the stack-routing gate must agree on the linter."""
+    item = _non_negotiable(9)
+    assert "Lint with ESLint or Biome directly" not in item
+    _assert_has_phrases(
+        item,
+        (
+            "a new project lints with the ESLint CLI and `eslint-config-next`",
+            "a repo that already uses Biome keeps Biome",
+            "the gate runs the repo's configured linter (`eslint .` or `biome check .`)",
+        ),
+    )
 
 
 def test_how_agents_use_this_covers_every_agent():

@@ -19,10 +19,12 @@ from nextjs_doc_helpers import (
     code_blocks,
     has_block_with,
     is_stub,
+    major,
     missing_terms,
     read,
     rule_items,
     section,
+    uses_any_type,
 )
 
 TOPIC = TOPICS_DIR / "route-handlers-and-apis.md"
@@ -47,7 +49,6 @@ FOREIGN_PREFIXES = tuple(prefix for prefix, _ in TOPICS.values() if prefix != OW
 FOREIGN_RULE_ID_RE = re.compile(r"\b(?:" + "|".join(FOREIGN_PREFIXES) + r")-\d+\b")
 API_ID_RE = re.compile(rf"\b{OWN_PREFIX}-\d+\b")
 RULE_ITEM_ID_RE = re.compile(rf"\*\*({OWN_PREFIX}-\d+)\*\*")
-ANY_RE = re.compile(r":\s*any\b|\bas\s+any\b|<any>|\bany\[\]")
 ERROR_SHAPE_DECL_RE = re.compile(r"\b(?:type|interface)\s+ApiErrorBody\b")
 HANDLER_EXPORT_RE = re.compile(
     r"export\s+(?:async\s+)?function\s+(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b"
@@ -127,7 +128,7 @@ def test_cors_example_answers_preflight():
 def test_examples_contain_no_any():
     blocks = code_blocks(TEXT, TS_LANGS)
     assert blocks, "the file has no ts or tsx example"
-    offenders = [body.splitlines()[0] for _, body in blocks if ANY_RE.search(body)]
+    offenders = [body.splitlines()[0] for _, body in blocks if uses_any_type(body)]
     assert not offenders, f"ts blocks that use any: {offenders}"
 
 
@@ -204,7 +205,7 @@ def test_version_notes_name_major_and_link_nextjs():
     assert version, "no as-of version"
     notes = section(TEXT, "Version notes")
     assert notes.strip(), "## Version notes is empty"
-    assert f"Next.js {version.split('.')[0]}" in notes
+    assert f"Next.js {major(version)}" in notes
     assert "https://nextjs.org/" in notes
 
 

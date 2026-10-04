@@ -35,10 +35,13 @@ and carries its source, or `(convention)` for a house rule.
    ([routing-and-metadata.md](nextjs/routing-and-metadata.md),
    [typescript.md](nextjs/typescript.md);
    [upgrade guide](https://nextjs.org/docs/app/guides/upgrading/version-16))
-2. Intercept requests in `proxy.ts`, exporting `proxy`; `middleware.ts` is deprecated, so don't
-   add a new one unless you need the Edge runtime, which Proxy doesn't support. Proxy runs on
-   Node.js. ([proxy-auth-and-security.md](nextjs/proxy-auth-and-security.md);
-   [proxy.js](https://nextjs.org/docs/app/api-reference/file-conventions/proxy))
+2. Intercept requests in `proxy.ts`, exporting `proxy`. Never add a `middleware.ts`: the
+   convention is deprecated and renamed to Proxy. Proxy runs on Node.js and its runtime can't be
+   configured, so keep an existing `middleware.ts` only while it depends on the Edge runtime,
+   and plan its move to `proxy.ts` with the `middleware-to-proxy` codemod.
+   ([proxy-auth-and-security.md](nextjs/proxy-auth-and-security.md);
+   [proxy.js](https://nextjs.org/docs/app/api-reference/file-conventions/proxy);
+   [upgrade guide](https://nextjs.org/docs/app/guides/upgrading/version-16))
 3. Check authentication and authorization inside every Server Function. Don't rely on Proxy
    alone, because a matcher change can silently remove its coverage.
    ([proxy-auth-and-security.md](nextjs/proxy-auth-and-security.md),
@@ -63,9 +66,13 @@ and carries its source, or `(convention)` for a house rule.
    secrets in server-only variables.
    ([proxy-auth-and-security.md](nextjs/proxy-auth-and-security.md);
    [environment variables](https://nextjs.org/docs/app/guides/environment-variables))
-9. Lint with ESLint or Biome directly, because `next build` no longer runs linting.
-   ([testing-and-observability.md](nextjs/testing-and-observability.md);
-   [upgrade guide](https://nextjs.org/docs/app/guides/upgrading/version-16))
+9. Lint outside `next build`, which no longer lints and has no `next lint` to call: a new project
+   lints with the ESLint CLI and `eslint-config-next`, a repo that already uses Biome keeps
+   Biome, and the gate runs the repo's configured linter (`eslint .` or `biome check .`).
+   ([typescript.md](nextjs/typescript.md),
+   [testing-and-observability.md](nextjs/testing-and-observability.md);
+   [ESLint](https://nextjs.org/docs/app/api-reference/config/eslint);
+   [upgrade guide](https://nextjs.org/docs/app/guides/upgrading/version-16)) (convention)
 10. Report server errors to your observability provider from `onRequestError` in
     `instrumentation.ts`.
     ([testing-and-observability.md](nextjs/testing-and-observability.md);
@@ -290,3 +297,4 @@ the detail.
 - https://nextjs.org/docs/app/api-reference/file-conventions/proxy — `proxy.js` reference
 - https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation — `instrumentation.js` reference
 - https://nextjs.org/docs/app/guides/environment-variables — environment variables
+- https://nextjs.org/docs/app/api-reference/config/eslint — ESLint plugin and `eslint-config-next`
