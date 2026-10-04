@@ -5,6 +5,7 @@ sys.path). Run: python3 -m pytest Skills/dev-bother-me-nope/assets/tests -q
 """
 import ast
 import re
+import subprocess
 
 import pytest
 from test_deploy_guard import GUARD, bash, guard_in, mcp, new_repo, run_guard, start_run
@@ -281,6 +282,201 @@ def test_push_delete_of_a_protected_branch_stays_blocked():
     assert "deploy guard:" in result.stderr
 
 
+# ---- FIX1 R1-5: wrappers that take options or values, and bundled shell -c ----
+
+WRAPPED_SQUASH_MERGES = [
+    "timeout 60 git merge --squash x",
+    "timeout -k 5 60 git merge --squash x",
+    "timeout --signal=KILL 60s git merge --squash x",
+    "timeout -s KILL 60 git merge --squash x",
+    "sudo -u me git merge --squash x",
+    "sudo -u me -g wheel git merge --squash x",
+    "sudo -E git merge --squash x",
+    "nice -n 5 git merge --squash x",
+    "nice -5 git merge --squash x",
+    "nohup git merge --squash x",
+    "env -u FOO git merge --squash x",
+    "env -C /tmp/w git merge --squash x",
+    "command git merge --squash x",
+    "command -p git merge --squash x",
+    "xargs -n1 git merge --squash",
+    "xargs -I {} git merge --squash {}",
+    "xargs -P 4 -n 1 gh pr merge --squash --delete-branch",
+    "sh -ec 'git merge --squash x'",
+    "bash -lc 'git merge --squash x'",
+    "bash -c 'git merge --squash x'",
+    "bash -o pipefail -c 'git merge --squash x'",
+    "bash --norc -c 'git merge --squash x'",
+    "zsh -lc 'git merge --squash x'",
+    "sudo timeout 60 sh -c 'git merge --squash x'",
+    "sudo -u me bash -lc 'timeout 5 git merge --squash x'",
+    "timeout 60 gh pr merge 12 --squash --delete-branch",
+    "sudo -u me gh pr merge 12 -s -d",
+    "timeout 60 gh pr merge 12 --merge",
+]
+
+WRAPPED_DEPLOYS = [
+    "timeout 60 git push origin main",
+    "timeout -k 5 60 vercel --prod",
+    "sudo -u me git push origin main",
+    "sudo -u me vercel --prod",
+    "nice -n 5 vercel --prod",
+    "env -u FOO supabase db push --linked",
+    "xargs -n1 vercel deploy",
+    "sh -ec 'vercel --prod'",
+    "bash -lc 'git push origin HEAD:main'",
+    "bash -o pipefail -c 'supabase db push --linked'",
+]
+
+WRAPPED_ALLOWED = [
+    "timeout 60 git merge --no-ff x",
+    "timeout 60 git log --grep=squash",
+    "timeout 60 echo 'git merge --squash x'",
+    "sudo -u me git merge --no-ff x",
+    "sudo -u me git status",
+    "nice -n 5 git merge --no-ff x",
+    "env -u FOO echo ok",
+    "command -v git",
+    "xargs -n1 echo git merge --squash",
+    "sh -ec 'git merge --no-ff x'",
+    "bash -lc 'git status'",
+    "bash run.sh -c 'git merge --squash x'",
+    "bash -x script.sh",
+    "timeout 60 gh pr merge 12 --merge --delete-branch",
+    "timeout 60 vercel ls",
+    "sudo -u me git push origin wip/demo/a",
+]
+
+
+@pytest.mark.parametrize("command", WRAPPED_SQUASH_MERGES)
+def test_blocks_merges_behind_wrappers_that_take_options(command):
+    assert_merge_blocked(bash(command), command)
+
+
+@pytest.mark.parametrize("command", WRAPPED_DEPLOYS)
+def test_blocks_deploys_behind_wrappers_that_take_options(command):
+    result = bash(command)
+    assert result.returncode == 2, command
+    assert result.stderr.startswith(DEPLOY_PREFIX), command
+
+
+@pytest.mark.parametrize("command", WRAPPED_ALLOWED)
+def test_allows_wrapped_commands_that_are_not_blocked_unwrapped(command):
+    assert bash(command).returncode == 0, command
+
+
+@pytest.mark.parametrize("command", [
+    "BMN_USER_APPROVED_DEPLOY=1 sh -ec 'git merge --squash x'",
+    "BMN_USER_APPROVED_DEPLOY=1 timeout 60 git merge --squash x",
+    "BMN_USER_APPROVED_DEPLOY=1 sudo -u me git merge --squash x",
+])
+def test_approval_prefix_does_not_unlock_wrapped_merges(command):
+    assert_merge_blocked(bash(command), command)
+
+
+@pytest.mark.parametrize("command", [
+    "BMN_USER_APPROVED_DEPLOY=1 timeout 60 vercel --prod",
+    "BMN_USER_APPROVED_DEPLOY=1 sh -ec 'vercel --prod'",
+])
+def test_approval_still_passes_wrapped_deploys(command):
+    assert bash(command).returncode == 0, command
+
+
+# ---- FIX1 R1-6: protected branches are never deleted on origin ----
+
+BLOCKED_PROTECTED_DELETES = [
+    "git push origin --delete dev",
+    "git push origin --delete develop",
+    "git push origin --delete staging",
+    "git push origin --delete DEV",
+    "git push origin :dev",
+    "git push origin :refs/heads/dev",
+    "git push origin --delete refs/heads/dev",
+    "git push origin +:dev",
+    "git push -d origin dev",
+    "git push origin --de dev",
+    "git push origin --delete wip/demo/a dev",
+    "git push --force-with-lease=dev:0a1b2c3d origin --delete dev",
+    "git -C /tmp/w push origin --delete dev",
+    "timeout 60 git push origin --delete dev",
+    "sudo -u me git push origin --delete dev",
+    "sh -ec 'git push origin --delete dev'",
+    "git push origin --delete production",
+    "git push origin --delete master",
+    "git push origin :main",
+    "git push origin --delete release",
+]
+
+ALLOWED_BRANCH_PUSHES = [
+    "git push origin --delete wip/merged-branch-cleanup/deploy-guard-fix",
+    "git push origin --delete feat/merged-branch-cleanup",
+    "git push origin --delete feat/dev",
+    "git push origin --delete dev-tools",
+    "git push origin --delete devops",
+    "git push origin :wip/demo/a",
+    "git push origin --delete --force-with-lease=wip/demo/a:0a1b2c3d wip/demo/a",
+    "git push --force-with-lease=feat/demo-run:0a1b2c3d origin --delete feat/demo-run",
+    "git push origin dev",
+    "git push -u origin wip/demo/a",
+    "git push --dry-run origin dev",
+    "git push origin wip/demo/a:dev",
+]
+
+
+@pytest.mark.parametrize("command", BLOCKED_PROTECTED_DELETES)
+def test_blocks_deleting_protected_branches_on_origin(command):
+    result = bash(command)
+    assert result.returncode == 2, command
+    assert result.stderr.startswith(DEPLOY_PREFIX), command
+
+
+@pytest.mark.parametrize("command", ALLOWED_BRANCH_PUSHES)
+def test_allows_deleting_wip_and_run_branches_and_pushing_dev(command):
+    assert bash(command).returncode == 0, command
+
+
+def test_protected_delete_message_names_the_branch_spec():
+    result = bash("git push origin --delete dev")
+    assert result.stderr.startswith(
+        f"{DEPLOY_PREFIX} `git push … dev` deletes a protected branch. ")
+
+
+def repo_with_default_branch(name):
+    root = new_repo()
+    subprocess.run(["git", "-C", str(root), "symbolic-ref", "refs/remotes/origin/HEAD",
+                    f"refs/remotes/origin/{name}"], check=True)
+    return root
+
+
+@pytest.mark.parametrize("command", [
+    "git push origin --delete trunk",
+    "git push origin :trunk",
+    "git push origin --delete Trunk",
+    "git push origin --delete wip/x trunk",
+])
+def test_blocks_deleting_the_default_branch(command):
+    root = repo_with_default_branch("trunk")
+    result = guard_in(root, command)
+    assert result.returncode == 2, command
+    assert result.stderr.startswith(DEPLOY_PREFIX), command
+
+
+@pytest.mark.parametrize("command", [
+    "git push origin --delete wip/x",
+    "git push origin --delete trunky",
+    "git push origin trunk",
+])
+def test_default_branch_rule_leaves_other_pushes_alone(command):
+    root = repo_with_default_branch("trunk")
+    assert guard_in(root, command).returncode == 0, command
+
+
+def test_a_repo_without_a_default_branch_ref_still_guards_the_named_ones():
+    root = new_repo()
+    assert guard_in(root, "git push origin --delete dev").returncode == 2
+    assert guard_in(root, "git push origin --delete trunk").returncode == 0
+
+
 # ---- AC11: docs ----
 
 DOC_REQUIRED = [
@@ -320,6 +516,7 @@ def test_guard_docstring_mentions_merge_rules():
 # ---- AC12: shape of the code ----
 
 MERGE_RULE_FUNCTIONS = [
+    "skip_wrapper_args", "shell_command_string", "push_deletes", "ref_destination",
     "is_abbrev", "git_merge_squashes", "check_git_merge", "pflag_items", "long_flag",
     "short_cluster", "is_true", "check_gh", "check_gh_pr_merge", "check_gh_api",
     "is_squash_field", "merge_reason", "check_mcp_merge", "block_message",
@@ -361,3 +558,30 @@ def test_merge_rule_functions_do_not_mutate():
     mutating = {name: mutations_in(functions[name]) for name in MERGE_RULE_FUNCTIONS
                 if mutations_in(functions[name])}
     assert not mutating, mutating
+
+
+# ---- FIX1: the doc says what is and is not covered ----
+
+def blind_spots(doc):
+    start = doc.index("**Known blind spots**")
+    return doc[start:doc.index("\n\n", start)]
+
+
+def test_doc_names_the_unwrapped_wrappers():
+    section = merge_section(DEPLOY_GUARDS_DOC.read_text())
+    missing = [name for name in ("timeout", "sudo", "nice", "nohup", "env", "command", "xargs",
+                                 "sh -c", "bash -lc") if name not in section]
+    assert not missing, missing
+
+
+def test_doc_blind_spots_no_longer_claim_covered_shell_wrappers():
+    spots = blind_spots(DEPLOY_GUARDS_DOC.read_text())
+    assert "`bash -lc`" not in spots
+    for still_open in ("eval", "doas", "env -S"):
+        assert still_open in spots, still_open
+
+
+def test_doc_lists_the_protected_branch_deletes():
+    section = merge_section(DEPLOY_GUARDS_DOC.read_text())
+    for text in ("git push origin --delete dev", ":dev", "default branch", "--force-with-lease"):
+        assert text in section, text

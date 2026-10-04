@@ -12,16 +12,18 @@ Contract:
   stdout, one JSON object: {"branch", "target", "dry_run", "deleted": [...], "left": [{"ref", "why"}]}
   Refs are "worktree:<abs path>", "local:<branch>" and "<remote>:<branch>". Exit 0 = it ran
   (inspect "left"). Exit 2 = refused or usage error: stdout {"error": "..."}, nothing changed.
-  --dry-run runs no fetch and no prune, changes nothing and prints the plan.
+  --dry-run runs no fetch, changes nothing and prints the plan.
 
 Safety:
   Refuses protected names (main master dev develop prod production release staging, any case), the
-  remote's default branch, the target's own branch, malformed names and a non-work-tree repo.
-  Proves ancestry with `merge-base --is-ancestor` before any delete. Never --force, never unlocks,
-  never removes or switches the main checkout; dirty, locked and main worktrees are kept. Deletes
-  are compare-and-swap on the checked SHA (update-ref -d, push --force-with-lease), so a branch
-  that moved after the check is kept. Git runs as an argument list via `git -C <path>`, and never
-  checkout, switch, reset, stash, merge, rebase or pull.
+  remote's default branch (asked of the remote when <remote>/HEAD is unset; refused if unknowable),
+  a --target that is not a branch or tag name or is the branch itself, malformed names and a
+  non-work-tree repo. Proves ancestry with `merge-base --is-ancestor` before any delete. Keeps main,
+  locked and dirty worktrees (dirty counts ignored files outside CACHE_DIRS, which `worktree remove`
+  would delete) and the local branch while a rebase or bisect of it runs. Never forces, unlocks or
+  prunes other worktrees. Deletes are compare-and-swap on the checked SHA (update-ref -d, push
+  --force-with-lease). Git runs as an argument list via `git -C <path>`, and never checkout,
+  switch, reset, stash, merge, rebase or pull.
 """
 
 import argparse
@@ -30,9 +32,14 @@ import os
 import subprocess
 import sys
 from collections import namedtuple
+from pathlib import Path
 
-PROTECTED = frozenset({"main", "master", "dev", "develop", "prod", "production", "release",
-                       "staging"})
+PROTECTED = frozenset({"main", "master", "dev", "develop", "prod", "production", "release", "staging"})
+# Ignored directories that tooling regenerates; any other ignored path keeps its worktree.
+CACHE_DIRS = frozenset({"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".venv",
+                        "node_modules", ".next"})
+# A rebase or bisect in progress; git's own branch delete refuses the branch these files name.
+BUSY_FILES = ("rebase-merge/head-name", "rebase-apply/head-name", "BISECT_START")
 GIT_READ_TIMEOUT_S = 30
 GIT_NETWORK_TIMEOUT_S = 120
 EXIT_RAN = 0
@@ -51,30 +58,15 @@ class JsonArgumentParser(argparse.ArgumentParser):
 
 
 # Immutable records: what the options say, what a survey found, what the plan decides.
-Options = namedtuple("Options", "repo branch target remote fetch dry_run")
+Options = namedtuple("Options", "repo branch target remote fetch dry_run target_ref", defaults=(None,))
 Worktree = namedtuple("Worktree", "path branch is_main locked prunable")  # locked: None or reason
-Holder = namedtuple("Holder", "worktree dirty")  # dirty: porcelain status lines
+Holder = namedtuple("Holder", "worktree dirty")  # dirty: status entries that block removal
 Copy = namedtuple("Copy", "sha merged problem")  # sha None = no such ref
 Survey = namedtuple("Survey", "branch target remote main_path local remote_copy fetch_error "
-                              "holders")
+                              "holders busy", defaults=("",))  # busy: why a rebase/bisect holds it
 Left = namedtuple("Left", "ref why")
 Plan = namedtuple("Plan", "remove delete_local delete_remote left")
-
-
-class GitResult(namedtuple("GitResult", "code out err")):
-    __slots__ = ()
-
-    @property
-    def ok(self):
-        return self.code == 0
-
-    @property
-    def text(self):
-        return self.out.strip()
-
-    @property
-    def reason(self):
-        return failure_line(self.err or self.out)
+GitResult = namedtuple("GitResult", "code ok out text reason")
 
 
 # arguments and git plumbing
@@ -83,7 +75,7 @@ def parse_args(argv):
                                 description="Delete a merged branch and every worktree holding it.")
     parser.add_argument("--repo", required=True, help="path of the repository (any worktree)")
     parser.add_argument("--branch", required=True, help="branch to delete")
-    parser.add_argument("--target", required=True, help="ref the branch must be merged into")
+    parser.add_argument("--target", required=True, help="branch or tag it must be merged into")
     parser.add_argument("--remote", default="origin")
     parser.add_argument("--no-fetch", action="store_true", help="skip `git fetch --prune`")
     parser.add_argument("--dry-run", action="store_true", help="print the plan, change nothing")
@@ -103,6 +95,10 @@ def failure_line(text):
     return lines[0] if lines else "git failed with no output"
 
 
+def git_result(code, out, err):
+    return GitResult(code, code == 0, out, out.strip(), failure_line(err or out))
+
+
 def run_git(cwd, *args, timeout=GIT_READ_TIMEOUT_S):
     """Run `git -C cwd args`; never raises, a timeout or a missing git is a non-zero result."""
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
@@ -111,31 +107,21 @@ def run_git(cwd, *args, timeout=GIT_READ_TIMEOUT_S):
                               encoding="utf-8", errors="replace", env=env, timeout=timeout,
                               check=False)
     except subprocess.TimeoutExpired:
-        return GitResult(124, "", f"git {args[0]} timed out after {timeout}s")
+        return git_result(124, "", f"git {args[0]} timed out after {timeout}s")
     except OSError as exc:
-        return GitResult(127, "", f"cannot run git: {exc}")
-    return GitResult(proc.returncode, proc.stdout, proc.stderr)
+        return git_result(127, "", f"cannot run git: {exc}")
+    return git_result(proc.returncode, proc.stdout, proc.stderr)
 
 
 def short_branch(full_ref):
     """`refs/heads/x` and `refs/remotes/<remote>/x` both give `x`; anything else is unchanged."""
-    if full_ref.startswith(HEADS):
-        return full_ref[len(HEADS):]
     if full_ref.startswith(REMOTES):
         return full_ref[len(REMOTES):].partition("/")[2]
-    return full_ref
-
-
-def strip_remote(name, remote):
-    for prefix in (f"{REMOTES}{remote}/", f"{remote}/", HEADS):
-        if name.startswith(prefix):
-            return name[len(prefix):]
-    return name
+    return full_ref.removeprefix(HEADS)
 
 
 def resolve_commit(repo, ref):
-    result = run_git(repo, "rev-parse", "--verify", "--quiet", "--end-of-options",
-                     f"{ref}^{{commit}}")
+    result = run_git(repo, "rev-parse", "--verify", "--quiet", "--end-of-options", f"{ref}^{{commit}}")
     return result.text if result.ok and result.text else None
 
 
@@ -151,63 +137,63 @@ def refuse_static(opts):
             raise Refusal(f"invalid {label} value: {value!r}")
 
 
-def require_work_tree(repo):
-    result = run_git(repo, "rev-parse", "--is-inside-work-tree")
-    if not (result.ok and result.text == "true"):
-        raise Refusal(f"{repo} is not a git work tree")
+def require_repo(opts):
+    """A git work tree, a well-formed branch name and a configured remote, or a Refusal."""
+    inside = run_git(opts.repo, "rev-parse", "--is-inside-work-tree")
+    if not (inside.ok and inside.text == "true"):
+        raise Refusal(f"{opts.repo} is not a git work tree")
+    name = run_git(opts.repo, "check-ref-format", "--branch", opts.branch)
+    if not name.ok or name.text != opts.branch:  # `@{-1}` and friends expand to another name
+        raise Refusal(f"invalid branch name: {opts.branch!r}")
+    remotes = run_git(opts.repo, "remote")
+    if not remotes.ok or opts.remote not in remotes.out.split():
+        raise Refusal(f"remote {opts.remote!r} is not configured in {opts.repo}")
 
 
-def require_branch_name(repo, branch):
-    result = run_git(repo, "check-ref-format", "--branch", branch)
-    if not result.ok or result.text != branch:  # `@{-1}` and friends expand to another name
-        raise Refusal(f"invalid branch name: {branch!r}")
+def default_branch(opts):
+    """<remote>/HEAD, else the remote's own HEAD; a remote that cannot be asked is a Refusal."""
+    head = run_git(opts.repo, "symbolic-ref", "--quiet", f"{REMOTES}{opts.remote}/HEAD")
+    if head.ok:
+        return short_branch(head.text)
+    asked = run_git(opts.repo, "ls-remote", "--symref", opts.remote, "HEAD",
+                    timeout=GIT_NETWORK_TIMEOUT_S)
+    if not asked.ok:
+        raise Refusal(f"cannot tell the default branch of {opts.remote}: {asked.reason}")
+    symrefs = [line.split()[1] for line in asked.out.splitlines() if line.startswith("ref: ")]
+    return short_branch(symrefs[0]) if symrefs else ""  # no symref: the remote has no default
 
 
-def require_remote(repo, remote):
-    result = run_git(repo, "remote")
-    if not result.ok or remote not in result.out.split():
-        raise Refusal(f"remote {remote!r} is not configured in {repo}")
-
-
-def refuse_default_branch(opts):
-    head = run_git(opts.repo, "symbolic-ref", "--quiet", "--short",
-                   f"{REMOTES}{opts.remote}/HEAD")
-    default = strip_remote(head.text, opts.remote) if head.ok else ""
-    if default and default.casefold() == opts.branch.casefold():
-        raise Refusal(f"{opts.branch!r} is the default branch of {opts.remote}")
-
-
-def target_branch_names(opts):
+def resolve_target(opts):
+    """Pin --target to the full branch or tag ref it names. A commit or an expression such as
+    `<branch>~0` is refused: it would let the branch prove its own merge."""
+    if resolve_commit(opts.repo, opts.target) is None:
+        raise Refusal(f"--target {opts.target!r} does not resolve to a commit")
     full = run_git(opts.repo, "rev-parse", "--symbolic-full-name", opts.target).text
-    names = {strip_remote(opts.target, opts.remote), short_branch(full)}
-    return {name.casefold() for name in names if name}
+    if "\n" in full or not full.startswith((HEADS, REMOTES, "refs/tags/")):
+        raise Refusal(f"--target {opts.target!r} must name a branch or tag, not a commit")
+    if short_branch(full).casefold() == opts.branch.casefold():
+        raise Refusal(f"{opts.branch!r} is the target's own branch; it cannot be merged into itself")
+    return opts._replace(target_ref=full)
 
 
 def validate(opts):
-    """Raise Refusal unless the request is safe to act on."""
+    """Return opts with target_ref set, or raise Refusal unless the request is safe to act on."""
     refuse_static(opts)
-    require_work_tree(opts.repo)
-    require_branch_name(opts.repo, opts.branch)
-    require_remote(opts.repo, opts.remote)
-    refuse_default_branch(opts)
-    if resolve_commit(opts.repo, opts.target) is None:
-        raise Refusal(f"--target {opts.target!r} does not resolve to a commit")
-    if opts.branch.casefold() in target_branch_names(opts):
-        raise Refusal(f"{opts.branch!r} is the target's own branch; it cannot be merged into itself")
+    require_repo(opts)
+    default = default_branch(opts)
+    if default and default.casefold() == opts.branch.casefold():
+        raise Refusal(f"{opts.branch!r} is the default branch of {opts.remote}")
+    return resolve_target(opts)
 
 
 # survey: read what exists
-def worktree_from_fields(fields, is_main):
-    attrs = dict(field.partition(" ")[::2] for field in fields)
-    branch = short_branch(attrs["branch"]) if "branch" in attrs else None
-    return Worktree(attrs.get("worktree", ""), branch, is_main, attrs.get("locked"),
-                    "prunable" in attrs)
-
-
 def parse_worktrees(text):
     """Parse `git worktree list --porcelain -z`; the first entry is the main checkout."""
-    blocks = [block.split("\0") for block in text.split("\0\0") if block.strip("\0")]
-    return tuple(worktree_from_fields(fields, index == 0) for index, fields in enumerate(blocks))
+    blocks = [dict(field.partition(" ")[::2] for field in block.split("\0"))
+              for block in text.split("\0\0") if block.strip("\0")]
+    return tuple(Worktree(attrs.get("worktree", ""), short_branch(attrs.get("branch", "")) or None,
+                          index == 0, attrs.get("locked"), "prunable" in attrs)
+                 for index, attrs in enumerate(blocks))
 
 
 def check_copy(repo, ref, target_sha):
@@ -221,33 +207,51 @@ def check_copy(repo, ref, target_sha):
     return Copy(tip, False, f"could not prove merged: {verdict.reason}")
 
 
+def is_cache(entry):
+    """An ignored status entry inside a regenerable cache directory, e.g. `!! pkg/__pycache__/`."""
+    return entry.startswith("!! ") and not CACHE_DIRS.isdisjoint(entry[3:].split("/")[:-1])
+
+
 def dirty_paths(worktree):
-    """Porcelain status lines; a failing status counts as dirty because clean cannot be proved."""
-    status = run_git(worktree.path, "status", "--porcelain")
+    """Status entries `git worktree remove` would lose: changes, untracked and ignored files other
+    than caches. A failing status counts as dirty because clean cannot be proved."""
+    status = run_git(worktree.path, "status", "--porcelain", "-z", "--untracked-files=normal",
+                     "--ignored=matching", "--ignore-submodules=none")
     if not status.ok:
         return (f"status failed: {status.reason}",)
-    return tuple(line for line in status.out.splitlines() if line)
+    return tuple(entry for entry in status.out.split("\0") if entry and not is_cache(entry))
 
 
 def find_holders(branch, worktrees):
-    held = [wt for wt in worktrees if wt.branch == branch and not wt.prunable]
-    return tuple(
-        Holder(wt, () if wt.is_main or wt.locked is not None else dirty_paths(wt)) for wt in held
-    )
+    """Holders of the branch; main, locked and stale (directory gone) ones need no status check."""
+    def checked(wt):
+        stale = wt.prunable and not os.path.lexists(wt.path)
+        return () if wt.is_main or wt.locked is not None or stale else dirty_paths(wt)
+    return tuple(Holder(wt, checked(wt)) for wt in worktrees if wt.branch == branch)
 
 
-def fetch_remote(opts):
-    if opts.dry_run or not opts.fetch:
-        return None
-    result = run_git(opts.repo, "fetch", "--prune", opts.remote, timeout=GIT_NETWORK_TIMEOUT_S)
-    return None if result.ok else result.reason
+def busy_with(opts):
+    """Why a rebase or bisect started from the branch keeps it (git's own delete refuses), or ""."""
+    common = run_git(opts.repo, "rev-parse", "--git-common-dir")
+    if not common.ok:
+        return f"cannot rule out a rebase or bisect of it: {common.reason}"
+    names = (opts.branch, HEADS + opts.branch)
+    try:
+        root = Path(opts.repo, common.text)
+        admin = root / "worktrees"
+        gitdirs = [root, *sorted(admin.iterdir())] if admin.is_dir() else [root]
+        for state in (gitdir / name for gitdir in gitdirs for name in BUSY_FILES):
+            if state.is_file() and state.read_text("utf-8", "replace").strip() in names:
+                return f"a rebase or bisect of it is in progress ({state})"
+    except OSError as exc:
+        return f"cannot rule out a rebase or bisect of it: {exc}"
+    return ""
 
 
 def survey(opts):
-    fetch_error = fetch_remote(opts)
-    if not opts.dry_run:
-        run_git(opts.repo, "worktree", "prune")
-    target_sha = resolve_commit(opts.repo, opts.target)
+    fetched = run_git(opts.repo, "fetch", "--prune", opts.remote, timeout=GIT_NETWORK_TIMEOUT_S) \
+        if opts.fetch and not opts.dry_run else None
+    target_sha = resolve_commit(opts.repo, opts.target_ref)
     if target_sha is None:
         raise Refusal(f"--target {opts.target!r} no longer resolves to a commit")
     listing = run_git(opts.repo, "worktree", "list", "--porcelain", "-z")
@@ -258,7 +262,8 @@ def survey(opts):
         branch=opts.branch, target=opts.target, remote=opts.remote, main_path=worktrees[0].path,
         local=check_copy(opts.repo, f"{HEADS}{opts.branch}", target_sha),
         remote_copy=check_copy(opts.repo, f"{REMOTES}{opts.remote}/{opts.branch}", target_sha),
-        fetch_error=fetch_error, holders=find_holders(opts.branch, worktrees),
+        fetch_error=fetched.reason if fetched and not fetched.ok else None,
+        holders=find_holders(opts.branch, worktrees), busy=busy_with(opts),
     )
 
 
@@ -276,25 +281,26 @@ def plan_unmerged(s):
 
 def blocker(holder):
     """Why this worktree cannot be removed, or None when it can."""
-    wt = holder.worktree
+    wt, dirty = holder
     if wt.is_main:
         return "main checkout is never removed or switched"
     if wt.locked is not None:
         return f"locked: {wt.locked or 'no reason given'}; never unlocked"
-    if holder.dirty:
-        return f"uncommitted changes ({len(holder.dirty)} paths, e.g. {holder.dirty[0]}); never forced"
+    if dirty:
+        return f"uncommitted or ignored files ({len(dirty)} paths, e.g. {dirty[0]}); never forced"
     return None
 
 
 def plan_local(s, blocked):
     if s.local.sha is None:
         return (), False
+    if s.busy:
+        return (Left(f"local:{s.branch}", s.busy),), False
     if not blocked:
         return (), True
-    if any(h.worktree.is_main for h in blocked):
-        why = "checked out in the main checkout"
-    else:
-        why = "checked out in worktree " + ", ".join(h.worktree.path for h in blocked)
+    in_main = any(h.worktree.is_main for h in blocked)
+    why = "checked out in the main checkout" if in_main \
+        else "checked out in worktree " + ", ".join(h.worktree.path for h in blocked)
     return (Left(f"local:{s.branch}", why),), False
 
 
@@ -349,10 +355,9 @@ def delete_remote_branch(main, remote, branch, sha):
 
 
 def planned_deletions(s, plan):
-    paths = tuple(f"worktree:{path}" for path in plan.remove)
-    local = (f"local:{s.branch}",) if plan.delete_local else ()
-    remote = (f"{s.remote}:{s.branch}",) if plan.delete_remote else ()
-    return paths + local + remote
+    return (tuple(f"worktree:{path}" for path in plan.remove)
+            + ((f"local:{s.branch}",) if plan.delete_local else ())
+            + ((f"{s.remote}:{s.branch}",) if plan.delete_remote else ()))
 
 
 def execute(s, plan):
@@ -374,8 +379,7 @@ def execute(s, plan):
 
 def main(argv=None):
     try:
-        opts = parse_args(sys.argv[1:] if argv is None else argv)
-        validate(opts)
+        opts = validate(parse_args(sys.argv[1:] if argv is None else argv))
         found = survey(opts)
         plan = plan_cleanup(found)
         deleted, left = (planned_deletions(found, plan), plan.left) if opts.dry_run \

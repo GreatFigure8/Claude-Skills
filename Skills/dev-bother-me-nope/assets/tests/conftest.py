@@ -21,7 +21,8 @@ BIN = Path(__file__).resolve().parents[1] / "bin"
 CLEANUP = BIN / "merged-branch-cleanup.py"
 POLICY = BIN / "repo-merge-policy.py"
 FORBIDDEN_SUBCOMMANDS = frozenset({"checkout", "switch", "reset", "stash", "merge", "rebase", "pull"})
-REFUSAL_SUBCOMMANDS = frozenset({"rev-parse", "check-ref-format", "symbolic-ref", "remote"})
+REFUSAL_SUBCOMMANDS = frozenset({"rev-parse", "check-ref-format", "symbolic-ref", "remote",
+                                 "ls-remote"})
 GIT_ENV_LEAKS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_PREFIX")
 GIT_CONFIG = """[user]
 \tname = Test User

@@ -14,7 +14,11 @@ GitHub MCP `merge_pull_request` with merge_method=squash) and every `gh pr merge
 --delete-branch (a merged PR's source branch is deleted). Merge commits only: `git merge
 --no-ff`, `gh pr merge <n> --merge --delete-branch`. The approval prefix is a deploy-only
 pass-through, so it never unlocks a merge rule; branch cleanup (`git push origin --delete`,
-`git branch -D`, `git worktree remove|prune`) is never blocked.
+`git branch -D`, `git worktree remove|prune`) is never blocked, except that `git push
+--delete`/`:ref` never removes a protected branch (main master prod production release dev
+develop staging, or the remote's default branch). Wrappers that take options or values
+(`timeout 60`, `sudo -u me`, `nice -n 5`, `env -u X`, `xargs -n1`) and bundled shell flags
+(`sh -ec '…'`) are unwrapped before matching.
 
 Shipped as a plugin hook, so it fires in every session; it only acts inside a git repo with a
 dev-bother-me-nope run in progress (docs/sprints/bmn-*/bmn.json whose phase isn't done or
@@ -33,13 +37,31 @@ from typing import NamedTuple
 
 APPROVAL_VAR = "BMN_USER_APPROVED_DEPLOY"
 PROTECTED_BRANCHES = frozenset({"main", "master", "prod", "production", "release"})
+# Never deleted on origin: the production names plus merged-branch-cleanup.py's integration names.
+DELETE_PROTECTED = PROTECTED_BRANCHES | frozenset({"dev", "develop", "staging"})
 
 SEPARATOR_CHARS = frozenset(";&|()\n")
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n[ \t]*\2[ \t]*(?=\n|$)", re.DOTALL)
 WHICH_SUBST = re.compile(r"\$\(\s*(?:which|command\s+-v)\s+([\w.-]+)\s*\)|`\s*which\s+([\w.-]+)\s*`")
-SHELLS = frozenset({"sh", "bash", "zsh", "dash"})
+SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh", "fish"})
+SHELL_VALUE_FLAGS = frozenset({"-o", "+o", "-O", "+O", "--rcfile", "--init-file"})
 SIMPLE_WRAPPERS = frozenset({"env", "time", "nohup", "sudo", "command", "exec", "xargs",
-                             "npx", "bunx", "nice"})
+                             "npx", "bunx", "nice", "timeout"})
+DURATION_WRAPPERS = frozenset({"timeout"})
+WRAPPER_VALUE_FLAGS = MappingProxyType({
+    "sudo": frozenset({"-u", "-g", "-h", "-p", "-C", "-D", "-R", "-T", "-U", "-r", "-t",
+                       "--user", "--group", "--host", "--prompt", "--close-from", "--chdir",
+                       "--role", "--type", "--other-user", "--command-timeout"}),
+    "timeout": frozenset({"-s", "--signal", "-k", "--kill-after"}),
+    "nice": frozenset({"-n", "--adjustment"}),
+    "env": frozenset({"-u", "--unset", "-C", "--chdir", "-S", "--split-string", "-P"}),
+    "xargs": frozenset({"-n", "--max-args", "-P", "--max-procs", "-I", "-L", "-s", "--max-chars",
+                        "-d", "--delimiter", "-E", "-a", "--arg-file", "--replace",
+                        "--max-lines", "--eof", "--process-slot-var", "-J", "-R", "-S"}),
+    "time": frozenset({"-f", "--format", "-o", "--output"}),
+    "exec": frozenset({"-a"}),
+    "npx": frozenset({"-p", "--package"}),
+})
 TWO_WORD_WRAPPERS = frozenset({("uv", "run"), ("poetry", "run"), ("pipenv", "run"),
                                ("bun", "x"), ("pnpm", "dlx"), ("pnpm", "exec"),
                                ("yarn", "dlx"), ("yarn", "exec"), ("npm", "exec")})
@@ -74,6 +96,8 @@ LINKED_REF_PATH = ("supabase", ".temp", "project-ref")
 REMOTE_DB_HOST = re.compile(r"supabase\.(co|com)\b")
 REMOTE_DB_VAR = re.compile(r"\$\{?\w*(SUPABASE|PROD|MAIN|REMOTE)\w*", re.IGNORECASE)
 GIT_VALUE_OPTIONS = frozenset({"-C", "-c"})
+PUSH_VALUE_OPTIONS = frozenset({"-o", "--push-option", "--repo"})
+PUSH_DELETE_CLUSTER = re.compile(r"^-[nfuqv46]*d[nfuqv46]*$")
 
 MCP_SUPABASE_WRITE_TOOLS = ("apply_migration", "deploy_edge_function", "create_branch",
                             "merge_branch", "reset_branch", "rebase_branch", "delete_branch",
@@ -175,6 +199,41 @@ def skip_flags(tokens):
     return tokens[i:]
 
 
+def skip_wrapper_args(wrapper, tokens):
+    """Drop a wrapper's own flags, the values of its value flags (`sudo -u me`, `nice -n 5`,
+    `timeout -k 5`) and env assignments; `timeout` then takes its DURATION positional."""
+    value_flags = WRAPPER_VALUE_FLAGS.get(wrapper, frozenset())
+    i = 0
+    while i < len(tokens):
+        if tokens[i] in value_flags:
+            i += 2
+        elif tokens[i].startswith("-") or is_assignment(tokens[i]):
+            i += 1
+        else:
+            break
+    rest = tokens[i:]
+    return rest[1:] if wrapper in DURATION_WRAPPERS else rest
+
+
+def shell_command_string(args):
+    """The string a `sh -c` / `bash -ec` / `bash -o pipefail -lc` runs; None when the shell runs
+    a script file or reads stdin (a `-c` after the script name belongs to the script)."""
+    has_c, skip_next = False, False
+    for arg in args:
+        if skip_next:
+            skip_next = False
+        elif arg in SHELL_VALUE_FLAGS:
+            skip_next = True
+        elif arg.startswith("--"):
+            continue
+        elif arg[:1] in ("-", "+") and len(arg) > 1:
+            has_c = has_c or "c" in arg[1:]
+            skip_next = arg[-1] in ("o", "O")
+        else:
+            return arg if has_c else None
+    return None
+
+
 def unwrap(tokens):
     """Strip env assignments and runner/wrapper prefixes. Returns (approved, tokens)."""
     approved = False
@@ -184,7 +243,7 @@ def unwrap(tokens):
             approved = approved or (key == APPROVAL_VAR and value == "1")
             tokens = tokens[1:]
         elif program_name(tokens[0]) in SIMPLE_WRAPPERS:
-            tokens = skip_flags(tokens[1:])
+            tokens = skip_wrapper_args(program_name(tokens[0]), tokens[1:])
         elif tuple(tokens[:2]) in TWO_WORD_WRAPPERS:
             tokens = skip_flags(tokens[2:])
         elif (tokens[0] in PACKAGE_RUNNERS and len(tokens) > 1
@@ -280,6 +339,49 @@ def git_subcommand(args):
     return args[i:]
 
 
+def ref_destination(spec):
+    """The branch a push refspec writes to (or deletes): `+src:refs/heads/dev` -> `dev`."""
+    return spec.lstrip("+").rsplit(":", 1)[-1].removeprefix("refs/heads/")
+
+
+def push_deletes(push_args):
+    """True when `git push` runs in delete mode: `--delete`, its abbreviations, or `-d` (alone
+    or bundled, `-nd`). Options end at `--`."""
+    for arg in push_args:
+        if arg == "--":
+            return False
+        if is_abbrev(arg, "--delete", "--de") or PUSH_DELETE_CLUSTER.match(arg):
+            return True
+    return False
+
+
+def default_branch(cwd, remote):
+    """The remote's default branch from the local refs/remotes/<remote>/HEAD, else ''."""
+    for name in dict.fromkeys([remote, "origin"]):
+        try:
+            out = subprocess.run(["git", "symbolic-ref", "--quiet", "--short",
+                                  f"refs/remotes/{name}/HEAD"], cwd=cwd or None,
+                                 capture_output=True, text=True, timeout=5, check=False)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if out.returncode == 0 and out.stdout.strip():
+            return out.stdout.strip().removeprefix(f"{name}/")
+    return ""
+
+
+def deleted_protected_ref(push_args, remote, refspecs, cwd):
+    """The refspec that deletes a protected branch or the remote's default branch, else None.
+    A delete is `--delete <branch>` or an empty-source refspec (`:dev`, `+:dev`)."""
+    delete_mode = push_deletes(push_args)
+    for spec in refspecs:
+        if not (delete_mode or spec.lstrip("+").startswith(":")):
+            continue
+        dest = ref_destination(spec).casefold()
+        if dest and (dest in DELETE_PROTECTED or dest == default_branch(cwd, remote).casefold()):
+            return spec
+    return None
+
+
 def check_git(args, cwd):
     rest = git_subcommand(args)
     if not rest or rest[0] != "push":
@@ -287,17 +389,18 @@ def check_git(args, cwd):
     push_args = rest[1:]
     if "--all" in push_args or "--mirror" in push_args:
         return "`git push --all/--mirror` would push production branches"
-    refspecs = positional(push_args, frozenset({"-o", "--push-option", "--repo"}))[1:]
+    words = positional(push_args, PUSH_VALUE_OPTIONS)
+    remote, refspecs = (words[0] if words else ""), words[1:]
     if not refspecs:
         branch = current_branch(cwd)
         if branch in PROTECTED_BRANCHES:
             return f"`git push` from `{branch}` pushes a production branch"
         return None
     for spec in refspecs:
-        dest = spec.lstrip("+").rsplit(":", 1)[-1].removeprefix("refs/heads/")
-        if dest in PROTECTED_BRANCHES:
+        if ref_destination(spec) in PROTECTED_BRANCHES:
             return f"`git push … {spec}` pushes a production branch"
-    return None
+    doomed = deleted_protected_ref(push_args, remote, refspecs, cwd)
+    return f"`git push … {doomed}` deletes a protected branch" if doomed else None
 
 
 def repo_root(cwd):
@@ -530,9 +633,10 @@ def check_segment(tokens, ctx):
     if not tokens:
         return None, ctx
     prog, args = program_name(tokens[0]), tokens[1:]
-    if prog in SHELLS and "-c" in args[:-1]:
+    script = shell_command_string(args) if prog in SHELLS else None
+    if script is not None:
         inner = {**ctx, "approved": approved or ctx["approved"]}
-        return check_bash(args[args.index("-c") + 1], inner), ctx
+        return check_bash(script, inner), ctx
     merge = merge_reason(prog, args)
     if merge:
         return Block(MERGE_GUARD, merge), ctx
