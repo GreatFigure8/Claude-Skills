@@ -1,0 +1,7 @@
+TEST1 coverage (python 3.13, coverage 7.16.2, subprocess coverage via patch=subprocess).
+The plain `--cov` run reports 0-38% for these scripts because the tests run them as subprocesses
+with an explicit env, so they were measured with COVERAGE_PROCESS_START injected into those
+subprocesses (a pytest plugin kept outside the repo).
+Full suite: 338 passed. Python 3.9.6 (/usr/bin/python3): 336 passed, 2 failed (py39-failures.log).
+Skills/dev-bother-me-nope/assets/bin/merged-branch-cleanup.py  250 stmts  14 miss  94%  92, 103, 113-116, 126, 221, 228, 252, 255, 306, 364-365
+Skills/dev-bother-me-nope/assets/bin/repo-merge-policy.py      188 stmts  11 miss  94%  81, 160, 170-173, 244, 247-248, 277-278
