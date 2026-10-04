@@ -1,6 +1,6 @@
 {
   "run": "bmn-merged-branch-cleanup-and-no-squash-merges",
-  "phase": "build",
+  "phase": "merge1",
   "integration": "feat/merged-branch-cleanup-and-no-squash-merges",
   "worktree": "/Users/jonathanstevenson/Source/claude-skills-merged-branch-cleanup-and-no-squash-merges",
   "live": "dev",
@@ -24,27 +24,45 @@
       "slug": "skill-text-merged-branch-cleanup-and-merge-commits-only",
       "title": "Skill text: delete every merged branch and its worktrees, merge commits only (1.6.0)",
       "deps": [],
-      "status": "built",
+      "status": "merged",
       "branch": "wip/merged-branch-cleanup-and-no-squash-merges/skill-text-merged-branch-cleanup-and-merge-commits-only",
-      "merges": [],
+      "merges": [
+        {
+          "branch": "wip/merged-branch-cleanup-and-no-squash-merges/skill-text-merged-branch-cleanup-and-merge-commits-only",
+          "tip": "fe6f52820d7d0f95275b3bcab8d3941cbd378dd4",
+          "merge": "13e3eccb8867cc5794815d667179669b6f83c231"
+        }
+      ],
       "detail": ""
     },
     {
       "slug": "deploy-guard-blocks-squash-merges",
       "title": "The deploy guard blocks squash merges and PR merges that keep the source branch",
       "deps": [],
-      "status": "built",
+      "status": "merged",
       "branch": "wip/merged-branch-cleanup-and-no-squash-merges/deploy-guard-blocks-squash-merges",
-      "merges": [],
+      "merges": [
+        {
+          "branch": "wip/merged-branch-cleanup-and-no-squash-merges/deploy-guard-blocks-squash-merges",
+          "tip": "102c9422a3071a5615078b2d4aaa2b520adf979a",
+          "merge": "abfe358576e862a9edf6dd8ef338c413e5513082"
+        }
+      ],
       "detail": ""
     },
     {
       "slug": "merged-branch-cleanup-and-repo-merge-policy-scripts",
       "title": "Merged-branch cleanup and repo merge-policy helper scripts",
       "deps": [],
-      "status": "built",
+      "status": "merged",
       "branch": "wip/merged-branch-cleanup-and-no-squash-merges/merged-branch-cleanup-and-repo-merge-policy-scripts",
-      "merges": [],
+      "merges": [
+        {
+          "branch": "wip/merged-branch-cleanup-and-no-squash-merges/merged-branch-cleanup-and-repo-merge-policy-scripts",
+          "tip": "e8adeb53f21f6ae83945dd030475b8b46f17b47e",
+          "merge": "b1ddecebaeb1a6383ea61597e66526a3d8870708"
+        }
+      ],
       "detail": ""
     }
   ],
@@ -94,7 +112,17 @@
   ],
   "integration_pushed": true,
   "cleanup": {
-    "deleted": [],
+    "deleted": [
+      "wip/merged-branch-cleanup-and-no-squash-merges/skill-text-merged-branch-cleanup-and-merge-commits-only (local+origin)",
+      "worktree-agent-a2dbcee5d3cf7beb2 (local)",
+      "wip/merged-branch-cleanup-and-no-squash-merges/deploy-guard-blocks-squash-merges (local+origin)",
+      "worktree-agent-a3bb30180729f2c5e (local)",
+      "wip/merged-branch-cleanup-and-no-squash-merges/merged-branch-cleanup-and-repo-merge-policy-scripts (local+origin)",
+      "worktree-agent-aa07c02af642a0543 (local)",
+      "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a2dbcee5d3cf7beb2 (worktree)",
+      "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a3bb30180729f2c5e (worktree)",
+      "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-aa07c02af642a0543 (worktree)"
+    ],
     "left": []
   },
   "deploy_pending": {
@@ -116,5 +144,5 @@
     "Scope: dev-bother-me-nope only (see stack.md assumptions 1-6)"
   ],
   "blocker": null,
-  "updated": "2026-10-04T01:41:14.759313+00:00"
+  "updated": "2026-10-04T01:45:22.029177+00:00"
 }
