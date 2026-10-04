@@ -1,6 +1,6 @@
 {
   "run": "bmn-nextjs-typescript-best-practices-reference",
-  "phase": "split",
+  "phase": "plan",
   "integration": "feat/nextjs-typescript-best-practices-reference",
   "worktree": "/Users/jonathanstevenson/Source/claude-skills-nextjs-typescript-best-practices-reference",
   "live": "dev",
@@ -19,14 +19,128 @@
     "supabase_dev_ref": null,
     "supabase_main_ref": null
   },
-  "stories": [],
+  "stories": [
+    {
+      "slug": "nextjs-standard-entry-point-and-skill-wiring",
+      "title": "Entry point, index and bmn wiring",
+      "deps": [],
+      "status": "split",
+      "branch": "wip/nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring",
+      "merges": [],
+      "detail": ""
+    },
+    {
+      "slug": "typescript-config-and-typing-patterns",
+      "title": "typescript config and typing patterns",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "split",
+      "branch": "wip/nextjs-typescript-best-practices-reference/typescript-config-and-typing-patterns",
+      "merges": [],
+      "detail": ""
+    },
+    {
+      "slug": "app-router-routing-and-metadata",
+      "title": "app router routing and metadata",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "split",
+      "branch": "wip/nextjs-typescript-best-practices-reference/app-router-routing-and-metadata",
+      "merges": [],
+      "detail": ""
+    },
+    {
+      "slug": "rendering-caching-and-streaming-ssr",
+      "title": "rendering caching and streaming ssr",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "split",
+      "branch": "wip/nextjs-typescript-best-practices-reference/rendering-caching-and-streaming-ssr",
+      "merges": [],
+      "detail": ""
+    },
+    {
+      "slug": "data-fetching-server-actions-and-forms",
+      "title": "data fetching server actions and forms",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "split",
+      "branch": "wip/nextjs-typescript-best-practices-reference/data-fetching-server-actions-and-forms",
+      "merges": [],
+      "detail": ""
+    },
+    {
+      "slug": "route-handlers-and-api-design",
+      "title": "route handlers and api design",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "split",
+      "branch": "wip/nextjs-typescript-best-practices-reference/route-handlers-and-api-design",
+      "merges": [],
+      "detail": ""
+    },
+    {
+      "slug": "server-sent-events-and-streaming-responses",
+      "title": "server sent events and streaming responses",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "split",
+      "branch": "wip/nextjs-typescript-best-practices-reference/server-sent-events-and-streaming-responses",
+      "merges": [],
+      "detail": ""
+    },
+    {
+      "slug": "proxy-auth-and-security",
+      "title": "proxy auth and security",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "split",
+      "branch": "wip/nextjs-typescript-best-practices-reference/proxy-auth-and-security",
+      "merges": [],
+      "detail": ""
+    },
+    {
+      "slug": "performance-and-vercel-platform",
+      "title": "performance and vercel platform",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "split",
+      "branch": "wip/nextjs-typescript-best-practices-reference/performance-and-vercel-platform",
+      "merges": [],
+      "detail": ""
+    },
+    {
+      "slug": "testing-errors-and-observability",
+      "title": "testing errors and observability",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "split",
+      "branch": "wip/nextjs-typescript-best-practices-reference/testing-errors-and-observability",
+      "merges": [],
+      "detail": ""
+    }
+  ],
   "temp_refs": [],
-  "integration_pushed": false,
+  "integration_pushed": true,
   "cleanup": {
     "deleted": [],
     "left": []
   },
-  "repo_policy": null,
+  "repo_policy": {
+    "repo": "GreatFigure8/Claude-Skills",
+    "status": "already-set",
+    "changes": {},
+    "reason": null
+  },
   "deploy_pending": {
     "vercel": [],
     "supabase_migrations": []
@@ -45,8 +159,10 @@
   "assumptions": [
     "nextjs-fullstack-standards is not loadable anywhere on this machine; nextjs.md becomes the repo-owned Next.js/TS standard read by bmn's TypeScript routing.",
     "Deep topics split into references/nextjs/<topic>.md (800-line cap); every claim sourced from nextjs.org/vercel.com, verified live 2026-10-04.",
-    "Plugin version bumps once (1.6.0 \u2192 1.7.0) with its pinned test."
+    "Plugin version bumps once (1.6.0 \u2192 1.7.0) with its pinned test.",
+    "Skeleton story creates all nine topic files as stubs; topic stories own only their file + test_nextjs_topic_<name>.py; rule ids prefixed per topic (TS, RT, RC, DF, API, SSE, SEC, PERF, TEST).",
+    "Unconfirmed claims go under 'Not confirmed by the docs' rather than being stated; snippets are not compiled, checked at review against cited pages."
   ],
   "blocker": null,
-  "updated": "2026-10-04T00:10:00Z"
+  "updated": "2026-10-04T00:25:00Z"
 }
