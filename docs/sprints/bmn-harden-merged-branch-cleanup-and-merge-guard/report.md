@@ -68,7 +68,9 @@ Two process deviations:
 - **R2-6** `move-computers.md:29`: each per-branch helper call fetches again; fetching once and passing `--no-fetch` would do.
 
 ## Git cleanup
-_Filled in by CLEANUP._
+**Run branch** `fix/harden-merged-branch-cleanup-and-merge-guard` · worktree `/Users/jonathanstevenson/Source/claude-skills-harden-merged-branch-cleanup-and-merge-guard`: deleted (local + origin) by `merged-branch-cleanup.py --target origin/dev`.
+**Deleted:** 6 wip branches (local + origin), 6 harness branches, 6 worktrees, by the integrators.
+**Left:** nothing.
 
 ## Evidence
 `review.md`, per-story `validation.md`, `evidence/` under each story folder.
