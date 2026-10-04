@@ -1,6 +1,6 @@
 {
   "run": "bmn-merged-branch-cleanup-and-no-squash-merges",
-  "phase": "review2",
+  "phase": "report",
   "integration": "feat/merged-branch-cleanup-and-no-squash-merges",
   "worktree": "/Users/jonathanstevenson/Source/claude-skills-merged-branch-cleanup-and-no-squash-merges",
   "live": "dev",
@@ -218,7 +218,10 @@
       "worktree-agent-a0ac764f9ca167407 (local)",
       "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ada97b39fd627d19d (worktree)",
       "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ae7191132eeeeaac8 (worktree)",
-      "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a0ac764f9ca167407 (worktree)"
+      "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a0ac764f9ca167407 (worktree)",
+      "wip/merged-branch-cleanup-and-no-squash-merges/tests-unit-2 (local+origin)",
+      "worktree-agent-ae9dd52350a2bb7f2 (local)",
+      "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ae9dd52350a2bb7f2 (worktree)"
     ],
     "left": []
   },
@@ -242,7 +245,7 @@
     "R1-6 (owner run) is in deploy-guard.py, so the deploy-guard fixer takes it alongside R1-5 to avoid two fixers editing one file"
   ],
   "blocker": null,
-  "updated": "2026-10-04T02:44:14.955041+00:00",
+  "updated": "2026-10-04T02:51:00.233793+00:00",
   "dev_merges": [
     {
       "phase": "merge1",
