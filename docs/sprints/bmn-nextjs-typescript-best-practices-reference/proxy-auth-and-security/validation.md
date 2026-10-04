@@ -299,3 +299,29 @@ text in the REVIEW① tables of `../review.md`). Each was reproduced first, then
    `X-Frame-Options` sent beside it, because the docs call that header superseded.
 4. Rewriting the other topics' session-helper imports (`@/lib/dal/session`, `@/lib/auth/session`,
    `@/lib/auth`) belongs to their own fixers; this file only defines the contract they align to.
+
+## TEST2: unit (2026-10-04)
+
+Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-2`, cut from the detached run base `origin/dev` `7acb627` (the run branch after the FIX① merges). Tester: `tests-unit-2`. No code was changed; verification pass after FIX①.
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Full suite with coverage | `uv run --quiet --with pytest --with pytest-cov python -m pytest Skills/dev-bother-me-nope/assets/tests -q --cov=Skills/dev-bother-me-nope/assets/tests --cov-report=term` | **1247 passed in 199.90s (0:03:19)**, exit 0, 0 failed, 0 skipped. Log: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring/evidence/test2-unit-full-suite.txt` |
+| Per-test outcomes | same suite with `-v -p no:cacheprovider` | 1247 PASSED, 0 other (117.86s). Per-story lists: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/proxy-auth-and-security/evidence/test2-unit-results.txt` |
+| Lint | `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope` | `All checks passed!` |
+
+### Coverage
+
+- `test_nextjs_topic_proxy_auth_and_security.py`: **98%** (131 of 134 statements; lines 63-64, 167).
+- `references/nextjs/proxy-auth-and-security.md`: Markdown, coverage n/a.
+- Whole suite: **99%** (4605 of 4642 statements). Target 80% met; `nextjs_doc_helpers.py` is the shared parser every story's tests use.
+
+### FIX① tests
+
+- **6 of 6** test names this story's FIX① section lists exist and PASS (none missing, none failing).
+
+### [unit] criteria still map to passing tests
+
+- TEST1 criterion map: 11 PASS, 0 FAIL. Re-checked now: **15 of 15** tests it cites exist and PASS. Every criterion still maps to at least one passing test; the one-off criteria (grounding evidence, scope) are unchanged and not re-run here.
+
+**Result:** 6 FIX① tests PASS, 11 criteria PASS, 0 FAIL.

@@ -218,3 +218,35 @@ What changed:
 4. `routed_references[]` holds `nextjs.md` only. Each reader picks the topic files per story from its Topic index.
 5. `plugin.json` is unchanged. No item needs a new version, and `test_skill_text_rules.py` (not owned here) pins `1.7.0`.
 6. The SKILL.md frontmatter description was edited for R1-A14 consistency. Its sha256 pin in `test_nextjs_wiring.py` moved with it.
+
+## TEST2: unit (2026-10-04)
+
+Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-2`, cut from the detached run base `origin/dev` `7acb627` (the run branch after the FIX① merges). Tester: `tests-unit-2`. No code was changed; verification pass after FIX①.
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Full suite with coverage | `uv run --quiet --with pytest --with pytest-cov python -m pytest Skills/dev-bother-me-nope/assets/tests -q --cov=Skills/dev-bother-me-nope/assets/tests --cov-report=term` | **1247 passed in 199.90s (0:03:19)**, exit 0, 0 failed, 0 skipped. Log: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring/evidence/test2-unit-full-suite.txt` |
+| Per-test outcomes | same suite with `-v -p no:cacheprovider` | 1247 PASSED, 0 other (117.86s). Per-story lists: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring/evidence/test2-unit-results.txt` |
+| Lint | `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope` | `All checks passed!` |
+
+### Coverage
+
+- `nextjs_doc_helpers.py`: **99%** (256 of 258 statements; uncovered lines 194 and 316).
+- `test_nextjs_doc_helpers.py`: **99%** (284 of 285 statements; line 648).
+- `test_nextjs_reference.py`: **96%** (302 of 313 statements; lines 158, 348-356, 433).
+- `test_nextjs_wiring.py`: **100%** (140 of 140 statements).
+- `references/nextjs.md`: Markdown, coverage n/a.
+- Whole suite: **99%** (4605 of 4642 statements). Target 80% met.
+
+### FIX① tests
+
+- `test_reviewer_brief_keeps_fullstack_standards` is not a FIX① test: this story's FIX① section records it as renamed or replaced (`test_reviewer_brief_keeps_fullstack_standards_when_available`, PASSED x1).
+- `test_stack_routing_typescript_row_names_the_reference_in_both_cells` is not a FIX① test: this story's FIX① section records it as renamed or replaced (`test_stack_routing_typescript_row_reads_the_reference_never_loads_it`, PASSED x1).
+- **27 of 29** test names this story's FIX① section lists exist and PASS (none missing, none failing; the other 2 are the superseded names above).
+
+### [unit] criteria still map to passing tests
+
+- TEST1 criterion map: 16 PASS, 0 FAIL. Re-checked now: **56 of 57** tests it cites exist and PASS; the other 1 is removed. Every criterion still maps to at least one passing test; the one-off criteria (grounding evidence, scope) are unchanged and not re-run here.
+- Renamed or replaced in FIX① (the criterion keeps a passing test): AC11 `test_stack_routing_typescript_row_names_the_reference_in_both_cells` -> `test_stack_routing_typescript_row_reads_the_reference_never_loads_it` (+ `test_stack_routing_route_table_has_a_read_column`); AC12 `test_skill_frontmatter_description_unchanged` -> `test_skill_frontmatter_description_pinned`; AC13 `test_reviewer_brief_keeps_fullstack_standards` -> `test_reviewer_brief_keeps_fullstack_standards_when_available`; AC14 `test_plugin_json_is_version_1_6_0` (removed since TEST1) -> `test_plugin_json_is_version_1_7_0`.
+
+**Result:** 27 FIX① tests PASS, 16 criteria PASS, 0 FAIL.

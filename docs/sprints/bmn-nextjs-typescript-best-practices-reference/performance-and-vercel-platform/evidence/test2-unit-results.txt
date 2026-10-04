@@ -1,0 +1,38 @@
+TEST2 unit results for performance-and-vercel-platform
+base 7acb627 (origin/dev), 2026-10-04
+full suite: 1247 passed (coverage run 199.90s; verbose rerun 117.86s)
+
+FIX tests named in this story's FIX① section (outcome in the verbose run):
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_august_release_is_listed_in_sources
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_avif_rule_cites_the_august_2026_release_and_names_the_disabling_version
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_cron_rule_requires_a_constant_time_compare
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_cron_secret_check_is_constant_time_on_bytes
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_every_request_json_call_is_guarded_with_a_400
+  PASSED x10   test_nextjs_reference.py::test_file_is_at_most_800_lines
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_no_example_enables_the_avif_format
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_no_rule_advises_adding_avif
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_remote_pattern_examples_set_every_field_but_the_wildcard_dont
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_remote_pattern_rule_names_port
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_shiki_html_is_not_wrapped_in_a_second_pre
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_web_vitals_component_is_defined_once
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_web_vitals_reporter_posts_to_the_shared_endpoint
+
+tests named in the TEST1 criterion map:
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_anti_patterns_pair_each_dont_with_a_do
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_checklist_rule_ids_exist_in_rules
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_every_checklist_item_names_a_perf_rule
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_every_vercel_number_line_carries_a_platform_link
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_patterns_code_uses_no_deprecated_api
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_performance_topic_has_at_least_15_perf_rules
+  PASSED x5    test_nextjs_topic_performance_and_vercel.py::test_performance_topic_has_required_typescript_example
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_performance_topic_is_not_a_stub
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_performance_topic_names_every_required_concept
+  PASSED x1    test_nextjs_reference.py::test_rule_ids_are_unique_across_topic_files
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_runtime_choice_rule_names_edge_with_a_vercel_link
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_topic_never_instructs_a_vercel_deploy
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_typescript_examples_use_no_any_type
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_unit_line_check_accepts_a_link_elsewhere_in_the_list_item
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_unit_line_check_counts_nested_bullets_as_part_of_the_item
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_unit_line_check_does_not_let_one_item_vouch_for_the_next
+  PASSED x1    test_nextjs_topic_performance_and_vercel.py::test_unit_line_check_flags_a_number_without_a_link
+  PASSED x4    test_nextjs_topic_testing_and_observability.py::test_version_notes_name_the_major_and_link_nextjs

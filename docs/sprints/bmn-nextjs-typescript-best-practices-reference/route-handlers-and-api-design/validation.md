@@ -322,3 +322,29 @@ No item is not-reproducible or blocked.
 4. **The Origin check is a shared helper.** `rejectCrossSiteRequest(request): Response | null` returns the `403` envelope or `null`, so each handler spends two lines on it and the file stays under 800 lines. It reads `APP_ORIGIN` at module scope as a constant, as the exports pattern did before; API-38 forbids per-request state there, not constants.
 5. **Admin role in the revalidate Do block.** The DAL's `Session` carries `role: 'admin' | 'user'`, so the block returns `401` without a session and `403` for a non-admin.
 6. **Fail-closed secret in the webhook Do block.** The short Do block treats a missing `WEBHOOK_SECRET` as a failed verification (401), never as an empty HMAC key; the full Patterns webhook still answers `500 internal` for a missing secret.
+
+## TEST2: unit (2026-10-04)
+
+Branch `wip/nextjs-typescript-best-practices-reference/tests-unit-2`, cut from the detached run base `origin/dev` `7acb627` (the run branch after the FIX① merges). Tester: `tests-unit-2`. No code was changed; verification pass after FIX①.
+
+| Step | Command | Result |
+| --- | --- | --- |
+| Full suite with coverage | `uv run --quiet --with pytest --with pytest-cov python -m pytest Skills/dev-bother-me-nope/assets/tests -q --cov=Skills/dev-bother-me-nope/assets/tests --cov-report=term` | **1247 passed in 199.90s (0:03:19)**, exit 0, 0 failed, 0 skipped. Log: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring/evidence/test2-unit-full-suite.txt` |
+| Per-test outcomes | same suite with `-v -p no:cacheprovider` | 1247 PASSED, 0 other (117.86s). Per-story lists: `docs/sprints/bmn-nextjs-typescript-best-practices-reference/route-handlers-and-api-design/evidence/test2-unit-results.txt` |
+| Lint | `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope` | `All checks passed!` |
+
+### Coverage
+
+- `test_nextjs_topic_route_handlers_and_apis.py`: **100%** (230 of 230 statements).
+- `references/nextjs/route-handlers-and-apis.md`: Markdown, coverage n/a.
+- Whole suite: **99%** (4605 of 4642 statements). Target 80% met; `nextjs_doc_helpers.py` is the shared parser every story's tests use.
+
+### FIX① tests
+
+- **15 of 15** test names this story's FIX① section lists exist and PASS (none missing, none failing).
+
+### [unit] criteria still map to passing tests
+
+- TEST1 criterion map: 11 PASS, 0 FAIL. Re-checked now: **21 of 21** tests it cites exist and PASS. Every criterion still maps to at least one passing test; the one-off criteria (grounding evidence, scope) are unchanged and not re-run here.
+
+**Result:** 15 FIX① tests PASS, 11 criteria PASS, 0 FAIL.

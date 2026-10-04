@@ -1,0 +1,43 @@
+TEST2 unit results for route-handlers-and-api-design
+base 7acb627 (origin/dev), 2026-10-04
+full suite: 1247 passed (coverage run 199.90s; verbose rerun 117.86s)
+
+FIX tests named in this story's FIX① section (outcome in the verbose run):
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_cookie_session_mutations_check_origin
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_crypto_calls_import_from_node_crypto
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_example_get_handlers_change_no_state
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_guard_rejects_a_body_read_that_never_verifies_a_signature
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_guard_rejects_a_cookie_session_mutation_without_an_origin_check
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_guard_rejects_a_get_that_changes_state
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_mutating_handler_examples_check_session_or_auth
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_pattern_handlers_that_list_are_bounded_by_limit_and_cursor
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_rule_keeps_get_free_of_side_effects_and_cites_mdn
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_session_helper_is_imported_from_the_dal
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_signature_length_check_compares_buffer_byte_lengths
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_signature_mismatch_answers_401_with_the_envelope
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_snippet_path_comments_use_the_src_layout
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_webhook_marks_an_event_processed_only_after_its_work_succeeds
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_webhook_rule_records_the_event_after_success_and_names_the_durable_job
+
+tests named in the TEST1 criterion map:
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_anti_patterns_pair_dont_with_do
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_cors_example_answers_preflight
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_dynamic_segment_example_uses_typed_route_context
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_error_shape_declared_once_under_patterns_as_convention
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_examples_contain_no_any
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_links_sibling_topics_instead_of_duplicating
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_mutating_handler_examples_check_session_or_auth
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_not_confirmed_section_states_no_rules
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_pattern_handlers_returning_errors_use_error_shape
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_post_example_references_error_shape
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_review_checklist_items_name_existing_api_rules
+  PASSED x1    test_nextjs_reference.py::test_rule_ids_are_unique_across_topic_files
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_rules_forbid_server_component_fetching_own_route_handler
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_rules_frame_route_handler_versus_server_action
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_topic_covers_required_terms
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_topic_has_at_least_18_api_rules
+  PASSED x2    test_nextjs_topic_route_handlers_and_apis.py::test_topic_is_not_a_stub
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_topic_uses_only_api_rule_ids
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_validated_post_example_returns_error_shape
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_version_notes_name_major_and_link_nextjs
+  PASSED x1    test_nextjs_topic_route_handlers_and_apis.py::test_webhook_example_verifies_signature_on_raw_body

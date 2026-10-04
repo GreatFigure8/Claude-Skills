@@ -1,0 +1,44 @@
+TEST2 unit results for server-sent-events-and-streaming-responses
+base 7acb627 (origin/dev), 2026-10-04
+full suite: 1247 passed (coverage run 199.90s; verbose rerun 117.86s)
+
+FIX tests named in this story's FIX① section (outcome in the verbose run):
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_backoff_wait_removes_its_abort_listener
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_fetch_reader_stops_on_a_final_4xx
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_fetch_reader_tracks_id_only_blocks
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_fetch_readers_cancel_the_body_on_failure
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_frames_to_stream_takes_the_request_signal
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_hook_keys_resume_id_and_status_by_url
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_hook_listens_for_stream_error
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_plain_text_ai_stream_has_its_own_reader
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_route_checks_desired_size_before_enqueueing
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_route_handler_example_releases_on_abort_and_cancel
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_route_handlers_read_a_nullable_session_not_a_redirecting_one
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_route_holds_live_events_until_the_replay_is_written
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_route_unsubscribes_inside_after
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_vercel_json_keys_use_the_src_prefix
+
+tests named in the TEST1 criterion map:
+  PASSED x1    test_nextjs_reference.py::test_rule_ids_are_unique_across_topic_files
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_anti_patterns_pair_every_dont_with_a_do
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_checklist_and_anti_patterns_cite_only_defined_rules
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_examples_never_use_any
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_frame_encoder_writes_id_event_data_and_blank_line
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_not_confirmed_section_exists_and_cites_urls
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_review_checklist_items_each_name_an_sse_rule
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_route_handler_example_closes_before_max_duration
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_route_handler_example_releases_on_abort_and_cancel
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_rules_set_max_duration_with_vercel_link
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_rules_state_event_source_client_facts
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_sources_include_mdn_or_whatwg
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_topic_has_at_least_15_rules
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_topic_has_client_event_source_hook_example
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_topic_has_fetch_reader_example
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_topic_has_frame_encoding_example
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_topic_has_heartbeat_cleared_example
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_topic_has_last_event_id_resume_example
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_topic_has_route_handler_example
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_topic_is_no_longer_a_stub
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_topic_names_every_required_concept
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_topic_uses_only_sse_rule_ids
+  PASSED x1    test_nextjs_topic_sse_and_streaming.py::test_sse_version_notes_name_the_major_and_link_nextjs
