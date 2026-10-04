@@ -122,6 +122,48 @@
       "base": "4d26d44c95132483080032d84eada740f71ba6c1",
       "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a29d2e12223eaba6c",
       "pushed": false
+    },
+    {
+      "branch": "wip/merged-branch-cleanup-and-no-squash-merges/skill-text-merged-branch-cleanup-and-merge-commits-only-fix",
+      "kind": "wip",
+      "base": "784f54d1b40c5bc60bc79c299bbc66f311df0989",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ada97b39fd627d19d",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-ada97b39fd627d19d",
+      "kind": "harness",
+      "base": "784f54d1b40c5bc60bc79c299bbc66f311df0989",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ada97b39fd627d19d",
+      "pushed": false
+    },
+    {
+      "branch": "wip/merged-branch-cleanup-and-no-squash-merges/deploy-guard-blocks-squash-merges-fix",
+      "kind": "wip",
+      "base": "784f54d1b40c5bc60bc79c299bbc66f311df0989",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ae7191132eeeeaac8",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-ae7191132eeeeaac8",
+      "kind": "harness",
+      "base": "784f54d1b40c5bc60bc79c299bbc66f311df0989",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ae7191132eeeeaac8",
+      "pushed": false
+    },
+    {
+      "branch": "wip/merged-branch-cleanup-and-no-squash-merges/merged-branch-cleanup-and-repo-merge-policy-scripts-fix",
+      "kind": "wip",
+      "base": "784f54d1b40c5bc60bc79c299bbc66f311df0989",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a0ac764f9ca167407",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-a0ac764f9ca167407",
+      "kind": "harness",
+      "base": "784f54d1b40c5bc60bc79c299bbc66f311df0989",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a0ac764f9ca167407",
+      "pushed": false
     }
   ],
   "integration_pushed": true,
@@ -162,7 +204,7 @@
     "R1-6 (owner run) is in deploy-guard.py, so the deploy-guard fixer takes it alongside R1-5 to avoid two fixers editing one file"
   ],
   "blocker": null,
-  "updated": "2026-10-04T02:04:12.505246+00:00",
+  "updated": "2026-10-04T02:22:52.351863+00:00",
   "dev_merges": [
     {
       "phase": "merge1",
