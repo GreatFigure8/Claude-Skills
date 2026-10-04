@@ -1,13 +1,13 @@
 {
   "run": "bmn-nextjs-typescript-best-practices-reference",
-  "phase": "merge2",
+  "phase": "test2",
   "integration": "feat/nextjs-typescript-best-practices-reference",
   "worktree": "/Users/jonathanstevenson/Source/claude-skills-nextjs-typescript-best-practices-reference",
   "live": "dev",
   "dev_base": "d8b709f914fbbd40e0c7f77a2a4549114ec6e20f",
   "review_shas": {
     "review1": "59279a32e2a701a243f433e9e48ce3846d84821d",
-    "review2": null
+    "review2": "7acb627423c9cde5e638f87f9ee7838b1473abdc"
   },
   "stack": {
     "kind": "library",
@@ -677,8 +677,10 @@
     "REVIEW\u2460 diffed the run's own merge into dev (59279a3^1..59279a3) instead of dev_base...review1, because dev also took another run's changes after dev_base.",
     "FIX\u2460 ownership by file: 'run' findings are routed to the story owning the file they sit in (R1-A5, R1-C6 \u2192 entry-point story; R1-B17 helper dedupe \u2192 entry-point story; R1-C31 WebVitals \u2192 performance owns, testing links). The cross-topic session-helper finding (R1-B15/R1-C9) is fixed by every topic fixer against one decided contract: src/lib/dal.ts ('server-only') exports getSession(): Promise<Session|null> (no redirect; Route Handlers, SSE, APIs) and verifySession(): Promise<Session> (redirects to /login; pages, layouts, Server Actions); imports use @/lib/dal; snippets use the canonical src/ layout and src/lib/actions/ for Server Actions.",
     "Lint decision for R1-A5: new projects use ESLint with eslint-config-next (TS-12); a repo that already uses Biome keeps it; the gate runs the repo's configured linter (eslint . or biome check .).",
-    "FIX\u2460 entry-point fixer ordered the TS gate types \u2192 lint \u2192 build; testing-and-observability.md TEST-37 may still list lint first (left for REVIEW\u2461)."
+    "FIX\u2460 entry-point fixer ordered the TS gate types \u2192 lint \u2192 build; testing-and-observability.md TEST-37 may still list lint first (left for REVIEW\u2461).",
+    "REVIEW\u2461 diffs the run branch's own FIX\u2460 delta (5d7550d..106df4a, i.e. run branch at MERGE\u2460\u2192 run branch before MERGE\u2461) because origin/dev took other runs' changes in between.",
+    "TEST\u2461 content surface re-checks only the fences and Sources URLs FIX\u2460 changed (Jonathan asked why the run was slow; full content check already ran at TEST\u2460)."
   ],
   "blocker": null,
-  "updated": "2026-10-04T06:40:00Z"
+  "updated": "2026-10-04T06:50:00Z"
 }
