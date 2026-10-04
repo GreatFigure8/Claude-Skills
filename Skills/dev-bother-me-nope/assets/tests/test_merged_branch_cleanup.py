@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 BRANCH = "wip/r/a"
+OTHER = "wip/r/other"
 TARGET = "origin/feat/r"
 UNSAFE = frozenset({"--force", "-f", "-ff"})
 MUTATING = frozenset({"fetch", "push", "update-ref", "config", "worktree"})
@@ -35,6 +36,22 @@ def move_origin_ahead(world, branch):
     world.git("checkout", "-q", "trunk")
     world.git("branch", "-f", branch, tip)
     return extra
+
+
+def ignore(world, *patterns):
+    """Ignore `patterns` in every worktree via the shared info/exclude, without a commit."""
+    exclude = world.clone / ".git" / "info" / "exclude"
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    exclude.write_text("".join(f"{pattern}\n" for pattern in patterns))
+
+
+def add_branch_with_commits(world, name, count):
+    """Like GitWorld.add_branch(merged=True), but with `count` commits on the branch."""
+    world.git("checkout", "-q", "-b", name, "feat/r")
+    for index in range(count):
+        world.commit(f"step-{index}.txt", f"{index}\n", message=f"step {index}")
+    world.git("push", "-q", "origin", name)
+    world.merge_no_ff(name, "feat/r")
 
 
 # --- AC 1-10: behaviour against real repos -------------------------------------------------
@@ -99,6 +116,86 @@ def test_dirty_worktree_is_left_byte_identical_and_never_forced(git_world, run_c
     for call in run.calls:
         if call[2] == "worktree":
             assert not UNSAFE & set(call), call
+
+
+@pytest.mark.integration
+def test_worktree_holding_an_ignored_file_is_kept_with_the_file(git_world, run_cleanup):
+    git_world.add_branch(BRANCH)
+    ignore(git_world, ".env", "__pycache__/")
+    held, clean = git_world.worktree("env", BRANCH), git_world.worktree("clean", BRANCH)
+    local_only = held / ".env"
+    local_only.write_text("LOCAL_SETTING=keep-me\n")
+
+    run = run_cleanup(*cli(git_world))
+
+    assert run.code == 0, run.stderr
+    left = left_map(run.data)
+    assert set(left) == {f"worktree:{held}", f"local:{BRANCH}"}
+    assert "ignored" in left[f"worktree:{held}"] and ".env" in left[f"worktree:{held}"]
+    assert str(held) in left[f"local:{BRANCH}"]
+    assert sorted(run.data["deleted"]) == sorted([f"worktree:{clean}", f"origin:{BRANCH}"])
+    assert local_only.read_text() == "LOCAL_SETTING=keep-me\n"
+    assert f"refs/heads/{BRANCH}" in git_world.refs(git_world.clone)
+
+
+@pytest.mark.integration
+def test_worktree_whose_only_ignored_files_are_caches_is_removed(git_world, run_cleanup):
+    git_world.add_branch(BRANCH)
+    ignore(git_world, "__pycache__/", "node_modules/", "*.pyc")
+    cached = git_world.worktree("cache", BRANCH)
+    for relative in ("pkg/__pycache__/mod.cpython-39.pyc", "node_modules/dep/index.js"):
+        (cached / relative).parent.mkdir(parents=True, exist_ok=True)
+        (cached / relative).write_text("regenerable\n")
+
+    run = run_cleanup(*cli(git_world))
+
+    assert run.code == 0, run.stderr
+    expected = [f"worktree:{cached}", f"local:{BRANCH}", f"origin:{BRANCH}"]
+    assert sorted(run.data["deleted"]) == sorted(expected)
+    assert run.data["left"] == [] and not cached.exists()
+
+
+CACHE_VERDICTS = {
+    "!! node_modules/": True,
+    "!! pkg/__pycache__/": True,
+    "!! pkg/__pycache__/mod.pyc": True,
+    "!! .venv/": True,
+    "!! .env": False,
+    "!! config/.env": False,
+    "!! .venv": False,  # a file named like a cache directory is not one
+    "!! build/": False,
+    "?? node_modules/": False,
+    " M node_modules/x.js": False,
+}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("entry, is_cache", CACHE_VERDICTS.items(), ids=CACHE_VERDICTS.keys())
+def test_only_ignored_paths_inside_cache_directories_count_as_cache(entry, is_cache, load_script):
+    module = load_script("merged-branch-cleanup")
+
+    assert module.is_cache(entry) is is_cache
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("operation", ["rebase", "bisect"])
+def test_branch_being_rebased_or_bisected_keeps_local_branch(operation, git_world, run_cleanup):
+    add_branch_with_commits(git_world, BRANCH, 3)
+    busy = git_world.worktree("busy", BRANCH)
+    steps = {"rebase": ("rebase", "--force-rebase", "--exec", "false", "HEAD~2"),
+             "bisect": ("bisect", "start", BRANCH, "trunk")}[operation]
+    git_world.git(*steps, cwd=busy, check=False)
+    assert git_world.out("branch", "--show-current", cwd=busy) == "", "worktree must be detached"
+    tip = git_world.sha(BRANCH)
+
+    run = run_cleanup(*cli(git_world))
+
+    assert run.code == 0, run.stderr
+    left = left_map(run.data)
+    assert set(left) == {f"local:{BRANCH}"}
+    assert "rebase or bisect" in left[f"local:{BRANCH}"]
+    assert git_world.sha(f"refs/heads/{BRANCH}") == tip and busy.exists()
+    assert "update-ref" not in run.subcommands
 
 
 @pytest.mark.integration
@@ -199,20 +296,27 @@ def test_remote_only_branch_deletes_origin_copy(git_world, run_cleanup):
 
 
 @pytest.mark.integration
-def test_stale_worktree_entry_is_pruned_before_scan(git_world, run_cleanup):
+def test_stale_entry_holding_the_branch_is_removed_and_other_stale_entries_kept(
+    git_world, run_cleanup
+):
     git_world.add_branch(BRANCH)
-    gone = git_world.worktree("gone", BRANCH)
+    git_world.add_branch(OTHER)
+    gone, elsewhere = git_world.worktree("gone", BRANCH), git_world.worktree("away", OTHER)
     shutil.rmtree(gone)
-    assert "prunable" in git_world.worktrees()
+    shutil.rmtree(elsewhere)  # e.g. a worktree on an unmounted volume: not this run's business
+    assert git_world.worktrees().count("prunable") == 2
 
     run = run_cleanup(*cli(git_world))
 
     assert run.code == 0, run.stderr
-    assert sorted(run.data["deleted"]) == sorted([f"local:{BRANCH}", f"origin:{BRANCH}"])
+    expected = [f"worktree:{gone}", f"local:{BRANCH}", f"origin:{BRANCH}"]
+    assert sorted(run.data["deleted"]) == sorted(expected)
     assert run.data["left"] == []
-    assert str(gone) not in git_world.worktrees()
-    prefixes = [call[2:4] for call in run.calls]
-    assert prefixes.index(("worktree", "prune")) < prefixes.index(("worktree", "list"))
+    listing = git_world.worktrees()
+    assert str(gone) not in listing and str(elsewhere) in listing
+    assert ("worktree", "prune") not in [call[2:4] for call in run.calls]
+    removals = [call[4:] for call in run.calls if call[2:4] == ("worktree", "remove")]
+    assert removals == [(str(gone),)]
 
 
 @pytest.mark.integration
@@ -304,6 +408,55 @@ def test_refuses_branch_equal_to_target_branch(target, git_world, run_cleanup, a
 
     assert_refused(run)
     assert "target" in run.data["error"]
+
+
+@pytest.mark.unit
+def test_refuses_default_branch_when_origin_head_is_not_set_locally(
+    git_world, run_cleanup, assert_refused
+):
+    git_world.git("remote", "set-head", "origin", "--delete")
+    git_world.git("checkout", "-q", "feat/r")  # so trunk is held by no worktree
+    before = snapshot(git_world)
+
+    run = run_cleanup(*cli(git_world, branch="trunk"))
+
+    assert_refused(run)
+    assert "default branch" in run.data["error"]
+    assert snapshot(git_world) == before
+
+
+@pytest.mark.unit
+def test_refuses_when_the_default_branch_cannot_be_determined(
+    git_world, run_cleanup, assert_refused
+):
+    git_world.add_branch(BRANCH)
+    git_world.git("remote", "set-head", "origin", "--delete")
+    git_world.git("remote", "set-url", "origin", str(git_world.root / "unreachable.git"))
+    before = snapshot(git_world)
+
+    run = run_cleanup(*cli(git_world))
+
+    assert_refused(run)
+    assert "default branch" in run.data["error"]
+    assert snapshot(git_world) == before
+
+
+TIP_EXPRESSIONS = ["{branch}~0", "{branch}@{{0}}", "{branch}^{{commit}}", "{sha}", "trunk..{branch}"]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("pattern", TIP_EXPRESSIONS)
+def test_refuses_target_that_is_a_commit_expression_not_a_ref(
+    pattern, git_world, run_cleanup, assert_refused
+):
+    sha = git_world.add_branch(BRANCH, merged=False)
+    before = snapshot(git_world)
+
+    run = run_cleanup(*cli(git_world, target=pattern.format(branch=BRANCH, sha=sha)))
+
+    assert_refused(run)
+    assert "target" in run.data["error"]
+    assert snapshot(git_world) == before
 
 
 @pytest.mark.unit
