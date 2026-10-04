@@ -49,9 +49,9 @@ Rule map: RC-1 to RC-4 caching model and config; RC-5 to RC-12 Server and Client
 25. **RC-25** Keep a cached function's arguments and return values serializable (no class instances, `URL` instances, symbols or functions), and pass `children` or Server Actions through a cached component without reading or calling them. *(Cache Components)* ([use cache](https://nextjs.org/docs/app/api-reference/directives/use-cache))
 26. **RC-26** Pass data into a `'use cache'` scope only through arguments: `React.cache` values set outside a cache scope are not visible inside it. *(Cache Components)* ([use cache](https://nextjs.org/docs/app/api-reference/directives/use-cache); [Migrating to Cache Components](https://nextjs.org/docs/app/guides/migrating-to-cache-components))
 27. **RC-27** Assume default `'use cache'` entries live in a per-instance in-memory store (often not reused between requests on serverless) and are scoped to one deployment; use `'use cache: remote'` only where a high hit rate justifies the extra network roundtrip. *(Cache Components)* ([use cache](https://nextjs.org/docs/app/api-reference/directives/use-cache); [use cache: remote](https://nextjs.org/docs/app/api-reference/directives/use-cache-remote); [Caching](https://nextjs.org/docs/app/getting-started/caching); [Vercel Runtime Cache](https://vercel.com/docs/caching/runtime-cache))
-28. **RC-28** Tag every cached entry that a write or webhook must invalidate with `cacheTag(...)` inside its `'use cache'` scope (up to 128 tags per entry, 256 characters each, case-sensitive). *(Cache Components)* [stable in 16] ([cacheTag](https://nextjs.org/docs/app/api-reference/functions/cacheTag); [revalidateTag](https://nextjs.org/docs/app/api-reference/functions/revalidateTag); [Upgrading to Version 16](https://nextjs.org/docs/app/guides/upgrading/version-16))
+28. **RC-28** Tag every cached entry that a write or webhook must invalidate with `cacheTag(...)` inside its `'use cache'` scope. A single `cacheTag()` call accepts up to 128 tags, each with a maximum length of 256 characters; longer tags are skipped and tags past the 128th in one call are dropped with only a console warning, so such a tag never invalidates anything. Tags are case-sensitive. *(Cache Components)* [stable in 16] ([cacheTag](https://nextjs.org/docs/app/api-reference/functions/cacheTag); [revalidateTag](https://nextjs.org/docs/app/api-reference/functions/revalidateTag); [Upgrading to Version 16](https://nextjs.org/docs/app/guides/upgrading/version-16))
 29. **RC-29** Opt a `fetch` into the Data Cache explicitly with `cache: 'force-cache'` or `next: { revalidate: n }`, tag it with `next: { tags: [...] }`, and never combine `revalidate` with `cache: 'no-store'`. *(previous model)* [changed in 15] ([Caching and Revalidating, Previous Model](https://nextjs.org/docs/app/guides/caching-without-cache-components); [fetch](https://nextjs.org/docs/app/api-reference/functions/fetch); [Upgrading to Version 15](https://nextjs.org/docs/app/guides/upgrading/version-15))
-30. **RC-30** Cache non-`fetch` work with `unstable_cache(fn, keyParts, { tags, revalidate })` only in repos without Cache Components, and prefer migrating it to `'use cache'`. *(previous model)* ([Caching and Revalidating, Previous Model](https://nextjs.org/docs/app/guides/caching-without-cache-components); [unstable_cache](https://nextjs.org/docs/app/api-reference/functions/unstable_cache); [Migrating to Cache Components](https://nextjs.org/docs/app/guides/migrating-to-cache-components))
+30. **RC-30** Cache non-`fetch` work with `unstable_cache(fn, keyParts, { tags, revalidate })`, and note the persistence difference before moving it or a `fetch` Data Cache entry to `'use cache'`: the `fetch` Data Cache and `unstable_cache` persist across deployments and serverless instances; default `'use cache'` entries are per-instance memory scoped to one deployment; `'use cache: remote'` (on Vercel, the regional Runtime Cache) is shared across instances and survives instance teardown, but neither directive carries over to a new deploy because the cache key includes the build ID. Both older caches keep working as a separate layer under Cache Components, so keep `unstable_cache` or the `fetch` cache for data that must persist across deploys. *(both models)* ([Migrating to Cache Components](https://nextjs.org/docs/app/guides/migrating-to-cache-components); [use cache](https://nextjs.org/docs/app/api-reference/directives/use-cache); [use cache: remote](https://nextjs.org/docs/app/api-reference/directives/use-cache-remote); [unstable_cache](https://nextjs.org/docs/app/api-reference/functions/unstable_cache); [Caching and Revalidating, Previous Model](https://nextjs.org/docs/app/guides/caching-without-cache-components); [Vercel Runtime Cache](https://vercel.com/docs/caching/runtime-cache))
 31. **RC-31** Set route-level ISR with a literal `export const revalidate = <seconds>` (it must be statically analyzable) and treat `dynamic = 'force-dynamic'` and `'force-static'` as whole-route overrides; the lowest `revalidate` across a route's layouts, pages and fetches sets its frequency. *(previous model)* ([Caching and Revalidating, Previous Model](https://nextjs.org/docs/app/guides/caching-without-cache-components); [Incremental Static Regeneration](https://nextjs.org/docs/app/guides/incremental-static-regeneration))
 32. **RC-32** Pass a profile as the second argument to every `revalidateTag` call: `'max'` for stale-while-revalidate, or `{ expire: 0 }` to stop serving stale data; the one-argument form is deprecated (a TypeScript error) and behaves like `{ expire: 0 }`. *(both models)* [changed in 16] ([revalidateTag](https://nextjs.org/docs/app/api-reference/functions/revalidateTag); [Upgrading to Version 16](https://nextjs.org/docs/app/guides/upgrading/version-16); [Next.js 16](https://nextjs.org/blog/next-16))
 33. **RC-33** Call `updateTag` and `refresh` only inside Server Actions (`updateTag` throws anywhere else, and neither can be used in Route Handlers or Client Components); from a Route Handler or webhook use `revalidateTag(tag, 'max')` or `revalidateTag(tag, { expire: 0 })`, and call none of `revalidateTag`, `revalidatePath`, `updateTag` or `refresh` from a Client Component or Proxy. *(both models)* [new in 16] ([updateTag](https://nextjs.org/docs/app/api-reference/functions/updateTag); [refresh](https://nextjs.org/docs/app/api-reference/functions/refresh); [revalidateTag](https://nextjs.org/docs/app/api-reference/functions/revalidateTag); [revalidatePath](https://nextjs.org/docs/app/api-reference/functions/revalidatePath))
@@ -61,7 +61,7 @@ Rule map: RC-1 to RC-4 caching model and config; RC-5 to RC-12 Server and Client
 37. **RC-37** Configure a shared cache handler when self-hosting more than one instance: on-demand revalidation only reaches the instance that receives the call by default. *(both models)* ([How revalidation works](https://nextjs.org/docs/app/guides/how-revalidation-works); [Incremental Static Regeneration](https://nextjs.org/docs/app/guides/incremental-static-regeneration); hosting detail in [performance-and-vercel.md](performance-and-vercel.md))
 38. **RC-38** Wrap each independently slow or request-time subtree in its own `<Suspense fallback={...}>` placed close to the access, so siblings stream in parallel; use `loading.tsx` only when nothing meaningful renders before the page's data. *(both models)* ([Streaming](https://nextjs.org/docs/app/guides/streaming); [loading.js](https://nextjs.org/docs/app/api-reference/file-conventions/loading); [Caching](https://nextjs.org/docs/app/getting-started/caching); [Next.js on Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs))
 39. **RC-39** Keep uncached or runtime reads out of a segment's `layout.tsx`, or wrap them in their own `<Suspense>`: `loading.tsx` wraps the page and nested layouts, not the layout in the same segment. *(both models)* ([loading.js](https://nextjs.org/docs/app/api-reference/file-conventions/loading))
-40. **RC-40** Decide the HTTP status before streaming starts: call `notFound()` or `redirect()` before any `await` that may suspend and before any `<Suspense>` boundary, or run the check in Proxy; once the first chunk is sent the status is fixed at `200`. *(both models)* ([Streaming](https://nextjs.org/docs/app/guides/streaming); [loading.js](https://nextjs.org/docs/app/api-reference/file-conventions/loading))
+40. **RC-40** Decide the HTTP status before streaming starts, because once the first chunk is sent the status is fixed at `200`: in the previous model, call `notFound()` or `redirect()` before any `await` that may suspend and before any `<Suspense>` boundary; under Cache Components, where awaiting `params` or uncached data at the top of a page is a blocking-route error (RC-15, RC-16), run the existence check in Proxy and rewrite a missing slug to a not-found route or answer `404` there. *(both models)* ([Streaming](https://nextjs.org/docs/app/guides/streaming); [loading.js](https://nextjs.org/docs/app/api-reference/file-conventions/loading))
 41. **RC-41** Keep the LCP element outside and above Suspense boundaries, size fallbacks to the final content to avoid layout shift, and add no boundary you do not need (Core Web Vitals detail: [performance-and-vercel.md](performance-and-vercel.md)). *(both models)* ([Streaming](https://nextjs.org/docs/app/guides/streaming); [react.dev Suspense](https://react.dev/reference/react/Suspense))
 42. **RC-42** Make sure everything the static shell depends on is also available at request time, because HTML-limited bots skip the shell and render the whole page dynamically. *(Cache Components)* ([Caching](https://nextjs.org/docs/app/getting-started/caching); [Streaming](https://nextjs.org/docs/app/guides/streaming))
 43. **RC-43** Distinguish request memoization from caching: identical `GET` `fetch` calls are memoized for one render pass and `React.cache` dedupes non-`fetch` calls within one request, but neither persists across requests, so use `'use cache'` (or the previous model's options) for that (usage patterns: [data-fetching-and-mutations.md](data-fetching-and-mutations.md)). *(both models)* ([fetch](https://nextjs.org/docs/app/api-reference/functions/fetch); [Fetching Data](https://nextjs.org/docs/app/getting-started/fetching-data); [Glossary](https://nextjs.org/docs/app/glossary))
@@ -105,7 +105,7 @@ export default nextConfig
 ### Cache data with a lifetime and a tag
 
 ```ts
-// app/lib/products.ts
+// src/lib/products.ts
 import { cacheLife, cacheTag } from 'next/cache'
 import { db } from '@/lib/db' // your data layer: a placeholder, not a Next.js API
 
@@ -129,7 +129,7 @@ export async function getProduct(id: string): Promise<Product | null> {
 ### Static, cached and streaming in one page
 
 ```tsx
-// app/blog/page.tsx
+// src/app/blog/page.tsx
 import { Suspense } from 'react'
 import { cookies } from 'next/headers'
 import { cacheLife, cacheTag } from 'next/cache'
@@ -163,40 +163,10 @@ async function UserPreferences() {
 }
 ```
 
-### Pass runtime values into a cache as arguments
-
-```tsx
-import { Suspense } from 'react'
-import { cookies } from 'next/headers'
-import { cacheLife } from 'next/cache'
-import { getProfile } from '@/lib/profile' // your data layer
-
-export default function Page() {
-  return (
-    <Suspense fallback={<p>Loading...</p>}>
-      <ProfileContent />
-    </Suspense>
-  )
-}
-
-async function ProfileContent() {
-  const sessionId = (await cookies()).get('session')?.value // read outside the cache
-  if (!sessionId) return <p>Signed out</p>
-  return <CachedProfile sessionId={sessionId} />
-}
-
-async function CachedProfile({ sessionId }: { sessionId: string }) {
-  'use cache'
-  cacheLife('minutes')
-  const profile = await getProfile(sessionId) // sessionId is part of the cache key
-  return <p>{profile.displayName}</p>
-}
-```
-
 ### Push dynamic access down to widen the static shell
 
 ```tsx
-// app/shop/[slug]/layout.tsx: not async, never awaits params
+// src/app/shop/[slug]/layout.tsx: not async, never awaits params
 import { Suspense } from 'react'
 import { Sidebar } from './sidebar'
 
@@ -244,7 +214,7 @@ async function CurrentTime() {
 A Client Component takes server-rendered UI as `children` (RC-8):
 
 ```tsx
-// app/ui/modal.tsx
+// src/app/ui/modal.tsx
 'use client'
 
 import { useState, type ReactNode } from 'react'
@@ -265,7 +235,7 @@ export function Modal({ title, children }: { title: ReactNode; children: ReactNo
 ```
 
 ```tsx
-// app/cart/page.tsx: Page and Cart are Server Components, Modal is a Client Component
+// src/app/cart/page.tsx: Page and Cart are Server Components, Modal is a Client Component
 import { Modal } from '@/app/ui/modal'
 import { Cart } from '@/app/ui/cart'
 
@@ -281,7 +251,7 @@ export default function Page() {
 A context provider is a `'use client'` wrapper rendered around `{children}` (RC-9):
 
 ```tsx
-// app/theme-provider.tsx
+// src/app/theme-provider.tsx
 'use client'
 
 import { createContext, type ReactNode } from 'react'
@@ -294,7 +264,7 @@ export default function ThemeProvider({ children }: { children: ReactNode }) {
 ```
 
 ```tsx
-// app/layout.tsx: the provider wraps {children}, not <html>
+// src/app/layout.tsx: the provider wraps {children}, not <html>
 import type { ReactNode } from 'react'
 import ThemeProvider from './theme-provider'
 
@@ -321,55 +291,88 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 Calling any of these from a Server Action clears the whole client router cache and bypasses `stale` ([cacheLife](https://nextjs.org/docs/app/api-reference/functions/cacheLife)).
 
 ```ts
-// app/posts/actions.ts
+// src/lib/actions/posts.ts
 'use server'
 
+import * as z from 'zod'
 import { refresh, updateTag } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { auth } from '@/lib/auth' // your auth check, see proxy-auth-and-security.md
+import { verifySession } from '@/lib/dal' // redirects to /login: proxy-auth-and-security.md
 import { db } from '@/lib/db'
 
-export async function createPost(formData: FormData): Promise<void> {
-  const session = await auth()
-  if (!session?.user) throw new Error('Unauthorized')
-  // validate formData first: see data-fetching-and-mutations.md
-  const post = await db.post.create({ data: { title: String(formData.get('title')) } })
+const NewPost = z.object({ title: z.string().trim().min(1).max(200) })
+type NewPostState = { fieldErrors?: Partial<Record<string, string[]>> }
+
+export async function createPost(_prev: NewPostState, formData: FormData): Promise<NewPostState> {
+  const { userId } = await verifySession()
+  const parsed = NewPost.safeParse({ title: formData.get('title') }) // a missing field fails here
+  if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors }
+  const post = await db.post.create({ data: { ...parsed.data, authorId: userId } })
   updateTag('posts') // read-your-own-writes
   updateTag(`post-${post.id}`)
   redirect(`/posts/${post.id}`) // throws: invalidate before it
 }
 
-export async function markNotificationRead(id: string): Promise<void> {
-  const session = await auth()
-  if (!session?.user) throw new Error('Unauthorized')
-  await db.notifications.markAsRead(id)
+export async function markNotificationRead(notificationId: string): Promise<void> {
+  const { userId } = await verifySession()
+  const id = z.uuid().safeParse(notificationId) // action arguments are user input
+  if (!id.success) return
+  await db.notifications.markAsRead({ id: id.data, userId }) // scoped to the caller
   refresh() // re-render the current route; no cache entry is touched
 }
 ```
 
-```ts
-// app/api/revalidate/route.ts: a webhook cannot use updateTag
-import type { NextRequest } from 'next/server'
-import { revalidateTag } from 'next/cache'
-import { verifyWebhook } from '@/lib/webhooks' // signature check, see proxy-auth-and-security.md
+A webhook cannot use `updateTag`. Its signature is the credential: verify it over the raw body in constant time before anything is invalidated, validate the tag, and answer errors with the `ApiErrorBody` envelope, as [route-handlers-and-apis.md](route-handlers-and-apis.md) requires of every webhook and handler.
 
-export async function POST(request: NextRequest): Promise<Response> {
-  if (!(await verifyWebhook(request))) {
-    return Response.json({ revalidated: false }, { status: 401 })
-  }
-  const tag = request.nextUrl.searchParams.get('tag')
-  if (!tag) {
-    return Response.json({ revalidated: false, message: 'Missing tag' }, { status: 400 })
-  }
-  revalidateTag(tag, 'max') // { expire: 0 } when stale data must never be served
-  return Response.json({ revalidated: true })
+```ts
+// src/lib/webhooks/verify.ts
+import 'server-only'
+import crypto from 'node:crypto'
+
+/** The raw body when `x-signature` is its HMAC-SHA256 hex digest, else null. */
+export async function readSignedBody(request: Request, secret: string): Promise<string | null> {
+  const rawBody = await request.text() // the exact signed bytes; a body is read once
+  const given = Buffer.from(request.headers.get('x-signature') ?? '')
+  const wanted = Buffer.from(crypto.createHmac('sha256', secret).update(rawBody).digest('hex'))
+  return given.length === wanted.length && crypto.timingSafeEqual(given, wanted) ? rawBody : null
 }
 ```
 
-### Return a real 404 before streaming starts
+```ts
+// src/app/api/revalidate/route.ts
+import * as z from 'zod'
+import { revalidateTag } from 'next/cache'
+import type { ApiErrorBody, ApiErrorCode } from '@/lib/api/errors'
+import { readSignedBody } from '@/lib/webhooks/verify'
+
+const RevalidateEvent = z.object({ tag: z.string().min(1).max(256) })
+
+function fail(code: ApiErrorCode, message: string, status: number): Response {
+  return Response.json({ error: { code, message } } satisfies ApiErrorBody, { status })
+}
+
+export async function POST(request: Request): Promise<Response> {
+  const secret = process.env.REVALIDATE_SECRET
+  if (!secret) return fail('internal', 'Revalidation is not configured.', 500)
+  const rawBody = await readSignedBody(request, secret)
+  if (rawBody === null) return fail('invalid_signature', 'Signature verification failed.', 401)
+  let json: unknown
+  try {
+    json = JSON.parse(rawBody)
+  } catch {
+    return fail('invalid_json', 'The body is not valid JSON.', 400)
+  }
+  const event = RevalidateEvent.safeParse(json)
+  if (!event.success) return fail('validation_failed', 'Send { "tag": "<tag>" }.', 400)
+  revalidateTag(event.data.tag, 'max') // { expire: 0 } when stale data must never be served
+  return Response.json({ data: { revalidated: true } })
+}
+```
+
+### Return a real 404 before streaming starts (previous model)
 
 ```tsx
-// app/post/[slug]/page.tsx
+// src/app/post/[slug]/page.tsx: repo WITHOUT cacheComponents
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { PostContent } from './post-content'
@@ -386,12 +389,12 @@ export default async function PostPage({ params }: PageProps<'/post/[slug]'>) {
 }
 ```
 
-Awaiting `params` at the top makes the page request-bound for params that `generateStaticParams` does not return ([Caching](https://nextjs.org/docs/app/getting-started/caching)). The alternative is to run the existence check in Proxy ([loading.js](https://nextjs.org/docs/app/api-reference/file-conventions/loading), Status Codes).
+That page is right for the previous model only. Under Cache Components a top-level await of runtime `params` (those `generateStaticParams` does not return) or of uncached data outside `<Suspense>` is a blocking-route error (RC-15, RC-16; [Caching](https://nextjs.org/docs/app/getting-started/caching)). There, run the existence check in Proxy instead: rewrite a missing slug to a not-found route or answer `404`, keep the check fast and fetch no full content ([loading.js](https://nextjs.org/docs/app/api-reference/file-conventions/loading), Status Codes; Proxy itself: [proxy-auth-and-security.md](proxy-auth-and-security.md)).
 
 ### Previous model: ISR with tagged fetch
 
 ```tsx
-// app/blog/page.tsx: repo WITHOUT cacheComponents
+// src/app/blog/page.tsx: repo WITHOUT cacheComponents
 export const revalidate = 3600 // regenerate at most hourly (a statically analyzable literal)
 
 type Post = { id: string; title: string }
@@ -414,8 +417,8 @@ export default async function BlogPage() {
 | `dynamic = 'force-static'` | Remove it; add `'use cache'` with `cacheLife('max')` near the data |
 | `revalidate = n` | `'use cache'` with `cacheLife(profile)` |
 | `fetchCache` | Remove it; fetches inside `'use cache'` are cached |
-| `fetch(url, { cache: 'force-cache', next: { revalidate, tags } })` | A `'use cache'` function with `cacheLife` and `cacheTag` |
-| `unstable_cache(fn, keys, { tags, revalidate })` | A `'use cache'` function with `cacheLife` and `cacheTag` |
+| `fetch(url, { cache: 'force-cache', next: { revalidate, tags } })` | Keep it for data that must persist across deploys; otherwise a `'use cache'` function with `cacheLife` and `cacheTag`, scoped to one deployment (RC-30) |
+| `unstable_cache(fn, keys, { tags, revalidate })` | The same choice: keep it for data that must persist across deploys, else a `'use cache'` function with `cacheLife` and `cacheTag` (RC-30) |
 | `unstable_noStore()` | Remove it; use `connection()` with `<Suspense>` if the work must run per request |
 | `dynamicParams = false` | Delete it and call `notFound()` for unknown params |
 | `generateStaticParams` returning `[]` | Return at least one param |
@@ -520,7 +523,7 @@ async function Recommendations() {
 }
 ```
 
-**Do:** read the value outside the cache and pass it in; render `Recommendations` inside `<Suspense>`.
+**Do:** read the value outside the cache and pass it in as an argument, which joins the cache key; render `Recommendations` inside `<Suspense>` (RC-15).
 
 ```tsx
 import { cookies } from 'next/headers'
@@ -534,7 +537,7 @@ async function Recommendations() {
 async function CachedRecommendations({ userId }: { userId: string }) {
   'use cache'
   cacheLife('minutes')
-  return <List items={await getRecommendations(userId)} />
+  return <List items={await getRecommendations(userId)} /> // one entry per userId
 }
 ```
 
@@ -590,14 +593,21 @@ export async function POST(): Promise<Response> {
 }
 ```
 
-**Do:** pass a profile to `revalidateTag`.
+**Do:** verify the caller first, as the webhook in Patterns does, then pass a profile to `revalidateTag`.
 
 ```ts
 import { revalidateTag } from 'next/cache'
+import type { ApiErrorBody } from '@/lib/api/errors'
+import { readSignedBody } from '@/lib/webhooks/verify' // constant-time HMAC check, in Patterns
 
-export async function POST(): Promise<Response> {
+export async function POST(request: Request): Promise<Response> {
+  const secret = process.env.REVALIDATE_SECRET
+  if (!secret || (await readSignedBody(request, secret)) === null) { // an unset secret fails closed
+    const body: ApiErrorBody = { error: { code: 'invalid_signature', message: 'Signature verification failed.' } }
+    return Response.json(body, { status: 401 })
+  }
   revalidateTag('posts', 'max')
-  return Response.json({ ok: true })
+  return Response.json({ data: { revalidated: true } })
 }
 ```
 
@@ -622,9 +632,10 @@ async function Post({ params }: Pick<PageProps<'/post/[slug]'>, 'params'>) {
 }
 ```
 
-**Do:** check existence before any boundary.
+**Do:** in the previous model, check existence before any boundary; under Cache Components, run the check in Proxy (RC-40, Patterns).
 
 ```tsx
+// repo WITHOUT cacheComponents
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 
@@ -723,15 +734,15 @@ Earlier, as the upgrade guides state it:
 - [ ] No `cookies()`, `headers()` or `searchParams` read, and no runtime promise, reaches a cached scope (RC-23).
 - [ ] Short-lived caches sit under `<Suspense>`, and outer caches that nest them set an explicit `cacheLife` (RC-22).
 - [ ] In the previous model, `fetch` caching is explicit and never combines `revalidate` with `no-store` (RC-29, RC-31).
+- [ ] A move to `'use cache'` keeps `unstable_cache` or the `fetch` cache for data that must persist across deploys (RC-30).
 - [ ] `revalidateTag` has a profile, `updateTag` and `refresh` run only in Server Actions, and invalidation comes before `redirect()` (RC-32, RC-33, RC-34).
 - [ ] Each slow subtree has its own `<Suspense>` near the access, and no layout read hides behind `loading.tsx` (RC-38, RC-39).
-- [ ] `notFound()` and `redirect()` calls that need a real status run before any suspending `await` or `<Suspense>`, and the LCP element sits outside boundaries (RC-40, RC-41).
+- [ ] `notFound()` and `redirect()` calls that need a real status run before any suspending `await` or `<Suspense>` (previous model) or as a Proxy check (Cache Components), and the LCP element sits outside boundaries (RC-40, RC-41).
 
 ## Not confirmed by the docs
 
 - The path `https://nextjs.org/docs/app/getting-started/cache-components` is not a docs page: it returned the docs "Page Not Found" Markdown in 16.3.8 (as inline code, not a link). The Cache Components overview lives at [Caching](https://nextjs.org/docs/app/getting-started/caching), which this file cites instead.
 - Which 16.x minor introduced the `instant` export, and whether it is stable: [instant](https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config/instant) lists `v16.x.x` and calls only the validation-level tuning experimental; [Migrating to Cache Components](https://nextjs.org/docs/app/guides/migrating-to-cache-components) and [Next.js 16.3](https://nextjs.org/blog/next-16-3) were checked too.
-- Whether `'use cache: remote'` entries survive a redeploy on Vercel: [Vercel Runtime Cache](https://vercel.com/docs/caching/runtime-cache) says its data persists across deployments, while [use cache](https://nextjs.org/docs/app/api-reference/directives/use-cache) and [use cache: remote](https://nextjs.org/docs/app/api-reference/directives/use-cache-remote) say the cache key includes the build or deployment ID. This file states only the Next.js key behaviour (RC-27).
 - Synchronous `searchParams` access: [page.js](https://nextjs.org/docs/app/api-reference/file-conventions/page) still says it works "in Next.js 15", while [Upgrading to Version 16](https://nextjs.org/docs/app/guides/upgrading/version-16) says it is removed. This file follows the upgrade guide (RC-13); [Next.js 16](https://nextjs.org/blog/next-16) was checked too.
 - How `refresh()` differs from client-side `router.refresh()` beyond "complementary": not documented in detail in [refresh](https://nextjs.org/docs/app/api-reference/functions/refresh), [Server Actions](https://nextjs.org/docs/app/guides/server-actions) or [Next.js 16](https://nextjs.org/blog/next-16).
 

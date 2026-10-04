@@ -1,0 +1,9 @@
+{
+  "name": "fix1-sse",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-test-renderer": "^19.3.0"
+  }
+}

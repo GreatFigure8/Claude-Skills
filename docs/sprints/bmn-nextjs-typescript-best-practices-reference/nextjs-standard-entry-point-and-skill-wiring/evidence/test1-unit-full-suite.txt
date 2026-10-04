@@ -1,0 +1,45 @@
+........................................................................ [  7%]
+........................................................................ [ 14%]
+........................................................................ [ 21%]
+........................................................................ [ 28%]
+........................................................................ [ 35%]
+........................................................................ [ 42%]
+........................................................................ [ 49%]
+........................................................................ [ 56%]
+........................................................................ [ 63%]
+........................................................................ [ 70%]
+........................................................................ [ 77%]
+........................................................................ [ 84%]
+........................................................................ [ 91%]
+........................................................................ [ 98%]
+..................                                                       [100%]
+================================ tests coverage ================================
+______________ coverage: platform darwin, python 3.13.13-final-0 _______________
+
+Name                                                                                      Stmts   Miss  Cover
+-------------------------------------------------------------------------------------------------------------
+Skills/dev-bother-me-nope/assets/tests/conftest.py                                          219      3    99%
+Skills/dev-bother-me-nope/assets/tests/nextjs_doc_helpers.py                                245      2    99%
+Skills/dev-bother-me-nope/assets/tests/test_deploy_guard.py                                 168      0   100%
+Skills/dev-bother-me-nope/assets/tests/test_helper_script_quality.py                         85      1    99%
+Skills/dev-bother-me-nope/assets/tests/test_merge_guard.py                                  298      2    99%
+Skills/dev-bother-me-nope/assets/tests/test_merged_branch_cleanup.py                        556      0   100%
+Skills/dev-bother-me-nope/assets/tests/test_nextjs_doc_helpers.py                           238      1    99%
+Skills/dev-bother-me-nope/assets/tests/test_nextjs_reference.py                             303     11    96%
+Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_data_fetching_and_mutations.py      85      0   100%
+Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_performance_and_vercel.py          110      0   100%
+Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_proxy_auth_and_security.py          82      2    98%
+Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_rendering_and_caching.py           149      0   100%
+Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_route_handlers_and_apis.py         118      0   100%
+Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_routing_and_metadata.py             68      0   100%
+Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_sse_and_streaming.py                96      0   100%
+Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_testing_and_observability.py        94      0   100%
+Skills/dev-bother-me-nope/assets/tests/test_nextjs_topic_typescript.py                       97      2    98%
+Skills/dev-bother-me-nope/assets/tests/test_nextjs_wiring.py                                 98      0   100%
+Skills/dev-bother-me-nope/assets/tests/test_protected_branch_parity.py                       78      0   100%
+Skills/dev-bother-me-nope/assets/tests/test_repo_merge_policy.py                            165      0   100%
+Skills/dev-bother-me-nope/assets/tests/test_skill_text_rules.py                             283      7    98%
+-------------------------------------------------------------------------------------------------------------
+TOTAL                                                                                      3635     31    99%
+1026 passed in 95.32s (0:01:35)
+EXIT=0

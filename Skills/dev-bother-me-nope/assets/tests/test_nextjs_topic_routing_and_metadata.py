@@ -41,6 +41,16 @@ DONT_MARKER = re.compile(MARKER_LEAD + r"Don['’]t\b", re.MULTILINE)
 DO_MARKER = re.compile(MARKER_LEAD + r"Do(?=[:*\s])(?![ \t]+not\b)", re.MULTILINE)
 FENCE_LINE = re.compile(r"^[ \t]*```", re.MULTILINE)
 PARENT_LINK = re.compile(r"\]\(\.\./nextjs\.md(?:#[^)]*)?\)")
+SAFE_PATH_GUARD = "function toSafePath"
+ORIGIN_COMPARE = re.compile(r"\.origin\s*!==")
+PREFIX_ONLY_CHECK = re.compile(r"startsWith\(\s*'//'\s*\)")
+SERVER_ACTION = re.compile(r"export async function \w+\([^)]*\)[^{]*\{", re.MULTILINE)
+WRITE_CALL = re.compile(r"\b(?:save|insert|update|delete|create)[A-Z]\w*\(")
+AUTHZ_CHECK = re.compile(r"\bif \([^)]*\b(?:role|can[A-Z]\w*)\b")
+LAYOUT_EXPORT = re.compile(r"export default function \w*Layout\(")
+GROUP_IN_ROUTE_LITERAL = re.compile(r"(?:Page|Layout)Props<'[^']*\(")
+ROUTER_CALL = re.compile(r"\brouter\.(?:push|replace)\(\s*([^,)]+)")
+ROUTE_TYPE_IMPORT = re.compile(r"import type \{[^}]*\bRoute\b[^}]*\} from 'next'")
 
 
 def _text() -> str:
@@ -126,3 +136,73 @@ def test_every_anti_pattern_pairs_a_dont_with_a_do():
 def test_not_confirmed_section_lists_the_urls_checked():
     section = h.section(_text(), "Not confirmed by the docs")
     assert "https://nextjs.org/" in section
+
+
+# --- FIX1 regression guards (REVIEW1 R1-A1, R1-A10, R1-A11, R1-A12, R1-A17) ------------------
+
+
+def _ts_blocks() -> list[str]:
+    return [body for _, body in h.code_blocks(_text(), ("ts", "tsx"))]
+
+
+def test_safe_path_guard_resolves_the_url_and_compares_origins():
+    """R1-A1: a prefix check lets ?next=/%09/evil.com through; the URL parser drops the tab."""
+    guards = [body for body in _ts_blocks() if SAFE_PATH_GUARD in body]
+    assert guards, "no example defines the toSafePath redirect guard"
+    for body in guards:
+        assert "new URL(" in body, "the guard must parse the value with new URL(value, base)"
+        assert ORIGIN_COMPARE.search(body), "the guard must compare the parsed origin"
+        assert not PREFIX_ONLY_CHECK.search(body), "a '//' prefix check is not a same-origin check"
+
+
+def _server_action_bodies() -> list[str]:
+    bodies = []
+    for block in _ts_blocks():
+        if "'use server'" not in block:
+            continue
+        starts = [match.end() for match in SERVER_ACTION.finditer(block)]
+        bodies += [block[begin:end] for begin, end in zip(starts, starts[1:] + [len(block)], strict=True)]
+    return bodies
+
+
+def test_every_server_action_authenticates_and_authorizes_before_writing():
+    """R1-A10: a Server Action is a public POST endpoint; verifySession() and a role check come first."""
+    bodies = _server_action_bodies()
+    assert bodies, "no 'use server' example found"
+    for body in bodies:
+        write = WRITE_CALL.search(body)
+        assert write, body[:120]
+        auth = body.find("await verifySession()")
+        authz = AUTHZ_CHECK.search(body)
+        assert 0 <= auth < write.start(), f"verifySession() must precede the write: {body[:120]}"
+        assert authz and auth < authz.start() < write.start(), f"authorize before the write: {body[:120]}"
+
+
+def test_layout_examples_use_layout_props_with_group_free_literals():
+    """R1-A11: layouts use LayoutProps, and route literals drop (group) folders."""
+    layouts = [body for body in _ts_blocks() if LAYOUT_EXPORT.search(body)]
+    assert layouts
+    for body in layouts:
+        assert "LayoutProps<'/" in body, body[:120]
+        assert "children: React.ReactNode" not in body, body[:120]
+    assert GROUP_IN_ROUTE_LITERAL.findall(_text()) == []
+    not_confirmed = h.section(_text(), "Not confirmed by the docs")
+    assert "route literals" not in not_confirmed.lower()
+
+
+def test_router_calls_type_non_literal_hrefs_as_route():
+    """R1-A12: with typedRoutes on, a non-literal router.push/replace argument must be a Route."""
+    calls = 0
+    for body in _ts_blocks():
+        for match in ROUTER_CALL.finditer(body):
+            calls += 1
+            arg = match.group(1).strip()
+            if arg[0] in "'\"" or "as Route" in arg:
+                continue
+            assert ROUTE_TYPE_IMPORT.search(body), f"{arg!r} is not typed as Route: {body[:120]}"
+    assert calls
+
+
+def test_sources_list_the_as_of_version_source():
+    """R1-A17: the as-of version 16.3.8 needs its own source in ## Sources."""
+    assert h.VERSION_SOURCE_URL in h.source_urls(_text())

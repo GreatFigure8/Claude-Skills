@@ -2,7 +2,7 @@
 
 Every URL in `## Sources` of `references/nextjs/data-fetching-and-mutations.md`, fetched live on
 2026-10-04 during this run (nextjs.org, vercel.com and react.dev as the `.md` rendering of the page,
-zod.dev as HTML). All 39 pages returned HTTP 200, and the Next.js pages' front matter reads
+zod.dev as HTML). All 40 pages returned HTTP 200, and the Next.js pages' front matter reads
 `version: 16.3.8`. The "Backs" column lists the rule ids and sections that cite the page, then what the
 page states. Quotes are limited to a few words. The `Fetched` column is `2026-10-04` for every row.
 
@@ -10,6 +10,7 @@ page states. Quotes are limited to a few words. The `Fetched` column is `2026-10
 | --- | --- | --- |
 | https://nextjs.org/docs/app/getting-started/fetching-data | 2026-10-04 | DF-1, DF-4, DF-5, DF-6, DF-7, DF-8: Server Components fetch with `fetch` or an ORM and keep credentials out of the client bundle; sequential `await`s stay sequential and `Promise.all` / `Promise.allSettled` fix it; `<Suspense>` around a dependent child; `React.cache` for non-`fetch` access, scoped to one request; preload by calling without `await`, with the preload helper next to the component; pass an un-awaited promise to a Client Component and read it with `use`. |
 | https://nextjs.org/docs/app/getting-started/mutating-data | 2026-10-04 | DF-10, DF-11, DF-12, DF-16, DF-17, DF-18, DF-22, DF-24, Not confirmed by the docs, Scope: Server Function vs Server Action terms; `'use server'` at the top of an async function or file; Server Functions can't be defined in Client Components; `startTransition` runs automatically for `<form action>` and `formAction`; progressive enhancement in Server Component forms and queued submission in Client Component forms; direct POST warning; sequential dispatch note; `refresh`, `revalidatePath`, `redirect` (throws, nothing after it runs, revalidate first) and cookie examples. |
+| https://nextjs.org/docs/app/getting-started/caching | 2026-10-04 | DF-5, Patterns intro, P1, P3, P4 (added in FIX①): under Cache Components a dynamic `params` (not from `generateStaticParams`) is runtime data and a layout that awaits it can't be prerendered; "Maximizing the static shell" passes the `params` promise down (`params.then(...)` inside `<Suspense>`, or the whole promise to a child) and awaits it there; the same applies to `cookies()`, `headers()`, `searchParams`; a runtime access outside `<Suspense>` surfaces the blocking-route insight. Front matter `version: 16.3.8`. |
 | https://nextjs.org/docs/app/guides/server-actions | 2026-10-04 | DF-10, DF-12, DF-13, DF-15, DF-16, DF-17, DF-22, DF-26, DF-27, DF-28, Not confirmed by the docs: Sequential dispatch and "do not rely on `Promise.all`"; one response carries data and UI; `updateTag` / `revalidatePath` / `refresh` re-render in the same response and `revalidateTag` does not; security (authenticate and authorize, validate, constrain return values, ID plus the change); "Choosing a cache update"; `serverActions` config; "Failed to find Server Action" and the retry-path advice. |
 | https://nextjs.org/docs/app/guides/forms | 2026-10-04 | DF-13, DF-18, DF-19, DF-20, DF-21, DF-23, Not confirmed by the docs: `action` receives `FormData`; `.bind(null, id)` and its progressive-enhancement support; hidden input values are not encoded; server-side validation with `safeParse`; `useActionState` signature with `prevState`; `pending` from `useActionState` and `useFormStatus` in a separate component; `useOptimistic` example. |
 | https://nextjs.org/docs/app/api-reference/directives/use-server | 2026-10-04 | DF-11, DF-12, DF-15, Not confirmed by the docs: `use server` at file top or inline; Server Functions in Client Components come from a dedicated file; read authentication from cookies or headers, not token parameters; return only what the UI needs. |
@@ -74,3 +75,16 @@ The plan's rule sheet was checked page by page. Differences between the sheet an
 - Patterns: P10 (the `next/form` search form) was dropped to stay under the 800-line cap. DF-18 still states the
   `next/form` rule and cites its page.
 - Version notes: the "React 19.2" bullet was dropped because it isn't a change to this topic.
+- FIX① (REVIEW① R1-B4, R1-B13, R1-B15): the Patterns intro now names the two caching models; P1 and P4 pass the
+  `params` promise into `<Suspense>` (the shape the Caching page's "Maximizing the static shell" shows) and say
+  "both models"; P3 awaits `params` at the top, says "previous model" and points at P1 for Cache Components. DF-5
+  gained the Cache Components `params` sentence and links the Caching page. This is the added Caching row above.
+  Both models were built in a scratch Next.js 16.3.8 project: see `validation.md`, FIX①.
+- FIX① R1-B13: P7 and P8 return typed state instead of a bare `return`, and DF-14 says a failed check never returns
+  `void`. P7 is now a `.bind(`-ed action under `useActionState`. The docs show `.bind(` with a plain form action and
+  `useActionState` separately, never the two together, so that is added to "Not confirmed by the docs".
+- FIX① R1-B15: the session helpers import from `@/lib/dal`, snippet paths use `src/`, and Server Actions sit in
+  `src/lib/actions/` (the layout in `nextjs.md`).
+- FIX① line cap: P3's two fences became one file (the `preload` helper sits in the same file as the component it
+  serves, which DF-7 asks for), and the "Don't call `revalidateTag` with one argument" anti-pattern was dropped. The
+  same claim stays in DF-16 and in the Version notes, and the compiler reports it (TS2554).

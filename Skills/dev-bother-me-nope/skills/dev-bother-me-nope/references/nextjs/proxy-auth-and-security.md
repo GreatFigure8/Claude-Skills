@@ -18,6 +18,7 @@
 - The docs' own model is an optimistic check in Proxy and a secure check at the data source.
 - No auth library is mandated. The examples follow the authentication guide's library-agnostic
   pattern, and `@/lib/prisma` is the canonical tree's database client.
+- This file owns the session-helper contract (SEC-46); other topic files import `@/lib/dal`.
 
 ## Rules
 
@@ -40,7 +41,9 @@
 4. **SEC-4** Keep auth in Proxy **optimistic**: read the session from the cookie only (for example
    `request.cookies.get('session')`, then decrypt), answer with `NextResponse.redirect` or
    `NextResponse.next()`, and never query a database or do slow fetches there. Proxy runs on every
-   route, prefetches included, and is not a full session or authorisation solution.
+   route, prefetches included, and is not a full session or authorisation solution. Use the DAL's
+   `getSession` validity function (SEC-46), or a cookie Proxy accepts and the DAL rejects loops
+   `/login` and `/dashboard` forever.
    ([authentication guide](https://nextjs.org/docs/app/guides/authentication), [Proxy guide](https://nextjs.org/docs/app/getting-started/proxy))
 5. **SEC-5** Re-check authentication and authorisation where data is read or written, in the Data
    Access Layer, in every Server Action and in every Route Handler, and never let Proxy be the only
@@ -60,7 +63,9 @@
    ([authentication guide](https://nextjs.org/docs/app/guides/authentication), [cookies](https://nextjs.org/docs/app/api-reference/functions/cookies))
 8. **SEC-8** Sign or encrypt the session with a secret read from an environment variable (for
    example `SESSION_SECRET`) through a session library, prefer an auth library over hand-rolled
-   auth, and keep the payload to the minimum (user id, role), with no PII and no passwords.
+   auth, and keep the payload to the minimum (user id, role), with no PII and no passwords. Read the
+   secret inside the signing and verifying functions, never at module scope, so `next build` runs
+   without it and a missing secret still throws at request time (convention).
    ([authentication guide](https://nextjs.org/docs/app/guides/authentication))
 9. **SEC-9** Use database sessions, with the data in a table and only an encrypted session ID in the
    cookie, when you need server-side revocation such as logging out every device; otherwise
@@ -162,9 +167,10 @@
     ([CSP guide](https://nextjs.org/docs/app/guides/content-security-policy))
 36. **SEC-36** Send baseline security headers from `next.config.ts` `headers()` for
     `source: '/(.*)'` (`Strict-Transport-Security`, `X-Content-Type-Options: nosniff`,
-    `Referrer-Policy`, `Permissions-Policy`), and use CSP `frame-ancestors` instead of
+    `Referrer-Policy`, `Permissions-Policy`), and block framing with a CSP `frame-ancestors`
+    directive (`Content-Security-Policy: frame-ancestors 'none'`) instead of the superseded
     `X-Frame-Options`.
-    ([headers config](https://nextjs.org/docs/app/api-reference/config/next-config-js/headers))
+    ([headers config](https://nextjs.org/docs/app/api-reference/config/next-config-js/headers), [CSP guide](https://nextjs.org/docs/app/guides/content-security-policy))
 37. **SEC-37** Never prefix a secret with `NEXT_PUBLIC_`: the value is inlined into the client bundle
     at `next build`, while unprefixed variables stay server-only.
     ([environment variables](https://nextjs.org/docs/app/guides/environment-variables), [Server and Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components))
@@ -198,46 +204,62 @@
     platform), never `next dev`, and put a reverse proxy in front of a self-hosted server.
     ([security blog](https://nextjs.org/blog/security-nextjs-server-components-actions), [September 2026 release](https://nextjs.org/blog/september-2026-security-release),
     [self-hosting](https://nextjs.org/docs/app/guides/self-hosting))
+46. **SEC-46** Keep one session-helper contract and import it, never redefine it: `src/lib/dal.ts`
+    (`import 'server-only'`, imported as `@/lib/dal`) exports `getSession(): Promise<Session | null>`,
+    which never redirects (Route Handlers, SSE routes and other APIs answer `401` themselves), and
+    `verifySession(): Promise<Session>`, which redirects to `/login` (pages, layouts and Server
+    Actions). `Session` carries `userId` and `role`. Server Actions live in `src/lib/actions/`, and
+    snippets use the canonical `src/` layout. (convention, built on the
+    [authentication guide](https://nextjs.org/docs/app/guides/authentication)'s `verifySession`)
 
 ## Patterns
 
 ### Session cookie
 
-Implements SEC-7, SEC-8 and SEC-15: a stateless signed session, set only on the server.
+Implements SEC-7, SEC-8, SEC-15 and SEC-46; `decrypt` is the one validity rule Proxy and the DAL share.
 
 ```ts
-// lib/session.ts — stateless session, server-only
+// src/lib/session.ts — stateless session, server-only
 import 'server-only'
 import { cookies } from 'next/headers'
 import { SignJWT, jwtVerify } from 'jose'
 
-export type SessionPayload = { userId: string; role: 'admin' | 'user'; expiresAt: Date }
+export type Session = { userId: string; role: 'admin' | 'user' }
 
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
-const secret = process.env.SESSION_SECRET
-if (!secret) throw new Error('SESSION_SECRET is not set')
-const encodedKey = new TextEncoder().encode(secret)
 
-export async function encrypt(payload: SessionPayload): Promise<string> {
-  return new SignJWT(payload)
+// Read lazily so `next build` runs without the secret; a missing secret still throws per request.
+function getKey(): Uint8Array {
+  const secret = process.env.SESSION_SECRET
+  if (!secret) throw new Error('SESSION_SECRET is not set')
+  return new TextEncoder().encode(secret)
+}
+
+const isRole = (value: unknown): value is Session['role'] => value === 'admin' || value === 'user'
+
+export async function encrypt(session: Session): Promise<string> {
+  return new SignJWT({ ...session })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
-    .sign(encodedKey)
+    .sign(getKey())
 }
 
-export async function decrypt(token: string | undefined = '') {
+// The one validity rule: a good signature, not expired, a string userId and a known role.
+export async function decrypt(token: string | undefined = ''): Promise<Session | null> {
+  const key = getKey() // outside the try: a missing secret is a server error, not "signed out"
   try {
-    const { payload } = await jwtVerify(token, encodedKey, { algorithms: ['HS256'] })
-    return payload
+    const { payload } = await jwtVerify(token, key, { algorithms: ['HS256'] })
+    const { userId, role } = payload
+    return typeof userId === 'string' && isRole(role) ? { userId, role } : null
   } catch {
-    return undefined // invalid or expired token: treated as "no session"
+    return null // invalid or expired token: treated as "no session"
   }
 }
 
-export async function createSession(userId: string, role: SessionPayload['role']): Promise<void> {
+export async function createSession(userId: string, role: Session['role']): Promise<void> {
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS)
-  const session = await encrypt({ userId, role, expiresAt })
+  const session = await encrypt({ userId, role })
   const cookieStore = await cookies()
   cookieStore.set('session', session, {
     httpOnly: true,
@@ -254,38 +276,31 @@ export async function deleteSession(): Promise<void> {
 }
 ```
 
-The fail-fast `SESSION_SECRET` check is `(convention)`; the rest mirrors the
-[authentication guide](https://nextjs.org/docs/app/guides/authentication).
+The lazy secret read and the shared `decrypt` are `(convention)`; the rest mirrors the [authentication guide](https://nextjs.org/docs/app/guides/authentication).
 
 ### Data Access Layer
 
-Implements SEC-12, SEC-13, SEC-14 and SEC-15: every read goes through a cached session check and
-returns a DTO.
+Implements SEC-12 to SEC-15 and SEC-46: the session-helper contract, with every read returning a DTO.
 
 ```ts
-// lib/dal.ts — every read goes through a cached session check
+// src/lib/dal.ts — the session-helper contract (SEC-46): getSession() and verifySession()
 import 'server-only'
 import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { decrypt } from '@/lib/session'
+import { decrypt, type Session } from '@/lib/session'
 import { prisma } from '@/lib/prisma' // your DB client
 
-export type Session = { userId: string; role: 'admin' | 'user' }
+export type { Session }
 export type UserDTO = { id: string; name: string }
 
-const isRole = (value: unknown): value is Session['role'] => value === 'admin' || value === 'user'
+// Secure check, memoised per request, the same validity rule as Proxy. Never redirects, so
+// Route Handlers can answer 401.
+export const getSession = cache(
+  async (): Promise<Session | null> => decrypt((await cookies()).get('session')?.value),
+)
 
-// Secure check, memoised per request. Returns null so Route Handlers can answer 401.
-export const getSession = cache(async (): Promise<Session | null> => {
-  const payload = await decrypt((await cookies()).get('session')?.value)
-  const userId = payload?.userId
-  const role = payload?.role
-  if (typeof userId !== 'string' || !isRole(role)) return null
-  return { userId, role }
-})
-
-// Pages and Server Actions: redirect when there is no session.
+// Pages, layouts and Server Actions: redirect when there is no session.
 export const verifySession = cache(async (): Promise<Session> => {
   const session = await getSession()
   if (!session) redirect('/login')
@@ -301,17 +316,15 @@ export const getCurrentUser = cache(async (): Promise<UserDTO | null> => {
 })
 ```
 
-The `getSession` and `verifySession` split is `(convention)`, built on the guide's `verifySession()`.
-
 ### Optimistic Proxy
 
-Implements SEC-1, SEC-3 and SEC-4: a valid session cookie, no database.
+Implements SEC-1, SEC-3, SEC-4 and SEC-46: a valid session cookie, no database.
 
 ```ts
-// proxy.ts — optimistic check only: a valid session cookie, no database
+// src/proxy.ts — optimistic check only: a valid session cookie, no database
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { decrypt } from '@/lib/session'
+import { decrypt } from '@/lib/session' // the validity rule getSession() uses (SEC-46)
 
 const PROTECTED_PREFIXES = ['/dashboard']
 const PUBLIC_ROUTES = ['/login', '/signup']
@@ -323,10 +336,10 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl
   const session = await decrypt(request.cookies.get('session')?.value)
 
-  if (isProtected(pathname) && !session?.userId) {
+  if (isProtected(pathname) && !session) {
     return NextResponse.redirect(new URL('/login', request.nextUrl))
   }
-  if (PUBLIC_ROUTES.includes(pathname) && session?.userId) {
+  if (PUBLIC_ROUTES.includes(pathname) && session) {
     return NextResponse.redirect(new URL('/dashboard', request.nextUrl))
   }
   return NextResponse.next()
@@ -345,7 +358,7 @@ through because they POST to page routes (SEC-5).
 Implements SEC-21, SEC-22, SEC-23 and SEC-24: authenticate, validate, check ownership, then write.
 
 ```ts
-// app/posts/actions.ts
+// src/lib/actions/posts.ts
 'use server'
 import { revalidatePath } from 'next/cache'
 import * as z from 'zod'
@@ -376,7 +389,7 @@ export async function deletePost(postId: string): Promise<DeletePostResult> {
 Implements SEC-30: `401` without a session, `403` without permission.
 
 ```ts
-// app/api/reports/route.ts
+// src/app/api/reports/route.ts
 import { getSession } from '@/lib/dal'
 import { listReports } from '@/lib/reports' // DAL function returning DTOs
 
@@ -393,7 +406,7 @@ export async function GET(): Promise<Response> {
 Implements SEC-31, SEC-32, SEC-33 and SEC-35.
 
 ```ts
-// proxy.ts — nonce-based CSP (one proxy.ts per project: compose with the auth check above)
+// src/proxy.ts — nonce-based CSP (one proxy.ts per project: compose with the auth check above)
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
@@ -453,6 +466,8 @@ const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'origin-when-cross-origin' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), browsing-topics=()' },
+  // Clickjacking: CSP frame-ancestors supersedes X-Frame-Options (SEC-36)
+  { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
 ]
 
 const nextConfig: NextConfig = {
@@ -470,6 +485,8 @@ const nextConfig: NextConfig = {
 export default nextConfig
 ```
 
+Where `proxy.ts` also sets the nonce CSP (SEC-31), keep `frame-ancestors` identical in both or drop it here `(convention)`.
+
 ## Anti-patterns
 
 ### Don't make Proxy the only gate (SEC-4, SEC-5)
@@ -479,7 +496,7 @@ export default nextConfig
 [July 2026](https://nextjs.org/blog/july-2026-security-release), CVE-2026-64642) skipped it entirely.
 
 ```ts
-// proxy.ts — DON'T: database lookup on every route and prefetch; pages below trust it
+// src/proxy.ts — DON'T: database lookup on every route and prefetch; pages below trust it
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const token = request.cookies.get('session')?.value ?? ''
   const row = await prisma.session.findUnique({ where: { token } })
@@ -500,7 +517,7 @@ const { userId } = await verifySession() // every page, action and handler: the 
 **Don't** — gate the page and leave the inline action open; it can be POSTed to directly.
 
 ```tsx
-// app/admin/page.tsx — DON'T: the page is gated, the inline action is not
+// src/app/admin/page.tsx — DON'T: the page is gated, the inline action is not
 export default async function AdminPage() {
   await verifySession() // gates the UI only
   async function purge(): Promise<void> {
@@ -560,7 +577,7 @@ NEXT_PUBLIC_PAYMENTS_SECRET_KEY=replace-me
 **Do** — read the secret only on the server, inside the DAL.
 
 ```ts
-// lib/payments.ts — read the secret only on the server, inside the DAL
+// src/lib/payments.ts — read the secret only on the server, inside the DAL
 import 'server-only'
 const secretKey = process.env.PAYMENTS_SECRET_KEY
 ```
@@ -595,7 +612,7 @@ export async function renameUser(formData: FormData): Promise<{ ok: true }> {
 **Don't** — a GET with `?logout=1` deletes the cookie while rendering.
 
 ```tsx
-// app/profile/page.tsx — DON'T: a GET with ?logout=1 deletes the cookie while rendering
+// src/app/profile/page.tsx — DON'T: a GET with ?logout=1 deletes the cookie while rendering
 export default async function Page({ searchParams }: { searchParams: Promise<{ logout?: string }> }) {
   if ((await searchParams).logout) (await cookies()).delete('session')
   return <Profile />
@@ -605,7 +622,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ l
 **Do** — log out through a Server Action.
 
 ```tsx
-import { logout } from './actions' // a Server Action that calls deleteSession(), then redirects
+import { logout } from '@/lib/actions/auth' // a Server Action that calls deleteSession(), then redirects
 export default function Page() {
   return <form action={logout}><button type="submit">Log out</button></form>
 }
@@ -616,7 +633,7 @@ export default function Page() {
 **Don't** — `NextResponse.next({ headers })` sends those headers to the browser.
 
 ```ts
-// proxy.ts — DON'T: NextResponse.next({ headers }) sends these headers to the browser
+// src/proxy.ts — DON'T: NextResponse.next({ headers }) sends these headers to the browser
 const headers = new Headers(request.headers)
 headers.set('x-session-token', token)
 return NextResponse.next({ headers })
@@ -688,9 +705,11 @@ Changes in Next.js 16 and the security advisories of the 16.x line, as of 16.3.8
 - [ ] SEC-5/SEC-30: every Route Handler returns 401 or 403 from its own session check.
 - [ ] SEC-6: no session data or secret in a response header set by Proxy.
 - [ ] SEC-7: the session cookie is set server-side with `httpOnly`, `secure`, `sameSite`, expiry and path.
-- [ ] SEC-8: the session payload holds ids and roles only; the secret comes from an env var.
+- [ ] SEC-8: the payload holds ids and roles only; the secret comes from an env var, read lazily.
 - [ ] SEC-10: no cookie or data mutation during render.
 - [ ] SEC-12/SEC-15: DAL modules start with `import 'server-only'` and use `cache(` for the session check.
+- [ ] SEC-46: sessions come from `@/lib/dal` (`getSession` never redirects; `verifySession` does), Proxy
+  and the DAL share one validity function, and Server Actions sit in `src/lib/actions/`.
 - [ ] SEC-13/SEC-16/SEC-23: DTOs and action returns carry only rendered fields.
 - [ ] SEC-14: no DB client or secret `process.env` read outside the DAL.
 - [ ] SEC-17: no layout-only auth check; no `return null` as access control.
@@ -698,7 +717,8 @@ Changes in Next.js 16 and the security advisories of the 16.x line, as of 16.3.8
 - [ ] SEC-24/SEC-25: no tokens as action parameters; no secrets in inline action closures.
 - [ ] SEC-27/SEC-28: `allowedOrigins` and `bodySizeLimit` are absent or justified.
 - [ ] SEC-31/SEC-32/SEC-33: nonce CSP on request and response; pages dynamic; `unsafe-eval` dev-only.
-- [ ] SEC-36: `next.config` `headers()` sends HSTS, `nosniff`, Referrer-Policy and Permissions-Policy.
+- [ ] SEC-36: `next.config` `headers()` sends HSTS, `nosniff`, Referrer-Policy, Permissions-Policy
+  and CSP `frame-ancestors`.
 - [ ] SEC-37/SEC-39: no secret behind `NEXT_PUBLIC_`; no `.env*.local` committed.
 - [ ] SEC-40/SEC-41: secrets are Secret-type on Vercel; rotation redeploys before invalidating.
 - [ ] SEC-42/SEC-43: `next` is on the latest patched release; the vulnerable-deploy block is not disabled.

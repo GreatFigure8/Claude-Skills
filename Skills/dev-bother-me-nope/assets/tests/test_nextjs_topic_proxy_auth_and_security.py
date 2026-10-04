@@ -146,3 +146,93 @@ def test_every_anti_pattern_dont_is_paired_with_a_do(text):
 
 def test_not_confirmed_section_lists_the_urls_checked(text):
     assert "https://nextjs.org/" in _section(text, "Not confirmed by the docs")
+
+
+# --- FIX1: R1-C9, R1-C15, R1-C16, R1-C32 --------------------------------------------------------
+
+SNIPPET_PATH = re.compile(r"^//\s+(?P<path>[\w./@()\[\]-]+\.tsx?)(?:\s|$)")
+ROOT_SNIPPET_FILES = ("next.config.ts",)
+ACTIONS_DIR = "src/lib/actions/"
+MIN_PATHED_SNIPPETS = 8
+CONTRACT_NEEDLES = (
+    "src/lib/dal.ts", "@/lib/dal", "getSession", "verifySession", "Promise<Session | null>",
+    "Promise<Session>", "/login", ACTIONS_DIR,
+)
+
+
+def _ts_block(text: str, *needles: str) -> str:
+    for _, body in code_blocks(text, TS_LANGS):
+        if all(needle in body for needle in needles):
+            return body
+    return ""
+
+
+def _rule(text: str, rule_id: str) -> str:
+    return next((body for found, body in rule_items(text) if found == rule_id), "")
+
+
+def _path_blocks(text: str) -> list[tuple[str, str]]:
+    found = []
+    for _, body in code_blocks(text, TS_LANGS):
+        match = SNIPPET_PATH.match(body.splitlines()[0]) if body else None
+        if match:
+            found.append((match.group("path"), body))
+    return found
+
+
+def test_one_rule_states_the_session_helper_contract_other_topics_import(text):
+    # R1-C9: five topic files had five session-helper module paths.
+    owners = [
+        rule_id for rule_id, body in rule_items(text)
+        if all(needle in body for needle in CONTRACT_NEEDLES)
+    ]
+    assert owners, "no rule names src/lib/dal.ts, getSession, verifySession and src/lib/actions"
+
+
+def test_ts_examples_name_files_in_the_canonical_src_layout(text):
+    # R1-C9: snippets copied side by side must resolve the `@/*` -> `src/*` alias against each other.
+    paths = _path_blocks(text)
+    assert len(paths) >= MIN_PATHED_SNIPPETS
+    offenders = [p for p, _ in paths if not (p.startswith("src/") or p in ROOT_SNIPPET_FILES)]
+    assert offenders == []
+
+
+def test_server_action_files_live_in_src_lib_actions(text):
+    # R1-C9: the canonical layout puts "use server" files in src/lib/actions/, not under app/.
+    action_files = [
+        path for path, body in _path_blocks(text)
+        if any(line == "'use server'" for line in body.splitlines())
+    ]
+    assert action_files
+    assert [p for p in action_files if not p.startswith(ACTIONS_DIR)] == []
+
+
+def test_proxy_and_get_session_share_one_validity_function(text):
+    # R1-C15: Proxy treated any truthy userId as signed in while getSession also required a known
+    # role, so a validly signed token with an unknown role looped /login <-> /dashboard.
+    proxy = _ts_block(text, "export async function proxy", "PUBLIC_ROUTES")
+    dal = _ts_block(text, "export const getSession")
+    session = _ts_block(text, "export async function decrypt")
+    assert proxy and dal and session
+    assert "decrypt(" in proxy and "decrypt(" in dal
+    assert "isRole" in session and "isRole" not in dal
+    assert "?.userId" not in proxy
+    assert "getSession" in _rule(text, "SEC-4")
+
+
+def test_session_secret_is_read_lazily_but_still_fails_closed(text):
+    # R1-C32: a module-level throw fires at import, so `next build` fails without the secret.
+    session = _ts_block(text, "jwtVerify", "SESSION_SECRET")
+    reads = [line for line in session.splitlines() if "process.env.SESSION_SECRET" in line]
+    assert reads
+    assert all(line.startswith(" ") for line in reads), reads
+    assert "throw new Error('SESSION_SECRET is not set')" in session
+    assert "next build" in session
+
+
+def test_security_headers_pattern_sends_the_frame_ancestors_sec_36_asks_for(text):
+    # R1-C16: SEC-36 says use CSP frame-ancestors, but the pattern sent neither it nor X-Frame-Options.
+    assert "frame-ancestors" in _rule(text, "SEC-36")
+    headers = _ts_block(text, "securityHeaders", "async headers()")
+    assert "key: 'Content-Security-Policy'" in headers
+    assert "frame-ancestors" in headers

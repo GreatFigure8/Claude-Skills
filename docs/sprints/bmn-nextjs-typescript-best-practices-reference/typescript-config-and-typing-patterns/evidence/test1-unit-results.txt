@@ -1,0 +1,41 @@
+# TEST1 unit results for typescript-config-and-typing-patterns
+
+Branch wip/nextjs-typescript-best-practices-reference/tests-unit-1, base origin/dev 59279a3, 2026-10-04.
+Full-suite result: 1026 passed in 95.32s (0:01:35). Each line is one pytest node id from the verbose run of the
+nextjs tests that this story's criterion map cites; `35` ids, all PASSED.
+
+test_nextjs_reference.py::test_every_prose_url_is_listed_in_sources[typescript.md] PASSED
+test_nextjs_reference.py::test_every_url_host_is_allowed[typescript.md] PASSED
+test_nextjs_reference.py::test_file_is_at_most_800_lines[typescript.md] PASSED
+test_nextjs_reference.py::test_no_bare_code_fences[typescript.md] PASSED
+test_nextjs_reference.py::test_no_todo_or_tbd[typescript.md] PASSED
+test_nextjs_reference.py::test_primary_source_floor[typescript.md] PASSED
+test_nextjs_reference.py::test_relative_links_resolve[typescript.md] PASSED
+test_nextjs_reference.py::test_rule_ids_are_unique_across_topic_files PASSED
+test_nextjs_reference.py::test_sources_is_a_bullet_list_of_unique_https_urls[typescript.md] PASSED
+test_nextjs_reference.py::test_stub_marker_names_the_owning_story[typescript.md] PASSED
+test_nextjs_reference.py::test_topic_as_of_matches_the_entry_point[typescript.md] PASSED
+test_nextjs_reference.py::test_topic_cites_only_its_own_rule_ids[typescript.md] PASSED
+test_nextjs_reference.py::test_topic_meets_the_floors[typescript.md] PASSED
+test_nextjs_reference.py::test_topic_not_confirmed_section_lists_urls_and_no_rules[typescript.md] PASSED
+test_nextjs_reference.py::test_topic_rules_are_well_formed_and_numbered[typescript.md] PASSED
+test_nextjs_reference.py::test_topic_rules_cite_a_source_or_convention[typescript.md] PASSED
+test_nextjs_reference.py::test_topic_sections_follow_the_contract[typescript.md] PASSED
+test_nextjs_reference.py::test_topic_version_notes_name_the_major[typescript.md] PASSED
+test_nextjs_topic_typescript.py::test_typescript_anti_patterns_pair_each_dont_with_a_do PASSED
+test_nextjs_topic_typescript.py::test_typescript_every_source_is_linked_in_the_body PASSED
+test_nextjs_topic_typescript.py::test_typescript_review_checklist_items_cite_rule_ids PASSED
+test_nextjs_topic_typescript.py::test_typescript_rules_forbid_ignore_build_errors_and_ban_any PASSED
+test_nextjs_topic_typescript.py::test_typescript_rules_say_how_route_helpers_are_generated PASSED
+test_nextjs_topic_typescript.py::test_typescript_topic_awaits_search_params_in_tsx PASSED
+test_nextjs_topic_typescript.py::test_typescript_topic_examples_never_use_any PASSED
+test_nextjs_topic_typescript.py::test_typescript_topic_has_at_least_15_rules PASSED
+test_nextjs_topic_typescript.py::test_typescript_topic_has_page_props_block_awaiting_params PASSED
+test_nextjs_topic_typescript.py::test_typescript_topic_has_route_context_handler_block PASSED
+test_nextjs_topic_typescript.py::test_typescript_topic_has_safe_parse_boundary_block PASSED
+test_nextjs_topic_typescript.py::test_typescript_topic_has_strict_tsconfig_json_block PASSED
+test_nextjs_topic_typescript.py::test_typescript_topic_has_typed_next_config_block PASSED
+test_nextjs_topic_typescript.py::test_typescript_topic_is_not_a_stub PASSED
+test_nextjs_topic_typescript.py::test_typescript_topic_mentions_every_required_term PASSED
+test_nextjs_topic_typescript.py::test_typescript_topic_uses_only_ts_rule_ids PASSED
+test_nextjs_topic_typescript.py::test_typescript_version_notes_name_major_and_link_nextjs PASSED

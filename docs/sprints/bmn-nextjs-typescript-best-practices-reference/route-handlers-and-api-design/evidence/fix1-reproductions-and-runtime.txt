@@ -1,0 +1,72 @@
+FIX1 reproductions and runtime evidence for route-handlers-and-api-design (2026-10-04)
+Scratch (not committed): /private/tmp/claude-501/-Users-jonathanstevenson-Source-claude-skills/b71aefe4-ae21-4000-aa3e-8b70fbcfbe94/scratchpad/fix1-routehandlers/
+Toolchain: node v26.0.0, next 16.3.8, zod 4.6.5, typescript 7.0.2 and 6.0.3 (strict, noUncheckedIndexedAccess, lib ES2020), cacheComponents: true.
+
+== R1-B7 (node, before the fix) =============================================================
+$ node repro/b7.js
+expected length 40
+hostile string length 40 byte length 41
+OLD THROWS RangeError ERR_CRYPTO_TIMING_SAFE_EQUAL_LENGTH
+new result (hostile) false
+new result (empty) false false
+new result (valid) true
+new result (wrong same-length) false
+
+== R1-B1 (node + tsc on the pre-fix fence #18) ==============================================
+$ node repro/b1_global_crypto.mjs
+typeof crypto.createHmac = undefined
+runtime error: TypeError crypto.createHmac is not a function
+
+$ tsc --noEmit --pretty false -p tsconfig.json   (pre-fix doc, fence #18 = old line 526)
+src/_loose/f18.ts(4,27): error TS2339: Property 'createHmac' does not exist on type 'Crypto'.
+src/_loose/f18.ts(7,12): error TS2339: Property 'timingSafeEqual' does not exist on type 'Crypto'.
+
+== R1-B16 (python, the OLD guard of the topic test) =========================================
+$ python3 repro/b16_old_guard.py
+unsigned request.text() POST flagged by old guard: False
+unauthenticated GET that revalidates flagged by old guard: False
+
+== After the fix: type-check of every ts/tsx fence of the new doc ============================
+Path-commented fences are written at their src/ path, the rest under src/_loose with a declared
+prelude (imports of ApiErrorBody/redirect/updateTag/getSession, declare of resolveShortLink,
+findFirstUser, findUserById, createProject, ProjectInput, sign); local @/lib modules are typed stubs.
+tsc 7.0.2: exit 0.  tsc 6.0.3: exit 0.  A deliberate `const n: number = 'x'` in the same project
+was reported (TS2322), so the check was live.
+
+== After the fix: next build + next start of the doc's own route fences =====================
+Fences used as written: errors.ts, origin.ts, projects POST, projects/[id] GET+DELETE, the Patterns
+webhook, the Do-block webhook (anti-pattern 5), the Do-block revalidate POST (anti-pattern 7), the
+Do-block /go/[slug] redirect GET (anti-pattern 8) and the catalog GET. Only src/lib modules were
+hand-written (cookie-backed getSession, in-memory stores, a log-file webhook handler).
+$ next build  -> Compiled successfully, TypeScript finished, all 8 routes listed (cacheComponents on)
+$ node smoke.mjs against next start -p 3055
+PASS  POST /api/projects with no Origin -> 403
+PASS  POST /api/projects with a foreign Origin -> 403
+PASS  POST /api/projects own Origin, no session -> 401
+PASS  POST /api/projects own Origin + session -> 201
+PASS  DELETE /api/projects/:id with no Origin -> 403
+PASS  DELETE /api/projects/:id own Origin -> 204
+PASS  GET /api/revalidate -> 405 (no side effect on GET)
+PASS  POST /api/revalidate no Origin -> 403
+PASS  POST /api/revalidate no session -> 401
+PASS  POST /api/revalidate non-admin -> 403
+PASS  POST /api/revalidate admin -> 200
+PASS  GET /api/catalog default limit 20  -> len=20 next=20
+PASS  GET /api/catalog?limit=5&cursor=20  -> first=20 next=25
+PASS  GET /api/catalog?limit=101 -> 400
+PASS  GET /api/catalog?limit=0 -> 400
+PASS  Patterns webhook: valid signature -> 200
+PASS  Patterns webhook: non-ASCII 40-char signature -> 401 invalid_signature (not 500)
+PASS  Patterns webhook: wrong same-length signature -> 401
+PASS  Patterns webhook: missing signature -> 401
+PASS  Do-block webhook: valid signature -> 200
+PASS  Do-block webhook: non-ASCII 40-char signature -> 401 invalid_signature (not 500)
+PASS  Do-block webhook: wrong same-length signature -> 401
+PASS  Do-block webhook: missing signature -> 401
+PASS  after(): ok event handled then marked, in that order
+PASS  failing event still answers 200 (sent before after() runs)
+PASS  failed event is not marked processed, so a redelivery runs again  -> handled=2 marked=0
+PASS  processed event is deduped on redelivery
+PASS  GET /go/abc -> 307 to the resolved path
+PASS  GET /go/boom -> 500 internal envelope (redirect is outside try/catch)
+29/29 passed

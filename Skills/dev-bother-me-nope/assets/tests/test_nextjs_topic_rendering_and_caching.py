@@ -55,7 +55,6 @@ REQUIRED_EXAMPLES = {
 }
 
 INVALIDATION_APIS = ("revalidateTag", "updateTag", "revalidatePath", "refresh")
-ANY_TYPE_RE = re.compile(r":\s*any\b|<any>|as any\b")
 RC_ID_RE = re.compile(r"\bRC-(\d+)\b")
 ANY_RULE_ID_RE = re.compile(r"\*\*([A-Z]+)-\d+\*\*")
 FENCE_OPEN_RE = re.compile(r"^\s*`{3,}\S")
@@ -144,7 +143,7 @@ def test_rendering_topic_has_required_example(topic_text, needles):
 def test_rendering_topic_examples_have_no_any(topic_text):
     blocks = h.code_blocks(topic_text, ("ts", "tsx"))
     assert len(blocks) >= MIN_TS_BLOCKS
-    offenders = [body.splitlines()[0] for _, body in blocks if ANY_TYPE_RE.search(body)]
+    offenders = [body.splitlines()[0] for _, body in blocks if h.uses_any_type(body)]
     assert not offenders, f"ts/tsx blocks that use any: {offenders}"
 
 
@@ -265,3 +264,149 @@ def test_anti_patterns_name_existing_rules(topic_text):
     for title, _ in antis:
         named = {f"RC-{n}" for n in RC_ID_RE.findall(title)}
         assert named <= existing, f"{title}: names a missing rule"
+
+
+# --- FIX①: REVIEW① findings R1-B2, R1-B3, R1-B9, R1-B10, R1-B14, R1-B15 ---------------------
+
+INVALIDATE_RE = re.compile(r"\b(?:revalidateTag|revalidatePath)\(")
+VERIFY_TOKENS = ("timingSafeEqual(", "readSignedBody(")
+ERROR_STATUS_RE = re.compile(r"status:\s*[45]\d\d")
+PATH_COMMENT_RE = re.compile(r"^// (\S+\.tsx?)\b")
+ROOT_CONFIG_FILES = ("next.config.ts",)
+
+
+def _rule(text, rule_id):
+    return next(item for found, item in h.rule_items(text) if found == rule_id)
+
+
+def _do_blocks(text):
+    """``(title, body)`` of each ts/tsx fence after an anti-pattern's ``**Do:**`` marker."""
+    pairs = []
+    for title, body in h.anti_patterns(text):
+        _, _, after = body.partition(DO_MARKER)
+        pairs.extend((title, block) for _, block in h.code_blocks(after, ("ts", "tsx")))
+    return tuple(pairs)
+
+
+def _good_blocks(text):
+    """Every ts/tsx fence the reader is told to copy: Patterns fences plus Do fences."""
+    patterns = h.code_blocks(h.section(text, "Patterns"), ("ts", "tsx"))
+    return tuple(block for _, block in patterns) + tuple(block for _, block in _do_blocks(text))
+
+
+def _route_handlers(text):
+    return tuple(b for b in _good_blocks(text) if re.search(r"export async function (POST|GET)", b))
+
+
+def test_rc30_states_the_persistence_difference_before_migrating(topic_text):
+    rule = _rule(topic_text, "RC-30")
+    assert "only in repos without Cache Components" not in rule
+    for needle in ("unstable_cache", "fetch", "'use cache: remote'", "across deployments", "instances"):
+        assert needle in rule, f"RC-30 does not name {needle!r}"
+    assert "persist across deploys" in rule, "RC-30 does not say when to keep the persistent caches"
+
+
+def test_migration_table_keeps_persistent_caches_for_cross_deploy_data(topic_text):
+    tables = _tables(h.section(topic_text, "Patterns"))
+    table = next(t for t in tables if "unstable_cache" in t and "force-dynamic" in t)
+    rows = [row for row in h.table_rows(table) if "unstable_cache(" in row[0] or "force-cache" in row[0]]
+    assert len(rows) == 2, rows
+    for row in rows:
+        assert "deploy" in row[1] and "RC-30" in row[1], f"no persistence caveat: {row}"
+
+
+def test_not_confirmed_no_longer_doubts_remote_cache_deploy_persistence(topic_text):
+    doubts = h.section(topic_text, "Not confirmed by the docs")
+    assert "survive a redeploy" not in doubts
+
+
+def test_rc28_matches_cachetag_documented_limits(topic_text):
+    rule = _rule(topic_text, "RC-28")
+    assert "per entry" not in rule
+    assert "A single `cacheTag()` call accepts up to 128 tags" in rule
+    assert "each with a maximum length of 256 characters" in rule
+    assert "console warning" in rule
+
+
+def test_rc40_sends_cache_components_repos_to_proxy(topic_text):
+    rule = _rule(topic_text, "RC-40")
+    assert "previous model" in rule
+    assert "Cache Components" in rule and "Proxy" in rule
+    assert "RC-15" in rule or "RC-16" in rule
+
+
+def test_top_level_param_awaits_in_copyable_pages_are_labelled_previous_model(topic_text):
+    offenders = [
+        block.splitlines()[0]
+        for block in _good_blocks(topic_text)
+        if "export default async function" in block
+        and "await params" in block
+        and "WITHOUT cacheComponents" not in block
+    ]
+    assert not offenders, f"top-level await params with no previous-model label: {offenders}"
+
+
+def test_status_code_pattern_points_cache_components_to_proxy(topic_text):
+    patterns = h.section(topic_text, "Patterns")
+    pattern = h.section(patterns, "Return a real 404 before streaming starts", prefix=True)
+    assert "previous model" in pattern
+    assert "Proxy" in pattern
+    assert "file-conventions/loading" in pattern
+
+
+def test_route_handlers_verify_the_caller_before_invalidating(topic_text):
+    handlers = [b for b in _route_handlers(topic_text) if INVALIDATE_RE.search(b)]
+    assert len(handlers) >= 2, "expected the webhook pattern and the RC-32/RC-33 Do block"
+    for block in handlers:
+        invalidate_at = INVALIDATE_RE.search(block).start()
+        verified = [block.find(token) for token in VERIFY_TOKENS if token in block]
+        assert verified and min(verified) < invalidate_at, f"unverified: {block.splitlines()[0]}"
+
+
+def test_signed_body_helper_compares_in_constant_time(topic_text):
+    helpers = [b for b in _good_blocks(topic_text) if "export async function readSignedBody" in b]
+    assert len(helpers) == 1
+    assert "timingSafeEqual(" in helpers[0] and ".length ===" in helpers[0]
+    assert "await request.text()" in helpers[0]
+
+
+def test_route_handler_errors_use_the_api_error_envelope(topic_text):
+    for block in _route_handlers(topic_text):
+        assert "revalidated: false" not in block
+        if ERROR_STATUS_RE.search(block):
+            assert "ApiErrorBody" in block, f"ad-hoc error body: {block.splitlines()[0]}"
+
+
+def test_revalidation_tag_comes_from_a_validated_signed_body(topic_text):
+    for block in _route_handlers(topic_text):
+        assert "searchParams.get('tag')" not in block
+        if re.search(r"revalidateTag\((?!')", block):
+            assert ".safeParse(" in block, f"tag not validated: {block.splitlines()[0]}"
+
+
+def test_server_actions_validate_form_data_before_writing(topic_text):
+    actions = [b for b in _good_blocks(topic_text) if "'use server'" in b and "formData.get(" in b]
+    assert actions, "no Server Action reads formData"
+    for block in actions:
+        assert "String(formData.get(" not in block
+        assert ".safeParse(" in block
+
+
+def test_snippets_use_the_shared_session_helpers(topic_text):
+    for _, block in h.code_blocks(topic_text, ("ts", "tsx")):
+        assert "await auth()" not in block and "'@/lib/auth'" not in block
+    actions = [b for b in _good_blocks(topic_text) if b.lstrip("/ \n").find("'use server'") >= 0]
+    assert actions
+    for block in actions:
+        assert "verifySession()" in block and "from '@/lib/dal'" in block
+
+
+def test_snippet_path_comments_use_src_and_lib_actions(topic_text):
+    for block in _good_blocks(topic_text):
+        match = PATH_COMMENT_RE.match(block.splitlines()[0])
+        if not match or match.group(1) in ROOT_CONFIG_FILES:
+            continue
+        path = match.group(1)
+        assert path.startswith("src/"), f"snippet path not under src/: {path}"
+        if "'use server'" in block.splitlines()[1:3]:
+            assert path.startswith("src/lib/actions/"), f"Server Action file outside lib/actions: {path}"

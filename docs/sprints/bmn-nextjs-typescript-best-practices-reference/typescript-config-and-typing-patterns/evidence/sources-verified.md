@@ -16,9 +16,11 @@ so the URL set equals `source_urls(text)`.
 | https://nextjs.org/docs/app/api-reference/config/next-config-js/typescript | 2026-10-04 (live, this run) | yes | TS-6 |
 | https://nextjs.org/docs/app/api-reference/config/next-config-js/typedRoutes | 2026-10-04 (live, this run) | yes | TS-8, Version notes |
 | https://nextjs.org/docs/app/api-reference/config/next-config-js/useTypeScriptCli | 2026-10-04 (live, this run) | yes | TS-11, Version notes, Not confirmed |
-| https://nextjs.org/docs/app/api-reference/cli/next | 2026-10-04 (live, this run) | yes | TS-5, P3, Version notes, Not confirmed |
-| https://nextjs.org/docs/app/api-reference/file-conventions/page | 2026-10-04 (live, this run) | yes | TS-13, TS-16, TS-17 |
-| https://nextjs.org/docs/app/api-reference/file-conventions/layout | 2026-10-04 (live, this run) | yes | TS-14 |
+| https://nextjs.org/docs/app/api-reference/cli/next | 2026-10-04 (live, this run) | yes | TS-4, TS-5, P3, Version notes |
+| https://nextjs.org/docs/app/api-reference/cli/create-next-app | 2026-10-04 (live, FIX①) | yes | TS-12, Not confirmed |
+| https://nextjs.org/docs/architecture/supported-browsers | 2026-10-04 (live, FIX①) | yes | P1 |
+| https://nextjs.org/docs/app/api-reference/file-conventions/page | 2026-10-04 (live, this run) | yes | TS-13, TS-16, TS-17, Not confirmed |
+| https://nextjs.org/docs/app/api-reference/file-conventions/layout | 2026-10-04 (live, this run) | yes | TS-14, Not confirmed |
 | https://nextjs.org/docs/app/api-reference/file-conventions/route | 2026-10-04 (live, this run) | yes | TS-15, TS-19, TS-34, A5 |
 | https://nextjs.org/docs/app/api-reference/file-conventions/src-folder | 2026-10-04 (live, this run) | yes | TS-9 |
 | https://nextjs.org/docs/app/api-reference/functions/generate-metadata | 2026-10-04 (live, this run) | yes | TS-18, Not confirmed |

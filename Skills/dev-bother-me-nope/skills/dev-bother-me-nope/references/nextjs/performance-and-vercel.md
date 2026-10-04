@@ -44,17 +44,19 @@ Back to the [Next.js + TypeScript standard](../nextjs.md). The blocked deploy co
    never combine it with `loading` or `fetchPriority`. Never write `priority`, which Next.js 16 deprecated in favour of
    `preload`. `loading` defaults to `lazy` ([Image API](https://nextjs.org/docs/app/api-reference/components/image)).
 5. **PERF-5** Allow-list remote images with the narrowest `images.remotePatterns` entry.
-   Set `protocol`, `hostname`, `pathname` and `search: ''`: an omitted `protocol`, `port`, `pathname` or `search`
-   implies the `**` wildcard, which the docs do not recommend. A URL that matches no pattern gets a `400`. Allow local
-   images with query strings through `images.localPatterns`. Never use `images.domains`, deprecated since Next.js 14
-   ([Image API](https://nextjs.org/docs/app/api-reference/components/image);
+   Set `protocol`, `hostname`, `port: ''`, `pathname` and `search: ''`: an omitted `protocol`, `port`, `pathname` or
+   `search` implies the `**` wildcard, which the docs do not recommend. A URL that matches no pattern gets a `400`.
+   Allow local images with query strings through `images.localPatterns`. Never use `images.domains`, deprecated since
+   Next.js 14 ([Image API](https://nextjs.org/docs/app/api-reference/components/image);
    [Upgrade to 16](https://nextjs.org/docs/app/guides/upgrading/version-16)).
-6. **PERF-6** Keep `images.qualities` an explicit allow-list and `images.formats` on the WebP default.
+6. **PERF-6** Keep `images.qualities` an explicit allow-list and `images.formats` on the WebP default, without `image/avif`.
    `qualities` defaults to `[75]`, is required from Next.js 16, and coerces any other `quality` to the closest entry.
-   Add AVIF only when measured: it takes about 50% longer to encode and compresses 20% smaller, and each format is
-   cached separately. `minimumCacheTTL` defaults to 14400 (4 hours) and cached images cannot be invalidated, so prefer
-   static imports, which are cached as `immutable`
-   ([Image API](https://nextjs.org/docs/app/api-reference/components/image)).
+   The August 2026 security release reports an unauthenticated remote code execution in the Image Optimization API
+   when Next.js optimizes an attacker-controlled AVIF image (a libheif flaw in `sharp`), and says its patched releases,
+   v16.3.3 and v15.5.24, disable AVIF optimization until an upstream fix is propagated
+   ([August 2026 security release](https://nextjs.org/blog/august-2026-security-release)). `minimumCacheTTL` defaults
+   to 14400 (4 hours) and cached images cannot be invalidated, so prefer static imports, which are cached as
+   `immutable` ([Image API](https://nextjs.org/docs/app/api-reference/components/image)).
 7. **PERF-7** On Vercel, set `unoptimized` on images that gain nothing from optimization.
    Vercel lists icons and thumbnails under 10 KB, GIFs and other animated formats, SVGs, and frequently changing images.
    Transformations are billed for every cache MISS and STALE, a transformed image may be at most 10 MB, and a source
@@ -166,8 +168,9 @@ Back to the [Next.js + TypeScript standard](../nextjs.md). The blocked deploy co
 
 26. **PERF-26** Report Web Vitals from one small `'use client'` component that calls
     `useReportWebVitals` with a module-level callback, rendered from the root layout.
-    A callback reference that changes reports duplicate data. The metrics are TTFB, FCP, LCP, FID, CLS and INP. Send
-    them with `navigator.sendBeacon`, falling back to `fetch` with `keepalive: true`
+    This is the one place the component is defined; other topics link here. A callback reference that changes reports
+    duplicate data. The metrics are TTFB, FCP, LCP, FID, CLS and INP. Send them to your own endpoint (`/api/vitals`
+    below) with `navigator.sendBeacon`, falling back to `fetch` with `keepalive: true`
     ([useReportWebVitals](https://nextjs.org/docs/app/api-reference/functions/use-report-web-vitals)).
 27. **PERF-27** On Vercel, add `<SpeedInsights />` from `@vercel/speed-insights/next` and
     `<Analytics />` from `@vercel/analytics/next` inside the root layout `<body>`.
@@ -249,8 +252,9 @@ Back to the [Next.js + TypeScript standard](../nextjs.md). The blocked deploy co
     ([Incremental Static Regeneration](https://vercel.com/docs/incremental-static-regeneration);
     [Data Cache](https://vercel.com/docs/caching/runtime-cache/data-cache)).
 39. **PERF-39** Protect every cron route, and make the job idempotent.
-    Return a 401 unless the `authorization` header is `Bearer` followed by the `CRON_SECRET` value. Crons call the
-    production deployment with a GET, in UTC. There are no retries, a run can be missed or duplicated, and redirects are
+    Return a 401 unless the `authorization` header is `Bearer` followed by the `CRON_SECRET` value, compared with
+    `timingSafeEqual` from `node:crypto` on two `Buffer`s after a byte-length check, never with `!==` (convention).
+    Crons call the production deployment with a GET, in UTC. There are no retries, a run can be missed or duplicated, and redirects are
     not followed. Hobby runs a cron once a day, and the limit is 100 cron jobs per project
     ([Managing cron jobs](https://vercel.com/docs/cron-jobs/manage-cron-jobs);
     [Cron jobs](https://vercel.com/docs/cron-jobs); [Vercel limits](https://vercel.com/docs/limits)).
@@ -283,9 +287,7 @@ Back to the [Next.js + TypeScript standard](../nextjs.md). The blocked deploy co
 ```tsx
 import Image from 'next/image'
 
-type CardImageProps = { src: string; alt: string }
-
-export function CardImage({ src, alt }: CardImageProps) {
+export function CardImage({ src, alt }: { src: string; alt: string }) {
   return (
     <div style={{ position: 'relative', aspectRatio: '4 / 3' }}>
       <Image src={src} alt={alt} fill sizes="(max-width: 768px) 100vw, 33vw" style={{ objectFit: 'cover' }} />
@@ -409,14 +411,15 @@ export async function getData(): Promise<unknown> {
 }
 ```
 
-Highlighting in a Server Component keeps `shiki` out of the client bundle.
+Highlighting in a Server Component keeps `shiki` out of the client bundle. `codeToHtml` returns a complete `<pre>`
+element, so the wrapper is a `div`.
 
 ```tsx
 import { codeToHtml } from 'shiki'
 
 export default async function Page() {
   const html = await codeToHtml('export const answer = 42', { lang: 'tsx', theme: 'github-dark' })
-  return <pre><code dangerouslySetInnerHTML={{ __html: html }} /></pre>
+  return <div dangerouslySetInnerHTML={{ __html: html }} />
 }
 ```
 
@@ -447,7 +450,7 @@ type ReportWebVitalsCallback = Parameters<typeof useReportWebVitals>[0]
 
 const reportWebVitals: ReportWebVitalsCallback = (metric) => {
   const body = JSON.stringify(metric)
-  const url = 'https://example.com/analytics'
+  const url = '/api/vitals'
   if (navigator.sendBeacon) {
     navigator.sendBeacon(url, body)
   } else {
@@ -468,14 +471,15 @@ import { after } from 'next/server'
 
 export const maxDuration = 60 // must not exceed the plan maximum
 
-function logReport(received: boolean): void {
-  console.info('report received', received)
-}
-
 export async function POST(request: Request): Promise<Response> {
-  const input: unknown = await request.json()
+  let input: unknown
+  try {
+    input = await request.json()
+  } catch {
+    return Response.json({ error: { code: 'invalid_json', message: 'The body is not valid JSON.' } }, { status: 400 })
+  }
   const received = input !== null
-  after(() => logReport(received))
+  after(() => console.info('report received', received))
   return Response.json({ received })
 }
 ```
@@ -483,13 +487,19 @@ export async function POST(request: Request): Promise<Response> {
 ### Cron route and `vercel.json` (PERF-34, PERF-39)
 
 ```ts
+import { timingSafeEqual } from 'node:crypto'
 import type { NextRequest } from 'next/server'
 
-export function GET(request: NextRequest): Response {
+function isCronRequest(request: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret || request.headers.get('authorization') !== `Bearer ${cronSecret}`) {
-    return new Response('Unauthorized', { status: 401 })
-  }
+  if (!cronSecret) return false
+  const received = Buffer.from(request.headers.get('authorization') ?? '')
+  const expected = Buffer.from(`Bearer ${cronSecret}`)
+  return received.length === expected.length && timingSafeEqual(received, expected) // equal byte lengths, or it throws
+}
+
+export function GET(request: NextRequest): Response {
+  if (!isCronRequest(request)) return new Response('Unauthorized', { status: 401 })
   return Response.json({ success: true })
 }
 ```
@@ -553,14 +563,14 @@ const nextConfig: NextConfig = {
 export default nextConfig
 ```
 
-**Do** write one narrow `remotePatterns` entry with `pathname` and `search: ''`.
+**Do** write one narrow `remotePatterns` entry with `protocol`, `port`, `pathname` and `search: ''`.
 
 ```ts
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   images: {
-    remotePatterns: [{ protocol: 'https', hostname: 'cdn.example.com', pathname: '/assets/**', search: '' }],
+    remotePatterns: [{ protocol: 'https', hostname: 'cdn.example.com', port: '', pathname: '/assets/**', search: '' }],
   },
 }
 
@@ -625,14 +635,17 @@ export function GET(): Response {
 }
 ```
 
-**Do** check `CRON_SECRET` and make the job a "set", so a repeated run changes nothing.
+**Do** check `CRON_SECRET` in constant time and make the job a "set", so a repeated run changes nothing.
 
 ```ts
+import { timingSafeEqual } from 'node:crypto'
 import type { NextRequest } from 'next/server'
 
 export function GET(request: NextRequest): Response {
   const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret || request.headers.get('authorization') !== `Bearer ${cronSecret}`) {
+  const received = Buffer.from(request.headers.get('authorization') ?? '')
+  const expected = Buffer.from(`Bearer ${cronSecret ?? ''}`)
+  if (!cronSecret || received.length !== expected.length || !timingSafeEqual(received, expected)) {
     return new Response('Unauthorized', { status: 401 })
   }
   return Response.json({ state: 'generated' }) // set the state; running twice has the same effect
@@ -680,7 +693,7 @@ Next.js 16, up to 16.3.
 - [ ] PERF-1, PERF-2, PERF-3: every `Image` has its dimensions, or `fill` with a positioned parent and `sizes`.
 - [ ] PERF-4: no `priority`, and one eager LCP image that does not combine `preload` with `loading`.
 - [ ] PERF-5: remote images use a narrow `remotePatterns` entry, never `domains` or a wildcard host.
-- [ ] PERF-6, PERF-7: `qualities` is an explicit list, and tiny, animated and vector images are `unoptimized`.
+- [ ] PERF-6, PERF-7: `qualities` is an explicit list, `formats` has no `image/avif`, and tiny, animated and vector images are `unoptimized`.
 - [ ] PERF-8 to PERF-11: fonts come from `next/font`, are defined once and reach CSS through `variable`.
 - [ ] PERF-12, PERF-13, PERF-14: `next/script` is scoped narrowly with an explicit `strategy`, and handlers live in client files.
 - [ ] PERF-16, PERF-17, PERF-18: `'use client'` sits on leaves, heavy transforms stay on the server, and server modules import `server-only`.
@@ -690,7 +703,7 @@ Next.js 16, up to 16.3.
 - [ ] PERF-26, PERF-27: the Web Vitals reporter has a module-level callback.
 - [ ] PERF-29, PERF-30, PERF-34: no route exports `runtime = 'edge'` or `preferredRegion`, and no request data is held in module scope.
 - [ ] PERF-31, PERF-35: `maxDuration` is within the plan maximum, and large uploads bypass the function.
-- [ ] PERF-37, PERF-39: cacheable responses set no cookie, and cron routes check `CRON_SECRET` and are idempotent.
+- [ ] PERF-37, PERF-39: cacheable responses set no cookie, and cron routes compare `CRON_SECRET` in constant time and are idempotent.
 - [ ] PERF-40, PERF-43: env and platform changes are listed as `deploy_pending`, and no deploy command is run.
 
 ## Not confirmed by the docs
@@ -720,13 +733,14 @@ Nothing here is stated as a rule.
   Actions limit and Proxy's buffered-body cap `proxyClientMaxBodySize` are documented, and the latter
   is experimental (https://nextjs.org/docs/app/api-reference/config/next-config-js/serverActions;
   https://nextjs.org/docs/app/api-reference/config/next-config-js/proxyClientMaxBodySize).
-- Skew Protection maximum age per plan: the page gives only a one-day default and "up to your project's
-  Deployment Retention limit", with no per-plan values (https://vercel.com/docs/skew-protection).
 - A Speed Insights dashboard-enable step: its quickstart shows none, while the Web Analytics quickstart
   does, so the step is stated only for Web Analytics (https://vercel.com/docs/speed-insights/quickstart;
   https://vercel.com/docs/analytics/quickstart).
-- A numeric client JavaScript budget per route: no Next.js page gives one, so none is set
-  (https://nextjs.org/docs/app/guides/package-bundling).
+- AVIF after the August 2026 release: the post says the patched releases disable AVIF optimization until an upstream fix
+  is propagated. Neither the September 2026 release post nor the Image API page says it came back, and that page still
+  documents `image/avif` in `formats` with no caveat, so the file says to leave it out
+  (https://nextjs.org/blog/august-2026-security-release; https://nextjs.org/blog/september-2026-security-release;
+  https://nextjs.org/docs/app/api-reference/components/image).
 
 ## Sources
 
@@ -758,6 +772,8 @@ Nothing here is stated as a rule.
 - https://nextjs.org/docs/app/guides/upgrading/version-16 — upgrade guide to version 16
 - https://nextjs.org/blog/next-16 — Next.js 16 release post
 - https://nextjs.org/blog/next-16-3 — Next.js 16.3 release post
+- https://nextjs.org/blog/august-2026-security-release — August 2026 security release (AVIF optimization disabled)
+- https://nextjs.org/blog/september-2026-security-release — September 2026 security release
 - https://vercel.com/docs/functions/runtimes — Vercel Function runtimes
 - https://vercel.com/docs/functions/runtimes/edge — Edge runtime on Vercel
 - https://vercel.com/docs/fluid-compute — Fluid compute
