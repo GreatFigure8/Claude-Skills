@@ -53,6 +53,7 @@ This list must equal the `## Sources` list of
 | https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS | 2026-10-04 | API-31 |
 | https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Methods/OPTIONS | 2026-10-04 | API-31; Patterns (preflight status 200) |
 | https://developer.mozilla.org/en-US/docs/Glossary/Idempotent | 2026-10-04 | API-21 |
+| https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP | 2026-10-04 (FIX1, `curl`, 200) | API-7 (safe methods alter no server state, browsers pre-fetch and crawlers call them, "an application should not allow GET requests to alter its state") |
 | https://developer.mozilla.org/en-US/docs/Web/API/Response/json_static | 2026-10-04 | API-3, API-10 |
 | https://developer.mozilla.org/en-US/docs/Web/API/Request/json | 2026-10-04 | API-9 |
 | https://zod.dev/basics | 2026-10-04 | API-8 |
