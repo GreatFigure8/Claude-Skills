@@ -478,6 +478,48 @@ def test_move_computers_says_merged_wip_branches_already_deleted():
     )
 
 
+# --- FIX1 R1-1: the machine-move tidy goes through the helper -----------------------
+
+HELPER_PATH = "python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py"
+MOVE_PUSHED_CALL = (
+    f"{HELPER_PATH} --repo <main checkout> --branch <branch> --target origin/<branch> --pushed"
+)
+MOVE_HARNESS_CALL = (
+    f"{HELPER_PATH} --repo <main checkout> --branch <harness branch> "
+    "--target origin/<type>/<run-slug> --local-only"
+)
+HAND_RUN_REMOVAL = re.compile(r"git worktree (?:remove|prune)|git branch -[dD]")
+NEVER = re.compile(r"\bnever\b", re.IGNORECASE)
+
+
+def _move_out_tidy():
+    return _numbered_item(_section(_read(MOVE_COMPUTERS), "MOVE-OUT"), "Tidy this machine")
+
+
+def test_move_out_tidy_runs_the_helper_for_every_branch_it_removes():
+    _assert_has(
+        _move_out_tidy(),
+        MOVE_PUSHED_CALL,
+        MOVE_HARNESS_CALL,
+        "main checkout",
+        "Left on <host>",
+        "origin:<branch>",
+    )
+
+
+def test_move_out_tidy_says_which_files_keep_a_worktree():
+    _assert_has(_move_out_tidy(), "ignored", ".env", "regenerable build output", "no --force")
+
+
+def test_move_computers_never_hand_runs_worktree_remove_or_branch_delete():
+    unforbidden = [
+        sentence
+        for sentence in _sentences(_read(MOVE_COMPUTERS))
+        if HAND_RUN_REMOVAL.search(sentence) and not NEVER.search(sentence)
+    ]
+    assert not unforbidden, unforbidden
+
+
 # --- AC12: the worker agent -------------------------------------------------------
 
 

@@ -869,3 +869,221 @@ def test_plan_keeps_local_branch_while_any_worktree_holds_it(load_script):
     assert survey.holders == (free, locked)
     with pytest.raises(AttributeError):
         plan.delete_local = True
+
+
+# --- FIX1 R1-6: --local-only is decided inside the plan, not filtered out afterwards ---------
+
+KEPT = "origin copy kept: --local-only"
+
+
+def local_only_survey(mod, local, remote, fetch_error=None):
+    """A --local-only Survey of branch wip/x whose local and origin copies are given."""
+    return mod.Survey(
+        branch="wip/x", target="origin/feat/r", remote="origin", main_path="/m",
+        local=local, remote_copy=remote, fetch_error=fetch_error, holders=(), local_only=True,
+    )
+
+
+LOCAL_ONLY_SCENARIOS = {
+    "merged-both": ("merged", "merged", None),
+    "merged-both-fetch-failed": ("merged", "merged", "network down"),
+    "unmerged-local-merged-origin": ("unmerged", "merged", None),
+    "unmerged-both": ("unmerged", "unmerged", None),
+    "origin-only": ("absent", "merged", None),
+    "origin-only-unmerged": ("absent", "unmerged", None),
+}
+
+
+def copy_of(mod, state):
+    return {"merged": mod.Copy("a" * 40, True, ""), "unmerged": mod.Copy("b" * 40, False, ""),
+            "absent": mod.Copy(None, False, "")}[state]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("local, remote, fetch_error", LOCAL_ONLY_SCENARIOS.values(),
+                         ids=LOCAL_ONLY_SCENARIOS.keys())
+def test_local_only_plan_reports_the_origin_copy_once_whatever_the_state(
+    local, remote, fetch_error, load_script
+):
+    mod = load_script("merged-branch-cleanup")
+    survey = local_only_survey(mod, copy_of(mod, local), copy_of(mod, remote), fetch_error)
+    kept = mod.Left("origin:wip/x", KEPT)
+
+    plan = mod.plan_cleanup(survey)
+
+    assert [item for item in plan.left if item.ref == "origin:wip/x"] == [kept]
+    assert plan.delete_remote is False
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("fetch_error", [None, "network down"])
+def test_local_only_plan_remote_decides_the_origin_copy_itself(fetch_error, load_script):
+    mod = load_script("merged-branch-cleanup")
+    survey = local_only_survey(mod, copy_of(mod, "merged"), copy_of(mod, "merged"), fetch_error)
+
+    assert mod.plan_remote(survey) == ((mod.Left("origin:wip/x", KEPT),), False)
+
+
+@pytest.mark.unit
+def test_local_only_plan_unmerged_decides_the_origin_copy_itself(load_script):
+    mod = load_script("merged-branch-cleanup")
+    survey = local_only_survey(mod, copy_of(mod, "unmerged"), copy_of(mod, "merged"))
+
+    plan = mod.plan_unmerged(survey)
+
+    assert plan.left[-1] == mod.Left("origin:wip/x", KEPT)
+    assert [item.ref for item in plan.left].count("origin:wip/x") == 1
+
+
+# --- FIX1 R1-1: --pushed proves "pushed" instead of "merged" (the machine-move tidy) ---------
+
+
+def pushed_cli(world, *extra, branch=BRANCH, target=None):
+    return cli(world, "--pushed", *extra, branch=branch, target=target or f"origin/{branch}")
+
+
+@pytest.mark.integration
+def test_pushed_keeps_a_worktree_holding_an_ignored_env(git_world, run_cleanup):
+    git_world.add_branch(BRANCH, merged=False)
+    ignore(git_world, ".env")
+    held = git_world.worktree("env", BRANCH)
+    (held / ".env").write_bytes(b"LOCAL_SETTING=keep-me\n")
+    origin_tip = git_world.sha(f"refs/heads/{BRANCH}", cwd=git_world.origin)
+
+    run = run_cleanup(*pushed_cli(git_world))
+
+    assert run.code == 0, run.stderr
+    left = left_map(run.data)
+    assert set(left) == {f"worktree:{held}", f"local:{BRANCH}", f"origin:{BRANCH}"}
+    assert ".env" in left[f"worktree:{held}"] and left[f"origin:{BRANCH}"] == LOCAL_ONLY_WHY
+    assert (held / ".env").read_bytes() == b"LOCAL_SETTING=keep-me\n"
+    assert run.data["deleted"] == []
+    assert "push" not in run.subcommands
+    assert git_world.sha(f"refs/heads/{BRANCH}", cwd=git_world.origin) == origin_tip
+
+
+@pytest.mark.integration
+def test_pushed_removes_a_clean_worktree_and_deletes_only_the_local_branch(git_world, run_cleanup):
+    git_world.add_branch(BRANCH, merged=False)
+    held = git_world.worktree("clean", BRANCH)
+    tip = git_world.sha(f"refs/heads/{BRANCH}")
+
+    run = run_cleanup(*pushed_cli(git_world))
+
+    assert run.code == 0, run.stderr
+    assert sorted(run.data["deleted"]) == sorted([f"worktree:{held}", f"local:{BRANCH}"])
+    assert left_map(run.data) == {f"origin:{BRANCH}": LOCAL_ONLY_WHY}
+    assert not held.exists() and f"refs/heads/{BRANCH}" not in git_world.refs(git_world.clone)
+    assert git_world.sha(f"refs/heads/{BRANCH}", cwd=git_world.origin) == tip
+    assert [call[2:] for call in run.calls if call[2] == "update-ref"] == [
+        ("update-ref", "-d", f"refs/heads/{BRANCH}", tip)]
+    assert remote_calls(run) == []
+    for call in run.calls:
+        if call[2] == "worktree":
+            assert not UNSAFE & set(call), call
+
+
+@pytest.mark.integration
+def test_pushed_deletes_a_local_branch_that_origin_is_ahead_of(git_world, run_cleanup):
+    git_world.add_branch(BRANCH, merged=False)
+    extra = move_origin_ahead(git_world, BRANCH)
+
+    run = run_cleanup(*pushed_cli(git_world))
+
+    assert run.code == 0, run.stderr
+    assert run.data["deleted"] == [f"local:{BRANCH}"]
+    assert git_world.sha(f"refs/heads/{BRANCH}", cwd=git_world.origin) == extra
+
+
+@pytest.mark.integration
+def test_pushed_keeps_worktree_and_branch_holding_unpushed_commits(git_world, run_cleanup):
+    git_world.add_branch(BRANCH, merged=False)
+    held = git_world.worktree("one", BRANCH)
+    local_tip = git_world.commit("later.txt", "not pushed\n", cwd=held, message="unpushed")
+    before = snapshot(git_world)
+
+    run = run_cleanup(*pushed_cli(git_world))
+
+    assert run.code == 0, run.stderr
+    left = left_map(run.data)
+    assert set(left) == {f"worktree:{held}", f"local:{BRANCH}", f"origin:{BRANCH}"}
+    assert f"not merged into origin/{BRANCH}" in left[f"local:{BRANCH}"]
+    assert run.data["deleted"] == [] and held.exists()
+    assert git_world.sha(f"refs/heads/{BRANCH}") == local_tip
+    assert snapshot(git_world) == before and "update-ref" not in run.subcommands
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("operation", ["rebase", "bisect"])
+def test_pushed_keeps_a_branch_being_rebased_or_bisected(operation, git_world, run_cleanup):
+    add_branch_with_commits(git_world, BRANCH, 3)
+    busy = git_world.worktree("busy", BRANCH)
+    steps = {"rebase": ("rebase", "--force-rebase", "--exec", "false", "HEAD~2"),
+             "bisect": ("bisect", "start", BRANCH, "trunk")}[operation]
+    git_world.git(*steps, cwd=busy, check=False)
+    tip = git_world.sha(BRANCH)
+
+    run = run_cleanup(*pushed_cli(git_world))
+
+    assert run.code == 0, run.stderr
+    assert "rebase or bisect" in left_map(run.data)[f"local:{BRANCH}"]
+    assert git_world.sha(f"refs/heads/{BRANCH}") == tip and busy.exists()
+    assert "update-ref" not in run.subcommands
+
+
+@pytest.mark.integration
+def test_pushed_dry_run_plans_the_local_deletes_and_changes_nothing(git_world, run_cleanup):
+    git_world.add_branch(BRANCH, merged=False)
+    held = git_world.worktree("one", BRANCH)
+    before = snapshot(git_world)
+
+    run = run_cleanup(*pushed_cli(git_world, "--dry-run"))
+
+    assert run.code == 0, run.stderr
+    assert sorted(run.data["deleted"]) == sorted([f"worktree:{held}", f"local:{BRANCH}"])
+    assert run.data["left"] == [{"ref": f"origin:{BRANCH}", "why": LOCAL_ONLY_WHY}]
+    assert "fetch" not in run.subcommands and snapshot(git_world) == before
+
+
+PUSHED_REFUSALS = {
+    "other-target": (BRANCH, TARGET),
+    "no-origin-copy": (BRANCH, "origin/wip/r/never-pushed"),
+    "local-target": (BRANCH, BRANCH),
+    "protected": ("dev", "origin/dev"),
+    "default-branch": ("trunk", "origin/trunk"),
+}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("branch, target", PUSHED_REFUSALS.values(), ids=PUSHED_REFUSALS.keys())
+def test_pushed_still_refuses_anything_but_the_branchs_own_origin_copy(
+    branch, target, git_world, run_cleanup, assert_refused
+):
+    git_world.add_branch(BRANCH, merged=False)
+    before = snapshot(git_world)
+
+    run = run_cleanup(*pushed_cli(git_world, branch=branch, target=target))
+
+    assert_refused(run)
+    assert "unrecognized" not in run.data["error"], "the flag must parse before it can be refused"
+    assert snapshot(git_world) == before
+
+
+@pytest.mark.unit
+def test_own_origin_copy_target_is_still_refused_without_pushed(git_world, run_cleanup,
+                                                                 assert_refused):
+    git_world.add_branch(BRANCH, merged=False)
+
+    assert_refused(run_cleanup(*cli(git_world, "--local-only", target=f"origin/{BRANCH}")))
+    assert_refused(run_cleanup(*cli(git_world, target=f"origin/{BRANCH}")))
+
+
+@pytest.mark.unit
+def test_docstring_contract_and_help_name_pushed(load_script, run_cleanup):
+    doc = load_script("merged-branch-cleanup").__doc__
+    contract = " ".join(doc.split("Contract:")[1].split("Safety:")[0].split())
+
+    helped = run_cleanup("--help")
+
+    assert "[--pushed]" in contract and "implies --local-only" in contract
+    assert "own" in contract and helped.code == 0 and "--pushed" in helped.stdout

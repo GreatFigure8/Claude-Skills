@@ -121,7 +121,7 @@ def test_every_checklist_item_names_an_rt_rule():
 def _anti_pattern_chunks(section: str) -> list[str]:
     starts = [match.start() for match in DONT_MARKER.finditer(section)]
     ends = starts[1:] + [len(section)]
-    return [section[begin:end] for begin, end in zip(starts, ends, strict=True)]
+    return [section[begin:end] for begin, end in zip(starts, ends)]
 
 
 def test_every_anti_pattern_pairs_a_dont_with_a_do():

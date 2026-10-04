@@ -1,0 +1,80 @@
+=== story 1: cleanup-helper-local-only-mode-and-wider-caches
+PASS S1.C1 --local-only exit 0
+PASS S1.C1 no git push run (shim log)
+PASS S1.C1 origin refs/heads/branch SHA unchanged (merged copy)
+PASS S1.C2 left has exactly one origin entry with exact reason
+PASS S1.C2 deleted has no origin: entry
+PASS S1.C4 clean worktree removed + local branch deleted, listed in deleted
+PASS S1.C4 local:<branch> in deleted and ref gone
+PASS S1.C4 worktree directory gone
+PASS S1.C4 no --force on any git call
+PASS S1.C4 local delete is compare-and-swap (update-ref -d ref sha)
+PASS S1.C2 unmerged origin copy: one origin entry, same reason
+PASS S1.C1 unmerged origin copy: SHA unchanged, no push
+PASS S1.C2 no remote copy: no origin entry in left or deleted
+PASS S1.C2 no remote copy: local branch + worktree still deleted
+PASS S1.C3[c3-env-no-origin] exit 0, worktree dir and .env bytes intact
+PASS S1.C3[c3-env-no-origin] left has worktree:<path> with reason naming the ignored file
+PASS S1.C3[c3-env-no-origin] local branch kept, local:<branch> in left
+PASS S1.C3[c3-env-no-origin] deleted has nothing
+PASS S1.C3[c3-env-origin-copy] exit 0, worktree dir and .env bytes intact
+PASS S1.C3[c3-env-origin-copy] left has worktree:<path> with reason naming the ignored file
+PASS S1.C3[c3-env-origin-copy] local branch kept, local:<branch> in left
+PASS S1.C3[c3-env-origin-copy] deleted has nothing
+PASS S1.C5[rebase] --local-only keeps the local branch with the busy reason
+PASS S1.C5[rebase] same reason as the default mode
+PASS S1.C5[bisect] --local-only keeps the local branch with the busy reason
+PASS S1.C5[bisect] same reason as the default mode
+PASS S1.C5 unmerged local branch kept with 'not merged into'
+PASS S1.C6 dry-run: exit 0, dry_run true
+PASS S1.C6 dry-run: no <remote>: entry in deleted, left has the kept-copy entry
+PASS S1.C6 dry-run runs no fetch
+PASS S1.C6 dry-run: no mutating git call
+PASS S1.C6 dry-run: every ref/worktree identical, origin unchanged
+PASS S1.C6 dry-run lists the local deletions in the plan
+PASS S1.C7 docstring Contract line lists [--local-only]
+PASS S1.C7 docstring says remote copy never touched and reported in left
+PASS S1.C7 --help names --local-only
+PASS S1.C7 refusal with --local-only: --branch 'main' -> exit 2 + error
+PASS S1.C7 refusal with --local-only: --branch 'DEV' -> exit 2 + error
+PASS S1.C7 refusal with --local-only: --branch 'release' -> exit 2 + error
+PASS S1.C7 refusal with --local-only: --branch 'trunk' -> exit 2 + error
+PASS S1.C7 refusal with --local-only: --branch '-x' -> exit 2 + error
+PASS S1.C7 refusal with --local-only: --branch 'refs/heads/x' -> exit 2 + error
+PASS S1.C7 refusal with --local-only: --target '-x' -> exit 2 + error
+PASS S1.C7 refusal with --local-only: --target 'HEAD~0' -> exit 2 + error
+PASS S1.C7 refusal with --local-only: --target 'fix/run' -> exit 2 + error
+PASS S1.C7 refusals changed nothing
+PASS S1.C7 abbreviated --local-onl is refused (allow_abbrev off)
+PASS S1.C8 SKILL.md CLEANUP step 2 has the --local-only command
+PASS S1.C8 cleaner brief step 2 has the --local-only command
+PASS S1.C8 hand-run text gone from both: 'worktree remove <path>'
+PASS S1.C8 hand-run text gone from both: 'update-ref -d'
+PASS S1.C8 hand-run text gone from both: 'merge-base --is-ancestor "$sha"'
+PASS S1.C8 hand-run text gone from both: 'sha=$('
+PASS S1.C8 hand-run text gone from both: 'the helper has no flag'
+PASS S1.C8 SKILL: origin copy stays + listed as origin:<integration>
+PASS S1.C8 SKILL: local branch and every worktree still deleted
+PASS S1.C8 brief: origin copy stays + listed as origin:<integration>
+PASS S1.C8 brief: local branch and every worktree still deleted
+PASS S1.C9 Leftover sweep passes --local-only when integration_pushed false
+PASS S1.C9 no bare-path helper invocation (only plugin-root form or the bare name)
+PASS S1.C14 no 'worktree prune' in CLEANUP text except as a never-run sentence
+PASS S1.C14 cleaner text has no repo-wide prune: still says never run it
+PASS S1.C14 helper never runs worktree prune
+PASS S1.C14 helper docstring: never ... prunes other worktrees
+PASS S1.C10 is_cache True for all 19 listed ignored entries
+PASS S1.C11 is_cache False for all existing + near-miss entries
+PASS S1.C12 cache rules are immutable named constants (tuple/frozenset)
+PASS S1.C12 no mutable module-level state
+PASS S1.C12 no global statements
+PASS S1.C13 worktree with only Next.js/Playwright leftovers is removed, branch deleted (local-only)
+PASS S1.C13 default mode: leftovers-only worktree removed, local + origin copy deleted
+PASS S1.C13 same worktree plus ignored .env is kept with .env intact
+PASS S1.C13 near-miss dist keeps the worktree
+PASS S1.C13 near-miss env.local keeps the worktree
+PASS S1.C13 near-miss untracked-next-env keeps the worktree
+PASS S1.C15 plugin.json version is 1.6.1
+PASS S1.C16 helper under 400 lines
+PASS S1.C16 every helper function under 50 lines
+PASS S1.C16 helper runs on /usr/bin/python3 3.9
