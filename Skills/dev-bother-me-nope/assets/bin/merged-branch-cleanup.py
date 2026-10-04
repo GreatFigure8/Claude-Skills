@@ -7,23 +7,25 @@ Purpose:
 
 Contract:
   merged-branch-cleanup.py --repo <path> --branch <name> --target <ref>
-                           [--remote origin] [--no-fetch] [--dry-run] [--local-only]
+                           [--remote origin] [--no-fetch] [--dry-run] [--local-only] [--pushed]
   stdout, one JSON object: {"branch", "target", "dry_run", "deleted": [...], "left": [{"ref", "why"}]}
   Refs are "worktree:<abs path>", "local:<branch>" and "<remote>:<branch>". Exit 0 = it ran
   (inspect "left"). Exit 2 = refused or usage error: stdout {"error": "..."}, nothing changed.
   --dry-run runs no fetch, changes nothing and prints the plan. --local-only never touches the remote
-  copy (no push, delete or lease); one that exists is kept and reported in "left".
+  copy (no push, delete or lease); one that exists is kept and reported in "left". --pushed implies
+  --local-only and proves the tip is pushed, not merged: --target must be the branch's own
+  <remote>/<branch> (refused otherwise), so a machine move can tidy pushed, unmerged branches.
 
 Safety:
   Refuses protected names (main master dev develop prod production release staging, any case), the
   remote's default branch (asked of the remote when <remote>/HEAD is unset; refused if unknowable),
-  a --target that is not a branch or tag name or is the branch itself, malformed names and a
-  non-work-tree repo. Proves ancestry with `merge-base --is-ancestor` before any delete. Keeps main,
-  locked and dirty worktrees (dirty: any ignored file `worktree remove` would delete, except
-  CACHE_DIRS/CACHE_FILES) and the local branch while a rebase or bisect of it runs. Never forces,
-  unlocks or prunes other worktrees. Deletes are compare-and-swap on the checked SHA (update-ref -d,
-  push --force-with-lease). Git runs as an argument list via `git -C <path>`, and never checkout,
-  switch, reset, stash, merge, rebase or pull.
+  a --target that is no branch or tag or is the branch itself (--pushed: only its own copy), malformed
+  names and a non-work-tree repo. Proves ancestry with `merge-base --is-ancestor` before any delete.
+  Keeps main, locked and dirty worktrees (dirty: any ignored file `worktree remove` would delete,
+  except CACHE_DIRS/CACHE_FILES) and the local branch while a rebase or bisect of it runs. Never
+  forces, unlocks or prunes other worktrees. Deletes are compare-and-swap on the checked SHA
+  (update-ref -d, push --force-with-lease). Git runs as an argument list via `git -C <path>`, and
+  never checkout, switch, reset, stash, merge, rebase or pull.
 """
 
 import argparse
@@ -61,12 +63,12 @@ class JsonArgumentParser(argparse.ArgumentParser):
 
 
 # Immutable records: what the options say, what a survey found, what the plan decides.
-Options = namedtuple("Options", "repo branch target remote fetch dry_run local_only target_ref")
+Options = namedtuple("Options", "repo branch target remote fetch dry_run local_only pushed target_ref")
 Worktree = namedtuple("Worktree", "path branch is_main locked prunable")  # locked: None or reason
 Holder = namedtuple("Holder", "worktree dirty")  # dirty: status entries that block removal
 Copy = namedtuple("Copy", "sha merged problem")  # sha None = no such ref
 Survey = namedtuple("Survey", "branch target remote main_path local remote_copy fetch_error "
-                              "holders busy", defaults=("",))  # busy: why a rebase/bisect holds it
+                              "holders busy local_only", defaults=("", False))  # busy: why a rebase/bisect holds it
 Left = namedtuple("Left", "ref why")
 Plan = namedtuple("Plan", "remove delete_local delete_remote left")
 GitResult = namedtuple("GitResult", "code ok out text reason")
@@ -83,11 +85,12 @@ def parse_args(argv):
     parser.add_argument("--no-fetch", action="store_true", help="skip `git fetch --prune`")
     parser.add_argument("--dry-run", action="store_true", help="print the plan, change nothing")
     parser.add_argument("--local-only", action="store_true", help="never touch the remote copy")
+    parser.add_argument("--pushed", action="store_true", help="--local-only; --target is <remote>/<branch>")
     args = parser.parse_args(argv)
     if not args.repo:
         raise Refusal("usage: --repo must not be empty")
     return Options(os.path.abspath(args.repo), args.branch, args.target, args.remote,
-                   not args.no_fetch, args.dry_run, args.local_only, None)
+                   not args.no_fetch, args.dry_run, args.local_only or args.pushed, args.pushed, None)
 
 
 def failure_line(text):
@@ -168,7 +171,10 @@ def resolve_target(opts):
     full = run_git(opts.repo, "rev-parse", "--symbolic-full-name", opts.target).text
     if "\n" in full or not full.startswith((HEADS, REMOTES, "refs/tags/")):
         raise Refusal(f"--target {opts.target!r} must name a branch or tag, not a commit")
-    if short_branch(full).casefold() == opts.branch.casefold():
+    own_copy = f"{REMOTES}{opts.remote}/{opts.branch}"
+    if opts.pushed and full != own_copy:
+        raise Refusal(f"--pushed needs --target {opts.remote}/{opts.branch}, the branch's own copy")
+    if not opts.pushed and short_branch(full).casefold() == opts.branch.casefold():
         raise Refusal(f"{opts.branch!r} is the target's own branch; it cannot be merged into itself")
     return opts._replace(target_ref=full)
 
@@ -263,7 +269,7 @@ def survey(opts):
         local=check_copy(opts.repo, f"{HEADS}{opts.branch}", target_sha),
         remote_copy=check_copy(opts.repo, f"{REMOTES}{opts.remote}/{opts.branch}", target_sha),
         fetch_error=fetched.reason if fetched and not fetched.ok else None,
-        holders=find_holders(opts.branch, worktrees), busy=busy_with(opts))
+        holders=find_holders(opts.branch, worktrees), busy=busy_with(opts), local_only=opts.local_only)
 
 
 # plan: pure, decides what is deleted and what is left
@@ -274,7 +280,7 @@ def plan_unmerged(s):
     if s.remote_copy.sha is not None:
         remote_why = (f"kept with unmerged local:{s.branch}" if s.remote_copy.merged
                       else s.remote_copy.problem or f"not merged into {s.target}")
-        left += (Left(f"{s.remote}:{s.branch}", remote_why),)
+        left += plan_remote(s)[0] if s.local_only else (Left(f"{s.remote}:{s.branch}", remote_why),)
     return Plan((), False, False, left)
 
 
@@ -305,6 +311,8 @@ def plan_remote(s):
     copy, ref = s.remote_copy, f"{s.remote}:{s.branch}"
     if copy.sha is None:
         return (), False
+    if s.local_only:  # never deleted, so this one entry is the copy's whole story, whatever its state
+        return (Left(ref, f"{s.remote} copy kept: --local-only"),), False
     if s.fetch_error:
         return (Left(ref, f"fetch failed, remote copy not verified: {s.fetch_error}"),), False
     if copy.merged:
@@ -325,14 +333,8 @@ def plan_merged(s):
     return Plan(remove, delete_local, delete_remote, held + local_left + remote_left)
 
 
-def plan_cleanup(s, local_only=False):
-    plan = plan_unmerged(s) if s.local.sha is not None and not s.local.merged else plan_merged(s)
-    if not local_only:
-        return plan
-    # --local-only: the remote copy is never deleted; one that exists is reported once, in left
-    ref = f"{s.remote}:{s.branch}"
-    kept = (Left(ref, f"{s.remote} copy kept: --local-only"),) if s.remote_copy.sha else ()
-    return plan._replace(delete_remote=False, left=tuple(i for i in plan.left if i.ref != ref) + kept)
+def plan_cleanup(s):
+    return plan_unmerged(s) if s.local.sha is not None and not s.local.merged else plan_merged(s)
 
 
 # execute: every mutating call runs as `git -C <main checkout>`
@@ -382,15 +384,14 @@ def main(argv=None):
     try:
         opts = validate(parse_args(sys.argv[1:] if argv is None else argv))
         found = survey(opts)
-        plan = plan_cleanup(found, opts.local_only)
+        plan = plan_cleanup(found)
         deleted, left = (planned_deletions(found, plan), plan.left) if opts.dry_run \
             else execute(found, plan)
     except Refusal as refusal:
         print(json.dumps({"error": str(refusal)}))
         return EXIT_REFUSED
     print(json.dumps({"branch": opts.branch, "target": opts.target, "dry_run": opts.dry_run,
-                      "deleted": list(deleted),
-                      "left": [{"ref": item.ref, "why": item.why} for item in left]}))
+                      "deleted": list(deleted), "left": [{"ref": i.ref, "why": i.why} for i in left]}))
     return EXIT_RAN
 
 

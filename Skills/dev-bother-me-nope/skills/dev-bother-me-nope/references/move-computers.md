@@ -26,18 +26,30 @@ Scope: every `docs/sprints/bmn-*` run in **this repo** whose `bmn.json` `phase` 
 5. **Commit and push** the run folder on the run branch, in the run worktree, with the
    title `chore(bmn): hand off <run-slug> for a machine move`. Then confirm it landed with
    `git show origin/<type>/<run-slug>:docs/sprints/bmn-<run-slug>/handoff.md | head -3`.
-   Then tidy this machine: remove the run worktree and each harness worktree in
-   `temp_refs` (`git worktree remove`, no `--force`), and `git branch -D` every local run or
-   `wip/` branch whose tip equals its `origin/` copy, and each `temp_refs` harness branch whose
-   worktree was removed (only when it has no commits unique to it: `git rev-list <ref> --not
-   --exclude=refs/heads/<ref> --branches --remotes` prints nothing). Anything dirty or unpushed
-   stays and is named in the handoff under *Left on <host>*. The main checkout is never touched.
-6. **Other repos.** List any other repo under `~/Source/*` that has an open `bmn-*` run
+6. **Tidy this machine** with the helper, run from the main checkout (`--repo <main checkout>`,
+   never from a worktree it may remove), once per branch. It never touches the origin copy,
+   which the other machine and CLEANUP still need:
+   - the run branch `<type>/<run-slug>` and every local `wip/<run-slug>/*` branch pushed in
+     step 2: `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo <main checkout> --branch <branch> --target origin/<branch> --pushed`
+   - each `temp_refs` harness branch: `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo <main checkout> --branch <harness branch> --target origin/<type>/<run-slug> --local-only`
+
+   The helper removes every worktree on the branch (the run worktree and each harness
+   worktree included, no --force), then deletes the local branch, but only once git proves
+   its tip is on origin (`--pushed`) or in the pushed run branch (harness). It keeps a worktree
+   with uncommitted or untracked files, a locked one, and one holding any ignored file other
+   than regenerable build output (a `.env` stays); it keeps a branch whose rebase or bisect is
+   running; each is listed in `left` with its reason. Name every kept item and its reason in
+   the handoff under *Left on <host>* and in the closing message; `origin:<branch>` entries are
+   the origin copies it kept on purpose, not work left behind. A refused call (exit 2) counts as
+   kept, with the error as the reason. Never run `git worktree remove`, `git branch -D` or
+   `git worktree prune` by hand for this tidy: git deletes ignored files such as `.env`
+   without warning. The main checkout is never touched.
+7. **Other repos.** List any other repo under `~/Source/*` that has an open `bmn-*` run
    (`phase` ≠ `done`) but no open handoff. Don't write handoffs there: another session may
    own that checkout. Name those repos in the closing message so Jonathan can say "moving
    computers" in each of them.
-7. **Close** with one short message listing each handed-off run as `<run-slug> — <phase> —
-   next: <action>`, the other repos from step 6, and this one line:
+8. **Close** with one short message listing each handed-off run as `<run-slug> — <phase> —
+   next: <action>`, what step 6 kept on this machine, the other repos from step 7, and this one line:
    "On the other machine: pull `claude-skills`, update the dev-bother-me-nope plugin, open
    this repo, and start dev-bother-me-nope."
 

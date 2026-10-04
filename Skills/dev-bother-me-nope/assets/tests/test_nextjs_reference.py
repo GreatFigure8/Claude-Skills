@@ -381,7 +381,8 @@ def test_topic_rules_are_well_formed_and_numbered(name):
     rules = h.rule_items(text)
     assert rules, "no numbered rules under ## Rules"
     numbered = h.numbered_items(h.section(text, "Rules"))
-    for position, ((rule_id, item), raw) in enumerate(zip(rules, numbered, strict=True), start=1):
+    assert len(rules) == len(numbered), "rule_items and numbered_items disagree on the rule count"
+    for position, ((rule_id, item), raw) in enumerate(zip(rules, numbered), start=1):
         match = h.RULE_RE.match(item)
         assert match, f"not '**{prefix}-n** …': {item[:60]!r}"
         assert match.group("prefix") == prefix, f"{rule_id} is not a {prefix} id"
