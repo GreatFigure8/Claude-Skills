@@ -1,0 +1,413 @@
+{
+  "run": "bmn-nextjs-typescript-best-practices-reference",
+  "phase": "merge1",
+  "integration": "feat/nextjs-typescript-best-practices-reference",
+  "worktree": "/Users/jonathanstevenson/Source/claude-skills-nextjs-typescript-best-practices-reference",
+  "live": "dev",
+  "dev_base": "d8b709f914fbbd40e0c7f77a2a4549114ec6e20f",
+  "review_shas": {
+    "review1": null,
+    "review2": null
+  },
+  "stack": {
+    "kind": "library",
+    "ui": false,
+    "supabase": false,
+    "vercel": false,
+    "vercel_json": [],
+    "dev_push_deploys": false,
+    "supabase_dev_ref": null,
+    "supabase_main_ref": null
+  },
+  "stories": [
+    {
+      "slug": "nextjs-standard-entry-point-and-skill-wiring",
+      "title": "Entry point, index and bmn wiring",
+      "deps": [],
+      "status": "merged",
+      "branch": "wip/nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring",
+      "merges": [
+        {
+          "branch": "wip/nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring",
+          "tip": "b7891b8c35c446f7f18d5ed7883e2ceef1c343c4",
+          "merge": "6b4e4d45a6383dfaf966d675a6325733054ed4ab"
+        }
+      ],
+      "detail": ""
+    },
+    {
+      "slug": "typescript-config-and-typing-patterns",
+      "title": "typescript config and typing patterns",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "merged",
+      "branch": "wip/nextjs-typescript-best-practices-reference/typescript-config-and-typing-patterns",
+      "merges": [
+        {
+          "branch": "wip/nextjs-typescript-best-practices-reference/typescript-config-and-typing-patterns",
+          "tip": "117a333",
+          "merge": "9cbe6a7"
+        }
+      ],
+      "detail": ""
+    },
+    {
+      "slug": "app-router-routing-and-metadata",
+      "title": "app router routing and metadata",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "merged",
+      "branch": "wip/nextjs-typescript-best-practices-reference/app-router-routing-and-metadata",
+      "merges": [
+        {
+          "branch": "wip/nextjs-typescript-best-practices-reference/app-router-routing-and-metadata",
+          "tip": "2808414",
+          "merge": "d0b022c"
+        }
+      ],
+      "detail": ""
+    },
+    {
+      "slug": "rendering-caching-and-streaming-ssr",
+      "title": "rendering caching and streaming ssr",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "merged",
+      "branch": "wip/nextjs-typescript-best-practices-reference/rendering-caching-and-streaming-ssr",
+      "merges": [
+        {
+          "branch": "wip/nextjs-typescript-best-practices-reference/rendering-caching-and-streaming-ssr",
+          "tip": "6e36e68",
+          "merge": "356a2f9"
+        }
+      ],
+      "detail": ""
+    },
+    {
+      "slug": "data-fetching-server-actions-and-forms",
+      "title": "data fetching server actions and forms",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "merged",
+      "branch": "wip/nextjs-typescript-best-practices-reference/data-fetching-server-actions-and-forms",
+      "merges": [
+        {
+          "branch": "wip/nextjs-typescript-best-practices-reference/data-fetching-server-actions-and-forms",
+          "tip": "8eb4fad",
+          "merge": "57dd82b"
+        }
+      ],
+      "detail": ""
+    },
+    {
+      "slug": "route-handlers-and-api-design",
+      "title": "route handlers and api design",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "merged",
+      "branch": "wip/nextjs-typescript-best-practices-reference/route-handlers-and-api-design",
+      "merges": [
+        {
+          "branch": "wip/nextjs-typescript-best-practices-reference/route-handlers-and-api-design",
+          "tip": "f3e48d9",
+          "merge": "57e8d97"
+        }
+      ],
+      "detail": ""
+    },
+    {
+      "slug": "server-sent-events-and-streaming-responses",
+      "title": "server sent events and streaming responses",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "merged",
+      "branch": "wip/nextjs-typescript-best-practices-reference/server-sent-events-and-streaming-responses",
+      "merges": [
+        {
+          "branch": "wip/nextjs-typescript-best-practices-reference/server-sent-events-and-streaming-responses",
+          "tip": "f80eafc",
+          "merge": "eacca37"
+        }
+      ],
+      "detail": ""
+    },
+    {
+      "slug": "proxy-auth-and-security",
+      "title": "proxy auth and security",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "merged",
+      "branch": "wip/nextjs-typescript-best-practices-reference/proxy-auth-and-security",
+      "merges": [
+        {
+          "branch": "wip/nextjs-typescript-best-practices-reference/proxy-auth-and-security",
+          "tip": "d02b1e5",
+          "merge": "89f3dc9"
+        }
+      ],
+      "detail": ""
+    },
+    {
+      "slug": "performance-and-vercel-platform",
+      "title": "performance and vercel platform",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "merged",
+      "branch": "wip/nextjs-typescript-best-practices-reference/performance-and-vercel-platform",
+      "merges": [
+        {
+          "branch": "wip/nextjs-typescript-best-practices-reference/performance-and-vercel-platform",
+          "tip": "bdfdc53",
+          "merge": "c8b4630"
+        }
+      ],
+      "detail": ""
+    },
+    {
+      "slug": "testing-errors-and-observability",
+      "title": "testing errors and observability",
+      "deps": [
+        "nextjs-standard-entry-point-and-skill-wiring"
+      ],
+      "status": "merged",
+      "branch": "wip/nextjs-typescript-best-practices-reference/testing-errors-and-observability",
+      "merges": [
+        {
+          "branch": "wip/nextjs-typescript-best-practices-reference/testing-errors-and-observability",
+          "tip": "0ac1883",
+          "merge": "a5bb5b2"
+        }
+      ],
+      "detail": ""
+    }
+  ],
+  "temp_refs": [
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring",
+      "kind": "wip",
+      "base": "ba5fef0",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a51cd9ab228642eb5",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-a51cd9ab228642eb5",
+      "kind": "harness",
+      "base": "ba5fef0",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a51cd9ab228642eb5",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/app-router-routing-and-metadata",
+      "kind": "wip",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a2dcd6e3e0077640a",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-a2dcd6e3e0077640a",
+      "kind": "harness",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a2dcd6e3e0077640a",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/rendering-caching-and-streaming-ssr",
+      "kind": "wip",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ae5af0ab607186d36",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-ae5af0ab607186d36",
+      "kind": "harness",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ae5af0ab607186d36",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/route-handlers-and-api-design",
+      "kind": "wip",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a8555e930f3d6bf69",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-a8555e930f3d6bf69",
+      "kind": "harness",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a8555e930f3d6bf69",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/proxy-auth-and-security",
+      "kind": "wip",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a0aacd294da4057c5",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-a0aacd294da4057c5",
+      "kind": "harness",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a0aacd294da4057c5",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/testing-errors-and-observability",
+      "kind": "wip",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-af349621f954023a4",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-af349621f954023a4",
+      "kind": "harness",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-af349621f954023a4",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/data-fetching-server-actions-and-forms",
+      "kind": "wip",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-aa683443066f0e037",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-aa683443066f0e037",
+      "kind": "harness",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-aa683443066f0e037",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/typescript-config-and-typing-patterns",
+      "kind": "wip",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a31413a8e8b60d99a",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-a31413a8e8b60d99a",
+      "kind": "harness",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a31413a8e8b60d99a",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/performance-and-vercel-platform",
+      "kind": "wip",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-aad2dff73e4136678",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-aad2dff73e4136678",
+      "kind": "harness",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-aad2dff73e4136678",
+      "pushed": false
+    },
+    {
+      "branch": "wip/nextjs-typescript-best-practices-reference/server-sent-events-and-streaming-responses",
+      "kind": "wip",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a8804188f1b892f8e",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-a8804188f1b892f8e",
+      "kind": "harness",
+      "base": "efff2eaf26e35e7cabc163b8bded7ac2a556710e",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a8804188f1b892f8e",
+      "pushed": false
+    }
+  ],
+  "integration_pushed": true,
+  "cleanup": {
+    "deleted": [
+      "worktree:/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a51cd9ab228642eb5",
+      "local:wip/nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring",
+      "origin:wip/nextjs-typescript-best-practices-reference/nextjs-standard-entry-point-and-skill-wiring",
+      "local:worktree-agent-a51cd9ab228642eb5",
+      "worktree:/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a31413a8e8b60d99a",
+      "local:wip/nextjs-typescript-best-practices-reference/typescript-config-and-typing-patterns",
+      "origin:wip/nextjs-typescript-best-practices-reference/typescript-config-and-typing-patterns",
+      "local:worktree-agent-a31413a8e8b60d99a",
+      "worktree:/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a2dcd6e3e0077640a",
+      "local:wip/nextjs-typescript-best-practices-reference/app-router-routing-and-metadata",
+      "origin:wip/nextjs-typescript-best-practices-reference/app-router-routing-and-metadata",
+      "local:worktree-agent-a2dcd6e3e0077640a",
+      "worktree:/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ae5af0ab607186d36",
+      "local:wip/nextjs-typescript-best-practices-reference/rendering-caching-and-streaming-ssr",
+      "origin:wip/nextjs-typescript-best-practices-reference/rendering-caching-and-streaming-ssr",
+      "local:worktree-agent-ae5af0ab607186d36",
+      "worktree:/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-aa683443066f0e037",
+      "local:wip/nextjs-typescript-best-practices-reference/data-fetching-server-actions-and-forms",
+      "origin:wip/nextjs-typescript-best-practices-reference/data-fetching-server-actions-and-forms",
+      "local:worktree-agent-aa683443066f0e037",
+      "worktree:/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a8555e930f3d6bf69",
+      "local:wip/nextjs-typescript-best-practices-reference/route-handlers-and-api-design",
+      "origin:wip/nextjs-typescript-best-practices-reference/route-handlers-and-api-design",
+      "local:worktree-agent-a8555e930f3d6bf69",
+      "worktree:/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a8804188f1b892f8e",
+      "local:wip/nextjs-typescript-best-practices-reference/server-sent-events-and-streaming-responses",
+      "origin:wip/nextjs-typescript-best-practices-reference/server-sent-events-and-streaming-responses",
+      "local:worktree-agent-a8804188f1b892f8e",
+      "worktree:/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a0aacd294da4057c5",
+      "local:wip/nextjs-typescript-best-practices-reference/proxy-auth-and-security",
+      "origin:wip/nextjs-typescript-best-practices-reference/proxy-auth-and-security",
+      "local:worktree-agent-a0aacd294da4057c5",
+      "worktree:/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-aad2dff73e4136678",
+      "local:wip/nextjs-typescript-best-practices-reference/performance-and-vercel-platform",
+      "origin:wip/nextjs-typescript-best-practices-reference/performance-and-vercel-platform",
+      "local:worktree-agent-aad2dff73e4136678",
+      "worktree:/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-af349621f954023a4",
+      "local:wip/nextjs-typescript-best-practices-reference/testing-errors-and-observability",
+      "origin:wip/nextjs-typescript-best-practices-reference/testing-errors-and-observability",
+      "local:worktree-agent-af349621f954023a4"
+    ],
+    "left": []
+  },
+  "repo_policy": {
+    "repo": "GreatFigure8/Claude-Skills",
+    "status": "already-set",
+    "changes": {},
+    "reason": null
+  },
+  "deploy_pending": {
+    "vercel": [],
+    "supabase_migrations": []
+  },
+  "supabase_dev_applied": [],
+  "design": {
+    "needed": false,
+    "project_id": null,
+    "url": null,
+    "round": 0,
+    "options": [],
+    "picked": null,
+    "feedback": []
+  },
+  "handoff": null,
+  "assumptions": [
+    "nextjs-fullstack-standards is not loadable anywhere on this machine; nextjs.md becomes the repo-owned Next.js/TS standard read by bmn's TypeScript routing.",
+    "Deep topics split into references/nextjs/<topic>.md (800-line cap); every claim sourced from nextjs.org/vercel.com, verified live 2026-10-04.",
+    "Plugin version bumps once (1.6.0 \u2192 1.7.0) with its pinned test.",
+    "Skeleton story creates all nine topic files as stubs; topic stories own only their file + test_nextjs_topic_<name>.py; rule ids prefixed per topic (TS, RT, RC, DF, API, SSE, SEC, PERF, TEST).",
+    "Unconfirmed claims go under 'Not confirmed by the docs' rather than being stated; snippets are not compiled, checked at review against cited pages.",
+    "Next.js 16.3.8 is current stable as of 2026-10-04 (npm latest, nextjs.org/docs label, Sept 2026 security post); every topic file's as-of line uses it.",
+    "Skeleton story built while topic planners were still researching (it has no deps) to overlap wall-clock.",
+    "Planners noted docs conflicts (e.g. Vercel vs nextjs.org limits, Zod 3 in the forms guide vs Zod 4, AI SDK drift); each goes under 'Not confirmed by the docs' in its topic file, never stated as a rule."
+  ],
+  "blocker": null,
+  "updated": "2026-10-04T03:10:00Z"
+}

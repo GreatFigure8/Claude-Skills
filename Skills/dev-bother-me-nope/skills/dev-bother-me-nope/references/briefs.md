@@ -123,6 +123,9 @@ Return JSON: [{slug, title, deps[]}], plus assumptions[].
 
 ```
 Story: docs/sprints/{run}/{slug}/story.md. Load {routed_skills} first and follow them.
+TypeScript/Next.js story: also read
+${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs.md and the topic files its
+Topic index routes this story to; list every rule id you apply in the plan's Approach.
 Write docs/sprints/{run}/{slug}/{slug}-plan.md:
 1. Approach (≤10 lines) and why, citing the skill guidance applied.
 2. Files to create/change, each with its purpose.
@@ -147,6 +150,8 @@ Strict TDD: write the plan's tests → run them → confirm they FAIL for the ri
 implement minimally → run → PASS → refactor. UI matches docs/sprints/{run}/design.md and
 design/*.html. Immutable data patterns; small functions;
 validate input at boundaries; explicit error handling.
+TypeScript/Next.js story: follow the rule ids the plan lists from
+${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs.md and its topic files.
 Run the gates: {gates}. All green before you finish.
 Supabase: migration files only; verify with local `supabase start` + `supabase db reset`
 if Docker is available, else note it.
@@ -171,7 +176,10 @@ the fixer's record, don't re-argue it). New findings come from the delta only. N
 find in pass 2 is fixed by the run; it goes to Jonathan as you write it.
 Run /code-review at high effort, never max or ultra, whatever the session's effort setting.
 Then apply these lenses via the Skill tool: {review_lenses} (add nextjs-fullstack-standards
-for any TypeScript in the diff). Look for what per-file review misses: duplicated helpers
+for any TypeScript in the diff). For TypeScript/Next.js code also read
+${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs.md and the topic files it
+routes the diff to; a finding that breaks one of its rules cites that rule id (e.g. SEC-3) in its
+summary. Look for what per-file review misses: duplicated helpers
 across stories; contracts that disagree between stories; migrations that conflict, collide
 on names or apply in the wrong order; config/env keys defined but unread or read but
 undefined; acceptance criteria no test covers. Standing checks: no mutation where a new
@@ -197,6 +205,8 @@ failing test IS the verification; nobody else re-checks it. Then fix → pass. A
 can't reproduce is recorded as not-reproducible with the evidence (what you ran, what
 happened). Don't argue it, retry it or fix it blind. One attempt: an item you can't fix is
 recorded as blocked with the reason, not looped on.
+For a TypeScript/Next.js finding, name in validation.md the rule id from
+${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs.md that the fix restores.
 Run gates {gates}. Push {fix_branch} only — the integrator merges it. Append a "FIX①" section
 to docs/sprints/{run}/{owner}/validation.md (owner "run" → docs/sprints/{run}/validation.md):
 id → fixed (test name) / not-reproducible (evidence) / blocked (reason). Return that list.

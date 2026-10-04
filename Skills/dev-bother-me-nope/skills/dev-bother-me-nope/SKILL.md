@@ -271,7 +271,11 @@ the codebase. That work is done by subagents, which report back conclusions.
    `phase: intake`, `integration` and `worktree` **right away**. The deploy guard is only
    active once this file exists.
 3. Dispatch one **stack-scout** (sonnet) with the brief in briefs.md. It returns the stack
-   classification and routing. Write `stack.md`, then `bmn.json` with `phase: split`.
+   classification and routing. For a TypeScript / Next.js repo the routing also names
+   [references/nextjs.md](references/nextjs.md), the plugin's dated Next.js + TypeScript
+   standard. The planner, coder, reviewer and fixer read it with the Read tool
+   ([references/stack-routing.md](references/stack-routing.md)).
+   Write `stack.md`, then `bmn.json` with `phase: split`.
    If the scout identified **both** Supabase refs, and each one is unambiguously labelled
    dev or main, write `.claude/bmn.config.json` =
    `{"supabase": {"dev_ref": "…", "main_ref": "…"}}`. The deploy guard reads this file,
@@ -404,7 +408,9 @@ when `stack.dev_push_deploys`) as `review_shas.review1`.
 Reviewer brief, pass 1. Run `/code-review` at `high` on the whole run's diff,
 `git diff {dev_base}...{review1_sha}`, plus the routed python-library-quality lenses
 (security, API design, untrusted content, destructive operations, external behavior, heavy
-dependencies) that match it, and `nextjs-fullstack-standards` for TypeScript. Beyond per-file
+dependencies) that match it, and for TypeScript `nextjs-fullstack-standards` (when the session
+has it) plus [references/nextjs.md](references/nextjs.md), each finding citing the rule id it
+breaks. Beyond per-file
 bugs, it looks for what only shows up across stories: duplicated helpers, contracts that
 disagree, migrations that conflict or run in the wrong order, config keys nothing reads, and
 acceptance criteria no test covers. A screen that departs from the picked design (layout,
