@@ -64,11 +64,19 @@ re-check {fixed/still-open/regressed/not-reproducible} · REVIEW② new C/H/M/L 
 items still open or regressed; skipped surfaces (e.g. no Docker → DB not validated); blocker if
 any. Fixing any of it is a new goal you start.}
 
+## Repo merge settings
+From `bmn.json.repo_policy` (INTAKE ran `repo-merge-policy.py`): `allow_squash_merge`
+{old} → {new}, `delete_branch_on_merge` {old} → {new}; or `unchanged: {reason}` (already set,
+skipped or failed, with the helper's `reason`). Jonathan's standing instruction of 2026-10-03:
+no squash merges, and every merged PR deletes its source branch. Rebase merges are untouched.
+
 ## Git cleanup
 **Run branch** `{type}/{run-slug}` · worktree `{path}`: deleted (local + origin) / left — {why,
 e.g. "not in dev: merge it, the next bmn start deletes it" or "worktree has uncommitted changes"}
-**Deleted:** {n} wip branches (local + origin), {n} worktrees — {list}
-**Left:** {ref → why, one per line; "nothing" when clean}
+**Deleted, per branch:** {branch → local + origin deleted; worktrees removed: {paths}} — every
+worktree that had the branch checked out, including ones bmn didn't create
+**Left:** {every `left` entry as ref → why, one per line (dirty or locked worktree, not
+merged, …); "nothing" when clean}
 
 ## Evidence
 Run-level `review.md` (REVIEW① and REVIEW②), per-story `validation.md` (tests and FIX①), screenshots under `docs/sprints/{run}/<slug>/evidence/`.
