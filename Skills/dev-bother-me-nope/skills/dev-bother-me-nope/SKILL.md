@@ -1,6 +1,6 @@
 ---
 name: dev-bother-me-nope
-description: Jonathan's zero-question build pipeline — takes one long free-form story (a bug fix, an error to resolve, a feature, or an ENTIRE system), designs any user interface FIRST in Claude Design and has him pick one direction (the only subjective step, and the only feedback asked for), breaks it into stories, plans each, codes them with the right python skill set (python-web-app for APIs/web apps, python-mcp-servers for MCP servers, python-library-quality for libraries/CLIs, python-llm-features for LLM calls; nextjs-fullstack-standards if the repo is TypeScript), merges to dev and tests (TDD pytest + real-browser Playwright), then runs exactly code → review → fix → review → report: ONE code review of everything the run implemented, ONE fix round (each finding reproduced as a failing test first, merged to dev and tested), ONE re-review of the fixes whose findings are reported, never fixed — then writes a summary report, alerts him and is done; anything further is a new goal only he decides. After the design pick it never asks a question and never deploys to Vercel (not even dev) — merges to dev never trigger a Vercel build, Vercel deploys wait for Jonathan's word; migrations go to the Supabase DEV database only, MAIN waits for him; the report says exactly what needs deploying. Use whenever Jonathan says "dev-bother-me-nope", "/dev-bother-me-nope", "/goal execute /dev-bother-me-nope for …", "/goal using dev-bother-me-nope …", "don't bother me, just build …", or pastes a long build story and says to just do it. Also use when Jonathan says "I'm moving computers", "switching machines" or "move-computers" (write a handoff for every open run), and at the start of every coding session (pick up open handoffs from another machine).
+description: Jonathan's zero-question build pipeline — takes one long free-form story (a bug fix, an error to resolve, a feature, or an ENTIRE system), designs any user interface FIRST in Claude Design and has him pick one direction (the only subjective step, and the only feedback asked for), breaks it into stories, plans each, codes them with the right python skill set (python-web-app for APIs/web apps, python-mcp-servers for MCP servers, python-library-quality for libraries/CLIs, python-llm-features for LLM calls; nextjs-fullstack-standards (when the session has it) plus the plugin's Next.js reference if the repo is TypeScript), merges to dev and tests (TDD pytest + real-browser Playwright), then runs exactly code → review → fix → review → report: ONE code review of everything the run implemented, ONE fix round (each finding reproduced as a failing test first, merged to dev and tested), ONE re-review of the fixes whose findings are reported, never fixed — then writes a summary report, alerts him and is done; anything further is a new goal only he decides. After the design pick it never asks a question and never deploys to Vercel (not even dev) — merges to dev never trigger a Vercel build, Vercel deploys wait for Jonathan's word; migrations go to the Supabase DEV database only, MAIN waits for him; the report says exactly what needs deploying. Use whenever Jonathan says "dev-bother-me-nope", "/dev-bother-me-nope", "/goal execute /dev-bother-me-nope for …", "/goal using dev-bother-me-nope …", "don't bother me, just build …", or pastes a long build story and says to just do it. Also use when Jonathan says "I'm moving computers", "switching machines" or "move-computers" (write a handoff for every open run), and at the start of every coding session (pick up open handoffs from another machine).
 ---
 
 # dev-bother-me-nope
@@ -169,7 +169,7 @@ Everything lives in `docs/sprints/bmn-<run-slug>/` on the run branch, in the run
 | --- | --- | --- |
 | `input.md` | INTAKE | Jonathan's story, verbatim |
 | `bmn.json` | orchestrator only | run state machine (below) |
-| `stack.md` | INTAKE | stack classification + skill routing ([references/stack-routing.md](references/stack-routing.md)) |
+| `stack.md` | INTAKE | stack classification + skill and reference routing ([references/stack-routing.md](references/stack-routing.md)) |
 | `design.md` | DESIGN | the picked direction: Claude Design link, tokens, per-screen layout, components, states, copy |
 | `design/*.html` | DESIGN | local copy of the picked Claude Design pages (coders and testers read these, not the MCP) |
 | `<story-slug>/story.md` | SPLIT | the story, acceptance criteria, assumptions |
@@ -275,6 +275,8 @@ the codebase. That work is done by subagents, which report back conclusions.
    [references/nextjs.md](references/nextjs.md), the plugin's dated Next.js + TypeScript
    standard. The planner, coder, reviewer and fixer read it with the Read tool
    ([references/stack-routing.md](references/stack-routing.md)).
+   The scout returns it in `routed_references[]`, never in a skill list; `stack.md`
+   records that list, and every brief's `{routed_references}` is filled from it.
    Write `stack.md`, then `bmn.json` with `phase: split`.
    If the scout identified **both** Supabase refs, and each one is unambiguously labelled
    dev or main, write `.claude/bmn.config.json` =
@@ -398,8 +400,12 @@ Tester brief, run against the merged `dev`:
   criterion in headless Playwright. Screenshot every screen in `design.md` and compare it
   with its `design/*.html` reference; a structural mismatch is a failure. Collect screenshots in `validation.md` as file paths,
   and console errors plus failed network requests as findings.
-- **API / MCP surfaces**: black-box calls against the running server (httpx for APIs; an MCP
+- **API / MCP surfaces**: black-box calls against the running server (httpx for APIs, or
+  Playwright's `request` fixture for a TypeScript / Next.js repo; an MCP
   client session that lists and calls tools for MCP servers).
+A TypeScript / Next.js repo takes all of this tooling from the TypeScript row of
+[references/stack-routing.md](references/stack-routing.md)'s Test surfaces table: Vitest or
+Jest, `@playwright/test` and the `request` fixture, never pytest-playwright or httpx.
 Failures go into each story's `validation.md` as findings, and on to REVIEW① as input.
 Coding is complete here. Record the sha TEST① ran on (the merged `dev`, or the run branch
 when `stack.dev_push_deploys`) as `review_shas.review1`.

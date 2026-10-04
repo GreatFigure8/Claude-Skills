@@ -29,6 +29,8 @@ Rules — no exceptions:
 - A tool call blocked by the deploy guard is final — record why you needed it and stop that
   path; do not work around it.
 - Load these skills with the Skill tool before touching code: {routed_skills}.
+- Read these reference files with the Read tool (never `Skill(...)`) before touching
+  code: {routed_references}.
 - Never enter real credentials; never commit .env, secrets, build output or scratch DBs.
 - Never use the BMN_USER_APPROVED_DEPLOY prefix — it is reserved for the orchestrator.
 - Check `git branch --show-current` in the same command as any commit, merge or push.
@@ -61,10 +63,15 @@ unambiguously; else null. Cite evidence. Never print keys or passwords.
 UI screens: list every screen, page or view the story adds or changes that a person looks at
 (name + one line on what it shows); [] if the story touches no UI. Note the repo's existing
 UI conventions (component library, Tailwind theme / CSS tokens, fonts) with file paths.
+Put the Read column's reference files in routed_references[] as absolute paths under
+${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/; never put a file path in
+routed_build_skills[] or routed_review_lenses[]. For a TypeScript / Next.js repo, take gates{}
+and test_surfaces[] from the TypeScript row of the Test surfaces table, never the python
+defaults.
 Write nothing. Return JSON: {kind, ui, ui_screens[{name, purpose}], ui_conventions, supabase, vercel, llm, dev_push_deploys,
 dev_push_deploys_evidence, vercel_json[], supabase_dev_ref, supabase_main_ref, ref_evidence,
 routed_build_skills[],
-routed_review_lenses[], test_surfaces[], gates{lint,types,test}, has_dev_branch,
+routed_review_lenses[], routed_references[], test_surfaces[], gates{lint,types,test}, has_dev_branch,
 default_branch, tooling{docker,supabase_cli,playwright}, assumptions[]}.
 ```
 
@@ -176,7 +183,7 @@ the fixer's record, don't re-argue it). New findings come from the delta only. N
 find in pass 2 is fixed by the run; it goes to Jonathan as you write it.
 Run /code-review at high effort, never max or ultra, whatever the session's effort setting.
 Then apply these lenses via the Skill tool: {review_lenses} (add nextjs-fullstack-standards
-for any TypeScript in the diff). For TypeScript/Next.js code also read
+for any TypeScript in the diff, when the session has it). For TypeScript/Next.js code also read
 ${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs.md and the topic files it
 routes the diff to; a finding that breaks one of its rules cites that rule id (e.g. SEC-3) in its
 summary. Look for what per-file review misses: duplicated helpers
@@ -327,17 +334,24 @@ Return JSON: {applied[], held_back[{file, reason}], error}.
 ```
 Surface: {surface}, TEST{test_n} (1 after BUILD, 2 after FIX①). In your isolated worktree,
 `git switch --detach {sha}` (origin/dev).
-- unit/integration: run the full suite with coverage; report per-story coverage of touched
-  files; target ≥80%.
+Tooling comes from docs/sprints/{run}/stack.md and the Test surfaces table in
+{skill_dir}/references/stack-routing.md. A TypeScript / Next.js repo uses that table's
+TypeScript row in place of every python tool named below: Vitest or Jest with coverage for
+unit/integration, `@playwright/test` against `next build && next start` for browser, and
+Playwright's `request` fixture against the same `webServer` for api.
+- unit/integration: run the full suite with coverage (pytest + pytest-cov, or the repo's
+  runner); report per-story coverage of touched files; target ≥80%.
 - browser: install deps, start the app locally (and `supabase start` if used), run
-  pytest-playwright headless for every [browser] acceptance criterion in stories {slugs};
+  Playwright headless (pytest-playwright, or the TypeScript row's `@playwright/test`) for every
+  [browser] acceptance criterion in stories {slugs};
   add missing Playwright tests for any [browser] criterion lacking one (commit them on a
   branch `wip/{run_slug}/tests-<surface>-{test_n}`, push it, and report it for the integrator). Save screenshots under
   docs/sprints/{run}/{slug}/evidence/. Capture console errors + failed requests. If
   design.md exists, screenshot every design screen and compare it with its design/*.html
   reference; a structural mismatch (missing/extra region, wrong component, wrong copy) is a
   FAIL.
-- api: start the server; call each [api] criterion with httpx; assert status + schema.
+- api: start the server; call each [api] criterion with httpx (or the TypeScript row's
+  Playwright `request` fixture); assert status + schema.
 - mcp: start the server over stdio with an mcp ClientSession; list tools; call each new or
   changed tool with valid and invalid input.
 Stop every server you started. Write/append docs/sprints/{run}/{slug}/validation.md per story:

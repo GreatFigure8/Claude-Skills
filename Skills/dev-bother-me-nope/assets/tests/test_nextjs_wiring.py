@@ -1,10 +1,11 @@
 """Text-presence tests for how the Next.js reference is wired into the bmn skill.
 
 The reference (``references/nextjs.md``) is read with the Read tool by the planner, coder,
-reviewer and fixer of a TypeScript / Next.js story. These tests pin the four places that say so
-(``stack-routing.md``, ``SKILL.md``, ``briefs.md`` and the ``plugin.json`` invariants) and that
-nothing else in them moved. Section lookup is by heading text so the tests survive line shifts.
-Offline, standard library plus pytest.
+reviewer and fixer of a TypeScript / Next.js story. It is routed through its own Read column and
+``routed_references[]``, never through a Skill column. These tests pin the places that say so
+(``stack-routing.md``, ``SKILL.md``, ``briefs.md`` and the ``plugin.json`` invariants), the
+TypeScript test tooling and gates, and that nothing else in them moved. Section lookup is by
+heading text so the tests survive line shifts. Offline, standard library plus pytest.
 """
 
 import hashlib
@@ -21,7 +22,7 @@ STACK_ROUTING = SKILL_DIR / "references" / "stack-routing.md"
 PLUGIN_JSON = h.PLUGIN / ".claude-plugin" / "plugin.json"
 
 NEXTJS_PATH = "${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs.md"
-SKILL_DESCRIPTION_SHA256 = "ff1c4ebd1232745ee8c4de5a117cc7ee74eb1036ec898fadd708d999a617697c"
+SKILL_DESCRIPTION_SHA256 = "ec6a3cbb60efba970cefcb7044030ad24fc7283b43f0884b5b8435969f2e3a63"
 PLUGIN_DESCRIPTION_SHA256 = "bbda88acb08a513c0f17ac9243d946ce7c996af61abd86f248a7a903c7358860"
 EDITED_BRIEFS = ("planner", "coder", "reviewer", "fixer")
 OTHER_BRIEFS = (
@@ -35,6 +36,9 @@ OTHER_BRIEFS = (
     "tester",
 )
 TYPESCRIPT_ROW = "TypeScript / Next.js repo"
+ROUTE_HEADER = ("Kind", "Build with", "Review lenses (python-library-quality:*)", "Read")
+WHEN_AVAILABLE = "when the session has it"
+WHEN_AVAILABLE_WINDOW = 80
 
 
 # --- helpers ---------------------------------------------------------------------------
@@ -76,16 +80,34 @@ def _frontmatter_description(text):
 # --- AC11: stack-routing.md -----------------------------------------------------------------
 
 
-def test_stack_routing_typescript_row_names_the_reference_in_both_cells():
+def test_stack_routing_route_table_has_a_read_column():
+    rows = h.table_rows(h.section(h.read(STACK_ROUTING), "Route"))
+    assert rows[0] == ROUTE_HEADER
+    assert all(len(row) == len(ROUTE_HEADER) for row in rows), "every row needs a Read cell"
+
+
+def test_stack_routing_typescript_row_reads_the_reference_never_loads_it():
+    """R1-A7: the Skill columns feed Skill(...); a reference file there can't load."""
     row = _table_row(h.section(h.read(STACK_ROUTING), "Route"), TYPESCRIPT_ROW)
-    assert len(row) == 3
-    assert "references/nextjs.md" in row[1], "Build with cell"
-    assert "references/nextjs.md" in row[2], "review lens cell"
+    for cell in row[1:3]:
+        assert ".md" not in cell, f"a reference file sits in a Skill column: {cell!r}"
+    _assert_has(row[3], "`references/nextjs.md`", "Topic index", "rule ids")
+
+
+def test_stack_routing_maps_each_column_to_a_scout_field():
+    route = h.section(h.read(STACK_ROUTING), "Route")
+    _assert_has(
+        route,
+        "**Build with** → `routed_build_skills[]` and **Review lenses** → "
+        "`routed_review_lenses[]`, both loaded with `Skill(...)`",
+        "**Read** → `routed_references[]`, absolute paths read with the Read tool",
+        "A reference file never goes in a skill list",
+    )
 
 
 def test_stack_routing_keeps_fullstack_standards_when_available():
     row = _table_row(h.section(h.read(STACK_ROUTING), "Route"), TYPESCRIPT_ROW)
-    for cell in row[1:]:
+    for cell in row[1:3]:
         _assert_has(cell, "nextjs-fullstack-standards", "when the session has it")
 
 
@@ -126,15 +148,38 @@ def test_stack_routing_test_surfaces_names_typescript_tooling():
         "with coverage",
         "Playwright (`@playwright/test`)",
         "`next build && next start`",
-        "`fetch`",
-        "`tsc --noEmit`",
-        "`eslint .`",
+        "Playwright's `request` fixture against the same `webServer` (TEST-15)",
+        "`next typegen && tsc --noEmit`",
+        "the repo's configured linter",
+        "`eslint .` with `eslint-config-next`",
+        "`biome check .` in a repo that already uses Biome",
         "`next lint` was removed in Next.js 16",
         "`next build`",
         "[nextjs/testing-and-observability.md](nextjs/testing-and-observability.md)",
     )
     for surface in ("unit + integration", "browser", "HTTP black-box", "gates"):
         assert surface in row[1], f"{surface!r} missing from the Surface cell"
+
+
+def test_stack_routing_type_gate_runs_typegen_first():
+    """R1-A2: a bare tsc --noEmit fails on the generated PageProps/RouteContext types."""
+    text = h.read(STACK_ROUTING)
+    bare = [m.start() for m in re.finditer(r"tsc --noEmit", text)
+            if not text[: m.start()].endswith("next typegen && ")]
+    assert not bare, "a tsc --noEmit gate without next typegen first"
+
+
+def test_stack_routing_typescript_gates_run_types_then_lint_then_build():
+    row = _table_row(h.section(h.read(STACK_ROUTING), "Test surfaces", prefix=True), TYPESCRIPT_ROW)
+    gates = row[2].split("gates, in order:")[1]
+    order = [gates.index(step) for step in ("next typegen && tsc", "eslint .", "`next build`")]
+    assert order == sorted(order), gates
+
+
+def test_stack_routing_http_black_box_is_the_request_fixture_not_fetch():
+    """R1-A8: TEST-1/TEST-15 make Playwright's request fixture the HTTP surface."""
+    row = _table_row(h.section(h.read(STACK_ROUTING), "Test surfaces", prefix=True), TYPESCRIPT_ROW)
+    assert "`fetch`" not in row[2]
 
 
 def test_stack_routing_test_surfaces_keeps_the_python_rows():
@@ -170,9 +215,41 @@ def test_skill_review1_links_the_reference_next_to_fullstack_standards():
     )
 
 
-def test_skill_frontmatter_description_unchanged():
+def test_skill_intake_routes_references_through_their_own_field():
+    intake = h.section(h.read(SKILL), "0 · INTAKE", prefix=True)
+    _assert_has(
+        intake,
+        "The scout returns it in `routed_references[]`, never in a skill list; `stack.md` "
+        "records that list, and every brief's `{routed_references}` is filled from it.",
+    )
+
+
+def test_skill_test1_uses_the_typescript_tooling():
+    """R1-A9: a Next.js repo is tested with its own runners, not pytest-playwright/httpx."""
+    test1 = h.section(h.read(SKILL), "5 · TEST", prefix=True)
+    _assert_has(
+        test1,
+        "Playwright's `request` fixture for a TypeScript / Next.js repo",
+        "A TypeScript / Next.js repo takes all of this tooling from the TypeScript row of "
+        "[references/stack-routing.md](references/stack-routing.md)'s Test surfaces table",
+    )
+
+
+def test_skill_frontmatter_description_pinned():
     description = _frontmatter_description(h.read(SKILL))
     assert hashlib.sha256(description.encode()).hexdigest() == SKILL_DESCRIPTION_SHA256
+
+
+@pytest.mark.parametrize("path", (SKILL, BRIEFS, STACK_ROUTING), ids=lambda path: path.name)
+def test_fullstack_standards_is_always_conditional(path):
+    """R1-A14: every mention loads it only when the session has it."""
+    text = _flat(h.read(path))
+    unconditional = [
+        text[max(0, m.start() - 30) : m.end() + WHEN_AVAILABLE_WINDOW]
+        for m in re.finditer("nextjs-fullstack-standards", text)
+        if WHEN_AVAILABLE not in text[m.end() : m.end() + WHEN_AVAILABLE_WINDOW]
+    ]
+    assert not unconditional, unconditional
 
 
 # --- AC13: briefs.md --------------------------------------------------------------------------
@@ -214,10 +291,46 @@ def test_brief_lines_say_what_each_agent_does_with_the_rule_ids():
     )
 
 
-def test_reviewer_brief_keeps_fullstack_standards():
+def test_reviewer_brief_keeps_fullstack_standards_when_available():
     _assert_has(
         _brief_block("reviewer"),
-        "(add nextjs-fullstack-standards for any TypeScript in the diff)",
+        "(add nextjs-fullstack-standards for any TypeScript in the diff, when the session has it)",
+    )
+
+
+def test_common_preamble_reads_routed_references():
+    preamble = h.code_blocks(h.section(h.read(BRIEFS), "Common preamble"))[0][1]
+    _assert_has(
+        preamble,
+        "Load these skills with the Skill tool before touching code: {routed_skills}.",
+        "Read these reference files with the Read tool (never `Skill(...)`) before touching "
+        "code: {routed_references}.",
+    )
+
+
+def test_stack_scout_returns_references_in_their_own_field():
+    """R1-A7: the scout JSON had no field for reference files."""
+    block = _brief_block("stack-scout")
+    _assert_has(
+        block,
+        "routed_build_skills[], routed_review_lenses[], routed_references[],",
+        "Put the Read column's reference files in routed_references[]",
+        "never put a file path in routed_build_skills[] or routed_review_lenses[]",
+        "For a TypeScript / Next.js repo, take gates{} and test_surfaces[] from the TypeScript "
+        "row of the Test surfaces table",
+    )
+
+
+def test_tester_brief_uses_the_typescript_row_tooling():
+    """R1-A9: TEST on a Next.js repo must not write Python Playwright/httpx tests."""
+    block = _brief_block("tester")
+    _assert_has(
+        block,
+        "A TypeScript / Next.js repo uses that table's TypeScript row in place of every python "
+        "tool named below",
+        "Vitest or Jest with coverage",
+        "`@playwright/test` against `next build && next start`",
+        "Playwright's `request` fixture against the same `webServer`",
     )
 
 
