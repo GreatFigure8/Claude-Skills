@@ -24,10 +24,10 @@ This list must equal the `## Sources` list of
 | https://nextjs.org/docs/app/api-reference/functions/cookies | 2026-10-04 | API-28 |
 | https://nextjs.org/docs/app/api-reference/functions/redirect | 2026-10-04 | API-14, API-30 |
 | https://nextjs.org/docs/app/api-reference/functions/forbidden | 2026-10-04 | API-18 |
-| https://nextjs.org/docs/app/api-reference/functions/revalidateTag | 2026-10-04 | API-27 |
+| https://nextjs.org/docs/app/api-reference/functions/revalidateTag | 2026-10-04 | API-24, API-27 |
 | https://nextjs.org/docs/app/api-reference/functions/updateTag | 2026-10-04 | API-27; Version notes (caching APIs) |
 | https://nextjs.org/docs/app/api-reference/config/next-config-js/headers | 2026-10-04 | API-31 |
-| https://nextjs.org/docs/app/api-reference/file-conventions/proxy | 2026-10-04 | API-16, API-31; Version notes (proxy rename) |
+| https://nextjs.org/docs/app/api-reference/file-conventions/proxy | 2026-10-04 | API-31; Version notes (proxy rename) |
 | https://nextjs.org/docs/app/guides/authentication | 2026-10-04 | API-13, API-14, API-16, API-28 |
 | https://nextjs.org/docs/app/guides/data-security | 2026-10-04 | API-8, API-15, API-17 |
 | https://nextjs.org/docs/app/guides/server-actions | 2026-10-04 | API-5, API-17 |
