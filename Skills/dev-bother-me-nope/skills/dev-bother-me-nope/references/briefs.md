@@ -274,20 +274,17 @@ from {run_worktree}, which it removes. Its exit 2 (refused) goes to left with th
    It deletes local {integration}, the origin copy and every worktree on it (the run worktree
    too, when clean) only if the branch is an ancestor of origin/dev. Whatever the helper
    leaves ("origin has commits not in dev", a dirty run worktree) is recorded as
-   "not in dev — <why>". Then `git worktree prune`.
-   Only the origin copy is gated on bmn.json `integration_pushed`. When it is false and
-   origin/{integration} exists anyway, this run didn't push that copy, so it stays and goes
-   into left as `origin:{integration}`, "origin copy not pushed by this run" — but the local
-   branch and every worktree on it are still deleted. The helper has no flag that skips the
-   origin copy (it always deletes one that is merged), so do its local part by hand, with its
-   rules: `sha=$(git -C {repo_path} rev-parse refs/heads/{integration})`;
-   `git -C {repo_path} merge-base --is-ancestor "$sha" origin/dev` must exit 0, else delete
-   nothing and record why; `git -C {repo_path} worktree remove <path>` without --force for
-   every worktree on the branch that isn't the main checkout (git refuses a dirty or locked
-   one, which goes into left); then, once none holds it,
-   `git -C {repo_path} update-ref -d refs/heads/{integration} "$sha"` (a branch that moved
-   since is kept). Record `worktree:<path>` and `local:{integration}` in deleted, as the
-   helper does.
+   "not in dev — <why>". Never run `git worktree prune`: it is repo-wide and would discard
+   another branch's worktree record.
+   Only the origin copy is gated on bmn.json `integration_pushed`. When it is false, append
+   `--local-only` to that command:
+   `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo {repo_path} --branch {integration} --target origin/dev --local-only`.
+   If origin/{integration} exists anyway, this run didn't push that copy, so the helper never
+   pushes to, deletes or leases it and lists it in left as `origin:{integration}`; record that
+   entry as "origin copy not pushed by this run" (replacing the helper's reason). The local
+   branch and every worktree on it are still deleted, with all of the helper's checks: ancestry
+   of origin/dev, the rebase and bisect check, no --force, and a worktree holding ignored files
+   other than regenerable build output is kept.
 3. If step 2 deleted the branch: first `git -C {repo_path} worktree add --detach
    {dev_worktree} origin/dev`. Then edit docs/sprints/{run}/report.md ("Git cleanup":
    deleted, left + why), bmn.json (`cleanup`; `phase: blocked` when `blocker` is non-null,
