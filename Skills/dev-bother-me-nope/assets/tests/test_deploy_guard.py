@@ -138,6 +138,20 @@ def test_user_approved_prefix_lets_a_deploy_through():
     assert bash("BMN_USER_APPROVED_DEPLOY=1 supabase db push --linked").returncode == 0
 
 
+@pytest.mark.parametrize("command", [
+    "BMN_USER_APPROVED_DEPLOY=1 git push origin main",
+    "BMN_USER_APPROVED_DEPLOY=1 vercel deploy --prod",
+])
+def test_approval_prefix_passes_real_deploys(command):
+    assert bash(command).returncode == 0, command
+
+
+def test_unapproved_production_push_hits_the_deploy_guard():
+    result = bash("git push origin main")
+    assert result.returncode == 2
+    assert result.stderr.startswith("Blocked by dev-bother-me-nope deploy guard:")
+
+
 @pytest.mark.parametrize(
     "name",
     [
