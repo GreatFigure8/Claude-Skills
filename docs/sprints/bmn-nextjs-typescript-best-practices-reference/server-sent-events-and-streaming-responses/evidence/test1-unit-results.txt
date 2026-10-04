@@ -1,0 +1,46 @@
+# TEST1 unit results for server-sent-events-and-streaming-responses
+
+Branch wip/nextjs-typescript-best-practices-reference/tests-unit-1, base origin/dev 59279a3, 2026-10-04.
+Full-suite result: 1026 passed in 95.32s (0:01:35). Each line is one pytest node id from the verbose run of the
+nextjs tests that this story's criterion map cites; `40` ids, all PASSED.
+
+test_nextjs_reference.py::test_every_prose_url_is_listed_in_sources[sse-and-streaming.md] PASSED
+test_nextjs_reference.py::test_every_url_host_is_allowed[sse-and-streaming.md] PASSED
+test_nextjs_reference.py::test_file_is_at_most_800_lines[sse-and-streaming.md] PASSED
+test_nextjs_reference.py::test_no_bare_code_fences[sse-and-streaming.md] PASSED
+test_nextjs_reference.py::test_no_todo_or_tbd[sse-and-streaming.md] PASSED
+test_nextjs_reference.py::test_primary_source_floor[sse-and-streaming.md] PASSED
+test_nextjs_reference.py::test_relative_links_resolve[sse-and-streaming.md] PASSED
+test_nextjs_reference.py::test_rule_ids_are_unique_across_topic_files PASSED
+test_nextjs_reference.py::test_sources_is_a_bullet_list_of_unique_https_urls[sse-and-streaming.md] PASSED
+test_nextjs_reference.py::test_stub_marker_names_the_owning_story[sse-and-streaming.md] PASSED
+test_nextjs_reference.py::test_topic_as_of_matches_the_entry_point[sse-and-streaming.md] PASSED
+test_nextjs_reference.py::test_topic_cites_only_its_own_rule_ids[sse-and-streaming.md] PASSED
+test_nextjs_reference.py::test_topic_meets_the_floors[sse-and-streaming.md] PASSED
+test_nextjs_reference.py::test_topic_not_confirmed_section_lists_urls_and_no_rules[sse-and-streaming.md] PASSED
+test_nextjs_reference.py::test_topic_rules_are_well_formed_and_numbered[sse-and-streaming.md] PASSED
+test_nextjs_reference.py::test_topic_rules_cite_a_source_or_convention[sse-and-streaming.md] PASSED
+test_nextjs_reference.py::test_topic_sections_follow_the_contract[sse-and-streaming.md] PASSED
+test_nextjs_reference.py::test_topic_version_notes_name_the_major[sse-and-streaming.md] PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_anti_patterns_pair_every_dont_with_a_do PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_checklist_and_anti_patterns_cite_only_defined_rules PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_examples_never_use_any PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_frame_encoder_writes_id_event_data_and_blank_line PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_not_confirmed_section_exists_and_cites_urls PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_review_checklist_items_each_name_an_sse_rule PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_route_handler_example_closes_before_max_duration PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_route_handler_example_releases_on_abort_and_cancel PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_rules_set_max_duration_with_vercel_link PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_rules_state_event_source_client_facts PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_sources_include_mdn_or_whatwg PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_topic_has_at_least_15_rules PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_topic_has_client_event_source_hook_example PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_topic_has_fetch_reader_example PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_topic_has_frame_encoding_example PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_topic_has_heartbeat_cleared_example PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_topic_has_last_event_id_resume_example PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_topic_has_route_handler_example PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_topic_is_no_longer_a_stub PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_topic_names_every_required_concept PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_topic_uses_only_sse_rule_ids PASSED
+test_nextjs_topic_sse_and_streaming.py::test_sse_version_notes_name_the_major_and_link_nextjs PASSED

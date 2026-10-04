@@ -1,0 +1,9 @@
+TEST2 (after FIX1), base origin/dev 190ff8e. Subprocess coverage: coverage 7.16.2, patch=subprocess, include=assets/bin/*.py (python 3.13.13).
+Full suite on uv default Python 3.13.13: 476 passed in 107.51s.
+Full suite on /usr/bin/python3 3.9.6 (uv run --python /usr/bin/python3 --with pytest): 476 passed in 112.32s.
+ruff check Skills/dev-bother-me-nope: All checks passed.
+
+Name                                                            Stmts   Miss  Cover   Missing
+Skills/dev-bother-me-nope/assets/bin/deploy-guard.py              476     32    93%   173-174, 198, 234, 327-332, 352, 365-366, 391, 395-398, 411-412, 421-422, 436-437, 447-448, 467-468, 540, 548, 559, 634, 710
+
+deploy-guard.py is 724 lines. Target 80%: met.

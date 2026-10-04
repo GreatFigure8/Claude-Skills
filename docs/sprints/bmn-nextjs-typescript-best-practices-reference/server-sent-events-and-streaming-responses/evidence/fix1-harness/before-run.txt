@@ -1,0 +1,14 @@
+FAIL R1-C1 signed-out SSE GET and chat POST answer 401 (not a 307 to /login) :: GET 307 -> /login, POST 307 -> /login
+FAIL R1-C2 replayed ids precede live ids, each id once :: snapshot-before-live 101,98,99,100; snapshot-after-live 101,98,99,100,101; want 98,99,100,101
+FAIL R1-C10 a client that never reads cannot grow the queue without bound :: 4808907 bytes queued for 20000 unread events (last id 20000)
+FAIL R1-C11 unsubscribe runs inside a task registered with after() :: no after()/waitUntil task registered; unsubscribe() runs untracked
+FAIL R1-C12 switching url starts the new room fresh; same-url re-runs still resume :: room b opened with lastEventId=5 and status 'open'; same-url re-run resumed from 9
+FAIL R1-C22 a stream-error frame closes the source and reports closed :: after stream-error: source.closed=false, status 'open'
+FAIL R1-C13 401/403/400 stop the reconnect loop; 503 still retries :: 401: still retrying after 5 open(s); 403: still retrying after 5 open(s); 400: still retrying after 5 open(s); 503: still retrying after 5 opens
+FAIL R1-C14 the chat route plain-text body reaches the UI :: readSse (no plain-text reader exists) delivered ""
+FAIL R1-C20 readSse cancels the body on a non-OK status and when onMessage throws :: 500 body cancelled=false; onMessage-throws body cancelled=false
+FAIL R1-C21 an id-only block moves the resume id :: reconnected with Last-Event-ID 1 after an id-only block "id: 7"
+FAIL R1-C23 backoff waits leave no abort listeners behind :: abort listeners at each reconnect: 0,1,2,3,4,5
+FAIL R1-C24 aborting the signal passed to framesToStream closes the generator :: framesToStream takes 1 parameter(s); abort left the generator open
+FAIL R1-C3 vercel.json functions keys match the src/app route files :: keys app/api/events/**/*, app/api/chat/**/* match none of src/app/api/events/route.ts, src/app/api/chat/route.ts
+before: 0 pass, 13 fail

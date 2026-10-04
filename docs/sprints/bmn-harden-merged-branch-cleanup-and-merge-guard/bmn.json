@@ -1,0 +1,116 @@
+{
+  "run": "bmn-harden-merged-branch-cleanup-and-merge-guard",
+  "phase": "done",
+  "integration": "fix/harden-merged-branch-cleanup-and-merge-guard",
+  "worktree": "/Users/jonathanstevenson/Source/claude-skills-harden-merged-branch-cleanup-and-merge-guard",
+  "live": "dev",
+  "dev_base": "d8b709f914fbbd40e0c7f77a2a4549114ec6e20f",
+  "review_shas": {
+    "review1": "79dd1b08dbd465c459f252ef6f22cc0b1ae21bc5",
+    "review2": "7e990c1abc9de8fc71b51277eb83150e160e8119"
+  },
+  "stack": {
+    "kind": "library",
+    "ui": false,
+    "supabase": false,
+    "vercel": false,
+    "vercel_json": [],
+    "dev_push_deploys": false,
+    "supabase_dev_ref": null,
+    "supabase_main_ref": null
+  },
+  "stories": [
+    {
+      "slug": "cleanup-helper-local-only-mode-and-wider-caches",
+      "title": "Cleanup helper: local-only mode, wider cache list, no repo-wide prune",
+      "deps": [],
+      "status": "done",
+      "branch": "wip/harden-merged-branch-cleanup-and-merge-guard/cleanup-helper-local-only-mode-and-wider-caches",
+      "merges": [
+        {
+          "tip": "88c6e80",
+          "merge": "724f927"
+        },
+        {
+          "fix": "c704f63"
+        }
+      ],
+      "detail": ""
+    },
+    {
+      "slug": "deploy-guard-protected-deletes-and-wrapper-gaps",
+      "title": "Deploy guard: protected deletes, xargs/fish gaps, protected-list parity",
+      "deps": [],
+      "status": "done",
+      "branch": "wip/harden-merged-branch-cleanup-and-merge-guard/deploy-guard-protected-deletes-and-wrapper-gaps",
+      "merges": [
+        {
+          "tip": "761010d",
+          "merge": "56dd363"
+        },
+        {
+          "fix": "62ac692"
+        }
+      ],
+      "detail": ""
+    }
+  ],
+  "temp_refs": [],
+  "integration_pushed": true,
+  "cleanup": {
+    "deleted": [
+      "2 story wip branches (local+origin), 2 fix wip branches, 2 test wip branches, their harness branches and worktrees \u2014 by the integrators",
+      "fix/harden-merged-branch-cleanup-and-merge-guard (local+origin)",
+      "run worktree"
+    ],
+    "left": []
+  },
+  "deploy_pending": {
+    "vercel": [],
+    "supabase_migrations": []
+  },
+  "supabase_dev_applied": [],
+  "design": {
+    "needed": false,
+    "project_id": null,
+    "url": null,
+    "round": 0,
+    "options": [],
+    "picked": null,
+    "feedback": []
+  },
+  "repo_policy": {
+    "repo": "GreatFigure8/Claude-Skills",
+    "status": "changed",
+    "changes": {
+      "allow_squash_merge": {
+        "old": true,
+        "new": false
+      },
+      "delete_branch_on_merge": {
+        "old": false,
+        "new": true
+      }
+    }
+  },
+  "handoff": null,
+  "assumptions": [
+    "see stack.md assumptions 1-6"
+  ],
+  "blocker": null,
+  "updated": "2026-10-04T10:30:49.977630+00:00",
+  "dev_merges": [
+    {
+      "phase": "merge1",
+      "merge": "79dd1b08dbd465c459f252ef6f22cc0b1ae21bc5"
+    },
+    {
+      "phase": "merge2",
+      "merge": "7e990c1abc9de8fc71b51277eb83150e160e8119"
+    },
+    {
+      "phase": "report",
+      "merge": "b24f2f5"
+    }
+  ]
+}

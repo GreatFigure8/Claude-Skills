@@ -13,24 +13,43 @@ Scope: every `docs/sprints/bmn-*` run in **this repo** whose `bmn.json` `phase` 
    pushes its branch before it returns. If one has run for a long time with no milestone,
    stop it with `TaskStop`. Record its branch in the handoff as "interrupted: re-dispatch
    <brief> for <slug>", because its unpushed worktree work is lost.
-2. **Push everything.** Push the integration branch `bmn/<run-slug>` and every
-   `bmn/<run-slug>/*` story, fix, or test branch that has commits `origin` doesn't. Never
-   push `dev` or `main` as part of a move, and never deploy.
+2. **Push everything.** Push the run branch `<type>/<run-slug>` and every
+   `wip/<run-slug>/*` story, fix, or test branch that has commits `origin` doesn't, and
+   mark each one `pushed: true` in `temp_refs` so CLEANUP later deletes the remote copy.
+   Never push `dev` or `main` as part of a move, and never deploy.
 3. **Write `docs/sprints/bmn-<run-slug>/handoff.md`** from the template below, one per open
    run. Fill it from `bmn.json` and git, not from memory. Mark anything you didn't check
    against disk as *Claimed, not verified*.
 4. **Mark the run moved.** Write `bmn.json` atomically with
    `"handoff": {"status": "open", "at": "<iso8601>", "from_host": "<hostname -s>"}`. Leave
    `phase` alone so the resume picks up exactly where the run stopped.
-5. **Commit and push** the run folder on `bmn/<run-slug>` with the title
-   `chore(bmn): hand off <run-slug> for a machine move`. Then confirm it landed with
-   `git show origin/bmn/<run-slug>:docs/sprints/bmn-<run-slug>/handoff.md | head -3`.
-6. **Other repos.** List any other repo under `~/Source/*` that has an open `bmn-*` run
+5. **Commit and push** the run folder on the run branch, in the run worktree, with the
+   title `chore(bmn): hand off <run-slug> for a machine move`. Then confirm it landed with
+   `git show origin/<type>/<run-slug>:docs/sprints/bmn-<run-slug>/handoff.md | head -3`.
+6. **Tidy this machine** with the helper, run from the main checkout (`--repo <main checkout>`,
+   never from a worktree it may remove), once per branch. It never touches the origin copy,
+   which the other machine and CLEANUP still need:
+   - the run branch `<type>/<run-slug>` and every local `wip/<run-slug>/*` branch pushed in
+     step 2: `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo <main checkout> --branch <branch> --target origin/<branch> --pushed`
+   - each `temp_refs` harness branch: `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo <main checkout> --branch <harness branch> --target origin/<type>/<run-slug> --local-only`
+
+   The helper removes every worktree on the branch (the run worktree and each harness
+   worktree included, no --force), then deletes the local branch, but only once git proves
+   its tip is on origin (`--pushed`) or in the pushed run branch (harness). It keeps a worktree
+   with uncommitted or untracked files, a locked one, and one holding any ignored file other
+   than regenerable build output (a `.env` stays); it keeps a branch whose rebase or bisect is
+   running; each is listed in `left` with its reason. Name every kept item and its reason in
+   the handoff under *Left on <host>* and in the closing message; `origin:<branch>` entries are
+   the origin copies it kept on purpose, not work left behind. A refused call (exit 2) counts as
+   kept, with the error as the reason. Never run `git worktree remove`, `git branch -D` or
+   `git worktree prune` by hand for this tidy: git deletes ignored files such as `.env`
+   without warning. The main checkout is never touched.
+7. **Other repos.** List any other repo under `~/Source/*` that has an open `bmn-*` run
    (`phase` ≠ `done`) but no open handoff. Don't write handoffs there: another session may
    own that checkout. Name those repos in the closing message so Jonathan can say "moving
    computers" in each of them.
-7. **Close** with one short message listing each handed-off run as `<run-slug> — <phase> —
-   next: <action>`, the other repos from step 6, and this one line:
+8. **Close** with one short message listing each handed-off run as `<run-slug> — <phase> —
+   next: <action>`, what step 6 kept on this machine, the other repos from step 7, and this one line:
    "On the other machine: pull `claude-skills`, update the dev-bother-me-nope plugin, open
    this repo, and start dev-bother-me-nope."
 
@@ -40,9 +59,11 @@ This check runs before INTAKE's resume check, on every invocation.
 
 1. `git fetch --prune origin`.
 2. Collect the open handoffs from both of these places:
-   - the working tree: `docs/sprints/bmn-*/handoff.md`;
-   - each remote integration branch `origin/bmn/<run-slug>` (one path segment only, not
-     story branches): `git show origin/bmn/<run-slug>:docs/sprints/bmn-<run-slug>/handoff.md`.
+   - every worktree (`git worktree list`): `docs/sprints/bmn-*/handoff.md`;
+   - each remote branch `origin/<type>/<x>` with `<type>` in `feat|fix|hotfix|chore` and
+     `<x>` one path segment: `git show origin/<type>/<x>:docs/sprints/bmn-<x>/handoff.md`
+     (a branch without that file is a human branch — skip it). Also `origin/bmn/<x>`, for
+     runs from before 1.4.0.
    A handoff is open when its `bmn.json` on that same ref has `handoff.status == "open"`.
    Deduplicate by run slug, keeping the newest `at`.
 3. **No open handoffs:** continue normally (resume rule, then INTAKE).
@@ -53,8 +74,12 @@ This check runs before INTAKE's resume check, on every invocation.
    "None — just list them". When there are more than three runs, offer the three newest and
    let "Other" take a slug.
 5. **On a pick:**
-   - Check out `bmn/<run-slug>` tracking origin (`git switch` with
-     `git branch --show-current` checked in the same command).
+   - Recreate the run worktree, never switching the main checkout:
+     `git worktree add --track -b <type>/<run-slug> ../<repo-name>-<run-slug> origin/<type>/<run-slug>`
+     (plain `git worktree add <path> <type>/<run-slug>` if the local branch exists). Write
+     its path to `bmn.json` `worktree`. Harness worktrees from the other machine don't
+     exist here, and merged `wip/` branches are already deleted (local, origin and worktrees)
+     when the integrator merged them; only unmerged ones remain on origin.
    - Re-ground from disk: verify every *Claimed, not verified* line, and confirm every branch
      the handoff lists exists on origin.
    - Re-dispatch any "interrupted" brief.
@@ -70,7 +95,7 @@ This check runs before INTAKE's resume check, on every invocation.
 # Handoff — <run-slug>
 
 **Moved:** <iso8601> from `<host>` · **Repo:** <origin url> · **Phase:** <phase>
-**Integration branch:** `bmn/<run-slug>` @ <sha> (pushed)
+**Run branch:** `<type>/<run-slug>` @ <sha> (pushed) · **wip branches on origin:** <list>
 **dev_base:** <sha> · **Live:** dev
 
 ## Stories
@@ -85,6 +110,9 @@ This check runs before INTAKE's resume check, on every invocation.
 
 ## Claimed, not verified
 - ...
+
+## Left on <host>
+- <worktree or branch> — <dirty / unpushed>; nothing else was left behind
 
 ## Exact next action
 - <the step from SKILL.md and the brief to dispatch first>

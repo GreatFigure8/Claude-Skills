@@ -10,11 +10,14 @@ import pytest
 GUARD = Path(__file__).resolve().parents[1] / "bin" / "deploy-guard.py"
 
 
-def start_run(root, phase="build"):
+def start_run(root, phase="build", worktree=None):
     """Mark `root` as a repo with a dev-bother-me-nope run in progress."""
     run = root / "docs" / "sprints" / "bmn-demo"
     run.mkdir(parents=True, exist_ok=True)
-    (run / "bmn.json").write_text(json.dumps({"run": "bmn-demo", "phase": phase}))
+    state = {"run": "bmn-demo", "phase": phase}
+    if worktree is not None:
+        state["worktree"] = str(worktree)
+    (run / "bmn.json").write_text(json.dumps(state))
 
 
 def new_repo(active=True):
@@ -31,7 +34,8 @@ ACTIVE_REPO = new_repo()
 def run_guard(payload):
     payload = {"cwd": str(ACTIVE_REPO), **payload}
     return subprocess.run(
-        [sys.executable, str(GUARD)], input=json.dumps(payload), capture_output=True, text=True
+        [sys.executable, str(GUARD)], input=json.dumps(payload), capture_output=True, text=True,
+        check=False,
     )
 
 
@@ -98,6 +102,10 @@ ALLOWED_BASH = [
     "psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c 'select 1'",
     "git push origin dev",
     "git push -u origin bmn/run/story-a",
+    "git push -u origin wip/demo/story-a",
+    "git push -u origin feat/demo",
+    "git push origin HEAD:dev",
+    "git push origin --delete wip/demo/story-a",
     "git push origin feat/maintenance-page",
     "pytest -q",
     "grep -r 'vercel --prod' docs/",
@@ -130,6 +138,20 @@ def test_user_approved_prefix_lets_a_deploy_through():
     assert bash("BMN_USER_APPROVED_DEPLOY=1 supabase db push --linked").returncode == 0
 
 
+@pytest.mark.parametrize("command", [
+    "BMN_USER_APPROVED_DEPLOY=1 git push origin main",
+    "BMN_USER_APPROVED_DEPLOY=1 vercel deploy --prod",
+])
+def test_approval_prefix_passes_real_deploys(command):
+    assert bash(command).returncode == 0, command
+
+
+def test_unapproved_production_push_hits_the_deploy_guard():
+    result = bash("git push origin main")
+    assert result.returncode == 2
+    assert result.stderr.startswith("Blocked by dev-bother-me-nope deploy guard:")
+
+
 @pytest.mark.parametrize(
     "name",
     [
@@ -153,7 +175,9 @@ def test_blocks_mcp_write_sql_but_allows_reads():
 
 def test_ignores_unrelated_mcp_tools_and_malformed_input():
     assert mcp("mcp__github__create_issue").returncode == 0
-    assert subprocess.run([sys.executable, str(GUARD)], input="not json", text=True).returncode == 0
+    malformed = subprocess.run([sys.executable, str(GUARD)], input="not json", text=True,
+                               check=False)
+    assert malformed.returncode == 0
 
 
 def test_supabase_sql_detected_by_project_id_on_uuid_named_server():
@@ -264,15 +288,64 @@ def test_finished_run_is_not_guarded(phase):
     assert guard_in(root, "vercel --prod").returncode == 0
 
 
-def test_worktree_of_active_repo_is_guarded():
-    root = new_repo()
+@pytest.mark.parametrize("phase", ["intake", "build", "merge1", "test1", "review1", "fix1",
+                                   "merge2", "test2", "review2", "report"])
+def test_every_unfinished_phase_is_guarded(phase):
+    root = new_repo(active=False)
+    start_run(root, phase)
+    assert guard_in(root, "vercel --prod").returncode == 2
+
+
+GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
+           "GIT_COMMITTER_EMAIL": "t@t", "PATH": "/usr/bin:/bin:/opt/homebrew/bin"}
+
+
+def add_worktree(root):
     subprocess.run(["git", "-C", str(root), "commit", "-q", "--allow-empty", "-m", "init"],
-                   check=True, env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-                                    "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
-                                    "PATH": "/usr/bin:/bin:/opt/homebrew/bin"})
+                   check=True, env=GIT_ENV)
     tree = Path(tempfile.mkdtemp()) / "wt"
     subprocess.run(["git", "-C", str(root), "worktree", "add", "-q", "--detach", str(tree)], check=True)
+    return tree
+
+
+def test_worktree_of_active_repo_is_guarded():
+    root = new_repo()
+    tree = add_worktree(root)
     assert guard_in(tree, "vercel --prod").returncode == 2
+
+
+def test_run_living_in_a_sibling_run_worktree_guards_every_worktree():
+    root = new_repo(active=False)
+    run_tree = add_worktree(root)
+    harness_tree = add_worktree(root)
+    start_run(run_tree)
+    assert guard_in(root, "vercel --prod").returncode == 2  # the human's main checkout
+    assert guard_in(harness_tree, "vercel --prod").returncode == 2  # a coder's worktree
+    assert guard_in(run_tree, "vercel --prod").returncode == 2
+
+
+def test_finished_run_in_a_sibling_worktree_is_not_guarded():
+    root = new_repo(active=False)
+    run_tree = add_worktree(root)
+    start_run(run_tree, "done")
+    assert guard_in(root, "vercel --prod").returncode == 0
+
+
+def test_leftover_harness_copy_of_a_finished_run_is_not_guarded():
+    root = new_repo(active=False)
+    run_tree = add_worktree(root)
+    harness_tree = add_worktree(root)
+    start_run(run_tree, "done", worktree=run_tree)
+    start_run(harness_tree, "build", worktree=run_tree)  # copy inherited from the run branch
+    assert guard_in(root, "vercel --prod").returncode == 0
+    assert guard_in(harness_tree, "vercel --prod").returncode == 0
+
+
+def test_state_naming_its_own_worktree_still_guards():
+    root = new_repo(active=False)
+    run_tree = add_worktree(root)
+    start_run(run_tree, "build", worktree=run_tree)
+    assert guard_in(root, "vercel --prod").returncode == 2
 
 
 def test_non_git_dir_is_not_guarded(tmp_path):

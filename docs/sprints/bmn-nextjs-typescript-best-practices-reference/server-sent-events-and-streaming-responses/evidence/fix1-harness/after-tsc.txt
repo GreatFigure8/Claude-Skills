@@ -1,0 +1,4 @@
+after [lib ES2020,DOM,DOM.Iterable]: tsc --strict clean
+after [lib ESNext,DOM,DOM.Iterable]: tsc --strict clean
+after [lib ES2020,DOM,DOM.Iterable]: tsc --strict clean
+after [lib ESNext,DOM,DOM.Iterable]: tsc --strict clean

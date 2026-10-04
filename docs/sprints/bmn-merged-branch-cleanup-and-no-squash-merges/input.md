@@ -1,0 +1,1 @@
+in bother me not, from here on out when code is merged to dev from a working branch, ALL wortrees on that branch and the brach are to be deleted from local.  If a origin branch is merged it should be deleted from origin.  Each PR should delete the source branch from the remote.  Also, NO MORE SQUASH MERGEING.  I want history from here on out

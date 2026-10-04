@@ -1,0 +1,28 @@
+E       AssertionError: GET or HEAD handlers that revalidate, sign out or delete: ["import { revalidateTag } from 'next/cache'", 'export async function GET() {']
+E       assert not ["import { revalidateTag } from 'next/cache'", 'export async function GET() {']
+E       AssertionError: cookie-authenticated mutating handlers with no Origin check (API-17): ['// app/api/projects/route.ts — POST /api/projects', '// app/api/projects/[id]/route.ts — GET and DELETE /api/projects/:id']
+E       assert not ['// app/api/projects/route.ts — POST /api/projects', '// app/api/projects/[id]/route.ts — GET and DELETE /api/projects/:id']
+E       AssertionError: blocks that use crypto without importing 'node:crypto' (the global is Web Crypto): ['// app/api/webhooks/vercel/route.ts — no session: the signature is the credential', 'async function readVerifiedEvent(request: Request, secret: string): Promise<unknown> {']
+E       assert not ['// app/api/webhooks/vercel/route.ts — no session: the signature is the credential', 'async function readVerifiedEvent(request: Request, secret: string): Promise<unknown> {']
+E       AssertionError: signature checks that do not answer 401 invalid_signature: ['async function readVerifiedEvent(request: Request, secret: string): Promise<unknown> {']
+E       assert not ['async function readVerifiedEvent(request: Request, secret: string): Promise<unknown> {']
+E                   AssertionError: '// app/api/webhooks/vercel/route.ts — no session: the signature is the credential' compares signature.length but signature is not a Buffer: a string length counts UTF-16 units and timingSafeEqual needs equal byte lengths
+E                   assert None
+E       AssertionError: the event is marked received before its work ran
+E       assert 'markEventReceived' not in '// app/api/...s: 200 })\n}'
+E           celEvent, markEventReceived } from '@/lib/webhooks/vercel'
+E           import type { ApiErrorBody } from '@/lib/api/errors'
+E           const VercelEvent = z.object({...
+E       AssertionError: no rule says to mark a webhook event processed after success and to use a durable job
+E       assert []
+E       AssertionError: list handlers with no limit and cursor (API-20): ['// app/api/catalog/route.ts — public by design, identical for every caller']
+E       assert not ['// app/api/catalog/route.ts — public by design, identical for every caller']
+E       AssertionError: assert '@/lib/auth/session' not in '# Route Han...t-4-9.html\n'
+E           n } from '@/lib/auth/session'
+E           import { createProject } from '@/lib/projects'
+E           import type { ApiErrorBody } from '@/lib/api/errors'
+E           const CreateProjectBody = z.strictObject({...
+E       AssertionError: path comments without the src/ prefix: ['// lib/api/errors.ts — the one response envelope every handler uses (convention)', '// app/api/projects/route.ts — POST /api/projects', '// app/api/projects/route.ts — GET /api/projects?limit=20&cursor=…', '// app/api/projects/[id]/route.ts — GET and DELE
+E       assert not ['// lib/api/errors.ts — the one response envelope every handler uses (convention)', '// app/api/projects/route.ts — P...e signature is the credential', '// app/api/public/status/route.ts — public by design, called from partner sites', ...]
+E       AssertionError: no rule keeps GET free of side effects with the MDN Safe page
+E       assert []

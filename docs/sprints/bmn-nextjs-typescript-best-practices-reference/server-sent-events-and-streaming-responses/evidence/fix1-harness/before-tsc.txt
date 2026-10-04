@@ -1,0 +1,6 @@
+before [lib ES2020,DOM,DOM.Iterable]: tsc errors
+out/before/src/usage.ts(5,87): error TS2554: Expected 1 arguments, but got 2.
+
+before [lib ESNext,DOM,DOM.Iterable]: tsc errors
+out/before/src/usage.ts(5,87): error TS2554: Expected 1 arguments, but got 2.
+

@@ -1,0 +1,11 @@
+fixture: <tmp>/guard-repo with docs/sprints/bmn-demo/bmn.json {run: bmn-demo, phase: build}; python=/usr/bin/python3
+PASS  block  git merge --squash x  [exit=2 Blocked by dev-bother-me-nope merge guard: `git merge --squash` folds a branch's commits into one. Merge commi]
+PASS  block  timeout 60 gh pr merge 5 --squash  [exit=2 Blocked by dev-bother-me-nope merge guard: `gh pr merge --squash` folds the PR's commits into one. Merge commi]
+PASS  block  sh -ec 'git merge --squash x'  [exit=2 Blocked by dev-bother-me-nope merge guard: `git merge --squash` folds a branch's commits into one. Merge commi]
+PASS  block  gh pr merge 5 --merge  [exit=2 Blocked by dev-bother-me-nope merge guard: `gh pr merge` without `--delete-branch` leaves the merged source br]
+PASS  block  git push origin --delete dev  [exit=2 Blocked by dev-bother-me-nope deploy guard: `git push … dev` deletes a protected branch. Jonathan decides ever]
+PASS  allow  gh pr merge 5 --merge --delete-branch  [exit=0 ]
+PASS  allow  git push origin --delete wip/x/y  [exit=0 ]
+PASS  allow  git merge --squash x (no active run)  [exit=0]
+
+8 of 8 checks pass

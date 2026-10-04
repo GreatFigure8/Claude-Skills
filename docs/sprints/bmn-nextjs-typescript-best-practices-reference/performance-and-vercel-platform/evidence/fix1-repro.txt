@@ -1,0 +1,34 @@
+# FIX1 scratch evidence, 2026-10-04
+# next@16.3.8, shiki 4.5.0, typescript 7.0.2, Node 26.0.0, strict. Scratch folder is not committed.
+
+## repro.mjs, run BEFORE the edits (node repro.mjs)
+
+C27 starts with <pre: true | prefix: <pre class="shiki github-dark" style="background-color:#2429
+C26 request.json() rejects with SyntaxError (unguarded handler => unhandled rejection => 500)
+C25 string lengths equal: true
+C25 timingSafeEqual after a string-length check throws RangeError ERR_CRYPTO_TIMING_SAFE_EQUAL_LENGTH
+C25 byte lengths equal: false
+
+## tsc -p tsconfig.json over the 24 ts/tsx fences of the fixed file
+
+strict, next@16.3.8, @types/react 19, a ./fonts stub (the fonts fence) and a ./chart stub. Result: no errors.
+
+## runtime-check.mjs, run AFTER the edits
+
+Node strips the types. snippet12 is the cron Pattern, snippet23 is the cron Do block, snippet11 is the POST route.
+
+snippet12 correct bearer                 200 ok
+snippet12 wrong, same length             401 ok
+snippet12 shorter                        401 ok
+snippet12 longer                         401 ok
+snippet12 multibyte, same string length  401 ok
+snippet12 missing header                 401 ok
+snippet12 secret unset, header "Bearer " 401 ok
+snippet23 correct bearer                 200 ok
+snippet23 wrong, same length             401 ok
+snippet23 shorter                        401 ok
+snippet23 longer                         401 ok
+snippet23 multibyte, same string length  401 ok
+snippet23 missing header                 401 ok
+snippet23 secret unset, header "Bearer " 401 ok
+snippet11 malformed JSON 400 {"error":{"code":"invalid_json","message":"The body is not valid JSON."}}
