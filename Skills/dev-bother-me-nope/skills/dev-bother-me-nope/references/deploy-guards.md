@@ -1,4 +1,4 @@
-# Deploy guards — Vercel and Supabase
+# Deploy and merge guards — Vercel, Supabase, git
 
 Jonathan decides every deploy. This file is what "never deploy" means concretely, what the
 hook blocks, and how the report hands the decision back to him.
@@ -55,6 +55,60 @@ The `BMN_USER_APPROVED_DEPLOY=1` pass-through works on trust: it catches acciden
 not stop an agent that decides to type it. Briefs forbid workers from ever using it; only the
 orchestrator may, and only after Jonathan's chat instruction.
 
+## Merge commits only — no squash merges, PR merges delete their branch
+
+Jonathan's standing rule: history stays, and a merged PR's source branch goes. While a run is
+active the hook's second rule family (the *merge guard*) refuses every squash merge and every
+`gh pr merge` that would leave its source branch on origin. A merge-guard refusal begins
+`Blocked by dev-bother-me-nope merge guard:` and names the allowed forms.
+
+**Blocked**
+- `git merge --squash`, `git pull --squash` (also `git -C <dir> merge --squash`, `--no-ff
+  --squash`, and git's abbreviations such as `--squ`; the last of `--squash` / `--no-squash`
+  wins).
+- `gh pr merge --squash` and `-s`, alone or in a cluster (`-sd`, `-ds`), and `--squash=true`.
+- Any `gh pr merge` without `--delete-branch` / `-d`, or with `--delete-branch=false`:
+  `gh pr merge 12`, `--merge`, `-m`, `--rebase`, `--auto --merge`.
+- `gh api` with a field `merge_method=squash` (`-f`, `-F`, `--field`, `--raw-field`, any case)
+  and a GraphQL `mergeMethod: SQUASH`.
+- The GitHub MCP tool `merge_pull_request` (any server name) with `merge_method` or
+  `mergeMethod` set to `squash`, any case.
+
+**Allowed**
+- `git merge --no-ff <branch>`, and for a PR `gh pr merge <n> --merge --delete-branch`.
+  `gh pr merge <n> --rebase --delete-branch` is not a squash and is allowed.
+- `gh pr merge --disable-auto` and `gh pr merge --help` (they merge nothing), `gh pr view`,
+  `gh pr create`, `gh pr list`, and `gh api` calls that do not squash, such as
+  `gh api -X PATCH repos/o/r -F allow_squash_merge=false -F delete_branch_on_merge=true`.
+- Branch cleanup is never blocked: `git push origin --delete <branch>` (also with
+  `--force-with-lease=<ref>:<sha>`, a compare-and-delete), `git branch -D`,
+  `git worktree remove`, `git worktree prune`. Deleting a protected branch (`main`, ...) stays
+  blocked by the deploy rules.
+
+The guard reads each command the way the tool does, so it neither over- nor under-blocks. git
+value flags (`-m`, `-F`, `-s <strategy>`, `-X`) are skipped, so `git merge -s ours x` and
+`git merge -m "--squash" x` are allowed (`-s` is git's strategy flag, not squash). `gh` flags
+follow spf13/pflag v1.0.10, the parser inside gh: `-t "-s fix"` is a value, not a flag, and
+`-md`, `-s=false`, `-tvalue` resolve as gh resolves them. Quoted text, heredocs and lookalikes
+(`echo 'gh pr merge --squash'`, `git log --grep=squash`) never trigger it.
+
+**The approval prefix does not apply.** `BMN_USER_APPROVED_DEPLOY=1` is a deploy pass-through
+only: the merge rules still run with it, also inside `bash -c`. "No more squash merging" has no
+in-run exception. If Jonathan ever wants a squash, he runs it himself.
+
+**Outside a run, and the repo setting.** The hook acts only while a run is unfinished (phase
+not `done` or `blocked`). Merges made outside a run, in the GitHub UI or in other sessions, are
+covered by the repo settings INTAKE sets: `allow_squash_merge=false` and
+`delete_branch_on_merge=true` (old and new values are recorded in `bmn.json` and the report).
+
+**Known blind spots** (an accident guard, not a sandbox): `gh api --input <file>` and
+`-F key=@file` bodies, GraphQL variables not named `mergeMethod`, `curl` against the REST API,
+git aliases, `branch.<name>.mergeOptions=--squash`, `eval` and `bash -lc`, and bundled git
+short flags such as `-qm`. Two consequences are accepted. `gh` refuses `--delete-branch` on a
+merge-queue branch, so a run cannot merge such a PR (bmn merges with `git merge --no-ff` and
+has no merge queue). `gh pr merge --auto … -d` deletes nothing itself; GitHub deletes the
+branch when the auto-merge lands only if `delete_branch_on_merge=true`.
+
 ## How the work stays testable without deploying
 
 - Migrations are written to `supabase/migrations/` and tested on a **local** Supabase
@@ -87,4 +141,5 @@ Only the named step, only for the named target. Prefix the CLI command with
 `BMN_USER_APPROVED_DEPLOY=1` (the guard's pass-through), show the output, confirm it
 landed (e.g. `supabase migration list --linked`), tick it off in `report.md`, and commit.
 MCP deploy tools stay blocked even then — use the CLI. Approval never carries to the next
-step or the next project.
+step or the next project. The prefix never applies to the merge rules — see *Merge commits
+only* above.

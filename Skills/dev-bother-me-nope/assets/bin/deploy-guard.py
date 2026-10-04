@@ -8,6 +8,14 @@ BMN_USER_APPROVED_DEPLOY=1 (set only when Jonathan said "deploy" in chat). One e
 .claude/bmn.config.json — never MAIN. Anything it cannot parse is allowed — this is an
 accident guard, not a sandbox.
 
+A second rule family, the merge guard, keeps history: it blocks every squash merge
+(`git merge|pull --squash`, `gh pr merge --squash`/`-s`, `gh api` with merge_method=squash, the
+GitHub MCP `merge_pull_request` with merge_method=squash) and every `gh pr merge` that omits
+--delete-branch (a merged PR's source branch is deleted). Merge commits only: `git merge
+--no-ff`, `gh pr merge <n> --merge --delete-branch`. The approval prefix is a deploy-only
+pass-through, so it never unlocks a merge rule; branch cleanup (`git push origin --delete`,
+`git branch -D`, `git worktree remove|prune`) is never blocked.
+
 Shipped as a plugin hook, so it fires in every session; it only acts inside a git repo with a
 dev-bother-me-nope run in progress (docs/sprints/bmn-*/bmn.json whose phase isn't done or
 blocked), checked in every worktree of the repo — the run's state lives in its sibling run
@@ -20,12 +28,14 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
+from types import MappingProxyType
+from typing import NamedTuple
 
 APPROVAL_VAR = "BMN_USER_APPROVED_DEPLOY"
 PROTECTED_BRANCHES = frozenset({"main", "master", "prod", "production", "release"})
 
 SEPARATOR_CHARS = frozenset(";&|()\n")
-HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n[ \t]*\2[ \t]*(?=\n|$)", re.S)
+HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n[ \t]*\2[ \t]*(?=\n|$)", re.DOTALL)
 WHICH_SUBST = re.compile(r"\$\(\s*(?:which|command\s+-v)\s+([\w.-]+)\s*\)|`\s*which\s+([\w.-]+)\s*`")
 SHELLS = frozenset({"sh", "bash", "zsh", "dash"})
 SIMPLE_WRAPPERS = frozenset({"env", "time", "nohup", "sudo", "command", "exec", "xargs",
@@ -62,7 +72,7 @@ FINISHED_PHASES = frozenset({"done", "blocked"})
 LINKED_REF_PATH = ("supabase", ".temp", "project-ref")
 
 REMOTE_DB_HOST = re.compile(r"supabase\.(co|com)\b")
-REMOTE_DB_VAR = re.compile(r"\$\{?\w*(SUPABASE|PROD|MAIN|REMOTE)\w*", re.I)
+REMOTE_DB_VAR = re.compile(r"\$\{?\w*(SUPABASE|PROD|MAIN|REMOTE)\w*", re.IGNORECASE)
 GIT_VALUE_OPTIONS = frozenset({"-C", "-c"})
 
 MCP_SUPABASE_WRITE_TOOLS = ("apply_migration", "deploy_edge_function", "create_branch",
@@ -75,6 +85,43 @@ SQL_WRITE_WORDS = re.compile(
     r"\b(insert|update|delete|drop|alter|create|truncate|grant|revoke|comment|merge|copy|"
     r"vacuum|reindex|call|do)\b")
 SQL_READ_START = re.compile(r"^(select|with|explain|show)\b")
+
+DEPLOY_GUARD = "deploy"
+MERGE_GUARD = "merge"
+GIT_MERGE_SUBCOMMANDS = frozenset({"merge", "pull"})
+GIT_MERGE_VALUE_FLAGS = frozenset({
+    "-m", "--message", "-F", "--file", "-s", "--strategy", "-X", "--strategy-option",
+    "--into-name", "--cleanup", "--upload-pack", "--depth", "--deepen", "--shallow-since",
+    "--shallow-exclude", "--refmap", "-o", "--server-option", "--negotiation-tip"})
+GH_REPO_FLAGS = frozenset({"-R", "--repo"})
+GH_PR_MERGE_SHORTS = MappingProxyType({
+    "A": "author-email", "b": "body", "F": "body-file", "d": "delete-branch", "m": "merge",
+    "r": "rebase", "s": "squash", "t": "subject", "R": "repo", "h": "help"})
+GH_PR_MERGE_VALUES = frozenset({"author-email", "body", "body-file", "match-head-commit",
+                                "subject", "repo"})
+GH_API_SHORTS = MappingProxyType({
+    "F": "field", "f": "raw-field", "H": "header", "i": "include", "q": "jq", "X": "method",
+    "p": "preview", "t": "template", "h": "help"})
+GH_API_VALUES = frozenset({"cache", "field", "header", "hostname", "input", "jq", "method",
+                           "preview", "raw-field", "template"})
+GH_FIELD_FLAGS = frozenset({"field", "raw-field"})
+PFLAG_TRUE = frozenset({"1", "t", "T", "TRUE", "true", "True"})
+SQUASH_FIELD_KEYS = frozenset({"merge_method", "mergemethod"})
+GRAPHQL_SQUASH = re.compile(r'mergeMethod\s*:\s*"?squash\b', re.IGNORECASE)
+ALLOWED_MERGE_FORMS = ("`git merge --no-ff <branch>`, and for a PR "
+                       "`gh pr merge <n> --merge --delete-branch`")
+MERGE_ADVICE = ("Merge commits only: squash merges flatten history and are never run inside "
+                "a bmn run, and a merged PR's source branch is deleted. Allowed: "
+                f"{ALLOWED_MERGE_FORMS}.")
+DEPLOY_ADVICE = ("Jonathan decides every deploy and every remote database change — add it to "
+                 "the report's Deploy checklist instead. (Only if he said 'deploy' in chat "
+                 f"this session: prefix the command with {APPROVAL_VAR}=1.)")
+
+
+class Block(NamedTuple):
+    """A refusal: which rule family raised it, and why."""
+    guard: str
+    reason: str
 
 
 # ---------------------------------------------------------------- tokenizing
@@ -198,15 +245,15 @@ def targets_dev_only(args, ctx):
 
 def check_supabase(args, ctx):
     words = positional(args, SUPABASE_VALUE_FLAGS)
-    pairs = set(zip(words, words[1:]))
+    pairs = {tuple(words[i:i + 2]) for i in range(len(words) - 1)}
     if pairs & SUPABASE_DEV_ALLOWED and targets_dev_only(args, ctx):
         return None
     blocked = pairs & SUPABASE_ALWAYS_BLOCKED
     if blocked:
-        return f"`supabase {' '.join(sorted(blocked)[0])}` changes a remote Supabase project"
+        return f"`supabase {' '.join(min(blocked))}` changes a remote Supabase project"
     remote = pairs & SUPABASE_BLOCKED_WHEN_REMOTE
     if remote and any(a.startswith(REMOTE_TARGET_FLAGS) for a in args):
-        return f"`supabase {' '.join(sorted(remote)[0])}` against a linked/remote database"
+        return f"`supabase {' '.join(min(remote))}` against a linked/remote database"
     return None
 
 
@@ -220,7 +267,7 @@ def check_remote_sql_client(prog, args):
 def current_branch(cwd):
     try:
         out = subprocess.run(["git", "branch", "--show-current"], cwd=cwd or None,
-                             capture_output=True, text=True, timeout=5)
+                             capture_output=True, text=True, timeout=5, check=False)
         return out.stdout.strip()
     except (OSError, subprocess.SubprocessError):
         return ""
@@ -256,7 +303,7 @@ def check_git(args, cwd):
 def repo_root(cwd):
     try:
         out = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=cwd or None,
-                             capture_output=True, text=True, timeout=5)
+                             capture_output=True, text=True, timeout=5, check=False)
         return Path(out.stdout.strip()) if out.returncode == 0 else Path(cwd or ".")
     except (OSError, subprocess.SubprocessError):
         return Path(cwd or ".")
@@ -267,7 +314,7 @@ def git_roots(cwd):
     empty outside git. A run's state lives in its sibling run worktree, so all are checked."""
     try:
         out = subprocess.run(["git", "worktree", "list", "--porcelain"], cwd=cwd or None,
-                             capture_output=True, text=True, timeout=5)
+                             capture_output=True, text=True, timeout=5, check=False)
     except (OSError, subprocess.SubprocessError):
         return []
     if out.returncode != 0:
@@ -317,7 +364,7 @@ def load_context(cwd):
     except ValueError:
         refs = {}
     return {"cwd": cwd, "refs": (refs.get("dev_ref"), refs.get("main_ref")),
-            "linked_ref": read_text(root.joinpath(*LINKED_REF_PATH))}
+            "linked_ref": read_text(root.joinpath(*LINKED_REF_PATH)), "approved": False}
 
 
 def with_link(ctx, prog, args):
@@ -328,52 +375,224 @@ def with_link(ctx, prog, args):
     return {**ctx, "linked_ref": ref} if ref else ctx
 
 
+# ---------------------------------------------------------------- merge guard
+# Merge commits only: no squash merge, and a PR merge deletes its source branch. Checked before
+# the deploy approval pass-through, so BMN_USER_APPROVED_DEPLOY never unlocks these rules.
+
+def is_abbrev(arg, full, shortest):
+    """git accepts any unambiguous prefix of a long option; `shortest` is the shortest one."""
+    return len(arg) >= len(shortest) and full.startswith(arg)
+
+
+def git_merge_squashes(args):
+    """True when git would squash: the last of --squash / --no-squash wins, `--` ends options,
+    and the value of a value flag (`-m "--squash"`) is not an option."""
+    squash, skip_next = False, False
+    for arg in args:
+        if skip_next:
+            skip_next = False
+        elif arg == "--":
+            break
+        elif arg in GIT_MERGE_VALUE_FLAGS:
+            skip_next = True
+        elif is_abbrev(arg, "--squash", "--sq"):
+            squash = True
+        elif is_abbrev(arg, "--no-squash", "--no-sq"):
+            squash = False
+    return squash
+
+
+def check_git_merge(args):
+    rest = git_subcommand(args)
+    if not rest or rest[0] not in GIT_MERGE_SUBCOMMANDS:
+        return None
+    if git_merge_squashes(rest[1:]):
+        return f"`git {rest[0]} --squash` folds a branch's commits into one"
+    return None
+
+
+def is_true(value):
+    """pflag reads a bool flag's value with strconv.ParseBool."""
+    return value in PFLAG_TRUE
+
+
+def long_flag(body, rest, value_names):
+    """One `--name[=value]` as pflag's parseLongArg reads it: ((name, value),), rest."""
+    name, has_value, value = body.partition("=")
+    if has_value:
+        return ((name, value),), rest
+    if name in value_names and rest:
+        return ((name, rest[0]),), rest[1:]
+    return ((name, "true"),), rest
+
+
+def short_cluster(letters, rest, shorts, value_names):
+    """A `-abc` cluster as pflag's parseSingleShortArg reads it, left to right: `-x=v` takes v,
+    a bool letter reads "true" and continues, a value letter takes the rest of the cluster or
+    else the next argument. Unknown letters read as bools. Returns ((name, value), ...), rest."""
+    found = ()
+    while letters:
+        name = shorts.get(letters[0], letters[0])
+        if len(letters) > 2 and letters[1] == "=":
+            return (*found, (name, letters[2:])), rest
+        if name not in value_names:
+            found, letters = (*found, (name, "true")), letters[1:]
+        elif len(letters) > 1:
+            return (*found, (name, letters[1:])), rest
+        elif rest:
+            return (*found, (name, rest[0])), rest[1:]
+        else:
+            break
+    return found, rest
+
+
+def pflag_items(args, shorts, value_names):
+    """(long_name, value) for every flag in args, in order, as spf13/pflag v1.0.10 (the parser
+    inside gh) reads them: flags may follow positionals, `--` stops, a lone `-` is positional."""
+    items, rest = (), tuple(args)
+    while rest:
+        arg, rest = rest[0], rest[1:]
+        if arg == "--":
+            break
+        if arg.startswith("--"):
+            found, rest = long_flag(arg[2:], rest, value_names)
+        elif arg.startswith("-") and len(arg) > 1:
+            found, rest = short_cluster(arg[1:], rest, shorts, value_names)
+        else:
+            found = ()
+        items = (*items, *found)
+    return items
+
+
+def check_gh_pr_merge(args):
+    flags = dict(pflag_items(args, GH_PR_MERGE_SHORTS, GH_PR_MERGE_VALUES))
+    if is_true(flags.get("help")):
+        return None
+    if is_true(flags.get("squash")):
+        return "`gh pr merge --squash` folds the PR's commits into one"
+    if is_true(flags.get("disable-auto")):
+        return None
+    if not is_true(flags.get("delete-branch")):
+        return "`gh pr merge` without `--delete-branch` leaves the merged source branch on origin"
+    return None
+
+
+def is_squash_field(text):
+    """A `gh api` field that asks for a squash: `merge_method=squash` (REST, or a GraphQL
+    variable) or a `mergeMethod: SQUASH` in a GraphQL query."""
+    key, has_value, value = text.partition("=")
+    if (has_value and key.strip().lower() in SQUASH_FIELD_KEYS
+            and value.strip().strip("'\"").lower() == "squash"):
+        return True
+    return bool(GRAPHQL_SQUASH.search(text))
+
+
+def check_gh_api(args):
+    items = pflag_items(args, GH_API_SHORTS, GH_API_VALUES)
+    if any(name in GH_FIELD_FLAGS and is_squash_field(value) for name, value in items):
+        return "`gh api` merge with `merge_method=squash`"
+    return None
+
+
+def check_gh(args):
+    words = tuple(positional(args, GH_REPO_FLAGS)[:2])
+    if words == ("pr", "merge"):
+        return check_gh_pr_merge(args)
+    if words[:1] == ("api",):
+        return check_gh_api(args)
+    return None
+
+
+def merge_reason(prog, args):
+    if prog == "git":
+        return check_git_merge(args)
+    if prog == "gh":
+        return check_gh(args)
+    return None
+
+
+def deploy_reason(prog, args, ctx):
+    if prog == "vercel":
+        return check_vercel(args)
+    if prog == "supabase":
+        return check_supabase(args, ctx)
+    if prog in ("psql", "pg_restore"):
+        return check_remote_sql_client(prog, args)
+    if prog == "git":
+        return check_git(args, ctx["cwd"])
+    return None
+
+
 def check_segment(tokens, ctx):
+    """(Block or None, ctx for the next segment). A shell `-c` string is checked as its own
+    command; the approval prefix reaches its deploys but never its merges."""
     approved, tokens = unwrap(tokens)
-    if approved or not tokens:
+    if not tokens:
         return None, ctx
     prog, args = program_name(tokens[0]), tokens[1:]
-    next_ctx = with_link(ctx, prog, args)
     if prog in SHELLS and "-c" in args[:-1]:
-        return check_bash(args[args.index("-c") + 1], ctx), next_ctx
-    if prog == "vercel":
-        return check_vercel(args), next_ctx
-    if prog == "supabase":
-        return check_supabase(args, ctx), next_ctx
-    if prog in ("psql", "pg_restore"):
-        return check_remote_sql_client(prog, args), next_ctx
-    if prog == "git":
-        return check_git(args, ctx["cwd"]), next_ctx
-    return None, next_ctx
+        inner = {**ctx, "approved": approved or ctx["approved"]}
+        return check_bash(args[args.index("-c") + 1], inner), ctx
+    merge = merge_reason(prog, args)
+    if merge:
+        return Block(MERGE_GUARD, merge), ctx
+    if approved or ctx["approved"]:
+        return None, ctx
+    deploy = deploy_reason(prog, args, ctx)
+    return (Block(DEPLOY_GUARD, deploy) if deploy else None), with_link(ctx, prog, args)
 
 
 def check_bash(command, ctx):
     for segment in split_segments(command):
-        reason, ctx = check_segment(segment, ctx)
-        if reason:
-            return reason
+        block, ctx = check_segment(segment, ctx)
+        if block:
+            return block
     return None
 
 
 # ---------------------------------------------------------------- MCP
 
 def is_read_only_sql(query):
-    text = re.sub(r"--[^\n]*|/\*.*?\*/", " ", query or "", flags=re.S).strip().lower()
+    text = re.sub(r"--[^\n]*|/\*.*?\*/", " ", query or "", flags=re.DOTALL).strip().lower()
     return bool(SQL_READ_START.match(text)) and not SQL_WRITE_WORDS.search(text)
 
 
-def check_mcp(tool_name, tool_input):
-    server, _, tool = tool_name.lower().removeprefix("mcp__").partition("__")
+def check_mcp_merge(tool, tool_input):
+    """The GitHub MCP merge tool with merge_method squash (any server name, any case)."""
+    if not tool.endswith("merge_pull_request") or not isinstance(tool_input, dict):
+        return None
+    method = tool_input.get("merge_method") or tool_input.get("mergeMethod")
+    if isinstance(method, str) and method.strip().lower() == "squash":
+        return "MCP `merge_pull_request` with merge_method=squash"
+    return None
+
+
+def mcp_deploy_reason(server, tool, tool_input):
     is_supabase = "supabase" in server or "project_id" in tool_input
     if tool.endswith(MCP_UNIQUE_SUPABASE_TOOLS) or (
             is_supabase and tool.endswith(MCP_SUPABASE_WRITE_TOOLS)):
         return f"MCP `{tool}` changes a remote Supabase project"
-    if is_supabase and tool.endswith("execute_sql"):
-        if not is_read_only_sql(tool_input.get("query") or tool_input.get("sql")):
-            return "MCP `execute_sql` with a non-read-only statement against Supabase"
+    if (is_supabase and tool.endswith("execute_sql")
+            and not is_read_only_sql(tool_input.get("query") or tool_input.get("sql"))):
+        return "MCP `execute_sql` with a non-read-only statement against Supabase"
     if "vercel" in server and tool.startswith(MCP_VERCEL_WRITE_PREFIXES):
         return f"MCP `{tool}` deploys or changes a live Vercel project"
     return None
+
+
+def check_mcp(tool_name, tool_input):
+    server, _, tool = tool_name.lower().removeprefix("mcp__").partition("__")
+    merge = check_mcp_merge(tool, tool_input)
+    if merge:
+        return Block(MERGE_GUARD, merge)
+    deploy = mcp_deploy_reason(server, tool, tool_input)
+    return Block(DEPLOY_GUARD, deploy) if deploy else None
+
+
+def block_message(block):
+    if block.guard == MERGE_GUARD:
+        return f"Blocked by dev-bother-me-nope merge guard: {block.reason}. {MERGE_ADVICE}"
+    return f"Blocked by dev-bother-me-nope deploy guard: {block.reason}. {DEPLOY_ADVICE}"
 
 
 def main():
@@ -388,17 +607,12 @@ def main():
     if not run_in_progress(payload.get("cwd")):
         return 0
     if tool_name == "Bash":
-        reason = check_bash(tool_input.get("command") or "", load_context(payload.get("cwd")))
-    elif tool_name.startswith("mcp__"):
-        reason = check_mcp(tool_name, tool_input)
+        block = check_bash(tool_input.get("command") or "", load_context(payload.get("cwd")))
     else:
-        reason = None
-    if not reason:
+        block = check_mcp(tool_name, tool_input)
+    if not block:
         return 0
-    print(f"Blocked by dev-bother-me-nope deploy guard: {reason}. Jonathan decides every "
-          f"deploy and every remote database change — add it to the report's Deploy checklist "
-          f"instead. (Only if he said 'deploy' in chat this session: prefix the command with "
-          f"{APPROVAL_VAR}=1.)", file=sys.stderr)
+    print(block_message(block), file=sys.stderr)
     return 2
 
 
