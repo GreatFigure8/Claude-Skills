@@ -4,16 +4,523 @@
     "name": "Jonathan Stevenson"
   },
   "metadata": {
+    "description": "Jonathan Stevenson's Claude Code skills: dev workflow, Oracle Fusion HCM/Finance/SCM conversion profiling, OIC integration, Fusion reporting, Regal engagement, and brand/document formats. One plugin per skill.",
     "pluginRoot": "./Skills"
   },
   "plugins": [
     {
       "name": "dev-story-flow",
-      "source": "dev-story-flow"
+      "source": "dev-story-flow",
+      "category": "dev-workflow"
     },
     {
       "name": "dev-bother-me-nope",
-      "source": "dev-bother-me-nope"
+      "source": "dev-bother-me-nope",
+      "category": "dev-workflow"
+    },
+    {
+      "name": "author-issue",
+      "description": "Turn a bug or feature Jonathan describes in chat into a fully specified, codebase-grounded GitHub issue or Azure DevOps work item — his requirements and acceptance criteria collected verbatim through an intake template, Claude's implementation plan and derived acceptance criteria grounded in…",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "dev-workflow",
+      "source": "author-issue",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "clear-prompt",
+      "description": "Compose and post a \"prep-for-clear\" prompt — a single chat-posted, fenced block that lets a coding session hand off cleanly to a fresh context window without losing state.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "dev-workflow",
+      "source": "clear-prompt",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "dev-epic-workflow",
+      "description": "Jonathan's development process for any code change — plan first as an epic, one branch and one executor context per work item, commit early and often, verify what actually landed.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "dev-workflow",
+      "source": "dev-epic-workflow",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "dev-story-sprint",
+      "description": "Jonathan's fast lane for shipping ONE user story — plan in the chat where the story is written, stop and wait for an explicit go-ahead, then dispatch code via silent, parallel executors.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "dev-workflow",
+      "source": "dev-story-sprint",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "goal",
+      "description": "Pursue a stated objective with a named skill until that skill's own completion condition is met, autonomously — \"/goal using SKILL OBJECTIVE\".",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "dev-workflow",
+      "source": "goal",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "release",
+      "description": "Cut a release for the current repo — open a PR into the repo's default branch, merge it on confirmation, tag the merged commit as major.minor.build (e.g.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "dev-workflow",
+      "source": "release",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "hcm-config-readiness-report",
+      "description": "Produce an Oracle Fusion HCM configuration READINESS report: compare a requirements baseline (KDD / RTM / Configuration Workbooks) against what is actually configured in a live Fusion environment, and score readiness with a defensible, shown formula.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-hcm",
+      "source": "hcm-config-readiness-report",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "hcm-grades-data-profiling",
+      "description": "Profile client HCM GRADES conversion artifacts as an Oracle Fusion HCM functional architect — validate a grade conversion file (the HDL grade objects: GradeLadder, Grade, GradesInLadder, GradeStep, GradeRate/Value, StepRate/Value) for load-readiness and reverse- engineer the client's grade,…",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-hcm",
+      "source": "hcm-grades-data-profiling",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "hcm-job-conversion-profiling",
+      "description": "Profile client HCM JOB conversion artifacts as an Oracle Fusion HCM functional architect — validate a Job conversion file (the HDL Job.dat / job extract) for load- readiness and reverse-engineer the job catalog, job-family/function, and set/legislation model.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-hcm",
+      "source": "hcm-job-conversion-profiling",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "hcm-location-conversion-profiling",
+      "description": "Profile client HCM LOCATION conversion artifacts as an Oracle Fusion HCM functional architect — validate a Location conversion file (the HDL Location.dat / location extract) for load-readiness and reverse-engineer the location inventory, address/ geography model, and set link.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-hcm",
+      "source": "hcm-location-conversion-profiling",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "hcm-organization-conversion-profiling",
+      "description": "Profile client HCM ORGANIZATION conversion artifacts as an Oracle Fusion HCM functional architect — validate an organization conversion file (the HDL Organization.dat / org-unit extract) for load-readiness and reverse-engineer the org tree, classifications, and cost- center link.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-hcm",
+      "source": "hcm-organization-conversion-profiling",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "hcm-position-conversion-profiling",
+      "description": "Profile client HCM POSITION conversion artifacts as an Oracle Fusion HCM functional architect — validate a Position conversion file (the HDL Position.dat / position extract) for load-readiness and reverse-engineer the position catalog, its department/job/location/ grade references, and the…",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-hcm",
+      "source": "hcm-position-conversion-profiling",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "hcm-production-health-check",
+      "description": "Run a full Oracle Fusion Cloud HCM production health check through the Hackett Fusion MCP server (execute_sql via the BIP SQL runner, catalog download, Fusion REST) and deliver it as a Hackett-branded, interactive, self-contained HTML report that reads as a client deliverable — scorecard by…",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-hcm",
+      "source": "hcm-production-health-check",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "hcm-salary-conversion-profiling",
+      "description": "Profile client HCM SALARY conversion artifacts as an Oracle Fusion HCM / Compensation functional architect — validate a salary conversion file (the HDL Salary.dat / salary extract) for load-readiness and reverse-engineer the salary-basis, rate, and effective- dating model.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-hcm",
+      "source": "hcm-salary-conversion-profiling",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "hcm-worker-data-profiling",
+      "description": "Profile client HCM WORKER / PERSON conversion artifacts as an Oracle Fusion HCM functional architect — validate the worker load (Worker, PersonName, Assignment, and the person/ assignment sub-entities) for load-readiness and reverse-engineer the workforce population and worker operating model.…",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-hcm",
+      "source": "hcm-worker-data-profiling",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "ap-invoice-conversion-profiling",
+      "description": "Profile client ACCOUNTS PAYABLE conversion artifacts as an Oracle Fusion Payables functional architect — validate an AP invoice / open-liability conversion file (the FBDI Payables Invoice Import header + lines interfaces) for load-readiness and reverse- engineer the supplier, payment-terms, and…",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-finance-scm",
+      "source": "ap-invoice-conversion-profiling",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "ar-transaction-conversion-profiling",
+      "description": "Profile client ACCOUNTS RECEIVABLE conversion artifacts as an Oracle Fusion Receivables functional architect — validate an AR open-receivables conversion file (the AutoInvoice FBDI: RA_INTERFACE_LINES_ALL + optional distributions) for load-readiness and reverse- engineer the customer,…",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-finance-scm",
+      "source": "ar-transaction-conversion-profiling",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "fa-asset-conversion-profiling",
+      "description": "Profile client FIXED ASSETS conversion artifacts as an Oracle Fusion Assets functional architect — validate an asset / Mass Additions conversion file (the FBDI Mass Additions import: FA_MASS_ADDITIONS) for load-readiness and reverse-engineer the asset-category, depreciation, and cost-vs-reserve…",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-finance-scm",
+      "source": "fa-asset-conversion-profiling",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "finance-data-profiling",
+      "description": "Profile client-provided FINANCE data artifacts as an Oracle Fusion Financials functional architect, to reverse-engineer the client's current-state operating model and translate it into Fusion configuration decisions, conversion items, and a current-state summary.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-finance-scm",
+      "source": "finance-data-profiling",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "gl-journal-conversion-profiling",
+      "description": "Profile client GENERAL LEDGER journal-conversion artifacts as an Oracle Fusion Financials (GL) functional architect — validate a GL_INTERFACE / FBDI Journal Import file for load-readiness and reverse-engineer the chart of accounts and opening-balance conversion.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-finance-scm",
+      "source": "gl-journal-conversion-profiling",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "inventory-onhand-conversion-profiling",
+      "description": "Profile client ON-HAND INVENTORY BALANCE conversion artifacts as an Oracle Fusion SCM (Inventory & Cost Management) functional architect — validate an on-hand quantity / inventory- balance conversion file (the FBDI on-hand quantity and cost interfaces) for load-readiness and reverse-engineer the…",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-finance-scm",
+      "source": "inventory-onhand-conversion-profiling",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "oic-iar-integration-review",
+      "description": "Analyze an exported Oracle Integration Cloud integration (an .iar file) against Oracle's published REST API docs and OIC design best practices, then render findings as an interactive single-file HTML report — a step-through request trace, a severity-filterable findings register, API conformance…",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-integration",
+      "source": "oic-iar-integration-review",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "oic-integration-build",
+      "description": "Patterns, platform constraints, and design decisions for building Oracle Integration Cloud (OIC) integrations against Oracle Fusion REST and SOAP services.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-integration",
+      "source": "oic-integration-build",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "oic-skill",
+      "description": "Patterns, platform constraints, and design decisions for building Oracle Integration Cloud (OIC) integrations against Oracle Fusion REST and SOAP services.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-integration",
+      "source": "oic-skill",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "scm-integration-functional-spec",
+      "description": "Build a client-ready Oracle Fusion SCM INTEGRATION FUNCTIONAL SPECIFICATION from gathered engagement data (transcripts, minutes, KDDs, RAID logs, design notes, extracts).",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-integration",
+      "source": "scm-integration-functional-spec",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "oracle-fusion-bip-generator",
+      "description": "Build Oracle Fusion BI Publisher (BIP) reports end-to-end — drafting Oracle-style SQL against the FUSION schema, validating it live via the hackett-fusion MCP, generating BIP Data Models (.xdm) with parameters and cascading LOVs, producing branded RTF templates, and (optionally) deploying them…",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-reporting",
+      "source": "oracle-fusion-bip-generator",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "oracle-fusion-oss-revenue",
+      "description": "Expert knowledge for building, debugging, and reasoning about Oracle Fusion Subscription Management (OSS) revenue reporting via the Revenue Management (VRM) schema — especially BIP subscription revenue waterfall reports.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "oracle-reporting",
+      "source": "oracle-fusion-oss-revenue",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "ax-erp-source",
+      "description": "Query and profile Regal/Cineworld's Dynamics AX 2012 database (AX_PROD_01) via regal-sqlserver-mcp site AX-Production for people who know the business concept but not the AX schema: suppliers, customers, journal entries, GL balances/trial balance, open AP/AR, invoices, purchase orders,…",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "regal",
+      "source": "ax-erp-source",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "meeting-summary",
+      "description": "Produce a Regal-branded Word (.docx) meeting summary that extracts and organizes OPEN ITEMS (actions, pending decisions, follow-ups, blockers, parking-lot, open questions) from one OR MANY meeting source files — transcripts, notes, chat logs, recap emails, workshop captures.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "regal",
+      "source": "meeting-summary",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "regal-brand-guidelines",
+      "description": "Applies Regal Cinemas' official brand colors, typography, and visual design standards to any visual output including HTML artifacts, timelines, dashboards, data visualizations, presentations, one-pagers, and styled documents.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "regal",
+      "source": "regal-brand-guidelines",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "regal-report-builder",
+      "description": "Build SQL-based Oracle Fusion BI Publisher (BIP) reports for the Regal implementation, end to end - researching the real data model, drafting Oracle-style SQL, validating it live against the target Fusion pod via the Hackett Fusion MCP server, generating the BIP Data Model (.xdm) with parameters…",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "regal",
+      "source": "regal-report-builder",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "regal-report-format",
+      "description": "The Regal house DESIGN SYSTEM for HTML reports - the exact visual language of the REGAL DEV-2 checklist deliverables (Regal orange #F56601 on charcoal, Manrope/Inter/JetBrains Mono, dark thesis card with diagonal-stripe motif and stat tiles, verdict pills with matching row inset bars,…",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "regal",
+      "source": "regal-report-format",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "regal-technical-standards",
+      "description": "REGAL PROJECT ONLY. Enforces Regal Entertainment Group's (RGE) official Oracle Cloud technical standards - RICE IDs, object naming, BIP catalog folder paths, mandatory data model history headers, ESS job names, OIC component naming, PaaS database object naming (XXFDL/XXERP/XXSCM/XXHCM), and VBCS…",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "regal",
+      "source": "regal-technical-standards",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "data-analysis-report-format",
+      "description": "The STANDARD house format for any data-analysis report — the reusable visual design system (palette, typography, layout shell, verdict semantics, section patterns, drop-in CSS) extracted from the worker-conversion readiness report.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "brand-and-documents",
+      "source": "data-analysis-report-format",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "digikey-brand-guidelines",
+      "description": "Applies DigiKey's official brand colors, typography, logo, and visual design standards to any generated output — including HTML/React artifacts, Microsoft Word documents, PowerPoint decks, Excel workbooks, PDFs, dashboards, charts, one-pagers, and styled documents.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "brand-and-documents",
+      "source": "digikey-brand-guidelines",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "hackett-brand-guidelines",
+      "description": "Applies The Hackett Group's official brand colors, typography, and visual design standards to any visual output including HTML artifacts, timelines, dashboards, data visualizations, presentations, one-pagers, and styled documents.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "brand-and-documents",
+      "source": "hackett-brand-guidelines",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
     }
   ]
 }
