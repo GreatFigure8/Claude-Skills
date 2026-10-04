@@ -24,7 +24,7 @@
       "slug": "skill-text-merged-branch-cleanup-and-merge-commits-only",
       "title": "Skill text: delete every merged branch and its worktrees, merge commits only (1.6.0)",
       "deps": [],
-      "status": "planned",
+      "status": "built",
       "branch": "wip/merged-branch-cleanup-and-no-squash-merges/skill-text-merged-branch-cleanup-and-merge-commits-only",
       "merges": [],
       "detail": ""
@@ -33,7 +33,7 @@
       "slug": "deploy-guard-blocks-squash-merges",
       "title": "The deploy guard blocks squash merges and PR merges that keep the source branch",
       "deps": [],
-      "status": "planned",
+      "status": "built",
       "branch": "wip/merged-branch-cleanup-and-no-squash-merges/deploy-guard-blocks-squash-merges",
       "merges": [],
       "detail": ""
@@ -42,13 +42,56 @@
       "slug": "merged-branch-cleanup-and-repo-merge-policy-scripts",
       "title": "Merged-branch cleanup and repo merge-policy helper scripts",
       "deps": [],
-      "status": "planned",
+      "status": "built",
       "branch": "wip/merged-branch-cleanup-and-no-squash-merges/merged-branch-cleanup-and-repo-merge-policy-scripts",
       "merges": [],
       "detail": ""
     }
   ],
-  "temp_refs": [],
+  "temp_refs": [
+    {
+      "branch": "wip/merged-branch-cleanup-and-no-squash-merges/skill-text-merged-branch-cleanup-and-merge-commits-only",
+      "kind": "wip",
+      "base": "0aef98cb289dd0a07fe82647c81bb916fcc62fcc",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a2dbcee5d3cf7beb2",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-a2dbcee5d3cf7beb2",
+      "kind": "harness",
+      "base": "0aef98cb289dd0a07fe82647c81bb916fcc62fcc",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a2dbcee5d3cf7beb2",
+      "pushed": false
+    },
+    {
+      "branch": "wip/merged-branch-cleanup-and-no-squash-merges/deploy-guard-blocks-squash-merges",
+      "kind": "wip",
+      "base": "0aef98cb289dd0a07fe82647c81bb916fcc62fcc",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a3bb30180729f2c5e",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-a3bb30180729f2c5e",
+      "kind": "harness",
+      "base": "0aef98cb289dd0a07fe82647c81bb916fcc62fcc",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a3bb30180729f2c5e",
+      "pushed": false
+    },
+    {
+      "branch": "wip/merged-branch-cleanup-and-no-squash-merges/merged-branch-cleanup-and-repo-merge-policy-scripts",
+      "kind": "wip",
+      "base": "0aef98cb289dd0a07fe82647c81bb916fcc62fcc",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-aa07c02af642a0543",
+      "pushed": true
+    },
+    {
+      "branch": "worktree-agent-aa07c02af642a0543",
+      "kind": "harness",
+      "base": "0aef98cb289dd0a07fe82647c81bb916fcc62fcc",
+      "worktree": "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-aa07c02af642a0543",
+      "pushed": false
+    }
+  ],
   "integration_pushed": true,
   "cleanup": {
     "deleted": [],
@@ -73,5 +116,5 @@
     "Scope: dev-bother-me-nope only (see stack.md assumptions 1-6)"
   ],
   "blocker": null,
-  "updated": "2026-10-04T01:18:55.094644+00:00"
+  "updated": "2026-10-04T01:41:14.759313+00:00"
 }
