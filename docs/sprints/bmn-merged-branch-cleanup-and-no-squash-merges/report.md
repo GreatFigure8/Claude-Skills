@@ -104,7 +104,7 @@ re-check 10 fixed / 0 still-open / 0 regressed / 0 not-reproducible · REVIEW②
 - **Skipped:** the python-library-quality skills were not installed, so their lenses were applied from the rules the stories restate.
 
 ## Git cleanup
-_Filled in by CLEANUP._
+**Run branch** `feat/merged-branch-cleanup-and-no-squash-merges` · worktree `/Users/jonathanstevenson/Source/claude-skills-merged-branch-cleanup-and-no-squash-merges`: deleted (local + origin); **Deleted:** 8 wip branches (local + origin), 8 harness branches, 8 worktrees (the earlier ones are in bmn.json cleanup.deleted); **Left:** nothing
 
 ## Evidence
 Run-level `review.md` (REVIEW① and REVIEW②), per-story `validation.md` (TEST①, FIX①, TEST②), coverage and smoke logs under `docs/sprints/bmn-merged-branch-cleanup-and-no-squash-merges/<slug>/evidence/`.

@@ -1,6 +1,6 @@
 {
   "run": "bmn-merged-branch-cleanup-and-no-squash-merges",
-  "phase": "report",
+  "phase": "done",
   "integration": "feat/merged-branch-cleanup-and-no-squash-merges",
   "worktree": "/Users/jonathanstevenson/Source/claude-skills-merged-branch-cleanup-and-no-squash-merges",
   "live": "dev",
@@ -221,7 +221,9 @@
       "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-a0ac764f9ca167407 (worktree)",
       "wip/merged-branch-cleanup-and-no-squash-merges/tests-unit-2 (local+origin)",
       "worktree-agent-ae9dd52350a2bb7f2 (local)",
-      "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ae9dd52350a2bb7f2 (worktree)"
+      "/Users/jonathanstevenson/Source/claude-skills/.claude/worktrees/agent-ae9dd52350a2bb7f2 (worktree)",
+      "feat/merged-branch-cleanup-and-no-squash-merges (local+origin)",
+      "/Users/jonathanstevenson/Source/claude-skills-merged-branch-cleanup-and-no-squash-merges (worktree)"
     ],
     "left": []
   },
@@ -245,7 +247,7 @@
     "R1-6 (owner run) is in deploy-guard.py, so the deploy-guard fixer takes it alongside R1-5 to avoid two fixers editing one file"
   ],
   "blocker": null,
-  "updated": "2026-10-04T02:51:00.233793+00:00",
+  "updated": "2026-10-04T02:54:38.111041+00:00",
   "dev_merges": [
     {
       "phase": "merge1",
@@ -254,6 +256,10 @@
     {
       "phase": "merge2",
       "merge": "190ff8e255ce08b5d9fa8a06711d83a303605f9a"
+    },
+    {
+      "phase": "report",
+      "merge": "3b3ec54db1cd426029da09dbfe0923c95b14e5c7"
     }
   ]
 }
