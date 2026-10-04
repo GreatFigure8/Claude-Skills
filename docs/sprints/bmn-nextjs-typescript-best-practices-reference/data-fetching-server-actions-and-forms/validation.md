@@ -253,3 +253,57 @@ None.
 | #25 (line 615) Don't use a Server Action to fetch data | compiles (the mistake is a runtime, security or caching rule, not a type error) |
 | #27 (line 637) Don't call `revalidateTag` with one argument | type error as intended: TS2554 Expected 2 arguments, but got 1. |
 | #29 (line 654) Don't copy Zod 3 error APIs into Zod 4 | type error as intended: TS2769 No overload matches this call. |
+
+## FIX①
+
+Branch `wip/nextjs-typescript-best-practices-reference/data-fetching-server-actions-and-forms-fix`, cut from `origin/feat/nextjs-typescript-best-practices-reference` (`8188c54`). Date 2026-10-04. Items: R1-B4, R1-B13 and this file's side of R1-B15 (REVIEW① table in `../review.md`). Files touched: `references/nextjs/data-fetching-and-mutations.md`, `assets/tests/test_nextjs_topic_data_fetching_and_mutations.py` (new tests appended at the end; the `ANY_TYPE` and `major()` lines are untouched), and this story folder (`validation.md`, `evidence/sources-verified.md`).
+
+### Result per item
+
+| id | result |
+| --- | --- |
+| R1-B4 | **fixed**. Failing first: `test_patterns_intro_defines_the_two_caching_models`, `test_every_pattern_names_the_caching_model_it_assumes`, `test_a_rule_sends_cache_components_params_into_suspense`, `test_cache_components_patterns_do_not_await_params_in_the_page`, `test_top_level_await_params_sits_only_in_previous_model_patterns` (all five failed before the edit, pass now). Also reproduced for real: a scratch Next.js 16.3.8 app with `cacheComponents: true` fails `next build` on the pre-fix P1 (`Route "/old/[username]": Next.js encountered uncached or runtime data during prerendering`) and on P3 (`Route "/item/[id]"`, same error). The fixed P1 and P4 build as `◐ Partial Prerender`. Without `cacheComponents` all four build (`ƒ Dynamic`). |
+| R1-B13 | **fixed**. Failing first: `test_df14_forbids_returning_void_when_a_check_fails`, `test_validating_actions_return_typed_state_never_void` (P7 `updateUserNameAction ... Promise<void>` with bare `return`s, P8 `toggleLikeAction ... Promise<void>`). Both pass now. |
+| R1-B15 (this file's side) | **fixed**. Failing first: `test_session_helpers_are_imported_from_the_dal_module` (`@/lib/dal/session` in P5, P7, P8, P9), `test_server_actions_live_in_src_lib_actions` (4 `'use server'` modules under `app/`), `test_snippet_paths_use_the_src_layout` (14 snippet paths without `src/`). All pass now. The other topic files' side belongs to their own fixers. |
+
+### What changed
+
+- **R1-B4.** The Patterns intro names the two caching models and links the Caching guide and `rendering-and-caching.md` (ids are not cited, because `test_topic_cites_only_its_own_rule_ids` forbids other topics' ids). Every pattern heading ends with `both models` or `previous model`. P1 and P4 pass the un-awaited `params` promise into `<Suspense>` (P4 uses `params.then(...)`, the shape the Caching page shows). P3 stays `previous model`, with a pointer to P1 for Cache Components. DF-5 gained the Cache Components sentence and the Caching page link, and the checklist gained a DF-5 item.
+- **R1-B13.** P7 is now a `.bind(`-ed action used with `useActionState`, returning `UpdateNameState` (`{ message? }`) for a failed ownership check and for a failed `safeParse`; P8's `toggleLikeAction` returns `{ ok: true } | { ok: false; message }` and the button shows the message (the update after the `await` is wrapped in `startTransition`, per DF-22). DF-14 and its checklist item say a failed check never returns `void` or a bare `return`.
+- **R1-B15.** `verifySession` and `getSession` come from `@/lib/dal` (`src/lib/dal.ts`, `server-only`; the Patterns intro describes the split and points at `proxy-auth-and-security.md`). Snippet paths use `src/`, Server Actions sit in `src/lib/actions/` (`posts.ts`, `users.ts`, `likes.ts`, `archive-post.ts`), shared schemas and state types in `src/features/<feature>/definitions.ts`. DF-11 and DF-12 say so.
+
+### Commands and results
+
+| Step | Command | Result |
+| --- | --- | --- |
+| RED | `pytest .../test_nextjs_topic_data_fetching_and_mutations.py -q` after appending 10 new tests | **10 failed, 18 passed**. Messages: `name both caching models`; `patterns whose heading names no caching model: ['P1 ...', ...]`; `no rule links the caching page and rendering-and-caching.md for params`; `no pattern is labelled for Cache Components`; `patterns awaiting params at the top without saying previous model: ['P1 ...', 'P3 ...', 'P4 ...']`; `DF-14 does not say a failed check must not return void`; `app/users/[id]/actions.ts: returns Promise<void>`; `the session helpers do not live in lib/dal/session`; `'use server' modules outside src/lib/actions/: [4 paths]`; `snippet paths without the src/ prefix: [14 paths]`. |
+| GREEN (one test fix) | same file plus `test_nextjs_reference.py` | One new test failed first because the needle `Cache Components` was split across a line break in the Markdown. The test now normalises whitespace (a test bug, not a content bug). After that: **213 passed**. |
+| Line cap | `wc -l references/nextjs/data-fetching-and-mutations.md` | **798** (cap 800, `test_file_is_at_most_800_lines` green). |
+| Full suite | `uv run --quiet --with pytest python -m pytest Skills/dev-bother-me-nope/assets/tests -q` | **1036 passed** in 107 s (1026 before + the 10 new tests). |
+| Lint | `uv run --quiet --with ruff ruff check Skills/dev-bother-me-nope` | `All checks passed!` |
+| Sources vs evidence | one-off set check (`source_urls(topic)` against the URLs in `evidence/sources-verified.md`) | `cited: 40 listed: 40`, only cited: `[]`, only listed: `[]`, 40 rows all dated 2026-10-04. The new URL `https://nextjs.org/docs/app/getting-started/caching` returns HTTP 200 with no redirect and its front matter reads `version: 16.3.8`. |
+
+### Snippet compile (scratch, not committed)
+
+Scratch project `/private/tmp/claude-501/-Users-jonathanstevenson-Source-claude-skills/b71aefe4-ae21-4000-aa3e-8b70fbcfbe94/scratchpad/fix1-datafetching/app`: `npm install --save-exact next@16.3.8 react react-dom typescript @types/react @types/react-dom @types/node zod server-only` (react and react-dom 19.3.0, typescript 7.0.2, zod 4.6.5). Every ts/tsx fence of `## Patterns` (14 fences) was written at its `// path` comment by `extract.py`; the DAL, DTO, DB and audit modules the snippets import are declared stubs (`src/lib/dal.ts` mirrors `proxy-auth-and-security.md`; `updateUserName` is a declared export added to the P2 module). `tsconfig.json`: `strict`, `noUncheckedIndexedAccess`, `moduleResolution: bundler`, `target ES2017`, `lib dom/dom.iterable/esnext`, `@/*` mapped to `./src/*`.
+
+| Check | Result |
+| --- | --- |
+| `next typegen` then `tsc --noEmit -p tsconfig.json` (TypeScript 7.0.2) | exit 0, no output (the global `PageProps<'/artist/[username]'>`, `'/item/[id]'` and `'/posts/[id]'` resolve) |
+| Same with TypeScript 5.9.3 | exit 0 |
+| Negative control (a file with `const x: number = 'a'`) | exit 1, `TS2322`, so the harness does report errors |
+| `next build` with `cacheComponents: true`, fixed P1 and P4 only | succeeds; both routes `◐ (Partial Prerender)` |
+| Same, plus pre-fix P3 | fails: `Route "/item/[id]": Next.js encountered uncached or runtime data during prerendering` |
+| Same, pre-fix P1 (from `origin/feat/...`) without P3 | fails: `Route "/old/[username]": ...` |
+| `next build` without `cacheComponents`, all four pages | succeeds; all `ƒ (Dynamic)`, so "the previous model raises no blocking-route error" holds |
+
+### FIX① assumptions
+
+1. **Rule ids are not cited across topics.** The brief says to link `rendering-and-caching.md` RC-15 and RC-16, but `test_topic_cites_only_its_own_rule_ids` fails on any other topic's id in prose, so DF-5 and the Patterns intro link the file and the Caching page and describe the rules without ids.
+2. **No new rule.** DF numbers must run consecutively and the contract test pins them, so the Cache Components `params` guidance extends DF-5 (the Suspense rule) instead of adding a rule.
+3. **P3 stays previous-model.** Its body needs `id` before the blocking await, so a Cache Components version needs a child component; the file's line cap (800) made a second variant impossible. Its heading says `previous model` and points at P1. The build above shows it fails under `cacheComponents`, which is why it is labelled and not hidden.
+4. **Entity modules stay at `@/lib/dal/<entity>`.** TypeScript resolves `@/lib/dal` to `src/lib/dal.ts` first and `@/lib/dal/artists` to the folder beside it (both compile above). The Patterns intro says the entity modules are illustrative.
+5. **State type location.** `UpdateNameState` lives in `src/features/users/definitions.ts` (no directive), following DF-21's convention that State types stay out of `'use server'` modules.
+6. **`.bind(` with `useActionState` is not in the docs together.** Recorded under "Not confirmed by the docs" (P7). It type-checks and builds; no page confirms or denies progressive enhancement for the combination.
+7. **Line budget.** To stay under 800 lines two items were cut and re-verified against the contract tests: P3's `item.tsx` fence merged into `page.tsx` (the helper stays next to the component it serves, as DF-7 asks), and the "Don't call `revalidateTag` with one argument" anti-pattern removed (DF-16 and the Version notes carry the same claim, and the compiler reports it). Eight anti-patterns became seven; the floor is three.
+8. **`PageProps` helper.** The three rewritten page signatures use the global `PageProps<'/route'>` helper (NN-7) instead of hand-typed `{ params: Promise<...> }`.
