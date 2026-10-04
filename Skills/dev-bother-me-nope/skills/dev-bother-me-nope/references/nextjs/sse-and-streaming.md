@@ -14,139 +14,55 @@ entry point and folder layout are in [../nextjs.md](../nextjs.md).
 
 ## Rules
 
-1. **SSE-1** Choose SSE for one-way server-to-client updates such as live feeds, job progress and AI token streams. Choose WebSockets only
-    when the client also pushes a continuous stream, and poll or fetch on demand when a few seconds of staleness is fine
-    ([WebSockets guide](https://vercel.com/kb/guide/do-vercel-serverless-functions-support-websocket-connections)). On Vercel, WebSockets
-    are in public beta on Fluid compute, and Next.js needs `experimental_upgradeWebSocket()` from `@vercel/functions` in a `GET` Route
-    Handler ([Vercel WebSockets](https://vercel.com/docs/functions/websockets)). Hosts that run Route Handlers as lambda functions may not
-    support WebSockets at all ([BFF guide](https://nextjs.org/docs/app/guides/backend-for-frontend)).
-2. **SSE-2** Return `new Response(stream)` from a `route.ts` handler, where `stream` is a Web `ReadableStream` you build. Next.js documents
-    raw streaming from Route Handlers with the Web Streams API and calls it useful for Server-Sent Events
-    ([route.js](https://nextjs.org/docs/app/api-reference/file-conventions/route),
-    [Streaming guide](https://nextjs.org/docs/app/guides/streaming)).
-3. **SSE-3** Set `Content-Type: text/event-stream` exactly. `EventSource` fails the connection, and never reconnects, when the status isn't
-    200 or the type is anything else ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events),
-    [WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html)).
-4. **SSE-4** Send `Cache-Control: no-cache, no-transform`. MDN's SSE server example sends `no-cache`, and `no-transform` tells every
-    intermediary not to transform the body
-    ([MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control)) (convention).
-5. **SSE-5** Never set `Connection` or `Keep-Alive` response headers. HTTP/2 and HTTP/3 prohibit them, and Safari doesn't load an HTTP/2
-    response that carries them ([MDN Connection](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Connection)).
-6. **SSE-6** Authenticate and authorize before you construct the stream, and return 401 or 403 as a plain response, because you cannot
-    change the status code or headers once streaming starts ([Auth guide](https://nextjs.org/docs/app/guides/authentication),
-    [Streaming guide](https://nextjs.org/docs/app/guides/streaming)). `EventSource` doesn't retry a non-200 answer (SSE-3). Implement the
-    session check as described in [route-handlers-and-apis.md](route-handlers-and-apis.md).
-7. **SSE-7** Authenticate `EventSource` with cookies: `withCredentials` is its only option, so it can't send an `Authorization` header. A
-    same-origin request sends cookies by default. A cross-origin one needs `withCredentials: true`, an explicit
-    `Access-Control-Allow-Origin` (never `*`) and `Access-Control-Allow-Credentials: true`
-    ([WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html),
-    [WHATWG fetching](https://html.spec.whatwg.org/multipage/urls-and-fetching.html),
-    [MDN EventSource()](https://developer.mozilla.org/en-US/docs/Web/API/EventSource/EventSource),
-    [MDN CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS)).
+1. **SSE-1** Choose SSE for one-way server-to-client updates such as live feeds, job progress and AI token streams. Choose WebSockets only when the client also pushes a continuous stream, and poll or fetch on demand when a few seconds of staleness is fine ([WebSockets guide](https://vercel.com/kb/guide/do-vercel-serverless-functions-support-websocket-connections)). On Vercel, WebSockets are in public beta on Fluid compute, and Next.js needs `experimental_upgradeWebSocket()` from `@vercel/functions` in a `GET` Route Handler ([Vercel WebSockets](https://vercel.com/docs/functions/websockets)). Hosts that run Route Handlers as lambda functions may not support WebSockets at all ([BFF guide](https://nextjs.org/docs/app/guides/backend-for-frontend)).
+2. **SSE-2** Return `new Response(stream)` from a `route.ts` handler, where `stream` is a Web `ReadableStream` you build. Next.js documents raw streaming from Route Handlers with the Web Streams API and calls it useful for Server-Sent Events ([route.js](https://nextjs.org/docs/app/api-reference/file-conventions/route), [Streaming guide](https://nextjs.org/docs/app/guides/streaming)).
+3. **SSE-3** Set `Content-Type: text/event-stream` exactly. `EventSource` fails the connection, and never reconnects, when the status isn't 200 or the type is anything else ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events), [WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html)).
+4. **SSE-4** Send `Cache-Control: no-cache, no-transform`. MDN's SSE server example sends `no-cache`, and `no-transform` tells every intermediary not to transform the body ([MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control)) (convention).
+5. **SSE-5** Never set `Connection` or `Keep-Alive` response headers. HTTP/2 and HTTP/3 prohibit them, and Safari doesn't load an HTTP/2 response that carries them ([MDN Connection](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Connection)).
+6. **SSE-6** Authenticate and authorize before you construct the stream, and return 401 or 403 as a plain response, because you cannot change the status code or headers once streaming starts ([Auth guide](https://nextjs.org/docs/app/guides/authentication), [Streaming guide](https://nextjs.org/docs/app/guides/streaming)). `EventSource` doesn't retry a non-200 answer (SSE-3). Read the session with `getSession()` from `@/lib/dal`, which returns `null`, never `verifySession()`: it calls `redirect('/login')`, which answers a Route Handler with a 307, so a signed-out `EventSource` follows it to an HTML page and fails without ever seeing a 401 ([redirect](https://nextjs.org/docs/app/api-reference/functions/redirect)). The helpers are in [proxy-auth-and-security.md](proxy-auth-and-security.md).
+7. **SSE-7** Authenticate `EventSource` with cookies: `withCredentials` is its only option, so it can't send an `Authorization` header. A same-origin request sends cookies by default. A cross-origin one needs `withCredentials: true`, an explicit `Access-Control-Allow-Origin` (never `*`) and `Access-Control-Allow-Credentials: true` ([WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html), [WHATWG fetching](https://html.spec.whatwg.org/multipage/urls-and-fetching.html), [MDN EventSource()](https://developer.mozilla.org/en-US/docs/Web/API/EventSource/EventSource), [MDN CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS)).
 8. **SSE-8** Keep the SSE `GET` handler request-time:
     - read runtime data (`cookies()`, `headers()`, `request.headers`) or `await connection()` before streaming;
     - never export `dynamic = 'force-static'`;
-    - with Cache Components on, don't wrap those reads in a `try/catch` that swallows the prerender bail-out, because the bail-out is
-      thrown.
+    - with Cache Components on, don't wrap those reads in a `try/catch` that swallows the prerender bail-out, because the bail-out is thrown.
 
-    Sources: [Route Handlers](https://nextjs.org/docs/app/getting-started/route-handlers),
-    [connection](https://nextjs.org/docs/app/api-reference/functions/connection),
-    [Migrating to Cache Components](https://nextjs.org/docs/app/guides/migrating-to-cache-components).
-9. **SSE-9** Run SSE routes on the default Node.js runtime and don't export `runtime = 'edge'`. nextjs.org marks the Edge Runtime
-    deprecated, Cache Components requires Node.js, Vercel's request cancellation is Node.js-only, and Vercel's Functions API reference says
-    that starting in Next.js 16.3 `runtime = 'edge'` is no longer supported. Sources:
-    [runtime](https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config/runtime),
-    [Edge Runtime deprecated](https://nextjs.org/docs/messages/edge-runtime-deprecated),
-    [cacheComponents](https://nextjs.org/docs/app/api-reference/config/next-config-js/cacheComponents),
-    [Functions API reference](https://vercel.com/docs/functions/functions-api-reference),
-    [Vercel Edge runtime](https://vercel.com/docs/functions/runtimes/edge).
-10. **SSE-10** Write each event as `id:`, `event:` and `data:` lines, each ended by LF, followed by one blank line. Split multi-line data
-    into one `data:` line per line, keep CR and LF out of `id` and `event`, and never put NULL in `id`
-    ([WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html)).
-11. **SSE-11** Enqueue bytes, not strings. Encode every frame with one module-level `TextEncoder`, as the Next.js examples do, or pipe a
-    string stream through `TextEncoderStream` ([route.js](https://nextjs.org/docs/app/api-reference/file-conventions/route),
-    [MDN TextEncoderStream](https://developer.mozilla.org/en-US/docs/Web/API/TextEncoderStream)).
-12. **SSE-12** Send `retry: <ms>` once at the start of the stream to set the client's reconnection delay. The value must be ASCII digits
-    only, otherwise the client ignores the field ([WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html)).
-13. **SSE-13** Send a comment heartbeat (`: heartbeat`) about every 15 seconds while the stream is idle. The spec suggests it for proxies
-    that drop idle connections, and Vercel says HTTP/1.1 clients and intermediaries may still close idle long-running responses
-    ([WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html),
-    [Vercel duration](https://vercel.com/docs/functions/configuring-functions/duration)).
-14. **SSE-14** Report a failure that happens after streaming has started as an `event: stream-error` frame, then close, because the HTTP
-    status can no longer change. Don't name the frame `error`: `EventSource` fires its own `error` event for connection failures, and the
-    spec accepts any event name ([Streaming guide](https://nextjs.org/docs/app/guides/streaming),
-    [WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html),
-    [MDN EventSource](https://developer.mozilla.org/en-US/docs/Web/API/EventSource)) (convention).
-15. **SSE-15** Release every timer, subscription and upstream request in one idempotent `release()`. Run it on `request.signal`'s `abort`
-    event **and** in the stream's `cancel()`, and stop calling `controller.enqueue` once released, because it throws a `TypeError` on a
-    closed or cancelled stream ([MDN Request.signal](https://developer.mozilla.org/en-US/docs/Web/API/Request/signal),
-    [MDN ReadableStream()](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream/ReadableStream),
-    [MDN enqueue](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultController/enqueue)).
-16. **SSE-16** On Vercel, opt each SSE route into `"supportsCancellation": true` in `vercel.json`, so `request.signal` fires when the client
-    disconnects. Put anything that must still finish in `after()` or `waitUntil()`, because work outside them is lost on cancellation
-    ([Functions API reference](https://vercel.com/docs/functions/functions-api-reference),
-    [vercel.json](https://vercel.com/docs/project-configuration/vercel-json),
-    [after](https://nextjs.org/docs/app/api-reference/functions/after),
-    [per-path cancellation](https://vercel.com/changelog/node-js-vercel-functions-now-support-per-path-request-cancellation)).
-17. **SSE-17** Pass `request.signal` to every upstream `fetch` and to the AI SDK's `abortSignal`, so a disconnect stops upstream work too
-    ([Functions API reference](https://vercel.com/docs/functions/functions-api-reference),
-    [cancellation changelog](https://vercel.com/changelog/node-js-vercel-functions-now-support-request-cancellation)).
-18. **SSE-18** Bound every stream with your own timer that calls `controller.close()` a few seconds before `maxDuration`. A cleanly ended
-    stream makes `EventSource` reconnect with `Last-Event-ID` (SSE-23), while Vercel terminates a function that overruns, and that includes
-    time spent streaming ([Vercel limits](https://vercel.com/docs/functions/limitations),
-    [Vercel duration](https://vercel.com/docs/functions/configuring-functions/duration)) (convention).
-19. **SSE-19** Produce data in `pull()` when the source can wait, such as async iterators, LLM tokens or paged queries. The stream then asks
-    for more only as the consumer reads, which is backpressure. For push sources, check `controller.desiredSize` before enqueueing, because
-    zero or negative means the queue is full ([Vercel backpressure guide](https://vercel.com/kb/guide/handling-backpressure),
-    [MDN desiredSize](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultController/desiredSize),
-    [MDN AsyncGenerator.return()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator/return)).
+    Sources: [Route Handlers](https://nextjs.org/docs/app/getting-started/route-handlers), [connection](https://nextjs.org/docs/app/api-reference/functions/connection), [Migrating to Cache Components](https://nextjs.org/docs/app/guides/migrating-to-cache-components).
+9. **SSE-9** Run SSE routes on the default Node.js runtime and don't export `runtime = 'edge'`. nextjs.org marks the Edge Runtime deprecated, Cache Components requires Node.js, Vercel's request cancellation is Node.js-only, and Vercel's Functions API reference says that starting in Next.js 16.3 `runtime = 'edge'` is no longer supported. Sources: [runtime](https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config/runtime), [Edge Runtime deprecated](https://nextjs.org/docs/messages/edge-runtime-deprecated), [cacheComponents](https://nextjs.org/docs/app/api-reference/config/next-config-js/cacheComponents), [Functions API reference](https://vercel.com/docs/functions/functions-api-reference), [Vercel Edge runtime](https://vercel.com/docs/functions/runtimes/edge).
+10. **SSE-10** Write each event as `id:`, `event:` and `data:` lines, each ended by LF, followed by one blank line. Split multi-line data into one `data:` line per line, keep CR and LF out of `id` and `event`, and never put NULL in `id` ([WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html)).
+11. **SSE-11** Enqueue bytes, not strings. Encode every frame with one module-level `TextEncoder`, as the Next.js examples do, or pipe a string stream through `TextEncoderStream` ([route.js](https://nextjs.org/docs/app/api-reference/file-conventions/route), [MDN TextEncoderStream](https://developer.mozilla.org/en-US/docs/Web/API/TextEncoderStream)).
+12. **SSE-12** Send `retry: <ms>` once at the start of the stream to set the client's reconnection delay. The value must be ASCII digits only, otherwise the client ignores the field ([WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html)).
+13. **SSE-13** Send a comment heartbeat (`: heartbeat`) about every 15 seconds while the stream is idle. The spec suggests it for proxies that drop idle connections, and Vercel says HTTP/1.1 clients and intermediaries may still close idle long-running responses ([WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html), [Vercel duration](https://vercel.com/docs/functions/configuring-functions/duration)).
+14. **SSE-14** Report a failure that happens after streaming has started as an `event: stream-error` frame, then close, because the HTTP status can no longer change. Don't name the frame `error`: `EventSource` fires its own `error` event for connection failures, and the spec accepts any event name ([Streaming guide](https://nextjs.org/docs/app/guides/streaming), [WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html), [MDN EventSource](https://developer.mozilla.org/en-US/docs/Web/API/EventSource)) (convention).
+15. **SSE-15** Release every timer, subscription and upstream request in one idempotent `release()`. Run it on `request.signal`'s `abort` event **and** in the stream's `cancel()`, and stop calling `controller.enqueue` once released, because it throws a `TypeError` on a closed or cancelled stream ([MDN Request.signal](https://developer.mozilla.org/en-US/docs/Web/API/Request/signal), [MDN ReadableStream()](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream/ReadableStream), [MDN enqueue](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultController/enqueue)).
+16. **SSE-16** On Vercel, opt each SSE route into `"supportsCancellation": true` in `vercel.json`, keyed by its source path with the `src/` prefix in a `src` layout, so `request.signal` fires when the client disconnects ([duration page](https://vercel.com/docs/functions/configuring-functions/duration)). Put anything that must still finish, such as the unsubscribe, in `after()` or `waitUntil()`, because work outside them is lost on cancellation ([Functions API reference](https://vercel.com/docs/functions/functions-api-reference), [vercel.json](https://vercel.com/docs/project-configuration/vercel-json), [after](https://nextjs.org/docs/app/api-reference/functions/after), [per-path cancellation](https://vercel.com/changelog/node-js-vercel-functions-now-support-per-path-request-cancellation)).
+17. **SSE-17** Pass `request.signal` to every upstream `fetch` and to the AI SDK's `abortSignal`, so a disconnect stops upstream work too ([Functions API reference](https://vercel.com/docs/functions/functions-api-reference), [cancellation changelog](https://vercel.com/changelog/node-js-vercel-functions-now-support-request-cancellation)).
+18. **SSE-18** Bound every stream with your own timer that calls `controller.close()` a few seconds before `maxDuration`. A cleanly ended stream makes `EventSource` reconnect with `Last-Event-ID` (SSE-23), while Vercel terminates a function that overruns, and that includes time spent streaming ([Vercel limits](https://vercel.com/docs/functions/limitations), [Vercel duration](https://vercel.com/docs/functions/configuring-functions/duration)) (convention).
+19. **SSE-19** Produce data in `pull()` when the source can wait, such as async iterators, LLM tokens or paged queries. The stream then asks for more only as the consumer reads, which is backpressure. For push sources, check `controller.desiredSize` before enqueueing, because zero or negative means the queue is full: stop enqueueing, and for a resumable feed close the stream so the client resumes from its last id (SSE-20) ([Vercel backpressure guide](https://vercel.com/kb/guide/handling-backpressure), [MDN desiredSize](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultController/desiredSize), [MDN AsyncGenerator.return()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator/return)).
 20. **SSE-20** Give every event a monotonic `id:` and resume from it:
     - read `Last-Event-ID`, which `EventSource` sends on automatic reconnects;
     - fall back to a `lastEventId` query parameter, because a brand-new `EventSource` starts with an empty last event ID;
-    - replay newer events from a durable log;
-    - make client handling idempotent by id.
+    - replay newer events from a durable log, holding live events back until the replay is written so ids go out in order;
+    - make client handling idempotent by id, and keep the resume id per stream URL.
 
-    Sources: [WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html),
-    [realtime pub/sub guide](https://vercel.com/kb/guide/publish-and-subscribe-to-realtime-data-on-vercel).
-21. **SSE-21** Keep subscriptions and history in an external store, for example Redis from the Vercel Marketplace, never in module-level
-    variables. Share one upstream subscription per function instance rather than one per client, because Route Handlers can't share data
-    between requests and instances don't share memory ([BFF guide](https://nextjs.org/docs/app/guides/backend-for-frontend),
-    [Vercel limits](https://vercel.com/docs/functions/limitations)).
-22. **SSE-22** Export `maxDuration` from the SSE route file and keep it within your plan's maximum. With Fluid compute that's 300 s on Hobby
-    and 800 s on Pro and Enterprise (1800 s extended, beta). See the table in Patterns
-    ([maxDuration](https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config/maxDuration),
-    [Vercel duration](https://vercel.com/docs/functions/configuring-functions/duration),
-    [Fluid compute](https://vercel.com/docs/fluid-compute)).
+    Sources: [WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html), [realtime pub/sub guide](https://vercel.com/kb/guide/publish-and-subscribe-to-realtime-data-on-vercel).
+21. **SSE-21** Keep subscriptions and history in an external store, for example Redis from the Vercel Marketplace, never in module-level variables. Share one upstream subscription per function instance rather than one per client, because Route Handlers can't share data between requests and instances don't share memory ([BFF guide](https://nextjs.org/docs/app/guides/backend-for-frontend), [Vercel limits](https://vercel.com/docs/functions/limitations)).
+22. **SSE-22** Export `maxDuration` from the SSE route file and keep it within your plan's maximum. With Fluid compute that's 300 s on Hobby and 800 s on Pro and Enterprise (1800 s extended, beta). See the table in Patterns ([maxDuration](https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config/maxDuration), [Vercel duration](https://vercel.com/docs/functions/configuring-functions/duration), [Fluid compute](https://vercel.com/docs/fluid-compute)).
 23. **SSE-23** Design every client to reconnect:
     - `EventSource` reconnects on its own after the `retry:` delay and sends `Last-Event-ID`;
-    - a `fetch` reader must reconnect itself, with backoff, and send the last id it saw.
+    - a `fetch` reader must reconnect itself, with backoff, and send the last id it saw, including one from an `id:`-only block;
+    - a `fetch` reader stops on a 4xx such as 401 (408 and 429 aside), as `EventSource` stops on any non-200 (SSE-3), so the UI can sign the user in again.
 
-    Sources: [MDN](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events),
-    [WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html).
-24. **SSE-24** Open `EventSource` in a Client Component's `useEffect` and return `() => source.close()`. Read callbacks through
-    `useEffectEvent`, so new props don't reconnect. Expect two things:
+    Sources: [MDN](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events), [WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html).
+24. **SSE-24** Open `EventSource` in a Client Component's `useEffect` and return `() => source.close()`. Read callbacks through `useEffectEvent`, so new props don't reconnect. Expect two things:
     - in Strict Mode, an extra connect and close during development only;
     - a close and reopen when Cache Components hides a route with `<Activity>`.
 
-    Sources: [useEffect](https://react.dev/reference/react/useEffect), [useEffectEvent](https://react.dev/reference/react/useEffectEvent),
-    [Preserving UI state](https://nextjs.org/docs/app/guides/preserving-ui-state),
-    [upgrade guide](https://nextjs.org/docs/app/guides/upgrading/version-16).
-25. **SSE-25** Listen for named events with `addEventListener(name, …)`, because `onmessage` only receives events without an `event:` field.
-    Validate each `data` payload before use ([MDN EventSource](https://developer.mozilla.org/en-US/docs/Web/API/EventSource)).
-26. **SSE-26** Share one `EventSource` per stream URL per tab, for example through a provider in a shared layout. Without HTTP/2, browsers
-    allow only 6 connections per browser and domain
-    ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events)).
-27. **SSE-27** Use `fetch` plus `response.body.getReader()` when you need POST, a request body or custom headers, because `EventSource` can
-    only make a GET with `withCredentials` as its one option (SSE-7). Decode with `TextDecoder` and `{ stream: true }`, and split frames on
-    blank lines ([MDN reader.read()](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultReader/read),
-    [MDN TextDecoder.decode()](https://developer.mozilla.org/en-US/docs/Web/API/TextDecoder/decode)).
-28. **SSE-28** End a stream for good by calling `source.close()` on the client, or by answering the reconnect with `204 No Content`. A
-    server-side `controller.close()` on its own only triggers a reconnect
-    ([WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html)).
-29. **SSE-29** Stream LLM output with the AI SDK, as Vercel recommends. Forward `request.signal` as `abortSignal`, export `maxDuration`, and
-    read the response with `fetch` plus `getReader()`, not `EventSource`, because chat routes take a `POST` body
-    ([Vercel streaming](https://vercel.com/docs/functions/streaming-functions),
-    [AI Gateway and AI SDK guide](https://vercel.com/kb/guide/ai-gateway-and-ai-sdk)).
+    Sources: [useEffect](https://react.dev/reference/react/useEffect), [useEffectEvent](https://react.dev/reference/react/useEffectEvent), [Preserving UI state](https://nextjs.org/docs/app/guides/preserving-ui-state), [upgrade guide](https://nextjs.org/docs/app/guides/upgrading/version-16).
+25. **SSE-25** Listen for named events with `addEventListener(name, …)`, including `stream-error` (SSE-14), because `onmessage` only receives events without an `event:` field. Validate each `data` payload before use ([MDN EventSource](https://developer.mozilla.org/en-US/docs/Web/API/EventSource)).
+26. **SSE-26** Share one `EventSource` per stream URL per tab, for example through a provider in a shared layout. Without HTTP/2, browsers allow only 6 connections per browser and domain ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events)).
+27. **SSE-27** Use `fetch` plus `response.body.getReader()` when you need POST, a request body or custom headers, because `EventSource` can only make a GET with `withCredentials` as its one option (SSE-7). Decode with `TextDecoder` and `{ stream: true }`, and split frames on blank lines ([MDN reader.read()](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultReader/read), [MDN TextDecoder.decode()](https://developer.mozilla.org/en-US/docs/Web/API/TextDecoder/decode)).
+28. **SSE-28** End a stream for good by calling `source.close()` on the client, or by answering the reconnect with `204 No Content`. A server-side `controller.close()` on its own only triggers a reconnect ([WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html)).
+29. **SSE-29** Stream LLM output with the AI SDK, as Vercel recommends. Forward `request.signal` as `abortSignal`, export `maxDuration`, and read the response with `fetch` plus `getReader()`, not `EventSource`, because chat routes take a `POST` body ([Vercel streaming](https://vercel.com/docs/functions/streaming-functions), [AI Gateway and AI SDK guide](https://vercel.com/kb/guide/ai-gateway-and-ai-sdk)).
 
 ## Patterns
 
@@ -230,12 +146,13 @@ export declare function replaySince(userId: string, lastEventId: string | null):
 
 ### The SSE Route Handler
 
-Auth: `verifySession()` follows [route-handlers-and-apis.md](route-handlers-and-apis.md). "Complete" means this file plus the encoder it
-imports.
+Auth: `getSession()` from `@/lib/dal` returns `null` when signed out and never redirects (SSE-6). "Complete" means this file plus the
+encoder it imports.
 
 ```ts
 // src/app/api/events/route.ts
-import { verifySession } from '@/lib/auth' // returns { userId: string } | null; see route-handlers-and-apis.md
+import { after } from 'next/server'
+import { getSession } from '@/lib/dal' // Promise<Session | null>: null when signed out, never a redirect (SSE-6)
 import { replaySince, subscribe, type FeedEvent } from '@/lib/realtime'
 import { sseComment, sseEvent, sseRetry } from '@/shared/utils/sse'
 
@@ -244,10 +161,11 @@ export const maxDuration = 300 // seconds; never above your plan's maximum
 const HEARTBEAT_MS = 15_000
 const RETRY_MS = 3_000
 const END_EARLY_MS = 10_000
+const MAX_QUEUED_BYTES = 1_048_576 // a client this far behind is closed and resumes from its last id
 const encoder = new TextEncoder()
 
 export async function GET(request: Request): Promise<Response> {
-  const session = await verifySession() // reads cookies(): request-time, never prerendered
+  const session = await getSession() // reads cookies(): request-time, never prerendered
   if (!session) return new Response(null, { status: 401 })
 
   const lastEventId =
@@ -256,54 +174,71 @@ export async function GET(request: Request): Promise<Response> {
   let isReleased = false
   let heartbeat: ReturnType<typeof setInterval> | undefined
   let deadline: ReturnType<typeof setTimeout> | undefined
-  let unsubscribe: (() => Promise<void>) | undefined
+  let subscription: Promise<() => Promise<void>> | undefined
+  let markCleanedUp = (): void => {}
+  const cleanedUp = new Promise<void>((resolve) => {
+    markCleanedUp = resolve
+  })
+  after(() => cleanedUp) // waitUntil: the unsubscribe still finishes after a disconnect (SSE-16)
 
-  // One idempotent release, shared by abort, cancel(), the deadline and failures.
+  // One idempotent release, shared by abort, cancel(), the deadline, a full queue and failures.
   const release = (): void => {
     if (isReleased) return
     isReleased = true
     clearInterval(heartbeat)
     clearTimeout(deadline)
-    unsubscribe?.().catch((error: unknown) => console.error('SSE unsubscribe failed', error))
+    void Promise.resolve(subscription) // also unsubscribes when the client left mid-subscribe
+      .then((stop) => stop?.())
+      .catch((error: unknown) => console.error('SSE release failed', error))
+      .finally(markCleanedUp)
   }
 
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const send = (chunk: string): void => {
-        if (!isReleased) controller.enqueue(encoder.encode(chunk))
-      }
-      const write = (event: FeedEvent): void =>
-        send(sseEvent({ id: event.id, event: event.type, data: JSON.stringify(event.payload) }))
-      const end = (): void => {
-        if (isReleased) return
-        release()
-        controller.close() // clean end: EventSource reconnects with Last-Event-ID
-      }
-
-      if (request.signal.aborted) return end()
-      request.signal.addEventListener('abort', end, { once: true })
-      send(sseRetry(RETRY_MS))
-      heartbeat = setInterval(() => send(sseComment('heartbeat')), HEARTBEAT_MS)
-      deadline = setTimeout(end, maxDuration * 1_000 - END_EARLY_MS)
-
-      try {
-        const stop = await subscribe(session.userId, write) // subscribe first: no gap before replay
-        if (isReleased) {
-          await stop() // the client left while we were subscribing
-          return
+  const stream = new ReadableStream<Uint8Array>(
+    {
+      async start(controller) {
+        const end = (): void => {
+          if (isReleased) return
+          release()
+          controller.close() // clean end: EventSource reconnects with Last-Event-ID
         }
-        unsubscribe = stop
-        for (const event of await replaySince(session.userId, lastEventId)) write(event)
-      } catch (error: unknown) {
-        console.error('SSE stream failed', error)
-        send(sseEvent({ event: 'stream-error', data: JSON.stringify({ message: 'stream failed' }) }))
-        end()
-      }
+        const send = (chunk: string): void => {
+          if (isReleased) return
+          if ((controller.desiredSize ?? 0) <= 0) return end() // queue full: never buffer without bound
+          controller.enqueue(encoder.encode(chunk))
+        }
+        const write = (event: FeedEvent): void =>
+          send(sseEvent({ id: event.id, event: event.type, data: JSON.stringify(event.payload) }))
+        let held: FeedEvent[] | null = [] // live events wait here until the replay is written
+        const onLive = (event: FeedEvent): void => {
+          if (held) held.push(event)
+          else write(event)
+        }
+
+        if (request.signal.aborted) return end()
+        request.signal.addEventListener('abort', end, { once: true })
+        send(sseRetry(RETRY_MS))
+        heartbeat = setInterval(() => send(sseComment('heartbeat')), HEARTBEAT_MS)
+        deadline = setTimeout(end, maxDuration * 1_000 - END_EARLY_MS)
+
+        try {
+          subscription = subscribe(session.userId, onLive) // subscribe first: no gap before replay
+          await subscription
+          const replayed = await replaySince(session.userId, lastEventId)
+          const sent = new Set(replayed.map((event) => event.id))
+          for (const event of [...replayed, ...held.filter((live) => !sent.has(live.id))]) write(event)
+          held = null
+        } catch (error: unknown) {
+          console.error('SSE stream failed', error)
+          send(sseEvent({ event: 'stream-error', data: JSON.stringify({ message: 'stream failed' }) }))
+          end()
+        }
+      },
+      cancel() {
+        release()
+      },
     },
-    cancel() {
-      release()
-    },
-  })
+    new ByteLengthQueuingStrategy({ highWaterMark: MAX_QUEUED_BYTES }),
+  )
 
   return new Response(stream, {
     headers: {
@@ -317,14 +252,18 @@ export async function GET(request: Request): Promise<Response> {
 
 How it meets the rules:
 
-- Cookies are read through `verifySession()` before anything streams, so the route is request-time and a missing session is a plain 401,
-  with no `runtime` or `dynamic` export (SSE-6, SSE-8, SSE-9).
-- `release()` runs from the `abort` listener, `cancel()`, the deadline and the failure path. It is idempotent, and `send()` checks
-  `isReleased`, so nothing enqueues afterwards (SSE-15).
+- Cookies are read through `getSession()` before anything streams, so the route is request-time and a missing session is a plain 401, not
+  `verifySession()`'s 307 to `/login`, with no `runtime` or `dynamic` export (SSE-6, SSE-8, SSE-9).
+- `release()` runs from the `abort` listener, `cancel()`, the deadline, a full queue and the failure path. It is idempotent, and `send()`
+  checks `isReleased`, so nothing enqueues afterwards (SSE-15). It unsubscribes inside the promise handed to `after()`, which Vercel
+  awaits through `waitUntil`, so a cancelled function doesn't leave a dead listener behind (SSE-16).
 - The deadline closes the stream ten seconds before `maxDuration`, so the client reconnects with `Last-Event-ID` before Vercel terminates
   the function (SSE-18, SSE-22).
-- It subscribes before it replays, so no event falls into a gap. A live event can arrive during the replay, so clients must be idempotent by
-  id (SSE-20).
+- It subscribes before it replays, so no event falls into a gap, and it holds live events until the replay is written, dropping any the
+  replay already sent, so ids reach the client in order and `lastEventId` never moves backwards (SSE-20). Matching by id needs no id
+  ordering.
+- `send()` checks `desiredSize` against a 1 MiB byte-length queue. A client that falls that far behind is closed, and it resumes from
+  `Last-Event-ID`, so a slow reader can't grow the queue without bound (SSE-19).
 - A failure after the first byte becomes a `stream-error` frame, not a status change (SSE-14).
 - `X-Accel-Buffering: no` is the header the [Streaming guide](https://nextjs.org/docs/app/guides/streaming) gives for buffering reverse
   proxies. Behaviour on a self-hosted disconnect is unconfirmed (Not confirmed by the docs, item 1), which is why the deadline and both
@@ -334,7 +273,9 @@ How it meets the rules:
 
 When the source can wait, such as LLM tokens or paged queries, produce the next frame only when the consumer pulls it (SSE-11, SSE-19). This
 is the typed form of the `iteratorToStream` example in the [route.js reference](https://nextjs.org/docs/app/api-reference/file-conventions/route),
-which types its `iterator` as `any`. Pair it with `request.signal` (SSE-15), because the runtime may not call `cancel()` (Not confirmed by the docs, item 1).
+which types its `iterator` as `any`. It takes `request.signal` and closes the generator on `abort` as well as in `cancel()` (SSE-15),
+because the runtime may not call `cancel()` (Not confirmed by the docs, item 1). Pass the same signal upstream (SSE-17), so a pending
+`next()` settles: `return()` waits for it. Use it as `new Response(framesToStream(tokenFrames(tokens), request.signal), { headers })`.
 
 ```ts
 // src/shared/utils/sse-stream.ts — produce the next frame only when the consumer pulls
@@ -342,19 +283,26 @@ import { sseEvent } from '@/shared/utils/sse'
 
 const encoder = new TextEncoder()
 
-export function framesToStream(frames: AsyncGenerator<string, void>): ReadableStream<Uint8Array> {
+export function framesToStream(frames: AsyncGenerator<string, void>, signal: AbortSignal): ReadableStream<Uint8Array> {
+  const stop = (): Promise<void> => {
+    signal.removeEventListener('abort', onAbort)
+    return frames.return().then(() => undefined) // runs the generator's finally blocks
+  }
+  const onAbort = (): void => {
+    stop().catch((error: unknown) => console.error('SSE generator cleanup failed', error))
+  }
+  signal.addEventListener('abort', onAbort, { once: true })
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       const { value, done } = await frames.next()
       if (done) {
+        signal.removeEventListener('abort', onAbort)
         controller.close()
       } else {
         controller.enqueue(encoder.encode(value))
       }
     },
-    async cancel() {
-      await frames.return() // runs the generator's finally blocks
-    },
+    cancel: stop,
   })
 }
 
@@ -370,16 +318,18 @@ export async function* tokenFrames(tokens: AsyncIterable<string>): AsyncGenerato
 
 ### Vercel configuration and limits
 
-Enable cancellation per path (SSE-16). Keys are globs over function source paths, and the
-[duration page](https://vercel.com/docs/functions/configuring-functions/duration) shows `app/api/**/*` for the App Router. For a `src/app`
-layout, see Not confirmed by the docs, item 9.
+Enable cancellation per path (SSE-16). Keys are globs over function source paths. The
+[duration page](https://vercel.com/docs/functions/configuring-functions/duration) shows `app/api/**/*` for the App Router, says a
+project with a `src` directory must prefix function routes with `/src/` and writes its own key as `src/api/*.js`, and
+[vercel.json](https://vercel.com/docs/project-configuration/vercel-json) lists `src/pages/**/*`. The canonical layout keeps `app/` under
+`src/`, so the keys start with `src/app/`. An unprefixed key matches no function, so `request.signal` never fires.
 
 ```json
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "app/api/events/**/*": { "supportsCancellation": true },
-    "app/api/chat/**/*": { "supportsCancellation": true }
+    "src/app/api/events/**/*": { "supportsCancellation": true },
+    "src/app/api/chat/**/*": { "supportsCancellation": true }
   }
 }
 ```
@@ -432,13 +382,13 @@ type Options<T> = {
 }
 
 export function useEventSource<T>({ url, eventName, parse, onEvent }: Options<T>): StreamStatus {
-  const [status, setStatus] = useState<StreamStatus>('connecting')
-  const lastIdRef = useRef<string | null>(null)
+  const [state, setState] = useState<{ url: string; status: StreamStatus }>({ url, status: 'connecting' })
+  const lastId = useRef<{ url: string; id: string } | null>(null) // per URL: another room has its own history
 
   const handleMessage = useEffectEvent((message: MessageEvent<string>) => {
     try {
       onEvent(parse(message.data), message.lastEventId)
-      lastIdRef.current = message.lastEventId || lastIdRef.current
+      if (message.lastEventId) lastId.current = { url, id: message.lastEventId }
     } catch (error: unknown) {
       console.error(`Rejected "${eventName}" event`, error)
     }
@@ -447,22 +397,27 @@ export function useEventSource<T>({ url, eventName, parse, onEvent }: Options<T>
   useEffect(() => {
     // A new EventSource sends no Last-Event-ID, so resume through the query string.
     const target = new URL(url, window.location.href)
-    if (lastIdRef.current) target.searchParams.set('lastEventId', lastIdRef.current)
+    if (lastId.current?.url === url) target.searchParams.set('lastEventId', lastId.current.id)
     const source = new EventSource(target)
-    source.addEventListener('open', () => setStatus('open'))
-    source.addEventListener('error', () => {
-      setStatus(source.readyState === EventSource.CLOSED ? 'closed' : 'connecting')
+    const report = (status: StreamStatus): void => setState({ url, status })
+    source.addEventListener('open', () => report('open'))
+    source.addEventListener('error', () => report(source.readyState === EventSource.CLOSED ? 'closed' : 'connecting'))
+    source.addEventListener('stream-error', () => {
+      source.close() // the server failed (SSE-14): stop, rather than reconnect every retry delay
+      report('closed')
     })
     source.addEventListener(eventName, (message) => handleMessage(message))
     return () => source.close()
   }, [url, eventName])
 
-  return status
+  return state.url === url ? state.status : 'connecting' // a new URL starts over
 }
 ```
 
-- `'closed'` means the connection failed for good (a non-200 status, the wrong content type or a fatal error), and the browser won't
-  reconnect (SSE-3). Offer a retry or a sign-in.
+- `'closed'` means the connection failed for good (a non-200 status, the wrong content type or a fatal error) or the server sent
+  `stream-error`, and the browser won't reconnect (SSE-3, SSE-14). Offer a retry or a sign-in.
+- The status and the resume id are keyed by URL, so switching rooms reports `'connecting'` and sends no `lastEventId` from the old room,
+  while an effect re-run on the same URL still resumes (SSE-20).
 - The effect body sets no state. Status changes come only from events, which keeps it clear of the React hooks lint rule against synchronous
   `setState` in an effect.
 - `useEffectEvent` functions are called from inside Effects, here from a listener the Effect creates, and stay out of the dependency list.
@@ -477,11 +432,28 @@ delay.
 // src/shared/utils/read-sse.ts — POST, request body or custom headers: fetch + getReader()
 export type SseMessage = { event: string; data: string; id: string | undefined }
 
+export class HttpStatusError extends Error {
+  readonly status: number
+  constructor(status: number) {
+    super(`Stream request failed: ${status}`)
+    this.status = status
+  }
+}
+
 const NO_CONTENT = 204
 const BACKOFF_START_MS = 1_000
 const BACKOFF_MAX_MS = 30_000
+// A 4xx won't fix itself on retry: 401 needs a sign-in. 408 and 429 are worth retrying.
+const isFinal = (status: number): boolean => status >= 400 && status < 500 && status !== 408 && status !== 429
 
-function parseBlock(block: string): SseMessage | null {
+/** The body's reader; a body nobody will read is cancelled before HttpStatusError is thrown. */
+export async function bodyReader(response: Response): Promise<ReadableStreamDefaultReader<Uint8Array>> {
+  if (response.ok && response.body) return response.body.getReader()
+  await response.body?.cancel()
+  throw new HttpStatusError(response.status)
+}
+
+function parseBlock(block: string): { id: string | undefined; message: SseMessage | null } {
   const fields = block
     .split('\n') // our encoder emits LF only
     .filter((line) => line !== '' && !line.startsWith(':'))
@@ -491,32 +463,36 @@ function parseBlock(block: string): SseMessage | null {
       const value = line.slice(colon + 1)
       return [line.slice(0, colon), value.startsWith(' ') ? value.slice(1) : value]
     })
-  const data = fields.filter(([name]) => name === 'data').map(([, value]) => value)
-  if (data.length === 0) return null
-  const last = (name: string): string | undefined =>
-    fields.filter(([field]) => field === name).at(-1)?.[1]
-  return { event: last('event') || 'message', data: data.join('\n'), id: last('id') }
+  const values = (name: string): string[] => fields.filter(([field]) => field === name).map(([, value]) => value)
+  const id = values('id').filter((value) => !value.includes('\0')).pop()
+  const data = values('data')
+  const message = data.length === 0 ? null : { event: values('event').pop() || 'message', data: data.join('\n'), id }
+  return { id, message }
 }
 
 /** Resolves 'ended' when the server closes the stream, 'stopped' on 204 No Content. */
 export async function readSse(
   response: Response,
   onMessage: (message: SseMessage) => void,
+  onId: (id: string) => void = () => {},
 ): Promise<'ended' | 'stopped'> {
   if (response.status === NO_CONTENT) return 'stopped'
-  if (!response.ok || !response.body) throw new Error(`SSE request failed: ${response.status}`)
-  const reader = response.body.getReader()
+  const reader = await bodyReader(response)
   const decoder = new TextDecoder()
   let buffer = ''
-  for (;;) {
-    const { value, done } = await reader.read()
-    if (done) return 'ended'
-    const blocks = (buffer + decoder.decode(value, { stream: true })).split('\n\n')
-    buffer = blocks.pop() ?? ''
-    for (const block of blocks) {
-      const message = parseBlock(block)
-      if (message) onMessage(message)
+  try {
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) return 'ended'
+      const blocks = (buffer + decoder.decode(value, { stream: true })).split('\n\n')
+      buffer = blocks.pop() ?? ''
+      for (const { id, message } of blocks.map(parseBlock)) {
+        if (id !== undefined) onId(id) // an id-only block still moves the last event ID
+        if (message) onMessage(message)
+      }
     }
+  } finally {
+    await reader.cancel().catch(() => undefined) // frees the connection if onMessage threw; a no-op once done
   }
 }
 
@@ -528,25 +504,34 @@ type ReconnectOptions = {
 
 function wait(milliseconds: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
-    const timer = setTimeout(resolve, milliseconds)
-    signal.addEventListener('abort', () => { clearTimeout(timer); resolve() }, { once: true })
+    const done = (): void => {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', done)
+      resolve()
+    }
+    const timer = setTimeout(done, milliseconds)
+    signal.addEventListener('abort', done, { once: true })
   })
 }
 
+/** Reconnects with backoff until aborted or 204; rejects with HttpStatusError on a final 4xx. */
 export async function readSseWithReconnect({ open, onMessage, signal }: ReconnectOptions): Promise<void> {
   let lastEventId: string | undefined
   let delay = BACKOFF_START_MS
+  const onId = (id: string): void => {
+    lastEventId = id
+  }
+  const onFrame = (message: SseMessage): void => {
+    delay = BACKOFF_START_MS
+    onMessage(message)
+  }
   while (!signal.aborted) {
     try {
       const response = await open(lastEventId, signal) // POST body or custom headers go here
-      const outcome = await readSse(response, (message) => {
-        delay = BACKOFF_START_MS
-        if (message.id !== undefined) lastEventId = message.id
-        onMessage(message)
-      })
-      if (outcome === 'stopped') return
+      if ((await readSse(response, onFrame, onId)) === 'stopped') return
     } catch (error: unknown) {
       if (signal.aborted) return
+      if (error instanceof HttpStatusError && isFinal(error.status)) throw error // re-authenticate on 401
       console.error('SSE read failed; reconnecting', error)
     }
     await wait(delay, signal)
@@ -556,22 +541,28 @@ export async function readSseWithReconnect({ open, onMessage, signal }: Reconnec
 ```
 
 - `parseBlock` mirrors the WHATWG field rules: comment lines are ignored, one leading space is stripped, data lines are joined with LF, the
-  type defaults to `message`, and a block with no data dispatches nothing. A partial block left in the buffer when the stream ends is
-  dropped, as the spec drops an incomplete event ([WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html)).
-- The backoff starts at one second, doubles and caps at 30 seconds, the shape the WebSockets guide uses for its reconnecting client (SSE-23).
+  type defaults to `message`, and a block with no data dispatches nothing but still sets the last event ID, so an `id:`-only block moves
+  the resume id. An `id` containing NULL is ignored. A partial block left in the buffer when the stream ends is dropped, as the spec drops
+  an incomplete event ([WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html)).
+- `bodyReader` cancels a non-OK body before it throws, and `readSse` cancels its reader in `finally`, so a throwing `onMessage` or a
+  failed status doesn't hold the connection open.
+- A 4xx other than 408 or 429 rejects with `HttpStatusError`, as `EventSource` gives up on a non-200 (SSE-3). Catch it, and send a 401 to
+  sign-in. Anything else backs off from one second, doubling to a 30-second cap, the shape the WebSockets guide uses for its reconnecting
+  client (SSE-23). Each wait removes its `abort` listener, so reconnects don't pile listeners onto the signal.
 - Abort the `signal` when the component unmounts or the user stops. The loop exits, and on Vercel with cancellation enabled the server sees
   `request.signal` fire (SSE-15, SSE-16).
 
 ### AI SDK on Vercel
 
 Vercel recommends the AI SDK for LLM streams (SSE-29). The names below are as vercel.com shows them, and they differ by AI SDK major, so
-match your installed `ai` version (Not confirmed by the docs, item 8). `toTextStreamResponse()` returns text chunks. Read them with `fetch`
-plus `getReader()`, as in the previous section, and don't use `EventSource`, because the route takes a POST.
+match your installed `ai` version (Not confirmed by the docs, item 8). `toTextStreamResponse()` returns plain text chunks with no `data:`
+lines, so `readSse` would drop every one. Read them with `readTextStream` below, a `fetch` plus `getReader()` reader that keeps the text
+as it arrives, and don't use `EventSource`, because the route takes a POST.
 
 ```ts
 // src/app/api/chat/route.ts
 import { streamText } from 'ai'
-import { verifySession } from '@/lib/auth'
+import { getSession } from '@/lib/dal'
 
 export const maxDuration = 300
 
@@ -581,7 +572,7 @@ function readPrompt(body: unknown): string | null {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  if (!(await verifySession())) return new Response(null, { status: 401 })
+  if (!(await getSession())) return new Response(null, { status: 401 })
   const prompt = readPrompt(await request.json().catch(() => null))
   if (prompt === null) return Response.json({ error: 'prompt is required' }, { status: 400 })
 
@@ -591,6 +582,25 @@ export async function POST(request: Request): Promise<Response> {
     abortSignal: request.signal, // stop generating when the client disconnects
   })
   return result.toTextStreamResponse()
+}
+```
+
+```ts
+// src/shared/utils/read-text-stream.ts — plain text chunks, such as toTextStreamResponse()
+import { bodyReader } from '@/shared/utils/read-sse'
+
+export async function readTextStream(response: Response, onText: (text: string) => void): Promise<void> {
+  const reader = await bodyReader(response) // HttpStatusError on a non-OK status, such as the 401
+  const decoder = new TextDecoder()
+  try {
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) return
+      onText(decoder.decode(value, { stream: true })) // stream: true keeps a split UTF-8 character whole
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined) // frees the connection if onText threw; a no-op once done
+  }
 }
 ```
 
@@ -613,7 +623,9 @@ const release = (): void => {
   if (isReleased) return
   isReleased = true
   clearInterval(heartbeat)
-  unsubscribe?.().catch((error: unknown) => console.error('unsubscribe failed', error))
+  unsubscribe()
+    .catch((error: unknown) => console.error('unsubscribe failed', error))
+    .finally(markCleanedUp) // after(() => cleanedUp) keeps the function alive for it (SSE-16)
 }
 request.signal.addEventListener('abort', release, { once: true }) // and cancel() { release() }
 ```
@@ -685,58 +697,37 @@ Next.js 16 (this file is verified against 16.3.8). Each bullet links its source.
 
 ## Review checklist
 
-- [ ] Auth runs before the stream exists, and failures return 401 or 403 (SSE-6, SSE-7).
+- [ ] Auth runs before the stream exists through `getSession()`, never a helper that redirects, and failures return 401 or 403 (SSE-6, SSE-7).
 - [ ] Headers are exactly `text/event-stream` and `Cache-Control: no-cache, no-transform`, with no `Connection` or `Keep-Alive` (SSE-3, SSE-4, SSE-5).
 - [ ] No `runtime = 'edge'` and no `force-static`, and the handler reads runtime data (SSE-8, SSE-9).
 - [ ] Frames are `id:`/`event:`/`data:` lines plus a blank line, with single-line ids and event names, written as bytes through `TextEncoder` (SSE-10, SSE-11).
 - [ ] `retry:` is sent once and a heartbeat comment goes out about every 15 s (SSE-12, SSE-13).
 - [ ] Failures after the first byte go out as a named frame, not `error`, and then the stream closes (SSE-14).
 - [ ] One idempotent `release()` runs from `abort` and `cancel()`, with no `enqueue` after release (SSE-15).
-- [ ] On Vercel, `supportsCancellation` is set and must-finish work sits in `after` or `waitUntil` (SSE-16).
+- [ ] On Vercel, `supportsCancellation` is set under a `src/`-prefixed key, and must-finish work, the unsubscribe included, sits in `after` or `waitUntil` (SSE-16).
 - [ ] `request.signal` is forwarded to upstream `fetch` and to `abortSignal` (SSE-17, SSE-29).
 - [ ] `maxDuration` is exported within the plan maximum, and the stream closes itself before it (SSE-18, SSE-22).
 - [ ] Pausable producers use `pull()`, and push sources respect `desiredSize` (SSE-19).
-- [ ] Every event has an id, and the server resumes from `Last-Event-ID` or `lastEventId` (SSE-20).
+- [ ] Every event has an id, the server resumes from `Last-Event-ID` or `lastEventId` and writes the replay before held live events, and the client keeps its resume id per URL (SSE-20).
 - [ ] No module-level pub/sub, and one upstream subscription per instance (SSE-21).
 - [ ] The client opens `EventSource` in `useEffect` with `close()` cleanup, named listeners, validated payloads and one source per URL per tab (SSE-24, SSE-25, SSE-26).
-- [ ] POST or custom-header streams use `fetch` plus `getReader()` with an `AbortController` and reconnect logic, and a stream that should stop for good ends with `close()` or 204 (SSE-23, SSE-27, SSE-28).
+- [ ] POST or custom-header streams use `fetch` plus `getReader()` with an `AbortController`, reconnect logic that stops on a final 4xx and a reader cancelled on failure, and a stream that should stop for good ends with `close()` or 204 (SSE-23, SSE-27, SSE-28).
+- [ ] Plain-text bodies, such as `toTextStreamResponse()`, are read as text, not parsed as SSE frames (SSE-29).
 
 ## Not confirmed by the docs
 
 Each item names what was checked and the URL checked. Nothing here is stated as a rule.
 
-1. **Self-hosted disconnects.** No nextjs.org page says whether `request.signal` aborts, or whether Next.js calls the response stream's
-    `cancel()`, when the client disconnects under `next start` or `next dev`. Checked:
-    [route.js](https://nextjs.org/docs/app/api-reference/file-conventions/route),
-    [Route Handlers](https://nextjs.org/docs/app/getting-started/route-handlers),
-    [Streaming guide](https://nextjs.org/docs/app/guides/streaming), [Self-hosting](https://nextjs.org/docs/app/guides/self-hosting).
-    vercel.com documents the abort only on Vercel with `supportsCancellation`
-    ([Functions API reference](https://vercel.com/docs/functions/functions-api-reference)), so the examples wire both hooks.
-2. **What the client sees at max duration.** No page says what arrives when Vercel ends a stream that already sent 200: a dropped
-    connection, or bytes. The 504 is documented for functions that don't complete. Checked: [limits page](https://vercel.com/docs/functions/limitations),
-    [duration page](https://vercel.com/docs/functions/configuring-functions/duration).
+1. **Self-hosted disconnects.** No nextjs.org page says whether `request.signal` aborts, or whether Next.js calls the response stream's `cancel()`, when the client disconnects under `next start` or `next dev`. Checked: [route.js](https://nextjs.org/docs/app/api-reference/file-conventions/route), [Route Handlers](https://nextjs.org/docs/app/getting-started/route-handlers), [Streaming guide](https://nextjs.org/docs/app/guides/streaming), [Self-hosting](https://nextjs.org/docs/app/guides/self-hosting). vercel.com documents the abort only on Vercel with `supportsCancellation` ([Functions API reference](https://vercel.com/docs/functions/functions-api-reference)), so the examples wire both hooks.
+2. **What the client sees at max duration.** No page says what arrives when Vercel ends a stream that already sent 200: a dropped connection, or bytes. The 504 is documented for functions that don't complete. Checked: [limits page](https://vercel.com/docs/functions/limitations), [duration page](https://vercel.com/docs/functions/configuring-functions/duration).
 3. **`maxDuration` under `next start`.** The page only says deployment platforms can use it. Checked: [maxDuration](https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config/maxDuration).
-4. **Compression and `text/event-stream`.** The docs don't say whether Next.js's built-in gzip buffers an event stream under `next start`,
-    only that compression can buffer chunks. Checked: [compress](https://nextjs.org/docs/app/api-reference/config/next-config-js/compress).
-5. **Safari's 1024-byte buffer and `EventSource`.** The Streaming guide says Safari and WebKit buffer streaming responses until 1024 bytes
-    have arrived. It doesn't say whether that applies to an `EventSource` connection, so a very small first event may be delayed there.
-    Checked: [Streaming guide](https://nextjs.org/docs/app/guides/streaming).
-6. **`charset` on the Content-Type.** It's unconfirmed whether `text/event-stream; charset=utf-8` passes the `EventSource` type check. The
-    spec text compares against `text/event-stream`, so the examples use the bare value. Checked: [WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html).
+4. **Compression and `text/event-stream`.** The docs don't say whether Next.js's built-in gzip buffers an event stream under `next start`, only that compression can buffer chunks. Checked: [compress](https://nextjs.org/docs/app/api-reference/config/next-config-js/compress).
+5. **Safari's 1024-byte buffer and `EventSource`.** The Streaming guide says Safari and WebKit buffer streaming responses until 1024 bytes have arrived. It doesn't say whether that applies to an `EventSource` connection, so a very small first event may be delayed there. Checked: [Streaming guide](https://nextjs.org/docs/app/guides/streaming).
+6. **`charset` on the Content-Type.** It's unconfirmed whether `text/event-stream; charset=utf-8` passes the `EventSource` type check. The spec text compares against `text/event-stream`, so the examples use the bare value. Checked: [WHATWG](https://html.spec.whatwg.org/multipage/server-sent-events.html).
 7. **`no-transform` on Vercel's CDN.** No page says what it changes there. Checked: [Vercel streaming](https://vercel.com/docs/functions/streaming-functions).
-8. **The AI text stream body.** vercel.com's example labels `toTextStreamResponse()` output `text/event-stream`, but no allowed page says
-    the body is SSE-framed, and route.js still shows `StreamingTextResponse`, so the chat route is read with `fetch`. Which API matches a
-    given `ai` major isn't confirmed either. Checked: [Vercel streaming](https://vercel.com/docs/functions/streaming-functions),
-    [AI Gateway and AI SDK guide](https://vercel.com/kb/guide/ai-gateway-and-ai-sdk).
-9. **`vercel.json` keys for a `src/app` layout.** The duration page says a project that uses a `src` directory must prefix function routes
-    with `/src/`, and shows `app/api/**/*` for the App Router, but gives no complete `src/app` key. Checked:
-    [vercel.json](https://vercel.com/docs/project-configuration/vercel-json).
-10. **When Edge was deprecated.** nextjs.org marks `'edge'` deprecated without naming the release, while vercel.com says it's no longer
-    supported from Next.js 16.3, and the docs don't reconcile the two words. This file only says to remove it. Checked:
-    [runtime](https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config/runtime),
-    [Edge Runtime deprecated](https://nextjs.org/docs/messages/edge-runtime-deprecated).
-11. **`after()` and streams.** It isn't stated whether an `after()` callback runs when a streamed body finishes or when the handler returns.
-    The page says after the response is finished. Checked: [after](https://nextjs.org/docs/app/api-reference/functions/after).
+8. **The AI text stream body.** vercel.com's example labels `toTextStreamResponse()` output `text/event-stream`, but no allowed page says the body is SSE-framed, and route.js still shows `StreamingTextResponse`, so the chat route is read with `fetch`. Which API matches a given `ai` major isn't confirmed either. Checked: [Vercel streaming](https://vercel.com/docs/functions/streaming-functions), [AI Gateway and AI SDK guide](https://vercel.com/kb/guide/ai-gateway-and-ai-sdk).
+9. **When Edge was deprecated.** nextjs.org marks `'edge'` deprecated without naming the release, while vercel.com says it's no longer supported from Next.js 16.3, and the docs don't reconcile the two words. This file only says to remove it. Checked: [runtime](https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config/runtime), [Edge Runtime deprecated](https://nextjs.org/docs/messages/edge-runtime-deprecated).
+10. **`after()` and streams.** It isn't stated whether an `after()` callback runs when a streamed body finishes or when the handler returns. The page says after the response is finished. The SSE route's callback returns a promise that settles only at release, so it keeps the function alive until the unsubscribe either way. Checked: [after](https://nextjs.org/docs/app/api-reference/functions/after).
 
 ## Sources
 
@@ -754,6 +745,7 @@ Each item names what was checked and the URL checked. Nothing here is stated as 
 - https://nextjs.org/docs/app/guides/migrating-to-cache-components — migrating to Cache Components
 - https://nextjs.org/docs/app/guides/preserving-ui-state — preserving UI state with Activity
 - https://nextjs.org/docs/app/api-reference/functions/after — after()
+- https://nextjs.org/docs/app/api-reference/functions/redirect — redirect(), 307 by default, usable in Route Handlers
 - https://nextjs.org/docs/app/api-reference/config/next-config-js/compress — compress option
 - https://nextjs.org/docs/app/guides/upgrading/version-16 — upgrade guide to version 16
 - https://nextjs.org/docs/messages/edge-runtime-deprecated — Edge Runtime deprecated
