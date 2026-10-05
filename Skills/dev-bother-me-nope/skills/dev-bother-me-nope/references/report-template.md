@@ -1,6 +1,7 @@
 # {Run title} — dev-bother-me-nope report
 
 **Run:** `{run}` · **Finished:** {iso8601} · **Outcome:** ✅ done, merged to `dev`, stopped for you / ⛔ blocked
+**Mode:** full / fast — {why: ASAP, urgent, hotfix, or ≤3 small stories with no UI design} · **Time:** estimated {estimate} · actual {actual}
 **Stack:** {kind} · skills used: {routed skills}
 **Design:** {picked direction} — {Claude Design link} / no UI in this run / Claude Design unavailable, built to existing conventions
 **Merged to dev:** {merge shas}
@@ -12,11 +13,20 @@ REVIEW②, then stopped. Nothing REVIEW② found was fixed. Nothing was released
 `main` or deployed, and no further round was started. Anything below is a **new goal, and
 only you decide whether there is one**.
 
+*Fast mode, REVIEW② skipped (use this paragraph instead of the one above):* code → review →
+fix → report. The run did REVIEW① (with TEST① beside it) and one fix round (FIX①), then
+stopped. REVIEW② and TEST② were skipped because this was a fast-mode run and you didn't ask
+for them: **the FIX① fixes were not re-reviewed after fixing.** Nothing was released,
+promoted to `main` or deployed. Asking for REVIEW② now is a new goal you start.
+
 **Built:** {one line per story: what works now}
 **FIX① fixed:** {n} of {n} REVIEW① findings + {n} TEST① failures — {ids}
 **FIX① not reproducible / blocked:** {id → evidence or reason; "none"}
 **Left open:** REVIEW② C/H/M/L {c/h/m/l} + {n} TEST② failures + {n} REVIEW① items still open
-or regressed. All of them are listed under *Left open* below, HIGH first.
+or regressed. All of them are listed under *Left open* below, HIGH first. Fast mode without
+REVIEW②: "not re-reviewed after fixing — {n} FIX① fixes merged on the fixer's own reproducing
+test only".
+**Speed:** {"not requested" / requested at {phase}; gates skipped: {list}}
 **Decisions that are yours**
 1. Left-open items: a new goal for them, or accept them as they are.
 2. Release / promotion `dev` → `main`: {ready / held back by …}.
@@ -51,7 +61,8 @@ supabase link --project-ref <main-ref> && supabase db push --linked
 
 **Reviews (`/code-review` high, one pass each):** REVIEW① C/H/M/L {c/h/m/l} · REVIEW②
 re-check {fixed/still-open/regressed/not-reproducible} · REVIEW② new C/H/M/L {c/h/m/l} ·
-`docs/sprints/{run}/review.md`
+`docs/sprints/{run}/review.md` (fast mode without REVIEW②: "REVIEW② skipped (fast mode) —
+not re-reviewed after fixing")
 
 ## Assumptions I made instead of asking
 {numbered list — every decision taken without Jonathan}

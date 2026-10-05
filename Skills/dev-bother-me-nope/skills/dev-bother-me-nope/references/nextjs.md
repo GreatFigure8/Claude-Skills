@@ -18,6 +18,7 @@ in `nextjs/`.
   always includes `typescript.md` and `testing-and-observability.md`), and **lists the rule ids**
   it applies in the plan.
 - **Coder** follows those rules.
+- **Planner-coder** (fast mode) does both: it reads and lists the rule ids, then follows them.
 - **Reviewer** cites the violated rule id in each finding.
 - **Fixer** names the rule id its fix restores.
 
