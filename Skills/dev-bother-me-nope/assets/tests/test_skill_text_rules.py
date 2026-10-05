@@ -182,9 +182,9 @@ def _bmn_json_schema():
 # --- AC1: plugin.json -------------------------------------------------------------
 
 
-def test_plugin_json_is_version_1_7_0():
+def test_plugin_json_is_version_1_8_0():
     data = json.loads(_read(PLUGIN_JSON))
-    assert data["version"] == "1.7.0"
+    assert data["version"] == "1.8.0"
 
 
 def test_plugin_description_names_merge_commits_and_branch_cleanup():

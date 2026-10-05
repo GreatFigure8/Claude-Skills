@@ -23,7 +23,7 @@ PLUGIN_JSON = h.PLUGIN / ".claude-plugin" / "plugin.json"
 
 NEXTJS_PATH = "${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs.md"
 SKILL_DESCRIPTION_SHA256 = "a9d6a4cb611a9ccc1bc836fcbfee02658c1f5897cbc19372d6f126dbf3210de2"
-PLUGIN_DESCRIPTION_SHA256 = "bbda88acb08a513c0f17ac9243d946ce7c996af61abd86f248a7a903c7358860"
+PLUGIN_DESCRIPTION_SHA256 = "8549b077d40f3ae5daaa47ad41ee5e97f97838c1a2062cf694f0bfca3a3e9e14"
 EDITED_BRIEFS = ("planner", "coder", "reviewer", "fixer")
 OTHER_BRIEFS = (
     "stack-scout",
