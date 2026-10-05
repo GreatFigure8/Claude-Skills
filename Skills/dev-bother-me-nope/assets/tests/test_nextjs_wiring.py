@@ -22,7 +22,7 @@ STACK_ROUTING = SKILL_DIR / "references" / "stack-routing.md"
 PLUGIN_JSON = h.PLUGIN / ".claude-plugin" / "plugin.json"
 
 NEXTJS_PATH = "${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs.md"
-SKILL_DESCRIPTION_SHA256 = "ec6a3cbb60efba970cefcb7044030ad24fc7283b43f0884b5b8435969f2e3a63"
+SKILL_DESCRIPTION_SHA256 = "a9d6a4cb611a9ccc1bc836fcbfee02658c1f5897cbc19372d6f126dbf3210de2"
 PLUGIN_DESCRIPTION_SHA256 = "bbda88acb08a513c0f17ac9243d946ce7c996af61abd86f248a7a903c7358860"
 EDITED_BRIEFS = ("planner", "coder", "reviewer", "fixer")
 OTHER_BRIEFS = (
