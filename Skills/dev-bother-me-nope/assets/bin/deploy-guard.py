@@ -18,15 +18,15 @@ integration branches: `git push --delete`/`:ref` never removes a protected branc
 prod production release dev develop staging, or the remote's default branch; `heads/dev` is
 `refs/heads/dev` to git), approved deploy or not; if one should go, Jonathan deletes it himself.
 DELETE_PROTECTED is held equal to merged-branch-cleanup.py's PROTECTED by
-test_protected_branch_parity.py. Branch cleanup (`git push origin --delete <wip or run branch>`,
+test_protected_branch_parity.py. Branch cleanup (`git push origin --delete <wip or sprint branch>`,
 `git branch -D`, `git worktree remove|prune`) is never blocked. Wrappers that take options or
 values (`timeout 60`, `sudo -u me`, `nice -n 5`, `env -u X`, `xargs -n1`, `xargs --replace`) and
 shell command strings (`sh -ec '…'`, `fish --command '…'`, `fish -C '…'`) are unwrapped before
 matching.
 
 Shipped as a plugin hook, so it fires in every session; it only acts inside a git repo with a
-dev-bother-me-nope run in progress (docs/sprints/bmn-*/bmn.json whose phase isn't done or
-blocked), checked in every worktree of the repo — the run's state lives in its sibling run
+dev-bother-me-nope run in progress (docs/sprints/bmn-*/bmn.json whose phase isn't done,
+blocked or decision), checked in every worktree of the repo — the run's state lives in its sibling run
 worktree, not in the human's main checkout.
 Rules and rationale: ../../references/deploy-guards.md
 """
@@ -99,7 +99,8 @@ SUPABASE_BLOCKED_WHEN_REMOTE = {("db", "reset"), ("migration", "up")}
 SUPABASE_DEV_ALLOWED = {("db", "push"), ("migration", "up")}
 CONFIG_PATH = (".claude", "bmn.config.json")
 RUN_STATE_GLOB = "docs/sprints/bmn-*/bmn.json"
-FINISHED_PHASES = frozenset({"done", "blocked"})
+# `decision`: the run is waiting for Jonathan's release answer and has nothing in flight.
+FINISHED_PHASES = frozenset({"done", "blocked", "decision"})
 LINKED_REF_PATH = ("supabase", ".temp", "project-ref")
 
 REMOTE_DB_HOST = re.compile(r"supabase\.(co|com)\b")
