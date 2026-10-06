@@ -1,4 +1,4 @@
-"""Text-presence tests for the 1.6.x rules: merge commits only, every merged branch deleted.
+"""Text-presence tests for the merge rules: merge commits only, every merged branch deleted.
 
 Each test reads the plugin's Markdown/JSON and asserts the named section holds the required
 commands and phrases. Section lookup is by heading text so the tests survive line shifts.
@@ -161,6 +161,28 @@ def _branches_section():
     return _section(_skill(), "Branches and worktrees")
 
 
+def _part(section, lead, until):
+    """From the line that starts with lead up to the line that starts with until."""
+    lines = section.splitlines()
+    start = next((i for i, line in enumerate(lines) if line.startswith(lead)), None)
+    assert start is not None, f"no line starting with {lead!r}"
+    end = next(
+        (i for i, line in enumerate(lines[start + 1 :], start + 1) if line.startswith(until)), None
+    )
+    assert end is not None, f"no line starting with {until!r} after {lead!r}"
+    return "\n".join(lines[start:end])
+
+
+def _intake():
+    """Step 1's INTAKE part (1a), up to DESIGN (1b)."""
+    return _part(_section(_skill(), "Step 1 · SPRINT"), "**1a · INTAKE", "**1b · DESIGN")
+
+
+def _cleanup():
+    """Step 7's CLEANUP part, up to the ALERT."""
+    return _part(_section(_skill(), "Step 7 · REPORT"), "**CLEANUP", "**ALERT.**")
+
+
 def _table_row(section, lead):
     for line in section.splitlines():
         if line.startswith("|") and lead in line:
@@ -182,9 +204,9 @@ def _bmn_json_schema():
 # --- AC1: plugin.json -------------------------------------------------------------
 
 
-def test_plugin_json_is_version_1_8_0():
+def test_plugin_json_is_version_2_0_0():
     data = json.loads(_read(PLUGIN_JSON))
-    assert data["version"] == "1.8.0"
+    assert data["version"] == "2.0.0"
 
 
 def test_plugin_description_names_merge_commits_and_branch_cleanup():
@@ -265,16 +287,26 @@ def test_branches_section_names_cleanup_script_and_every_worktree():
 def test_branches_table_deleted_column_timing():
     section = _branches_section()
     temp_cell = _deleted_cell(_table_row(section, "Story, fix and test branches"))
-    run_cell = _deleted_cell(_table_row(section, "**Run branch**"))
+    sprint_cell = _deleted_cell(_table_row(section, "**Sprint branch**"))
     _assert_has(
         temp_cell,
-        "as soon as the integrator has merged it — local, origin and every worktree on it",
+        "as soon as the merger has merged it — local, origin and every worktree on it",
     )
     _assert_has(
-        run_cell,
-        "at CLEANUP, after its last merge to `dev` — not after MERGE→dev①, "
-        "because FIX① still branches from it",
+        sprint_cell,
+        "at CLEANUP (step 7), after its last merge to `dev` — not after step 3, "
+        "because FIX still branches from it",
     )
+
+
+def test_sprint_branch_is_cut_from_origin_dev():
+    section = _branches_section()
+    _assert_has(_table_row(section, "**Sprint branch**"), "`sprint/<run-slug>`, cut from `origin/dev`")
+    _assert_has(
+        _intake(),
+        "git worktree add --no-track -b sprint/<run-slug> ../<repo-name>-<run-slug> origin/dev",
+    )
+    assert _bmn_json_schema()["integration"] == "sprint/<run-slug>"
 
 
 def test_cleanup_scope_sentence_covers_every_worktree():
@@ -320,19 +352,19 @@ def test_cleanup_is_a_step_drops_hand_written_delete_sequence():
 # --- AC6, AC7, AC8: briefs and CLEANUP --------------------------------------------
 
 
-def test_integrator_brief_runs_cleanup_script_per_merged_branch():
+def test_merger_brief_runs_cleanup_script_per_merged_branch():
     _assert_has(
-        _brief("integrator"),
+        _brief("merger"),
         "merged-branch-cleanup.py",
         "--target origin/{integration}",
         "--repo {run_worktree}",
-        "for each branch you merged",
+        "For each branch you merged",
     )
 
 
-def test_integrator_brief_keeps_harness_rule_and_return_shape():
+def test_merger_brief_keeps_harness_rule_and_return_shape():
     _assert_has(
-        _brief("integrator"),
+        _brief("merger"),
         "git rev-list <harness> --not --exclude=refs/heads/<harness> --branches --remotes",
         "deleted[]",
         "left[{ref, why}]",
@@ -361,9 +393,8 @@ def test_cleaner_brief_record_step_unchanged():
 
 
 def test_skill_cleanup_step_and_leftover_sweep_name_script_and_targets():
-    cleanup = _section(_skill(), "10b · CLEANUP")
     _assert_has(
-        cleanup,
+        _cleanup(),
         "merged-branch-cleanup.py",
         "--target origin/{integration}",
         "--target origin/dev",
@@ -383,8 +414,8 @@ def test_merger_brief_merges_no_ff_and_never_squashes():
             assert NEGATION.search(line), line
 
 
-def test_merger_brief_leaves_run_branch_to_cleanup():
-    _assert_has(_brief("merger"), "doesn't delete {integration}", "CLEANUP")
+def test_merger_brief_leaves_sprint_branch_to_cleanup():
+    _assert_has(_brief("merger"), "Don't delete {integration}: CLEANUP does")
 
 
 def test_common_preamble_states_merge_rule():
@@ -400,7 +431,7 @@ def test_common_preamble_states_merge_rule():
 
 
 def _intake_policy_item():
-    section = _section(_skill(), "INTAKE (orchestrator)")
+    section = _intake()
     return section, _numbered_item(section, "repo-merge-policy.py")
 
 
@@ -473,7 +504,7 @@ def test_move_computers_says_merged_wip_branches_already_deleted():
     _assert_has(
         _read(MOVE_COMPUTERS),
         "already deleted",
-        "when the integrator merged them",
+        "when the merger merged them",
         "only unmerged",
     )
 
@@ -486,7 +517,7 @@ MOVE_PUSHED_CALL = (
 )
 MOVE_HARNESS_CALL = (
     f"{HELPER_PATH} --repo <main checkout> --branch <harness branch> "
-    "--target origin/<type>/<run-slug> --local-only"
+    "--target origin/<integration> --local-only"
 )
 HAND_RUN_REMOVAL = re.compile(r"git worktree (?:remove|prune)|git branch -[dD]")
 NEVER = re.compile(r"\bnever\b", re.IGNORECASE)
@@ -562,27 +593,27 @@ def test_squash_is_only_ever_forbidden(path):
     assert not offenders, "\n".join(offenders)
 
 
-# --- FIX1 R1-7: an unpushed run branch is still cleaned locally -------------------
+# --- FIX1 R1-7: an unpushed sprint branch is still cleaned locally ----------------
 
 
-def _run_branch_steps():
-    """CLEANUP's "Run branch" step as the skill and as the cleaner brief word it."""
+def _sprint_branch_steps():
+    """CLEANUP's "Sprint branch" step as the skill and as the cleaner brief word it."""
     return {
-        "SKILL.md CLEANUP": _numbered_item(_section(_skill(), "10b · CLEANUP"), "Run branch"),
-        "cleaner brief": _numbered_item(_brief("cleaner"), "Run branch"),
+        "SKILL.md CLEANUP": _numbered_item(_cleanup(), "Sprint branch"),
+        "cleaner brief": _numbered_item(_brief("cleaner"), "Sprint branch"),
     }
 
 
 def _record_steps():
     return {
-        "SKILL.md CLEANUP": _numbered_item(_section(_skill(), "10b · CLEANUP"), "**Record.**"),
+        "SKILL.md CLEANUP": _numbered_item(_cleanup(), "**Record.**"),
         "cleaner brief": _numbered_item(_brief("cleaner"), "If step 2 deleted the branch"),
     }
 
 
 @pytest.mark.parametrize("where", ["SKILL.md CLEANUP", "cleaner brief"])
-def test_unpushed_run_branch_is_still_deleted_locally(where):
-    step = _run_branch_steps()[where]
+def test_unpushed_sprint_branch_is_still_deleted_locally(where):
+    step = _sprint_branch_steps()[where]
     _assert_lacks(step, "skip the helper", "leave the branch")
     _assert_has(
         step,
@@ -608,8 +639,8 @@ HAND_RUN_REMNANTS = (
 
 
 @pytest.mark.parametrize("where", ["SKILL.md CLEANUP", "cleaner brief"])
-def test_unpushed_run_branch_names_the_local_only_steps(where):
-    step = _run_branch_steps()[where]
+def test_unpushed_sprint_branch_names_the_local_only_steps(where):
+    step = _sprint_branch_steps()[where]
     _assert_has(
         step,
         "python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py " + LOCAL_ONLY_CALLS[where],
@@ -627,7 +658,7 @@ def test_leftover_sweep_passes_local_only_when_the_run_did_not_push():
 
 @pytest.mark.parametrize("where", ["SKILL.md CLEANUP", "cleaner brief"])
 def test_cleanup_text_never_runs_a_repo_wide_worktree_prune(where):
-    section = _section(_skill(), "10b · CLEANUP") if where == "SKILL.md CLEANUP" else _brief("cleaner")
+    section = _cleanup() if where == "SKILL.md CLEANUP" else _brief("cleaner")
     pruning = [item for item in _sentences(section) if re.search(r"worktree\s+prune", item)]
     unforbidden = [item for item in pruning if not re.search(r"\bnever\b", item, re.IGNORECASE)]
     assert not unforbidden, unforbidden
