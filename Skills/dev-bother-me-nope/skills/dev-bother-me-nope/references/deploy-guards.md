@@ -1,9 +1,10 @@
 # Deploy and merge guards — Vercel, Supabase, git
 
 Jonathan decides every deploy. This file is what "never deploy" means concretely, what the
-hook blocks, and how the report hands the decision back to him.
+hook blocks, and how the report hands the decision back to him: step 8 asks "release?", and
+his yes runs the whole release checklist (SKILL.md *RELEASE*).
 
-## Never, without Jonathan saying so in chat this session
+## Never, without Jonathan saying so in chat this session (his "release" at step 8 counts)
 
 **Vercel** — every deploy is Jonathan's, dev included ("deploy to dev" = a real Vercel
 deployment to the dev environment, e.g. `vercel deploy --target=<dev env>`).
@@ -16,12 +17,13 @@ deployment to the dev environment, e.g. `vercel deploy --target=<dev env>`).
 Allowed: `vercel dev`, `vercel build`, `vercel pull`, `vercel env pull`, `vercel ls`,
 `vercel inspect`, `vercel logs`, `vercel whoami`, `vercel link`, `vercel --version`.
 
-- A git push that makes Vercel build. The run pushes `dev`, its run branch
-  `<type>/<run-slug>` and `wip/<run-slug>/*` often, so INTAKE sets
+- A git push that makes Vercel build. The run pushes `dev`, its sprint branch
+  `sprint/<run-slug>` and `wip/<run-slug>/*` often, so INTAKE sets
   `git.deploymentEnabled: {"dev": false, "wip/**": false, "bmn/**": false,
-  "<type>/<run-slug>": false}` in every Vercel app's `vercel.json` as the run branch's
-  first commit, before its first push. The run branch is keyed by exact name so human
-  `feat/*`/`fix/*` branches still get previews; CLEANUP drops that key in its final commit
+  "sprint/<run-slug>": false}` in every Vercel app's `vercel.json` as the sprint branch's
+  first commit, before its first push. The sprint branch is keyed by exact name so human
+  branches still get previews; `main` is never listed, because RELEASE relies on its
+  git-triggered production build; CLEANUP drops that key in its final commit
   to `dev`. `ignoreCommand` is not used: Vercel still creates the deployment and cancels
   it, and cancelled builds count against deployment quotas and build slots. The guard
   can't see Vercel's git integration. This setting is what enforces it.
@@ -53,7 +55,8 @@ Allowed: `supabase start|stop|status`, `supabase db reset` (local), `supabase mi
 
 The `BMN_USER_APPROVED_DEPLOY=1` pass-through works on trust: it catches accidents, it does
 not stop an agent that decides to type it. Briefs forbid workers from ever using it; only the
-orchestrator may, and only after Jonathan's chat instruction.
+orchestrator may, and only after Jonathan's chat instruction: his yes to step 8's release
+question, or a named deploy he asks for in chat.
 
 ## Merge commits only — no squash merges, PR merges delete their branch
 
@@ -126,7 +129,8 @@ inside `bash -c`. "No more squash merging" has no in-run exception, and neither 
 `dev`. If Jonathan ever wants a squash or a protected branch gone, he runs it himself.
 
 **Outside a run, and the repo setting.** The hook acts only while a run is unfinished (phase
-not `done` or `blocked`). Merges made outside a run, in the GitHub UI or in other sessions, are
+not `done`, `blocked` or `decision`; a run waiting for the release decision has nothing in
+flight, so it doesn't block deploys Jonathan makes elsewhere in the meantime). Merges made outside a run, in the GitHub UI or in other sessions, are
 covered by the repo settings INTAKE sets: `allow_squash_merge=false` and
 `delete_branch_on_merge=true` (old and new values are recorded in `bmn.json` and the report).
 
@@ -154,19 +158,20 @@ GitHub deletes the branch when the auto-merge lands only if `delete_branch_on_me
   tests use the repo's test DB fixture, and TEST notes that DB-level validation didn't run.
 - Browser tests run against the app served locally, never a Vercel URL.
 
-## Hand-back — the report's Deploy checklist
+## Hand-back — the report's Release checklist
 
 Whenever a run creates or changes any of the following, add an entry to
-`bmn.json.deploy_pending` and to the report's Deploy checklist:
+`bmn.json.deploy_pending` and to the report's Release checklist (an automatic release step,
+or a manual item the release won't do):
 
 | Change | Entry says |
 | --- | --- |
-| new/changed file in `supabase/migrations/` | "✅ applied to **dev**" (or "⏸ held back from dev: <why>") + "⏳ waiting for **main**" + file list + `supabase link --project-ref <main-ref> && supabase db push --linked` |
+| new/changed file in `supabase/migrations/` | "✅ applied to **dev**" + "⏳ goes to **main** in the release" + file list; a migration held back from dev is a manual item ("⏸ held back: <why>"), never pushed to main by the release |
 | RLS policy, function, trigger, extension | same as above, called out separately — these change security behaviour |
-| edge function | `supabase functions deploy <name>` per project |
-| new env var / secret | the name (never a value) and which project(s) need it |
-| app code on a Vercel project | "`dev` is ready for a Vercel **dev** deploy when you say so" + `vercel deploy --target=<dev env>`; prod listed separately |
-| `deploymentEnabled` commit on the run branch or `dev` | "The run branch's first push, and the first `dev` push carrying `deploymentEnabled`, may each have built once (Vercel doesn't document whether a commit's own vercel.json governs its push); set the rule in Vercel → Project → Settings → Git" |
+| edge function | manual item: `supabase functions deploy <name>` per project |
+| new env var / secret | manual item: the name (never a value) and which project(s) need it; the release preflight stops while a production one is missing |
+| app code on a Vercel project | release step: production deploy (git-triggered by the push to `main`, or `vercel deploy --prod`); a Vercel **dev** deploy stays a named request ("deploy to Vercel dev") |
+| `deploymentEnabled` commit on the sprint branch or `dev` | "The sprint branch's first push, and the first `dev` push carrying `deploymentEnabled`, may each have built once (Vercel doesn't document whether a commit's own vercel.json governs its push); set the rule in Vercel → Project → Settings → Git" |
 
 Supabase is always **dev before main**. The checklist says plainly which migrations the
 code on `dev` depends on, and which features will fail on an environment until they're
@@ -174,7 +179,13 @@ applied there.
 
 ## When approved
 
-Only the named step, only for the named target. Prefix the CLI command with
+**Release (step 8).** Jonathan's yes covers every automatic step on that run's Release
+checklist, in SKILL.md's order, for that release only: Supabase main migrations already on dev,
+the `dev` → `main` merge and tag, the fast-forward of `dev` onto `main`, the Vercel production
+deploy, the GitHub release. Manual items stay his. A failed step stops the release and is
+reported; nothing is rolled back or retried without him.
+
+**A named deploy outside step 8.** Only the named step, only for the named target. Prefix the CLI command with
 `BMN_USER_APPROVED_DEPLOY=1` (the guard's pass-through), show the output, confirm it
 landed (e.g. `supabase migration list --linked`), tick it off in `report.md`, and commit.
 MCP deploy tools stay blocked even then — use the CLI. Approval never carries to the next

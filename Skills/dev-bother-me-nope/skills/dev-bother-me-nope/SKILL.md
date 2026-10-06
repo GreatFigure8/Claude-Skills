@@ -1,87 +1,73 @@
 ---
 name: dev-bother-me-nope
-description: Jonathan's zero-question build pipeline — takes one long free-form story (a bug fix, an error to resolve, a feature, or an ENTIRE system), designs any user interface FIRST in Claude Design and has him pick one direction (the only subjective step, and the only feedback asked for), breaks it into stories, plans each, codes them with the right python skill set (python-web-app for APIs/web apps, python-mcp-servers for MCP servers, python-library-quality for libraries/CLIs, python-llm-features for LLM calls; nextjs-fullstack-standards (when the session has it) plus the plugin's Next.js reference if the repo is TypeScript), merges to dev and tests (TDD pytest + real-browser Playwright), then runs exactly code → review → fix → review → report: ONE code review of everything the run implemented, ONE fix round (each finding reproduced as a failing test first, merged to dev and tested), ONE re-review of the fixes whose findings are reported, never fixed — then writes a summary report, alerts him and is done; ASAP / urgent / hotfix or small runs (≤3 small stories, no UI design) use fast mode: one planner-coder per story, merge to dev, review, one fix round, report, with the re-review only if he asks; anything further is a new goal only he decides. After the design pick it never asks a question and never deploys to Vercel (not even dev) — merges to dev never trigger a Vercel build, Vercel deploys wait for Jonathan's word; migrations go to the Supabase DEV database only, MAIN waits for him; the report says exactly what needs deploying. Use whenever Jonathan says "dev-bother-me-nope", "/dev-bother-me-nope", "/goal execute /dev-bother-me-nope for …", "/goal using dev-bother-me-nope …", "don't bother me, just build …", or pastes a long build story and says to just do it. Also use when Jonathan says "I'm moving computers", "switching machines" or "move-computers" (write a handoff for every open run), and at the start of every coding session (pick up open handoffs from another machine).
+description: Jonathan's eight-step build pipeline — one long free-form story in (a bug fix, an error to resolve, a feature, or an ENTIRE system), then 1 create the sprint (any user interface is designed FIRST in Claude Design and Jonathan picks one direction), 2 plan each story, 3 code with TDD using the right python skill set (python-web-app for APIs/web apps, python-mcp-servers for MCP servers, python-library-quality for libraries/CLIs, python-llm-features for LLM calls; nextjs-fullstack-standards (when the session has it) plus the plugin's Next.js reference if the repo is TypeScript) and merge to dev, 4 test (full suite plus real-browser Playwright, with ONE code review beside it), 5 fix every failure and finding test-first, 6 test again (what still fails is reported, never fixed), 7 report and alert, 8 ask Jonathan "release?" — yes runs the whole release (Supabase MAIN migrations, version bump and tag, dev merged into main with dev and main left on the same commit, Vercel production deploy, smoke check); no, and Jonathan decides what's next. Those two questions are the only ones: between them it never asks anything and never deploys — merges to dev never trigger a Vercel build and migrations go to the Supabase DEV database only. Use whenever Jonathan says "dev-bother-me-nope", "/dev-bother-me-nope", "/goal execute /dev-bother-me-nope for …", "/goal using dev-bother-me-nope …", "don't bother me, just build …", or pastes a long build story and says to just do it. Also use when Jonathan says "I'm moving computers", "switching machines" or "move-computers" (write a handoff for every open run), and at the start of every coding session (pick up open handoffs from another machine).
 ---
 
 # dev-bother-me-nope
 
-One long story in, merged-to-dev working code plus a report out. **Jonathan is asked one
-thing, at the very start: which UI design he wants** (only when the story touches a user
-interface). That is the one subjective call in the process. After he picks, he is not asked
-anything else. Every other open question is decided here, written down as an assumption,
-and shipped.
+One long story in. Eight steps, each run once:
 
 ```
-INTAKE → DESIGN (UI only) → Jonathan picks → SPLIT → PLAN → BUILD (TDD, gates) → MERGE→dev → TEST   [coding complete]
-       → REVIEW① → FIX① → MERGE→dev → TEST → REVIEW② → REPORT (+ CLEANUP) → ALERT → DONE
-
-Fast mode (ASAP / small fixes — see *Fast mode*):
-INTAKE → PLAN+BUILD (one planner-coder per story, merges its own branch) → MERGE→dev
-       → REVIEW① ∥ TEST① → FIX① → MERGE→dev② → REPORT (+ CLEANUP) → ALERT → DONE
+1 SPRINT    intake → DESIGN (UI only: Jonathan picks) → split into stories     [manual: design pick]
+2 PLAN      one plan per story
+3 CODE      TDD per story → merge into the sprint branch → merge to dev
+4 TEST      full tests  ∥  one code review
+5 FIX       every test failure and review finding, reproduced as a failing test first
+6 TEST      full tests again; whatever still fails is reported, not fixed
+7 REPORT    report.md + git cleanup + alert
+8 RELEASE?  Jonathan: yes → RELEASE · no → Jonathan decides what's next        [manual: the decision]
 ```
 
-## Code → review → fix → review → report → done (Jonathan's rule, 2026-10-03)
+**Jonathan is asked two things:** which UI design he wants (step 1, only when the story
+touches something a person looks at) and whether to release (step 8). Every other open
+question is decided here, written down as an assumption, and shipped.
 
-REVIEW① is one pass over everything the run implemented. FIX① fixes every finding and every
-test failure, test-first. REVIEW② is one pass over the FIX① delta plus a re-check of every
-REVIEW① finding. **REVIEW②'s findings are never fixed by the run**: they go to Jonathan
-under *Left open*, HIGH included. After REVIEW② the run reports and is **done**. It never
-starts a second fix round, a targeted fix, a third review, a release, a promotion to `main`
-or a deploy on its own. Whatever is left is a **new goal, and only Jonathan decides whether
-there is one**.
+**Each step runs once.** There is one code review (in step 4), one fix round (step 5) and
+one re-test (step 6). Nothing loops "until clean", no verifier agent re-checks a finding, and
+nothing step 6 finds is fixed: it goes in the report under *Left open*. The fixer's
+reproduce-first test is the verification. A large run may split a step across parallel
+agents by area; it is still one pass. An agent that dies on a network or API error is re-run
+alone with the same brief, never by re-running a whole step.
 
-**In fast mode REVIEW② is skipped unless Jonathan asks for it** (and TEST② with it). A fast
-run is code → review → fix → report → done: REVIEW①, one FIX① round, MERGE→dev②, then the
-report, which says plainly that the fixes were **not re-reviewed after fixing**. If Jonathan
-asks for REVIEW② (in the story or in chat before REPORT), TEST② and REVIEW② run exactly as in
-a full run, and REVIEW②'s findings are still never fixed.
-
-- One pass means one. No loop "until clean", no adversarial verifier agents, nobody
-  re-reviews a review or argues a finding. A large run may split a pass by area across
-  parallel reviewers; it's still one pass. The fixer's reproduce-first test is the
-  verification.
-- Effort and ultracode settings change how hard each agent thinks, never how many review
-  rounds or agents the run has. Both reviews run `/code-review` at `high`.
-- An agent that dies on a network or API error is re-run alone, with the same brief. Never
-  re-run a phase or resume a workflow to recover it: a plain resume re-runs everything after
-  the first failure.
+After step 8 the run is over. A "no" ends it. A "yes" runs the release and ends it. Any
+further work is a **new goal, and only Jonathan decides whether there is one**.
 
 ## The three hard lines (never crossed, no matter what the story says)
 
-1. **No Vercel deploys — not even to dev.** Never run `vercel`/`vercel deploy`/`--prod`/
-   `--target`/`promote`, never call a Vercel MCP deploy tool, never push `main`/`master`/a
-   production branch, and never let a git push trigger a Vercel build (see *Merging never
-   builds*). "Deploy to dev" means a real Vercel deployment to the dev environment, and
-   Jonathan triggers every one. See [references/deploy-guards.md](references/deploy-guards.md).
-2. **Supabase: DEV yes, MAIN never.** There is always a `dev` and a `main` project. The run
-   may apply its migrations to the **DEV** database (`supabase db push`, and only when
-   `.claude/bmn.config.json` names the dev ref; see *DB-SYNC*). **MAIN** is never touched.
-   Edge functions, secrets, config pushes and ad-hoc SQL stay off limits on both projects.
-   The report says which migrations landed on dev and which must still go to main.
-3. **No questions after the design pick.** Ambiguity → pick the conservative, conventional
-   answer, log it under *Assumptions*, keep going. A real blocker (below) is the only thing
-   that ends a run early. Three questions are allowed, and nothing else: **which UI design**
-   (DESIGN, before any code — revision rounds included), the context-budget checkpoint, and
-   which open handoff to pick up at MOVE-IN. All UI design happens in **Claude Design**,
-   never invented later by a planner or coder.
+1. **No deploys before Jonathan says "release".** Until step 8's yes: never run `vercel`/
+   `vercel deploy`/`--prod`/`--target`/`promote`, never call a Vercel MCP deploy tool, never
+   push `main`/`master`/a production branch, and never let a git push trigger a Vercel build
+   (see *Merging never builds*). Vercel dev deploys are Jonathan's too. The release is the
+   only step that deploys. See [references/deploy-guards.md](references/deploy-guards.md).
+2. **Supabase: DEV during the run, MAIN only in the release.** There is always a `dev` and a
+   `main` project. Steps 3 and 5 may apply migrations to the **DEV** database (`supabase db
+   push`, and only when `.claude/bmn.config.json` names the dev ref; see *DB-SYNC*). **MAIN**
+   gets migrations only in RELEASE, and only those already applied to dev. Edge functions,
+   secrets, config pushes and ad-hoc SQL stay off limits on both projects for the whole run.
+3. **No questions except the two.** Ambiguity → pick the conservative, conventional answer,
+   log it under *Assumptions*, keep going. A real blocker (below) is the only thing that ends
+   a run early. The questions allowed: **which UI design** (step 1, revision rounds
+   included), **release?** (step 8), the context-budget checkpoint, and which open handoff to
+   pick up at MOVE-IN. All UI design happens in **Claude Design**, never invented later by a
+   planner or coder.
 
 These rules are enforced twice. First, the plugin's `deploy-guard.py` PreToolUse hook
 covers the main session and every subagent. It only acts in a repo with a run in progress,
-meaning a `docs/sprints/bmn-*/bmn.json` in any of the repo's worktrees whose phase isn't
-`done` or `blocked`. That's why INTAKE writes `bmn.json` before anything else. Second, the rules are pasted into every
-brief. A block from the harness is final, so never try to route around one.
+meaning a `docs/sprints/bmn-*/bmn.json` in the run worktree it names whose phase isn't
+`done`, `blocked` or `decision`. That's why INTAKE writes `bmn.json` before anything else.
+Second, the rules are pasted into every brief. A block from the harness is final, so never
+try to route around one.
 
 ## Silence — non-negotiable
 
 **Do not talk.** Nothing in this skill is conversational. Between the start of the run and
 the ALERT, the orchestrator says exactly: the model table for each spawn, at most one line
-per phase transition (the first one states the mode and an up-front time estimate — see
-*Speed rules*), the design pick question, the context-budget line, a one-line acknowledgement
-when Jonathan asks for speed, and a real blocker. Every subagent says
-nothing but its return summary (never addressed to Jonathan). No progress narration, no
-restated plans, no "done with step N", no explaining what a tool call found — from the
-orchestrator or anything it spawns. This overrides any instinct to explain, summarize
-progress, or narrate.
+per step (the first one states the story count, the waves and a time estimate — see *Speed
+rules*), the design pick question, the context-budget line, a one-line acknowledgement when
+Jonathan asks for speed, and a real blocker. Every subagent says nothing but its return
+summary (never addressed to Jonathan). No progress narration, no restated plans, no "done
+with step N", no explaining what a tool call found — from the orchestrator or anything it
+spawns. This overrides any instinct to explain, summarize progress, or narrate.
 
 ## Branches and worktrees — the main checkout is Jonathan's
 
@@ -91,18 +77,18 @@ Every branch bmn makes is one of these:
 
 | What | Name | Lives | Deleted |
 | --- | --- | --- | --- |
-| **Run branch** (the integration branch; permanent until merged) | `<type>/<run-slug>`, type `feat`\|`fix`\|`hotfix`\|`chore` from the story's intent, cut from `origin/dev` | the **run worktree** `../<repo-name>-<run-slug>` (sibling of the main checkout) | at CLEANUP, after its last merge to `dev` — not after MERGE→dev①, because FIX① still branches from it |
-| Story, fix and test branches (temporary) | `wip/<run-slug>/<slug>` | a harness worktree (`isolation: "worktree"`) | as soon as the integrator has merged it — local, origin and every worktree on it |
-| Dev-merge scratch (temporary) | detached, no branch | `../<repo-name>-<run-slug>-dev` | in the same command that made it |
+| **Sprint branch** (the run's integration branch; permanent until merged) | `sprint/<run-slug>`, cut from `origin/dev` | the **run worktree** `../<repo-name>-<run-slug>` (sibling of the main checkout) | at CLEANUP (step 7), after its last merge to `dev` — not after step 3, because FIX still branches from it |
+| Story, fix and test branches (temporary) | `wip/<run-slug>/<slug>` | a harness worktree (`isolation: "worktree"`) | as soon as the merger has merged it — local, origin and every worktree on it |
+| Dev-merge, release and record scratch (temporary) | detached, no branch | `../<repo-name>-<run-slug>-dev` (`-main` for the release merge) | in the same command that made it |
 
-Temp branches never sit under the run branch's name: git can't hold `feat/x` and
-`feat/x/y` at once. All integrator, merger and orchestrator git work happens in the run
-worktree. Jonathan may open it and commit there too, so the integrator and merger pull
-(`--rebase=merges`) before they push, never force-push, and never stash, reset or check out
-over changes they didn't make. Every ref and worktree the run creates is recorded in
-`bmn.json` (`integration`, `worktree`, `temp_refs`). Cleanup only ever touches those refs,
-plus every worktree that has one of them checked out (from `git worktree list --porcelain`),
-even one bmn didn't create; the main checkout is never removed or switched.
+Temp branches never sit under the sprint branch's name: git can't hold `sprint/x` and
+`sprint/x/y` at once. All merger and orchestrator git work happens in the run worktree.
+Jonathan may open it and commit there too, so the merger pulls (`--rebase=merges`) before it
+pushes, never force-pushes, and never stashes, resets or checks out over changes it didn't
+make. Every ref and worktree the run creates is recorded in `bmn.json` (`integration`,
+`worktree`, `temp_refs`). Cleanup only ever touches those refs, plus every worktree that has
+one of them checked out (from `git worktree list --porcelain`), even one bmn didn't create;
+the main checkout is never removed or switched.
 
 **Cleanup is a step, not advice.** Deleting a merged branch always goes through one tested
 helper, never a hand-written sequence:
@@ -119,34 +105,34 @@ error as `why` and carry on.
 
 ## Merging never builds
 
-**Merging** means merging the run branch into the repo's `dev` **git branch** and pushing
-it. That happens after BUILD, after FIX① and with the report. It is not a deploy, and
-it must not cause one. If the repo has no `dev` branch, INTAKE creates it from the default
-branch. Story work never merges straight into `main`.
+**Merging** means merging the sprint branch into the repo's `dev` **git branch** and pushing
+it. That happens in steps 3, 5 and 7. It is not a deploy, and it must not cause one. If the
+repo has no `dev` branch, INTAKE creates it from the default branch. Story work never merges
+straight into `main`: only RELEASE merges `dev` into `main`.
 
 For a Vercel app, INTAKE ensures every `vercel.json` (repo root and each app dir linked to a
 Vercel project) turns off git-triggered deployments for every branch the run pushes. It
 merges the setting into the file without touching other keys:
 
 ```json
-{ "git": { "deploymentEnabled": { "dev": false, "wip/**": false, "bmn/**": false, "<type>/<run-slug>": false } } }
+{ "git": { "deploymentEnabled": { "dev": false, "wip/**": false, "bmn/**": false, "sprint/<run-slug>": false } } }
 ```
 
 (`git.deploymentEnabled` takes a branch map with minimatch patterns — Vercel docs,
 project-configuration/git-configuration.) `wip/**` is permanent; `bmn/**` covers runs from
-before 1.4.0. The run branch is listed by its **exact name**, so Jonathan's own `feat/*`
-branches keep their previews; CLEANUP removes that key again in its final commit to `dev`.
-Not `ignoreCommand`: an ignored build still creates a (cancelled) deployment that counts
-against quotas and build slots. This commit is the **first commit** on the run branch, made
-before its first push. Vercel doesn't document whether a commit's own `vercel.json` governs
-that same push, so the report says the run branch's first push *may* have produced one
-build.
+before 1.4.0. The sprint branch is listed by its **exact name**, so Jonathan's other branches
+keep their previews; CLEANUP removes that key again in its final commit to `dev`. `main` is
+never listed: its git-triggered production build is what RELEASE relies on. Not
+`ignoreCommand`: an ignored build still creates a (cancelled) deployment that counts against
+quotas and build slots. This commit is the **first commit** on the sprint branch, made before
+its first push. Vercel doesn't document whether a commit's own `vercel.json` governs that same
+push, so the report says the sprint branch's first push *may* have produced one build.
 
 A CI workflow can also deploy on push to `dev`, for example `vercel deploy` in GitHub
 Actions, or anything that touches Supabase **main**. The stack-scout checks for this. If it
-finds one (`stack.dev_push_deploys: true`), the run doesn't push to `dev`. It merges and
-tests on the run branch instead, "merge `<type>/<run-slug>` → `dev`" goes on the Deploy
-checklist, and the run branch and worktree stay until that merge has happened.
+finds one (`stack.dev_push_deploys: true`), the run doesn't push to `dev` before step 8. It
+merges and tests on the sprint branch instead, and RELEASE merges the sprint branch into
+`dev` first; the sprint branch and worktree stay until then.
 
 ## Merge commits only — never squash (Jonathan's rule, 2026-10-03)
 
@@ -175,22 +161,22 @@ other way.
 
 ## State on disk (resume-safe)
 
-Everything lives in `docs/sprints/bmn-<run-slug>/` on the run branch, in the run worktree:
+Everything lives in `docs/sprints/bmn-<run-slug>/` on the sprint branch, in the run worktree:
 
 | File | Written by | Holds |
 | --- | --- | --- |
 | `input.md` | INTAKE | Jonathan's story, verbatim |
-| `bmn.json` | orchestrator only | run state machine (below) |
-| `stack.md` | INTAKE | stack classification + skill and reference routing ([references/stack-routing.md](references/stack-routing.md)) |
+| `bmn.json` | orchestrator only (the cleaner and the release-prep worker write it at steps 7 and 8) | run state machine (below) |
+| `stack.md` | INTAKE | stack classification, skill and reference routing ([references/stack-routing.md](references/stack-routing.md)), release profile |
 | `design.md` | DESIGN | the picked direction: Claude Design link, tokens, per-screen layout, components, states, copy |
 | `design/*.html` | DESIGN | local copy of the picked Claude Design pages (coders and testers read these, not the MCP) |
-| `<story-slug>/story.md` | SPLIT (the planner-coder in fast mode) | the story, acceptance criteria, deps and the interfaces it consumes, assumptions |
-| `<story-slug>/<story-slug>-plan.md` | PLAN (the planner-coder in fast mode) | implementation plan + test plan + interfaces provided |
-| `<story-slug>/validation.md` | TEST, FIX① | test commands, results, browser evidence; what FIX① did with each item |
-| `review.md` | REVIEW①, REVIEW② | severity-ranked findings (id, file:line, scenario, owning story), one section per review |
-| `validation.md` | FIX① | what FIX① did with findings no single story owns |
+| `<story-slug>/story.md` | SPLIT | the story, acceptance criteria, deps and the interfaces it consumes, assumptions |
+| `<story-slug>/<story-slug>-plan.md` | PLAN | implementation plan + test plan + interfaces provided |
+| `<story-slug>/validation.md` | TEST①, FIX, TEST② | test commands, results, browser evidence; what FIX did with each item |
+| `review.md` | TEST① (the reviewer) | severity-ranked findings (id, file:line, scenario, owning story) |
+| `validation.md` | FIX | what FIX did with findings no single story owns |
 | `handoff.md` | MOVE-OUT | machine-move handoff; renamed `handoff-<ts>.md` once picked up |
-| `report.md` | REPORT | the summary Jonathan reads |
+| `report.md` | REPORT | the summary Jonathan reads, with the release checklist |
 
 No `sprint.json` in this folder on purpose, so a running dev-story-flow loop never picks
 up a bmn run.
@@ -199,18 +185,20 @@ up a bmn run.
 
 ```json
 {
-  "run": "bmn-<run-slug>", "mode": "full|fast", "estimate": "<first phase line's estimate, e.g. ~1 h>", "phase": "intake|design|split|plan|build|merge1|test1|review1|fix1|merge2|test2|review2|report|done|blocked",
-  "integration": "<type>/<run-slug>", "worktree": "<abs path of ../<repo-name>-<run-slug>>", "live": "dev", "dev_base": "<sha of origin/dev when the run started>",
-  "review_shas": {"review1": "<sha TEST① ran on>", "review2": "<sha TEST② ran on>"},
+  "run": "bmn-<run-slug>", "estimate": "<first step line's estimate, e.g. ~2 h>",
+  "phase": "intake|design|split|plan|code|test1|fix|test2|report|decision|done|blocked",
+  "integration": "sprint/<run-slug>", "worktree": "<abs path of ../<repo-name>-<run-slug>>", "live": "dev", "dev_base": "<sha of origin/dev when the run started>",
+  "test_shas": {"test1": "<sha TEST① ran on>", "test2": "<sha TEST② ran on>"},
   "stack": {"kind": "web-app|api|mcp-server|library|cli|mixed", "ui": true, "supabase": false, "vercel": false, "vercel_json": [], "dev_push_deploys": false, "supabase_dev_ref": null, "supabase_main_ref": null},
   "stories": [{"slug": "...", "title": "...", "deps": [], "interfaces": [{"dep": "<slug>", "contract": "<what this story consumes>", "plannable": true}], "status": "split|planned|built|merged|tested|done|blocked", "branch": "wip/<run-slug>/<slug>", "merges": [{"branch": "...", "tip": "<sha>", "merge": "<sha>"}], "detail": ""}],
   "temp_refs": [{"branch": "wip/<run-slug>/<slug>|<harness branch>", "kind": "wip|harness", "base": "<sha at spawn>", "worktree": "<abs path>|null", "pushed": false}],
   "integration_pushed": false,
   "cleanup": {"deleted": [], "left": [{"ref": "...", "why": "dirty worktree|not merged|..."}]},
   "repo_policy": null,
-  "deploy_pending": {"vercel": [], "supabase_migrations": []},
+  "deploy_pending": {"vercel": [], "supabase_migrations": [], "env": []},
   "supabase_dev_applied": [],
   "design": {"needed": false, "project_id": null, "url": null, "round": 0, "options": [{"key": "a", "name": "...", "open_url": "..."}], "picked": null, "feedback": []},
+  "release": {"status": "pending|declined|released|failed", "version": null, "tag": null, "bump": "major|minor|patch|none", "at": null, "steps": [{"step": "...", "result": "..."}]},
   "handoff": null,
   "speed": {"requested": false, "skipped_gates": []},
   "assumptions": [], "blocker": null, "updated": "<iso8601>"
@@ -218,35 +206,43 @@ up a bmn run.
 ```
 
 Write `bmn.json` atomically (write to a temp file, then `mv`), with a new object each time.
-Commit the run folder in the run worktree at the end of every phase. **Moving computers:**
+Commit the run folder in the run worktree at the end of every step. **Moving computers:**
 when Jonathan says he's moving machines, run MOVE-OUT. On every start, run MOVE-IN *before*
-the resume rule. It finds open handoffs in the run worktrees and on origin's run branches,
+the resume rule. It finds open handoffs in the run worktrees and on origin's sprint branches,
 and asks which one to pick up. Both procedures are in
 [references/move-computers.md](references/move-computers.md).
-**Resume rule:** look for run folders in every worktree (`git worktree list`) and on
-`origin/dev`. If a `bmn-*` run with `phase` other than `done` exists and the objective
-doesn't clearly name a new story, re-read `bmn.json` and continue from `phase`, trusting
-only what's on disk. Phases only move forward in enum order; a run resumed at `review2` or
-later never fixes again. `report` covers REPORT and CLEANUP: re-run whichever of the two
-hasn't committed. A fast run (`mode: "fast"`) resumed at `test1` re-runs whichever of TEST①
-and REVIEW① hasn't committed, and goes from `merge2` to `report` unless Jonathan asked for
-REVIEW②. A run from before 1.8.0 has no `mode`: treat it as `full`. A run from before 1.5.0 maps its old phase first: `review1` → `merge1`,
-`fix` → `fix1`, `review2` → `merge2`, `review3` → `review2`, `cleanup` → `report`.
 
-**Leftover sweep:** a `done` or `blocked` run whose `cleanup.left` names its run
-branch, and that branch is now in `origin/dev` (Jonathan merged it), gets CLEANUP's run
-step now:
-`python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo <main checkout> --branch <run branch> --target origin/dev`,
+**Resume rule:** look for run folders in every worktree (`git worktree list`) and on
+`origin/dev`. If a `bmn-*` run with `phase` other than `done` or `blocked` exists and the
+objective doesn't clearly name a new story, re-read `bmn.json` and continue from `phase`,
+trusting only what's on disk. Phases only move forward in enum order; a run resumed at
+`test2` or later never fixes again. `report` covers REPORT and CLEANUP: re-run whichever of
+the two hasn't committed. A run resumed at `decision` reads `bmn.json` from `origin/dev`: if
+the release already started (a `release: v<version>` commit on `origin/dev`, or its tag on
+origin), it finishes the remaining RELEASE steps, because Jonathan already said yes;
+otherwise it asks the release question again. A run resumed at `design` with `design.picked:
+null` re-asks the design question from the options already in `bmn.json` — it doesn't
+redesign.
+
+A run from before 2.0.0 maps its old phase first: `build` and `merge1` → `code`, `review1` →
+`test1`, `fix1` and `merge2` → `fix`, `review2` → `report` (its findings go under *Left
+open*), and before 1.5.0 `fix` → `fix`, `review3` → `report`, `cleanup` → `report`. Its run
+branch keeps its old `<type>/<run-slug>` name; `integration` in `bmn.json` is the source of
+truth for every branch name.
+
+**Leftover sweep:** a `done`, `blocked` or `decision` run whose `cleanup.left` names its
+sprint branch, and that branch is now in `origin/dev` (Jonathan merged it), gets CLEANUP's
+sprint-branch step now:
+`python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo <main checkout> --branch <sprint branch> --target origin/dev`,
 adding `--local-only` when that run's `integration_pushed` is false (the sweep never deletes an
 origin copy the run didn't push).
-
-A run resumed at `phase: design` with `design.picked: null` re-asks the design question
-from the options already in `bmn.json` — it doesn't redesign.
 
 ## Orchestrator discipline
 
 The main thread decides and dispatches. It doesn't read source, run test suites, or grep
-the codebase. That work is done by subagents, which report back conclusions.
+the codebase. That work is done by subagents, which report back conclusions. The only
+commands the orchestrator runs itself are INTAKE's git setup, the `bmn.json` commits, and
+RELEASE's approved deploy commands (the only place the approval prefix is used).
 
 - Every subagent is `subagent_type: "dev-bother-me-nope:bmn-worker"`. Briefs come from
   [references/briefs.md](references/briefs.md) and are filled in, not paraphrased.
@@ -256,124 +252,96 @@ the codebase. That work is done by subagents, which report back conclusions.
   placeholder, with the absolute plugin root (`{skill_dir}/../..`, resolved), in every brief
   and in its own Bash calls when the variable is empty.
 - Every spawn is announced with the model table (Item | Branch | Model), one row per agent,
-  and the model named explicitly: `model: "opus"` for DESIGN, SPLIT, PLAN, the fast-mode
-  planner-coder, REVIEW①, REVIEW② and any FIX① item whose root cause is unclear;
-  `model: "sonnet"` for BUILD, TEST, merges and mechanical fixes.
+  and the model named explicitly: `model: "opus"` for DESIGN, SPLIT, PLAN, the reviewer and
+  any FIX item whose root cause is unclear; `model: "sonnet"` for CODE, TEST, merges,
+  mechanical fixes, DB-SYNC, CLEANUP and release-prep.
 - Independent agents run in one message, all at once. A story is ready when every one of its
   `deps` is merged or has a planned, stated interface (*Speed rules*); ready stories build in
   parallel, each in `isolation: "worktree"`. Record every harness worktree path and branch
   the Agent result names, plus each `wip/` branch, in `temp_refs`.
-- BUILD (coder and planner-coder), FIX, TEST and DB-SYNC agents always run in
-  `isolation: "worktree"`; every other agent works in the run worktree (`{run_worktree}` in
-  the briefs).
-- Output to Jonathan while running: see *Silence* below.
+- CODE, FIX, TEST and DB-SYNC agents always run in `isolation: "worktree"`; every other
+  agent works in the run worktree (`{run_worktree}` in the briefs).
+- Output to Jonathan while running: see *Silence* above.
 - Context: at ~120K say so in one line. At ~150K, write `bmn.json` plus the run folder,
   commit, and post the `clear-prompt` block — the resume line is the same
-  `/goal execute /dev-bother-me-nope` invocation. Asking about the context budget is the
-  one exception to "no questions", because Jonathan's global rules require it.
+  `/goal execute /dev-bother-me-nope` invocation. Asking about the context budget is one of
+  the allowed questions, because Jonathan's global rules require it.
 
 ## Speed rules (Jonathan's rule, 2026-10-05)
 
 A run of three small changes once took about four hours. These rules keep the safety of the
 pipeline and drop the repeated work:
 
-- **The full suite runs once per phase, in TEST.** Coder, planner-coder, fixer, integrator
-  and merger gates are scoped: lint + type-check + the tests for the files the agent touched
-  (or the merge changed) and their related tests (`{gates}` in the briefs). None of them runs
-  the full test suite or the build. The full suite, coverage and the build (`next build`, or
-  the stack's equivalent) run only in TEST, by the tester (`{full_gates}`).
+- **The full suite runs once per test step.** Coder, fixer and merger gates are scoped:
+  lint + type-check + the tests for the files the agent touched (or the merge changed) and
+  their related tests (`{gates}` in the briefs). None of them runs the full test suite or
+  the build. The full suite, coverage and the build (`next build`, or the stack's
+  equivalent) run only in TEST① and TEST②, by the tester (`{full_gates}`).
+- **Review beside test.** Step 4 dispatches the reviewer and the testers in one message, so
+  the review costs no wall-clock time of its own.
 - **Deps by interface.** A dependency only serializes stories when its interface can't be
   planned. The splitter names the interface each dependent story consumes, and the providing
   story's planner pins it in its plan (*Interfaces provided*, `plannable: true`). When every
   dep of a story has a planned, stated interface, that story builds in the **same wave**
-  against the interface (its coder stubs or mocks it) and the integrator merges deps first.
+  against the interface (its coder stubs or mocks it) and the merger merges deps first.
   Only a dep whose interface is truly unplannable (`plannable: false`) makes a story wait for
   the next wave.
-- **One merge agent for one branch.** When a step leaves a single branch to merge (the last
-  BUILD wave has one story branch, or FIX① has one fix branch; TEST's evidence-only `tests-`
-  branches ride along), one **integrator-merger** merges it into the run branch and then the
-  run branch into `dev`, and runs the gates once. The orchestrator dispatches it as the `merge1` (or `merge2`)
-  step, so the phases are unchanged.
-- **Up-front time estimate.** The orchestrator's first phase line states the mode and a rough
-  wall-clock estimate from the mode, the story count and the waves, e.g. "fast mode, 2
-  stories, 1 wave, ~1 h". Rough guide: about 30–45 min per planner-coder or BUILD wave, about
-  20 min each for SPLIT, PLAN, MERGE and REPORT+CLEANUP, about 30–45 min each for a TEST plus
-  REVIEW pair and for FIX①, plus however long the design pick takes. Record it in
-  `bmn.json.estimate`; the report shows estimate vs actual.
+- **One merge agent per step, gates once.** Steps 3 and 5 each end with a single merger.
+  It merges every branch of the step into the sprint branch (`--no-ff`, deps first), runs the
+  scoped gates **once** over the combined change, and only when they fail reverts branch by
+  branch to find the one that broke them. Then it merges the sprint branch into `dev`.
+- **Up-front time estimate.** The orchestrator's first step line states the story count,
+  the waves and a rough wall-clock estimate, e.g. "4 stories, 1 wave, ~2 h". Rough guide:
+  about 20 min each for SPRINT (plus however long the design pick takes), PLAN, a merge and
+  REPORT; 30–45 min per CODE wave; 30–45 min for TEST① with its review; 30–45 min for FIX;
+  about 20 min for TEST②. Record it in `bmn.json.estimate`; the report shows estimate vs
+  actual.
 - **Speed on request.** When Jonathan asks in chat for speed mid-run, the orchestrator
   acknowledges it in one line and sends every in-flight agent a message (load `SendMessage`
   with ToolSearch) to skip non-essential gates: coverage, lint or related tests on files the
   agent didn't change, screenshots of screens the run didn't touch, and the build outside
-  TEST. Never skipped: the agent's own red → green tests, the type-check, the TEST phase's
+  TEST. Never skipped: the agent's own red → green tests, the type-check, the test steps'
   full suite, and every hard line. Agents spawned after that get the same instruction in
   their brief. The report lists what was skipped.
 
-## Fast mode — ASAP and small fixes (Jonathan's rule, 2026-10-05)
-
-**When.** The orchestrator picks fast mode at INTAKE, after the stack-scout returns, when no
-UI design is needed (`ui_screens` is empty) **and** either the story says ASAP, urgent or
-hotfix, or the scout's `fast_fit` estimates **≤3 small stories**. It logs the choice and why
-as an assumption, sets `bmn.json.mode: "fast"`, and says so in its first phase line. Anything
-else is a full run (`mode: "full"`).
-
-**What changes.** There is no separate DESIGN, SPLIT or PLAN, and no separate integrator:
-1. **PLAN+BUILD (`build`).** One **planner-coder** (opus, `isolation: "worktree"`) per story
-   from `fast_fit.stories`, in parallel (*Deps by interface* still applies). Each writes a
-   short `story.md` and `<slug>-plan.md` in its story folder, implements the plan with strict
-   TDD on `wip/<run-slug>/<slug>`, runs the scoped gates, then merges its own branch into the
-   run branch (the integrator brief, folded in) and cleans it up with
-   `merged-branch-cleanup.py`. Record its merges and `temp_refs` as usual. A planner-coder
-   that returns `integrate: "waiting for <dep>"` (an unplannable dep wasn't in yet) is
-   merged by one integrator once the dep is in.
-2. **MERGE→dev (`merge1`).** Straight to the merger (step 4), plus DB-SYNC when migrations
-   landed.
-3. **REVIEW① ∥ TEST① (`test1`).** Record the merged `dev` sha as
-   `review_shas.review1`, then dispatch REVIEW① (step 6) and TEST① (step 5) in one message;
-   the reviewer's `{test_failures}` is "TEST① is running beside you", and FIX① gets both.
-   TEST① is the only place the full suite and the build run, so it is kept; running it beside
-   the review costs no extra wall-clock time.
-4. **FIX① (`fix1`), MERGE→dev② (`merge2`), REPORT (`report`).** As steps 7, 8 and 10, without
-   TEST② and REVIEW②: those run only if Jonathan asks for them. Then CLEANUP and ALERT.
-
-**What doesn't change.** Every hard line, the silence rule, merge commits only, the cleanup
-helper for every merged branch, the main checkout left untouched, DB-SYNC to Supabase DEV
-only, no Vercel deploys and nothing pushed to `main`.
-
 ## Procedure
 
-### 0 · INTAKE (orchestrator)
+### Step 1 · SPRINT — create the sprint (`intake` → `design` → `split`)
+
+**1a · INTAKE (orchestrator).**
 1. MOVE-IN check, then the resume check (above). Then `git fetch --prune origin`. Leave the
    main checkout exactly as it is.
-2. Pick `<run-slug>`, a descriptive kebab-case summary of the story's intent, and the run
-   branch type: `fix` for a bug or error, `hotfix` for something broken in production now,
-   `chore` for tooling, deps, config or docs only, `feat` for everything else. Create the
-   run branch and worktree in one command, without touching the main checkout:
-   `git worktree add --no-track -b <type>/<run-slug> ../<repo-name>-<run-slug> origin/dev`
-   (`origin/<default_branch>` when there's no `dev` yet; add `-2`, then `-3`…, to the slug when
-   `refs/heads/<type>/<run-slug>`, `refs/remotes/origin/<type>/<run-slug>`, any ref under
-   `<type>/<run-slug>/`, a branch named just `<type>`, or the directory exists). In the run worktree, write `input.md` verbatim and `bmn.json` with
-   `phase: intake`, `integration` and `worktree` **right away**. The deploy guard is only
-   active once this file exists.
+2. Pick `<run-slug>`, a descriptive kebab-case summary of the story's intent. Create the
+   sprint branch and worktree in one command, without touching the main checkout:
+   `git worktree add --no-track -b sprint/<run-slug> ../<repo-name>-<run-slug> origin/dev`
+   (`origin/<default_branch>` when there's no `dev` yet; add `-2`, then `-3`…, to the slug
+   when `refs/heads/sprint/<run-slug>`, `refs/remotes/origin/sprint/<run-slug>`, any ref
+   under `sprint/<run-slug>/`, a branch named just `sprint`, or the directory exists). In
+   the run worktree, write `input.md` verbatim and `bmn.json` with `phase: intake`,
+   `integration` and `worktree` **right away**. The deploy guard is only active once this
+   file exists.
 3. Dispatch one **stack-scout** (sonnet) with the brief in briefs.md. It returns the stack
-   classification and routing. For a TypeScript / Next.js repo the routing also names
+   classification, the routing and the **release profile** (how this repo ships a new
+   version). For a TypeScript / Next.js repo the routing also names
    [references/nextjs.md](references/nextjs.md), the plugin's dated Next.js + TypeScript
    standard. The planner, coder, reviewer and fixer read it with the Read tool
    ([references/stack-routing.md](references/stack-routing.md)).
    The scout returns it in `routed_references[]`, never in a skill list; `stack.md`
    records that list, and every brief's `{routed_references}` is filled from it.
-   Write `stack.md`, then `bmn.json` with `phase: split`.
+   Write `stack.md`.
    If the scout identified **both** Supabase refs, and each one is unambiguously labelled
    dev or main, write `.claude/bmn.config.json` =
    `{"supabase": {"dev_ref": "…", "main_ref": "…"}}`. The deploy guard reads this file,
-   and it's what lets DB-SYNC push to dev. If there's any doubt which ref is which, don't
-   write it. Migrations then stay local and go on the checklist for both projects.
+   and it's what lets DB-SYNC push to dev and RELEASE push to main. If there's any doubt
+   which ref is which, don't write it. Migrations then stay local and go on the release
+   checklist as manual items for both projects.
 4. If `origin/dev` doesn't exist, create it from the default branch with
    `git push origin origin/<default_branch>:refs/heads/dev` (branch creation, not a deploy
-   — but if `stack.dev_push_deploys`, skip this and integrate on the run branch only).
-   Record `origin/dev`'s sha as `dev_base` in `bmn.json`; REVIEW① diffs against it. In the
-   run worktree, commit the `vercel.json` `deploymentEnabled` change for a Vercel app (plus
-   `.claude/bmn.config.json` if it was written) **before** the first push, then
-   `git push -u origin <type>/<run-slug>`, then set `integration_pushed: true` in `bmn.json`
+   — but if `stack.dev_push_deploys`, skip this and integrate on the sprint branch only).
+   Record `origin/dev`'s sha as `dev_base` in `bmn.json`; the review diffs against it. In
+   the run worktree, commit the `vercel.json` `deploymentEnabled` change for a Vercel app
+   (plus `.claude/bmn.config.json` if it was written) **before** the first push, then
+   `git push -u origin sprint/<run-slug>`, then set `integration_pushed: true` in `bmn.json`
    (CLEANUP deletes the origin copy only when it is set).
 5. **Repo merge settings, once per run.** Skip it when `bmn.json.repo_policy` is already set
    (a resumed run). Otherwise run
@@ -389,14 +357,9 @@ only, no Vercel deploys and nothing pushed to `main`.
 6. Set `design.needed` from the scout: true when `ui_screens` is non-empty (the story adds
    or changes something a person looks at). Then `phase: design`, or `phase: split` when
    it's false.
-7. **Mode and estimate.** Decide full or fast mode (*Fast mode*) from the story and the
-   scout's `fast_fit`, log the decision and why under `assumptions`, and write `mode` and
-   `estimate` to `bmn.json`. A fast run goes from here to `phase: build`. The first phase
-   line names the mode and the estimate (*Speed rules*).
 
-### 0b · DESIGN (UI only; designer agent, opus) — the only feedback Jonathan gives
-Runs before SPLIT, so no story, plan or line of code exists yet that a design would have to
-bend around.
+**1b · DESIGN (UI only; designer agent, opus) — Jonathan's first decision.** Runs before
+SPLIT, so no story, plan or line of code exists yet that a design would have to bend around.
 1. **Directions.** Dispatch one **designer** (opus) with the brief in briefs.md. It works
    only in Claude Design: one project for the run, three distinct directions, each covering
    every screen in `ui_screens` with its key states. It returns the project link and one
@@ -413,78 +376,59 @@ bend around.
 3. **Freeze.** Dispatch the designer in *export* mode (sonnet) for the picked direction. It
    copies the picked pages to `docs/sprints/{run}/design/` and writes `design.md`. Record
    `design.picked`, commit, set `phase: split`. **From here on the design is fixed and
-   Jonathan is not asked anything.** A gap the design didn't cover (a screen, a state, an
-   edge case) is filled by extending the picked direction's tokens and components, and
-   logged as an assumption — never by asking, never by opening a new look.
+   Jonathan is not asked anything until step 8.** A gap the design didn't cover (a screen, a
+   state, an edge case) is filled by extending the picked direction's tokens and components,
+   and logged as an assumption — never by asking, never by opening a new look.
 4. If Claude Design is unavailable (tools missing, not signed in), that's not a blocker and
    not a question: the designer writes `design.md` from the repo's existing UI conventions,
    the run continues, and the report says the design was never picked.
 
-### 1 · SPLIT (1 agent, opus)
-Splitter brief. When `design.md` exists, every screen in it is owned by a story and its
-`[browser]` criteria name the design screen they check. It writes one `story.md` per story, with its slug, title, acceptance
-criteria, deps, the interface it consumes from each dep (or "unplannable" and why), and the
-assumptions it made. Sizing: one story is roughly one reviewable PR.
-A one-line bug is one story. An entire system is a walking-skeleton story first
-(scaffold, config, health route, test harness, CI gates), then vertical slices. It returns
-the story list plus deps and dep interfaces as JSON. Record it in `bmn.json`.
+**1c · SPLIT (1 agent, opus).** Splitter brief. When `design.md` exists, every screen in it
+is owned by a story and its `[browser]` criteria name the design screen they check. It writes
+one `story.md` per story, with its slug, title, acceptance criteria, deps, the interface it
+consumes from each dep, and the assumptions it made. Sizing: one story is roughly one
+reviewable PR. A one-line bug is one story. An entire system is a walking-skeleton story
+first (scaffold, config, health route, test harness, CI gates), then vertical slices. It
+returns the story list plus deps and interfaces as JSON. Record it in `bmn.json`, state the
+estimate (*Speed rules*), set `phase: plan`.
 
-### 2 · PLAN (one agent per story, parallel, opus)
+### Step 2 · PLAN (`plan`; one agent per story, parallel, opus)
 Planner brief. Each planner writes `<slug>-plan.md` covering files to touch, the
 skill-routed standards it will follow, a **test plan written first** (unit, integration,
-and browser checks mapped 1:1 to acceptance criteria), migrations if any, risks, and
-**Interfaces provided**: the exact contract (signatures, routes and schemas, tables, event
-shapes) each dependent story consumes, or `plannable: false` with the reason. Record each
-dependent story's `interfaces` in `bmn.json` from the planners' returns. UI work follows
-`design.md` and `design/*.html`: same tokens, layout, components and copy.
+and browser checks mapped 1:1 to acceptance criteria), the interfaces it provides to
+dependent stories, migrations if any, and risks. UI work follows `design.md` and
+`design/*.html`: same tokens, layout, components and copy. Set `phase: code`.
 
-### 3 · BUILD (one agent per ready story, parallel waves by deps, sonnet, worktree)
-A story is ready when each of its deps is merged into the run branch or has a planned
-interface (`plannable: true`); only an unplannable dep holds a story for the next wave
-(*Speed rules*). A coder whose dep isn't merged yet builds against the dep's *Interfaces
-provided* and stubs or mocks it in its tests.
+### Step 3 · CODE (`code`; one coder per ready story, parallel waves, sonnet, worktree; then one merger)
 Coder brief. Strict TDD: write the failing tests from the plan, confirm they fail, implement,
-confirm they pass, refactor, run the scoped gates (lint, type-check, the tests for the files
-it touched and their related tests). Coders never run the full suite or the build: the full
-suite runs once, in TEST.
-Load the routed python skills **before** writing code. UI is built to `design.md`. Branch
-`wip/<run-slug>/<slug>` off the run branch. Commit and push the **story branch only** —
-coders never push the run branch. Supabase: migration files only, tested against
-`supabase start` locally. Every new migration is added to
-`deploy_pending.supabase_migrations`.
+confirm they pass, refactor, run the scoped gates. Load the routed python skills **before**
+writing code. UI is built to `design.md`. Branch `wip/<run-slug>/<slug>` off the sprint
+branch. Commit and push the **story branch only** — coders never push the sprint branch.
+Supabase: migration files only, tested against `supabase start` locally. Every new migration
+is added to `deploy_pending.supabase_migrations`.
 
-When a wave finishes, one **integrator** (sonnet) merges that wave's story branches into the
-run branch one at a time, deps before the stories that consume them, in the run worktree
-(pull, `--no-ff`, scoped gates, push). One writer
-per branch means no push races. Then, for each branch it merged, it runs
+When a wave finishes, one **merger** (sonnet) merges that wave's story branches into the
+sprint branch in the run worktree (*One merge agent per step*), and cleans each one up with
 `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo {run_worktree} --branch <branch> --target origin/{integration}`
 (*Cleanup is a step*): every worktree on the branch removed, and the `wip/` branch deleted
 locally and on origin, plus the paired harness branch once nothing unique is left on it. It
 returns each story's tip sha and merge sha; append them to that story's `merges` in
-`bmn.json` (REVIEW② finds the FIX① merges there) along with what was deleted or left.
-The next wave branches from the updated run branch. When the last wave is in, set
-`phase: merge1`. When the last wave is a single story branch, don't dispatch an integrator:
-the **integrator-merger** at `merge1` merges it and then merges to `dev`, with the gates run
-once (*Speed rules*).
+`bmn.json` along with what was deleted or left. The next wave branches from the updated
+sprint branch. After the **last** wave, the same merger also merges `origin/dev` into the
+sprint branch and the sprint branch into `dev`, in a throwaway detached worktree, never by
+checking out `dev` anywhere: `git worktree add --detach ../<repo-name>-<run-slug>-dev
+origin/dev`, there `git merge --no-ff sprint/<run-slug> && git push origin HEAD:dev`, then
+`git worktree remove` it. It never touches `main` and never squashes. If
+`stack.dev_push_deploys`, it skips the `dev` merge and TEST runs on the sprint branch.
+Then DB-SYNC, then `phase: test1`.
 
-### 4 · MERGE→dev ① (`merge1`; 1 agent, sonnet)
-Merger brief (or the integrator-merger brief when one branch is still to merge). In the run
-worktree, merge `origin/dev` into the run branch, run the scoped gates once (lint, type-check,
-the tests related to the files the merge changed; never the full suite or the build), push. Then merge into `dev` in a throwaway detached worktree, never by checking out
-`dev` anywhere: `git worktree add --detach ../<repo-name>-<run-slug>-dev origin/dev`, there
-`git merge --no-ff <type>/<run-slug> && git push origin HEAD:dev`, then `git worktree remove`
-it. It never touches `main`, never squashes, and doesn't delete the run branch: FIX① still
-branches from it, and CLEANUP deletes it after the last merge to `dev`. If
-`stack.dev_push_deploys`, skip the `dev` merge — TEST runs on the run branch, and the report
-lists the `dev` merge on the Deploy checklist.
-
-### 4b · DB-SYNC (1 agent, sonnet, `isolation: "worktree"`; after every MERGE that brought new migrations)
+**DB-SYNC (1 agent, sonnet, `isolation: "worktree"`; after every merge to `dev` that brought new migrations).**
 Record its worktree and branch in `temp_refs`.
-This step runs only when `.claude/bmn.config.json` exists and the merged `dev` has
-migrations that aren't in `supabase_dev_applied`. Run
+This runs only when `.claude/bmn.config.json` exists and the merged `dev` has migrations that
+aren't in `supabase_dev_applied`. Run
 `supabase link --project-ref <dev_ref> && supabase db push --linked` in one command, then
 `supabase migration list --linked` to confirm. Record the applied files in
-`supabase_dev_applied`. Some cases are skipped and go on the checklist instead:
+`supabase_dev_applied`. Some cases are skipped and go on the release checklist instead:
 - A migration that destroys data (`DROP TABLE`/`DROP COLUMN`/`TRUNCATE`, or `DELETE`/
   `UPDATE` without `WHERE`).
 - The CLI isn't authenticated (no access token or DB password). Never enter a credential.
@@ -492,93 +436,89 @@ migrations that aren't in `supabase_dev_applied`. Run
 
 Tests don't run against the dev database. They stay on local Supabase.
 
-### 5 · TEST① (`test1`; 1 agent per test surface, parallel, sonnet, each in `isolation: "worktree"`) — coding complete
-Record each worktree and branch in `temp_refs`.
-Tester brief, run against the merged `dev`:
-- **TDD suite**: the full `pytest` (or `vitest`/`jest`) run, plus coverage, then the build
-  (`next build`, or the stack's equivalent). Target is 80% or higher on the code the stories
-  touched. This is the only place in a phase where the full suite and the build run.
+### Step 4 · TEST① ∥ REVIEW (`test1`; testers per surface + 1 reviewer, all in one message)
+Record the sha the merged `dev` is at (the sprint branch when `stack.dev_push_deploys`) as
+`test_shas.test1`, then dispatch the testers and the reviewer together.
+
+**Testers** (1 per test surface, parallel, sonnet, each in `isolation: "worktree"`; record
+each worktree and branch in `temp_refs`). Tester brief, run against `test_shas.test1`:
+- **TDD suite**: the full `pytest` (or `vitest`/`jest`) run, plus coverage, plus the build.
+  Target is 80% or higher on the code the stories touched.
 - **Browser** (whenever `stack.ui` is true, or the app serves HTML): start the app locally,
   and start local Supabase if it's used. Drive every story's user-facing acceptance
   criterion in headless Playwright. Screenshot every screen in `design.md` and compare it
-  with its `design/*.html` reference; a structural mismatch is a failure. Collect screenshots in `validation.md` as file paths,
-  and console errors plus failed network requests as findings.
+  with its `design/*.html` reference; a structural mismatch is a failure. Collect
+  screenshots in `validation.md` as file paths, and console errors plus failed network
+  requests as findings.
 - **API / MCP surfaces**: black-box calls against the running server (httpx for APIs, or
   Playwright's `request` fixture for a TypeScript / Next.js repo; an MCP
   client session that lists and calls tools for MCP servers).
 A TypeScript / Next.js repo takes all of this tooling from the TypeScript row of
 [references/stack-routing.md](references/stack-routing.md)'s Test surfaces table: Vitest or
 Jest, `@playwright/test` and the `request` fixture, never pytest-playwright or httpx.
-Failures go into each story's `validation.md` as findings, and on to REVIEW① as input.
-Coding is complete here. Record the sha TEST① ran on (the merged `dev`, or the run branch
-when `stack.dev_push_deploys`) as `review_shas.review1`.
+Failures go into each story's `validation.md` and on to FIX.
 
-### 6 · REVIEW① — one pass over what the run implemented (`review1`; 1 agent, opus)
-Reviewer brief, pass 1. Run `/code-review` at `high` on the whole run's diff,
-`git diff {dev_base}...{review1_sha}`, plus the routed python-library-quality lenses
+**Reviewer** (1, opus; a large run may split by area across parallel reviewers in the same
+message). Reviewer brief. Run `/code-review` at `high` on the whole run's diff,
+`git diff {dev_base}...{test1_sha}`, plus the routed python-library-quality lenses
 (security, API design, untrusted content, destructive operations, external behavior, heavy
-dependencies) that match it, and for TypeScript `nextjs-fullstack-standards` (when the session
-has it) plus [references/nextjs.md](references/nextjs.md), each finding citing the rule id it
-breaks. Beyond per-file
-bugs, it looks for what only shows up across stories: duplicated helpers, contracts that
-disagree, migrations that conflict or run in the wrong order, config keys nothing reads, and
-acceptance criteria no test covers. A screen that departs from the picked design (layout,
-components, tokens, copy) is HIGH. Findings go into the run-level `review.md`, ranked
-CRITICAL/HIGH/MEDIUM/LOW, each with an id, file:line, a concrete failure scenario and its
-owning story (`run` when no story owns it). A large run may split the pass by area (stories
-or directories) across parallel reviewers in one message. Each returns its JSON without
-writing, and the orchestrator writes `review.md` from them, one section per area. It is
-still one pass, and no verifier agent checks the findings.
+dependencies) that match it, and for TypeScript `nextjs-fullstack-standards` (when the
+session has it) plus [references/nextjs.md](references/nextjs.md), each finding citing the
+rule id it breaks. Beyond per-file bugs, it looks for what only shows up across stories:
+duplicated helpers, contracts that disagree, migrations that conflict or run in the wrong
+order, config keys nothing reads, and acceptance criteria no test covers. A screen that
+departs from the picked design (layout, components, tokens, copy) is HIGH. Findings go into
+the run-level `review.md`, ranked CRITICAL/HIGH/MEDIUM/LOW, each with an id, file:line, a
+concrete failure scenario and its owning story (`run` when no story owns it). When the pass
+is split, each reviewer returns its JSON without writing, and the orchestrator writes
+`review.md` from them, one section per area.
 
-### 7 · FIX① — the only fix round (`fix1`; one agent per owning story, parallel, each in `isolation: "worktree"`)
+When every tester and the reviewer has returned, set `phase: fix`. When the review found
+nothing and TEST① was green, skip steps 5 and 6: set `phase: report`.
+
+### Step 5 · FIX — the only fix round (`fix`; one fixer per owning story, parallel, each in `isolation: "worktree"`; then one merger)
 Record each worktree and branch in `temp_refs`.
-Fixer brief. Input: every REVIEW① finding, every severity, plus every TEST① failure, grouped
-by owning story (fast mode: REVIEW① and TEST① ran side by side, so both are in hand).
-Findings no story owns go to one `run` fixer. Sonnet for mechanical fixes,
+Fixer brief. Input: every review finding, every severity, plus every TEST① failure, grouped
+by owning story. Findings no story owns go to one `run` fixer. Sonnet for mechanical fixes,
 opus when the root cause is unclear. Each fixer first reproduces each item as a failing test
-— that reproduction **is** the verification — then fixes it and runs the scoped gates. An item it
-can't reproduce is recorded as not-reproducible, with evidence, not argued and not retried.
-An item it can't fix is recorded as blocked, with the reason. One attempt per fixer, no
-retry loop. Each fixer works on a fresh `wip/<run-slug>/<owner>-fix` branch off the run
-branch; the integrator merges each fix and test branch and deletes it with
-`merged-branch-cleanup.py`, serially, same as BUILD. When FIX① leaves a single fix branch
-(TEST's evidence-only `tests-` branches ride along), the integrator-merger at `merge2` does
-both merges with the gates run once.
-When REVIEW① found nothing and TEST① was green, skip straight to REPORT.
+— that reproduction **is** the verification — then fixes it and runs the scoped gates. An
+item it can't reproduce is recorded as not-reproducible, with evidence, not argued and not
+retried. An item it can't fix is recorded as blocked, with the reason. One attempt per
+fixer, no retry loop. Each fixer works on a fresh `wip/<run-slug>/<owner>-fix` branch off
+the sprint branch.
 
-### 8 · MERGE→dev ② (+ DB-SYNC) → TEST② (`merge2`, `test2`)
-Same as steps 4, 4b and 5. Record the sha TEST② ran on as `review_shas.review2`. TEST②
-failures aren't fixed. They go to REVIEW② as input and into the report. In fast mode TEST②
-runs only if Jonathan asked for REVIEW②; otherwise go from `merge2` to REPORT.
+Then one merger merges every fix branch and every TEST① `tests-` branch into the sprint
+branch, gates once, cleans each up with `merged-branch-cleanup.py`, and merges the sprint
+branch into `dev` exactly as in step 3. DB-SYNC if the fixes brought migrations. Set
+`phase: test2`.
 
-### 9 · REVIEW② — the last review (`review2`; 1 agent, opus; fast mode: only if Jonathan asks)
-Reviewer brief, pass 2. One pass over the FIX① delta, `git diff {review1_sha}...{review2_sha}`,
-plus a re-check of every REVIEW① finding at `{review2_sha}`: fixed, still open, regressed, or
-not-reproducible (as the fixer recorded it, not re-argued). Same `/code-review` level and
-lenses, and it may split by area the same way. It adds a REVIEW② section to `review.md`,
-ranking new findings in the delta and the TEST② failures the same way. **Nothing REVIEW②
-finds is fixed.** Every item, HIGH included, goes straight to the report under *Left open*.
+### Step 6 · TEST② (`test2`; testers per surface, parallel, sonnet, worktree)
+The tester brief again, at the new merged `dev` sha (record it as `test_shas.test2`), with
+`{test_n}` 2: the full suite, coverage and the build, every browser, API and MCP criterion,
+and a re-run of every TEST① failure and every fixer's reproducing test. TEST② testers record
+evidence only (`validation.md`, screenshots); they add no new tests. **Nothing TEST② finds is
+fixed.** Every failure, HIGH included, goes straight to the report under *Left open*. Set
+`phase: report`.
 
-### 10 · REPORT (`report`; orchestrator)
-The report names the picked design and links its Claude Design project, the mode, and the
-estimate vs the actual time. Fill in [references/report-template.md](references/report-template.md) and write it to
-`report.md`. Keep `phase: report`, commit both in the run worktree, and have the merger
-merge to `dev` (a `--no-ff` merge commit, never squash). **Stopped for Jonathan** comes
-first: what was built, what FIX① fixed, what
-is left open (every REVIEW② finding and TEST② failure, HIGH included; in fast mode without
-REVIEW②, a line saying the FIX① fixes were not re-reviewed after fixing), and the decisions
-that are his — whether any of it becomes a new goal, release/promotion to `main`, deploys,
-DB. The **Deploy checklist** comes next.
-It lists which migrations were applied to Supabase **dev** and which are waiting for
-**main**. It also lists any dev migrations that were held back, and why. It ends with a
-ready-to-say Vercel line: "`dev` is ready for a Vercel dev deploy:
-`vercel deploy --target=<env>`". Nothing Vercel- or main-related is run. The *Git cleanup*
-section is filled in by CLEANUP.
+### Step 7 · REPORT (`report`; orchestrator, then the cleaner)
+Fill in [references/report-template.md](references/report-template.md) and write it to
+`report.md` in the run worktree. The report names the picked design and links its Claude
+Design project. **Your decision: release?** comes first: what was built, what FIX fixed,
+what is left open (every TEST② failure, HIGH included, and every review finding FIX didn't
+close), and the proposed release. The **Release checklist** comes next. It is built from the
+scout's release profile and lists, in the order RELEASE will run them: the version bump
+(`<current> → <next>`, and why that bump), the changelog entry, the Supabase migrations that
+will go to **main** (only ones already applied to dev; held-back ones are listed as manual
+items with the reason), env vars or secrets that must exist first (names only), the
+`dev` → `main` merge and tag, the Vercel production deploy (git-triggered by the push to
+`main`, or `vercel deploy --prod`), the GitHub release, and the smoke check. Nothing on it
+runs yet. Commit `report.md`.
 
-### 10b · CLEANUP (still `report`; 1 agent, sonnet) — mandatory, never skipped
-Cleaner brief. It runs the helper (*Cleanup is a step*) with `--repo <main checkout>`, which
-changes no file or branch there, so the helper never removes the worktree it runs from. It
-touches only what `bmn.json` names:
+**CLEANUP (still `report`; 1 agent, sonnet) — mandatory, never skipped.** Cleaner brief. It
+first merges the sprint branch (the report and the TEST② evidence branches, which carry no
+code) into `dev` without re-running gates, then sweeps. It runs the helper (*Cleanup is a
+step*) with `--repo <main checkout>`, which changes no file or branch there, so the helper
+never removes the worktree it runs from. It touches only what `bmn.json` names:
 1. **Sweep.** `git fetch --prune origin`, then, for every `temp_refs` entry, run
    `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo <main checkout> --branch <ref> --target origin/{integration}`.
    Temp refs go first, while `origin/{integration}` still resolves. The helper checks each
@@ -589,7 +529,7 @@ touches only what `bmn.json` names:
    not merged is still deleted (`git branch -D`, its worktree is already gone) when its tip
    equals `base`, or when it has no commits unique to it (`git rev-list <ref> --not
    --exclude=refs/heads/<ref> --branches --remotes` prints nothing).
-2. **Run branch.** After the fetch, run
+2. **Sprint branch.** After the fetch, run
    `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo <main checkout> --branch <integration> --target origin/dev`.
    The local branch, the origin copy and every worktree on the branch (the run worktree
    included, when clean) go only if the branch is an ancestor of `origin/dev`. Anything the
@@ -607,38 +547,114 @@ touches only what `bmn.json` names:
    files other than regenerable build output is kept.
 3. **Record.** When step 2 deleted the branch, first `git -C <repo> worktree add --detach
    <dev_worktree> origin/dev`; then edit `report.md` (the *Git cleanup* section), `bmn.json`
-   (`cleanup`; `phase: blocked` when `blocker` is non-null, else `done`) and every
-   `vercel.json` (dropping the run branch's `deploymentEnabled` key, only when the origin copy
-   was deleted too: an origin copy that stays keeps its key) inside that worktree,
+   (`cleanup`; `phase: blocked` when `blocker` is non-null, else `decision`) and every
+   `vercel.json` (dropping the sprint branch's `deploymentEnabled` key, only when the origin
+   copy was deleted too: an origin copy that stays keeps its key) inside that worktree,
    commit `chore(bmn): record git cleanup for <run-slug>`, push `HEAD:dev`, and remove it.
    Otherwise edit and commit in the run worktree, staging only `docs/sprints/bmn-<run-slug>/`,
    key kept.
 
-### 11 · ALERT → DONE (orchestrator)
-Load `PushNotification` with ToolSearch and send one line: the outcome, the story count,
-how many items are left open, and whether any deploy is waiting. Then post the report's
-*Stopped for Jonathan*, *Deploy checklist* and *Git cleanup* sections in chat, with a link
-to `report.md`. This is the only long message Jonathan gets.
+**ALERT.** Load `PushNotification` with ToolSearch and send one line: the outcome, the story
+count, how many items are left open, and the proposed version. Then post the report's *Your
+decision: release?*, *Release checklist* and *Git cleanup* sections in chat, with a link to
+`report.md`. This is the only long message Jonathan gets.
 
-Then the run is **done**. Dispatch nothing else: no fix, no review, no release, no
-promotion to `main`, no deploy. Further work is a new goal, and only Jonathan decides that.
+### Step 8 · RELEASE? — Jonathan decides (`decision`)
+Right after the ALERT, ask **one** `AskUserQuestion`: "Release v<next>?". Two options:
+- **Release** — description: the checklist in one line (e.g. "2 migrations to Supabase main,
+  dev → main, tag v1.4.0, Vercel production") plus what's still open ("1 HIGH and 2 test
+  failures left open").
+- **Not now** — description: "Nothing is released. The run ends; you decide what's next."
+
+Never mark either option as recommended. A blocked run (`phase: blocked`) is not asked: it
+reports and stops.
+
+- **Release** → run RELEASE below.
+- **Not now** → in a throwaway detached worktree of `origin/dev`, set `bmn.json`
+  `release.status: "declined"` and `phase: done`, commit `chore(bmn): <run-slug> not
+  released`, push `HEAD:dev`, remove the worktree. Say one line: the run is done and nothing
+  was released. Then **stop**: dispatch nothing, start nothing.
+- **Anything else** (free text via "Other") → it's Jonathan deciding what's next. Treat it
+  as "Not now" for this run, then do what he said as a new goal. If what he said is "release"
+  with changes ("release, but skip Vercel"), run RELEASE with exactly those changes.
+
+### RELEASE (after Jonathan's yes; orchestrator + 1 release-prep worker)
+Jonathan's yes in chat is the approval for every step on the checklist, for this release
+only. Each deploy command is prefixed with `BMN_USER_APPROVED_DEPLOY=1`. The order matters:
+nothing reaches `main` until the database is ready for it, and nothing is committed to
+either branch after `main` moves, so `dev` and `main` end on the same commit.
+
+1. **Preflight (release-prep worker, sonnet, read-only).** Release-prep brief, mode
+   `preflight`. In a detached worktree of `origin/dev` it checks: `git log --oneline
+   origin/dev..origin/main` is empty (if not, the worker merges `origin/main` into `dev`
+   with `--no-ff`, runs the scoped gates and pushes `dev`); `dev`'s code is what TEST② tested
+   (only `docs/` and report commits since `test_shas.test2` — otherwise it runs
+   `{full_gates}` on the tip, and a failure stops the release); every CLI the checklist
+   needs is signed in (`gh auth status`, `vercel whoami`, the Supabase CLI for the main ref);
+   the env vars the checklist names exist on the production project (names only, `vercel env
+   ls production`); the tag `v<next>` doesn't exist yet. It returns `{ok, problems[]}`. Any
+   problem stops the release before anything changes: record it in `bmn.json.release`
+   (`status: failed`) with a `dev` commit, tell Jonathan in one line what to fix, and stop.
+   Never enter a credential.
+2. **Supabase MAIN** (orchestrator), only when the checklist has main migrations:
+   `BMN_USER_APPROVED_DEPLOY=1 supabase link --project-ref <main_ref> && BMN_USER_APPROVED_DEPLOY=1 supabase db push --linked`,
+   then `supabase migration list --linked` to confirm every migration on dev is on main. A
+   failure stops the release here (`status: failed`, recorded with a `dev` commit; `main` is
+   untouched) and goes to Jonathan in one line.
+3. **Release commit (release-prep worker, mode `commit`).** In a detached worktree of
+   `origin/dev`: bump the version in every version file the release profile names, add the
+   changelog entry, and write `bmn.json` with `phase: done` and `release: {status:
+   "released", version, tag, bump, at}`. Commit `release: v<next>` and push `HEAD:dev`. When
+   the repo has its own release tool (release-please, changesets, `npm version`, a
+   `make release`), the worker runs that tool's version step instead of editing files by
+   hand. It returns the commit sha.
+4. **Main and tag** (orchestrator), in one command:
+   `git worktree add --detach ../<repo-name>-<run-slug>-main origin/main && cd ../<repo-name>-<run-slug>-main && git merge --no-ff origin/dev -m "release: v<next>" && git tag -a v<next> -m "v<next>" && BMN_USER_APPROVED_DEPLOY=1 git push origin HEAD:main v<next>`,
+   then `git -C <main checkout> worktree remove ../<repo-name>-<run-slug>-main`. The merge is
+   a merge commit, never a squash or a fast-forward of `main`.
+5. **Sync dev** (orchestrator): `git fetch origin && git push origin origin/main:dev` (a
+   fast-forward; it never forces), then confirm `git rev-parse origin/dev origin/main` prints
+   the same sha twice. **`dev` and `main` are now the same commit; nothing is committed to
+   either after this.**
+6. **Vercel production.** When `main`'s git-triggered production build is on (the release
+   profile says so), the push in step 4 started it: wait for it with `vercel ls`/`vercel
+   inspect` until it is `READY` or `ERROR`. Otherwise run
+   `BMN_USER_APPROVED_DEPLOY=1 vercel deploy --prod` from a detached worktree at the release
+   commit, linked to the project the profile names, and remove that worktree. A Vercel MCP
+   deploy tool is never used.
+7. **GitHub release** (orchestrator), when the repo is on GitHub:
+   `gh release create v<next> --title "v<next>" --notes-file <changelog entry>`. When the
+   repo's own CI publishes on the tag, wait for that workflow instead and report its result.
+8. **Smoke check (release-prep worker, mode `verify`).** Production answers on its health
+   route or home page (HTTP 200, no server error in `vercel logs` for the deployment), the
+   main database lists every released migration, and the tag points at `origin/main`. It
+   returns `{ok, checks[]}`.
+9. **Done.** Send one `PushNotification` line ("v<next> released" or what failed), and post
+   the release result in chat: the version, the main sha, the deploy URL, each step's
+   result. A failure after step 4 is reported, never rolled back or retried on its own:
+   `main` already has the release, and whether to roll back or fix forward is Jonathan's
+   call, a new goal. The record of the result lives in the chat, the notification and the
+   GitHub release, never in a new commit, so `dev` and `main` stay in sync.
+
+The release doesn't fix, review or deploy anything outside its checklist, and the approval
+doesn't carry over to a later release or another run.
 
 ## Real blockers (the only early stop)
 
-Stop, set `phase: blocked` and `blocker`, then run REPORT, CLEANUP and ALERT with what did ship. Do
-this only when:
+Stop, set `phase: blocked` and `blocker`, then run REPORT, CLEANUP and ALERT with what did
+ship (no release question). Do this only when:
 - the work **requires** a credential, account, or paid resource that doesn't exist locally
   (never invent or enter one — see the prohibited-actions rules),
-- the only path forward is a deploy or a remote database change (hard lines 1 and 2),
+- the only path forward before step 8 is a deploy or a remote database change (hard lines 1
+  and 2),
 - or the story contradicts itself in a way where either reading would destroy data.
 
 Everything else is an assumption, not a blocker.
 
-## When Jonathan says "deploy"
+## When Jonathan says "deploy" outside step 8
 
 This only applies when Jonathan says it in chat, in this session, naming the target (for
-example "deploy to Vercel dev", "push main's database" or "deploy prod"). Run only that step,
-from the report's Deploy checklist. Prefix each command with `BMN_USER_APPROVED_DEPLOY=1` so
-the guard lets it through, then confirm what landed. For Supabase main, check that every
+example "deploy to Vercel dev"). Run only that step, prefixed with
+`BMN_USER_APPROVED_DEPLOY=1`, then confirm what landed. For Supabase main, check that every
 migration is already on dev first. Approval covers one step and doesn't carry over to the
-next one.
+next one. "Release" always means step 8's RELEASE, with its whole checklist.

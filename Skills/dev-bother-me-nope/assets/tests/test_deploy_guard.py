@@ -281,15 +281,17 @@ def test_inactive_repo_is_not_guarded():
     assert run_guard({"tool_name": "mcp__supabase__apply_migration", "cwd": str(idle)}).returncode == 0
 
 
-@pytest.mark.parametrize("phase", ["done", "blocked"])
+@pytest.mark.parametrize("phase", ["done", "blocked", "decision"])
 def test_finished_run_is_not_guarded(phase):
     root = new_repo(active=False)
     start_run(root, phase)
     assert guard_in(root, "vercel --prod").returncode == 0
 
 
-@pytest.mark.parametrize("phase", ["intake", "build", "merge1", "test1", "review1", "fix1",
-                                   "merge2", "test2", "review2", "report"])
+@pytest.mark.parametrize("phase", ["intake", "design", "split", "plan", "code", "test1", "fix",
+                                   "test2", "report",
+                                   # phases of runs from before 2.0.0
+                                   "build", "merge1", "review1", "fix1", "merge2", "review2"])
 def test_every_unfinished_phase_is_guarded(phase):
     root = new_repo(active=False)
     start_run(root, phase)
