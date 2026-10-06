@@ -226,8 +226,8 @@ redesign.
 
 A run from before 2.0.0 maps its old phase first: `build` and `merge1` → `code`, `review1` →
 `test1`, `fix1` and `merge2` → `fix`, `review2` → `report` (its findings go under *Left
-open*), and before 1.5.0 `fix` → `fix`, `review3` → `report`, `cleanup` → `report`. Its run
-branch keeps its old `<type>/<run-slug>` name; `integration` in `bmn.json` is the source of
+open*), and before 1.5.0 `fix` → `fix`, `review3` → `report`, `cleanup` → `report`. Its
+integration branch keeps its old `<type>/<run-slug>` name; `integration` in `bmn.json` is the source of
 truth for every branch name.
 
 **Leftover sweep:** a `done`, `blocked` or `decision` run whose `cleanup.left` names its
@@ -506,13 +506,13 @@ Fill in [references/report-template.md](references/report-template.md) and write
 Design project. **Your decision: release?** comes first: what was built, what FIX fixed,
 what is left open (every TEST② failure, HIGH included, and every review finding FIX didn't
 close), and the proposed release. The **Release checklist** comes next. It is built from the
-scout's release profile and lists, in the order RELEASE will run them: the version bump
-(`<current> → <next>`, and why that bump), the changelog entry, the Supabase migrations that
-will go to **main** (only ones already applied to dev; held-back ones are listed as manual
-items with the reason), env vars or secrets that must exist first (names only), the
-`dev` → `main` merge and tag, the Vercel production deploy (git-triggered by the push to
-`main`, or `vercel deploy --prod`), the GitHub release, and the smoke check. Nothing on it
-runs yet. Commit `report.md`.
+scout's release profile and lists, in the order RELEASE will run them: the preflight (including
+the env vars or secrets that must exist first, names only), the Supabase migrations that will
+go to **main** (only ones already applied to dev; held-back ones are listed as manual items
+with the reason), the release commit (the version bump `<current> → <next>` and why that bump,
+plus the changelog entry), the `dev` → `main` merge and tag, `dev` fast-forwarded onto `main`,
+the Vercel production deploy (git-triggered by the push to `main`, or `vercel deploy --prod`),
+the GitHub release, and the smoke check. Nothing on it runs yet. Commit `report.md`.
 
 **CLEANUP (still `report`; 1 agent, sonnet) — mandatory, never skipped.** Cleaner brief. It
 first merges the sprint branch (the report and the TEST② evidence branches, which carry no

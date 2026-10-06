@@ -18,7 +18,7 @@ integration branches: `git push --delete`/`:ref` never removes a protected branc
 prod production release dev develop staging, or the remote's default branch; `heads/dev` is
 `refs/heads/dev` to git), approved deploy or not; if one should go, Jonathan deletes it himself.
 DELETE_PROTECTED is held equal to merged-branch-cleanup.py's PROTECTED by
-test_protected_branch_parity.py. Branch cleanup (`git push origin --delete <wip or run branch>`,
+test_protected_branch_parity.py. Branch cleanup (`git push origin --delete <wip or sprint branch>`,
 `git branch -D`, `git worktree remove|prune`) is never blocked. Wrappers that take options or
 values (`timeout 60`, `sudo -u me`, `nice -n 5`, `env -u X`, `xargs -n1`, `xargs --replace`) and
 shell command strings (`sh -ec '…'`, `fish --command '…'`, `fish -C '…'`) are unwrapped before

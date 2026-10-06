@@ -110,7 +110,7 @@ before the approval pass-through and is never lifted by it.
 - `gh pr merge --disable-auto` and `gh pr merge --help` (they merge nothing), `gh pr view`,
   `gh pr create`, `gh pr list`, and `gh api` calls that do not squash, such as
   `gh api -X PATCH repos/o/r -F allow_squash_merge=false -F delete_branch_on_merge=true`.
-- Branch cleanup is never blocked: `git push origin --delete <wip or run branch>` (also with
+- Branch cleanup is never blocked: `git push origin --delete <wip or sprint branch>` (also with
   `--force-with-lease=<ref>:<sha>`, a compare-and-delete), `git branch -D`,
   `git worktree remove`, `git worktree prune`. Deleting a protected branch on origin
   (`main`, `dev`, the default branch, ...) stays blocked, with or without a

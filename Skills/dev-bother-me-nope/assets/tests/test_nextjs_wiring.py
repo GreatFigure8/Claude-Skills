@@ -22,18 +22,18 @@ STACK_ROUTING = SKILL_DIR / "references" / "stack-routing.md"
 PLUGIN_JSON = h.PLUGIN / ".claude-plugin" / "plugin.json"
 
 NEXTJS_PATH = "${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs.md"
-SKILL_DESCRIPTION_SHA256 = "a9d6a4cb611a9ccc1bc836fcbfee02658c1f5897cbc19372d6f126dbf3210de2"
-PLUGIN_DESCRIPTION_SHA256 = "8549b077d40f3ae5daaa47ad41ee5e97f97838c1a2062cf694f0bfca3a3e9e14"
+SKILL_DESCRIPTION_SHA256 = "03f9899332768847dd5471c830e6e3e4521a3ad71863cc12621027e64a2f0002"
+PLUGIN_DESCRIPTION_SHA256 = "60aa0e694ac7ea19ee30a769ea99b18fd3346c312dc61afddaaf92c1aa64e939"
 EDITED_BRIEFS = ("planner", "coder", "reviewer", "fixer")
 OTHER_BRIEFS = (
     "stack-scout",
     "designer",
     "splitter",
-    "integrator",
     "merger",
     "cleaner",
     "db-sync",
     "tester",
+    "release-prep",
 )
 TYPESCRIPT_ROW = "TypeScript / Next.js repo"
 ROUTE_HEADER = ("Kind", "Build with", "Review lenses (python-library-quality:*)", "Read")
@@ -195,8 +195,15 @@ def test_stack_routing_test_surfaces_keeps_the_python_rows():
 # --- AC12: SKILL.md ---------------------------------------------------------------------------
 
 
+def _intake():
+    """Step 1's INTAKE part (1a): everything in the SPRINT step before DESIGN (1b)."""
+    sprint = h.section(h.read(SKILL), "Step 1 · SPRINT", prefix=True)
+    assert "**1a · INTAKE" in sprint and "**1b · DESIGN" in sprint
+    return sprint.split("**1b · DESIGN")[0]
+
+
 def test_skill_intake_links_the_nextjs_reference():
-    intake = h.section(h.read(SKILL), "0 · INTAKE", prefix=True)
+    intake = _intake()
     _assert_has(
         intake,
         "For a TypeScript / Next.js repo the routing also names "
@@ -206,8 +213,8 @@ def test_skill_intake_links_the_nextjs_reference():
     )
 
 
-def test_skill_review1_links_the_reference_next_to_fullstack_standards():
-    review = h.section(h.read(SKILL), "6 · REVIEW", prefix=True)
+def test_skill_review_links_the_reference_next_to_fullstack_standards():
+    review = h.section(h.read(SKILL), "Step 4 · TEST① ∥ REVIEW", prefix=True)
     _assert_has(
         review,
         "and for TypeScript `nextjs-fullstack-standards` (when the session has it) plus "
@@ -216,7 +223,7 @@ def test_skill_review1_links_the_reference_next_to_fullstack_standards():
 
 
 def test_skill_intake_routes_references_through_their_own_field():
-    intake = h.section(h.read(SKILL), "0 · INTAKE", prefix=True)
+    intake = _intake()
     _assert_has(
         intake,
         "The scout returns it in `routed_references[]`, never in a skill list; `stack.md` "
@@ -226,7 +233,7 @@ def test_skill_intake_routes_references_through_their_own_field():
 
 def test_skill_test1_uses_the_typescript_tooling():
     """R1-A9: a Next.js repo is tested with its own runners, not pytest-playwright/httpx."""
-    test1 = h.section(h.read(SKILL), "5 · TEST", prefix=True)
+    test1 = h.section(h.read(SKILL), "Step 4 · TEST①", prefix=True)
     _assert_has(
         test1,
         "Playwright's `request` fixture for a TypeScript / Next.js repo",
@@ -334,11 +341,11 @@ def test_tester_brief_uses_the_typescript_row_tooling():
     )
 
 
-def test_reviewer_return_json_shape_is_unchanged():
+def test_reviewer_return_json_shape_has_no_second_pass():
     _assert_has(
         _brief_block("reviewer"),
-        "Return JSON: {pass, area, critical:n, high:n, medium:n, low:n, "
-        "findings:[{id, sev, file, line, owner, summary}], recheck:[{id, status}] (pass 2 only)}.",
+        "Return JSON: {area, critical:n, high:n, medium:n, low:n, "
+        "findings:[{id, sev, file, line, owner, summary}]}.",
     )
 
 
