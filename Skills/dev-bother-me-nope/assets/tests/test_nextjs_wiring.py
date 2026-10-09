@@ -22,8 +22,8 @@ STACK_ROUTING = SKILL_DIR / "references" / "stack-routing.md"
 PLUGIN_JSON = h.PLUGIN / ".claude-plugin" / "plugin.json"
 
 NEXTJS_PATH = "${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs.md"
-SKILL_DESCRIPTION_SHA256 = "03f9899332768847dd5471c830e6e3e4521a3ad71863cc12621027e64a2f0002"
-PLUGIN_DESCRIPTION_SHA256 = "60aa0e694ac7ea19ee30a769ea99b18fd3346c312dc61afddaaf92c1aa64e939"
+SKILL_DESCRIPTION_SHA256 = "659b888c79011f0da66354663294c1626ed8ff2dd4255ac182562c7ed040f005"
+PLUGIN_DESCRIPTION_SHA256 = "5106d29ad0a275748ec7d23fe0afeaa1e3861fb6ed7eb76487459d7d17c2372b"
 EDITED_BRIEFS = ("planner", "coder", "reviewer", "fixer")
 OTHER_BRIEFS = (
     "stack-scout",
@@ -214,7 +214,7 @@ def test_skill_intake_links_the_nextjs_reference():
 
 
 def test_skill_review_links_the_reference_next_to_fullstack_standards():
-    review = h.section(h.read(SKILL), "Step 4 · TEST① ∥ REVIEW", prefix=True)
+    review = h.section(h.read(SKILL), "Step 5 · TEST × N", prefix=True)
     _assert_has(
         review,
         "and for TypeScript `nextjs-fullstack-standards` (when the session has it) plus "
@@ -231,11 +231,11 @@ def test_skill_intake_routes_references_through_their_own_field():
     )
 
 
-def test_skill_test1_uses_the_typescript_tooling():
+def test_skill_test_runs_use_the_typescript_tooling():
     """R1-A9: a Next.js repo is tested with its own runners, not pytest-playwright/httpx."""
-    test1 = h.section(h.read(SKILL), "Step 4 · TEST①", prefix=True)
+    test_step = h.section(h.read(SKILL), "Step 5 · TEST × N", prefix=True)
     _assert_has(
-        test1,
+        test_step,
         "Playwright's `request` fixture for a TypeScript / Next.js repo",
         "A TypeScript / Next.js repo takes all of this tooling from the TypeScript row of "
         "[references/stack-routing.md](references/stack-routing.md)'s Test surfaces table",

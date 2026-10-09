@@ -1,16 +1,18 @@
-"""Text-presence tests for the 2.0.0 eight-step flow and the speed rules it keeps.
+"""Text-presence tests for the 3.0.0 seven-step flow and the speed rules it keeps.
 
-2.0.0 runs every story through eight steps, each once: 1 SPRINT (intake, the UI design pick,
-split) → 2 PLAN → 3 CODE → 4 TEST with one code review beside it → 5 FIX → 6 TEST (failures
-reported, never fixed) → 7 REPORT → 8 RELEASE? (Jonathan decides). The design pick and the
-release decision are the only questions. A yes runs the whole release in a fixed order and
-leaves `dev` and `main` on the same commit; nothing is committed after `main` moves. Fast mode,
-the planner-coder, the integrator and the second review are gone. The speed rules from 1.8.0
-stay: scoped gates, deps by interface, one merger per step with gates run once, an up-front
-time estimate and speed on request. These tests pin where SKILL.md, briefs.md,
-stack-routing.md, report-template.md, the worker agent and plugin.json say so. Section lookup
-is by heading text so the tests survive line shifts. Offline, standard library plus pytest;
-nothing here runs a helper script.
+3.0.0 runs every story through seven steps: 1 SPRINT (intake, the UI design pick, split) →
+2 PLAN → 3 CODE (code only: no test is written or run, just lint and the type-check) → 4 TEST?
+(once all coding is done, Jonathan says whether to test and, on yes, how many test → fix →
+test cycles) → 5 TEST × N (the first test run writes the plans' tests with one code review
+beside it; each cycle fixes what failed, then tests again; the last run's failures are
+reported, never fixed) → 6 REPORT → 7 RELEASE? (Jonathan decides). The design pick, the test
+cycles and the release decision are the only questions. A yes runs the whole release in a
+fixed order and leaves `dev` and `main` on the same commit; nothing is committed after `main`
+moves. The speed rules stay: code gates while coding, scoped gates in the fix rounds, deps by
+interface, one merger per step with gates run once, an up-front time estimate and speed on
+request. These tests pin where SKILL.md, briefs.md, stack-routing.md, report-template.md, the
+worker agent and plugin.json say so. Section lookup is by heading text so the tests survive
+line shifts. Offline, standard library plus pytest; nothing here runs a helper script.
 """
 
 import json
@@ -36,20 +38,19 @@ FLOW_DOCS = (
 )
 
 STEPS = (
-    ("1", "SPRINT"), ("2", "PLAN"), ("3", "CODE"), ("4", "TEST"),
-    ("5", "FIX"), ("6", "TEST"), ("7", "REPORT"), ("8", "RELEASE?"),
+    ("1", "SPRINT"), ("2", "PLAN"), ("3", "CODE"), ("4", "TEST?"),
+    ("5", "TEST"), ("6", "REPORT"), ("7", "RELEASE?"),
 )
 STEP_PHASES = {
     "Step 1 · SPRINT": "(`intake` → `design` → `split`)",
     "Step 2 · PLAN": "(`plan`;",
     "Step 3 · CODE": "(`code`;",
-    "Step 4 · TEST① ∥ REVIEW": "(`test1`;",
-    "Step 5 · FIX": "(`fix`;",
-    "Step 6 · TEST②": "(`test2`;",
-    "Step 7 · REPORT": "(`report`;",
-    "Step 8 · RELEASE?": "(`decision`)",
+    "Step 4 · TEST?": "(`testask`)",
+    "Step 5 · TEST × N": "(`test` ⇄ `fix`)",
+    "Step 6 · REPORT": "(`report`;",
+    "Step 7 · RELEASE?": "(`decision`)",
 }
-PHASES = "intake|design|split|plan|code|test1|fix|test2|report|decision|done|blocked"
+PHASES = "intake|design|split|plan|code|testask|test|fix|report|decision|done|blocked"
 BRIEF_NAMES = (
     "stack-scout", "designer", "splitter", "planner", "coder", "merger", "db-sync", "tester",
     "reviewer", "fixer", "cleaner", "release-prep",
@@ -63,10 +64,11 @@ CHECKLIST_ORDER = (
     "Vercel production", "GitHub release", "Smoke check",
 )
 REMOVED = re.compile(
-    r"[Ff]ast mode|planner-coder|\bintegrator|REVIEW[①②]|FIX[①②]|MERGE→dev|\brun branch",
+    r"[Ff]ast mode|planner-coder|\bintegrator|REVIEW[①②]|FIX[①②]|MERGE→dev|\brun branch"
+    r"|TEST[①②]|(?-i:\bTEST[12]\b)|\btest[12]_sha\b|Strict TDD|red → green|TEST PLAN FIRST",
     re.IGNORECASE,
 )
-SCOPED_BRIEFS = ("coder", "fixer", "merger")
+SCOPED_BRIEFS = ("fixer", "merger")
 CLEANUP_HELPER = "python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py"
 FULL_SUITE = re.compile(r"full (?:test )?suite", re.IGNORECASE)
 NEGATED = re.compile(r"\bnever\b|\bnot\b|\bnone\b|\bonly\b|\bno\b", re.IGNORECASE)
@@ -117,6 +119,10 @@ def _diagram():
     return h.code_blocks(_skill())[0][1]
 
 
+def _diagram_line(prefix):
+    return next(line for line in _diagram().splitlines() if line.startswith(prefix))
+
+
 def _release_items():
     return h.numbered_items(_skill_section("RELEASE (after Jonathan's yes"))
 
@@ -128,26 +134,29 @@ def _in_order(text, needles):
     return positions == sorted(positions)
 
 
-# --- the eight steps -------------------------------------------------------------------
+# --- the seven steps -------------------------------------------------------------------
 
 
-def test_diagram_lists_the_eight_steps_in_order():
+def test_diagram_lists_the_seven_steps_in_order():
     rows = [line.split()[:2] for line in _diagram().splitlines() if line.strip()]
     assert [tuple(row) for row in rows] == list(STEPS)
 
 
-def test_diagram_marks_only_the_design_pick_and_the_decision_as_manual():
+def test_diagram_marks_the_design_pick_the_test_cycles_and_the_decision_as_manual():
     manual = [line for line in _diagram().splitlines() if "[manual:" in line]
-    assert len(manual) == 2
+    assert len(manual) == 3
     assert manual[0].startswith("1 SPRINT") and "design pick" in manual[0]
-    assert manual[1].startswith("8 RELEASE?") and "the decision" in manual[1]
+    assert manual[1].startswith("4 TEST?") and "test cycles" in manual[1]
+    assert manual[2].startswith("7 RELEASE?") and "the decision" in manual[2]
 
 
-def test_diagram_runs_the_review_beside_the_first_test():
-    test1 = next(line for line in _diagram().splitlines() if line.startswith("4 TEST"))
-    _assert_has(test1, "full tests ∥ one code review")
-    test2 = next(line for line in _diagram().splitlines() if line.startswith("6 TEST"))
-    _assert_has(test2, "whatever still fails is reported, not fixed")
+def test_diagram_codes_without_tests_and_reviews_beside_the_first_test_run():
+    _assert_has(_diagram_line("3 CODE"), "code only, no tests")
+    _assert_has(_diagram_line("4 TEST?"), "no → 6", "yes → how many (N)")
+    _assert_has(
+        _diagram_line("5 TEST × N"),
+        "each cycle: test run (the first one: + one code review) → fix → test run",
+    )
 
 
 def test_procedure_has_one_heading_per_step_in_order_then_release():
@@ -173,22 +182,42 @@ def test_bmn_json_phases_follow_the_steps_and_release_is_not_one():
     assert schema["release"]["status"] == "pending|declined|released|failed"
 
 
-def test_each_step_runs_once():
+def test_bmn_json_records_the_test_cycles():
+    schema = _bmn_json_schema()
+    assert "test_shas" not in schema
+    tests = schema["tests"]
+    assert (tests["wanted"], tests["cycles"], tests["cycle"]) == (None, 0, 0)
+    assert set(tests["runs"][0]) == {"n", "sha", "pass", "fail", "branches"}
     _assert_has(
         _skill(),
-        "**Each step runs once.** There is one code review (in step 4), one fix round (step 5) "
-        "and one re-test (step 6).",
-        "Nothing loops \"until clean\", no verifier agent re-checks a finding",
-        "nothing step 6 finds is fixed",
+        "`tests.wanted` is `null` until Jonathan answers step 4, then `true` or `false`; "
+        "`cycles` is the number he entered",
     )
 
 
-def test_resume_never_fixes_again_after_test2_and_maps_old_phases():
+def test_every_step_runs_once_except_the_cycles():
     _assert_has(
         _skill(),
-        "Phases only move forward in enum order; a run resumed at `test2` or later never fixes "
-        "again.",
-        "A run from before 2.0.0 maps its old phase first",
+        "**Every step runs once, except step 5, which runs the cycles Jonathan asked for.**",
+        "N cycles are N fix rounds between N + 1 test runs",
+        "There is one code review (beside the first test run).",
+        "Step 5 ends early only when a test run comes back green with nothing left to fix.",
+        "Nothing loops \"until clean\" beyond the cycles asked for, no verifier agent re-checks "
+        "a finding",
+        "nothing the last test run finds is fixed",
+    )
+
+
+def test_resume_never_fixes_after_the_last_test_run_and_maps_old_phases():
+    _assert_has(
+        _skill(),
+        "A fix round never runs for a cycle above `tests.cycles`, so a run resumed at its last "
+        "test run never fixes again.",
+        "A run resumed at `testask` asks the test-cycle questions again.",
+        "A run from before 3.0.0 (its `bmn.json` has `test_shas` and no `tests`) maps its old "
+        "phase first",
+        "`review1` and `test1` → `testask`",
+        "`test2` → `test`, the run that closes that one cycle, so nothing it finds is fixed",
     )
 
 
@@ -196,9 +225,11 @@ def test_briefs_table_maps_every_brief_to_its_step():
     rows = h.table_rows(h.read(BRIEFS).split("## Common preamble")[0])
     table = {row[0]: row[1] for row in rows[1:]}
     assert list(table) == [
-        "1 SPRINT", "2 PLAN", "3 CODE", "4 TEST①", "5 FIX", "6 TEST②", "7 REPORT", "8 RELEASE",
+        "1 SPRINT", "2 PLAN", "3 CODE", "4 TEST?", "5 TEST × N", "6 REPORT", "7 RELEASE",
     ]
-    assert table["4 TEST①"] == "tester, reviewer (same message)"
+    assert table["3 CODE"] == "coder, merger, db-sync"
+    assert table["4 TEST?"] == "none: Jonathan answers"
+    assert table["5 TEST × N"].startswith("tester, reviewer (run 1, same message), fixer")
     named = {name.strip() for cell in table.values() for name in re.split(r",|\(", cell)}
     for brief in BRIEF_NAMES:
         assert brief in named, brief
@@ -222,47 +253,140 @@ def test_removed_concepts_are_gone(path):
     assert not found, f"{path.name}: {found}"
 
 
-# --- the two questions --------------------------------------------------------------------
+# --- coding never tests ---------------------------------------------------------------------
 
 
-def test_jonathan_is_asked_two_things():
+def test_skill_says_coding_never_tests():
     _assert_has(
         _skill(),
-        "**Jonathan is asked two things:** which UI design he wants (step 1, only when the story "
-        "touches something a person looks at) and whether to release (step 8).",
-        "Every other open question is decided here, written down as an assumption, and shipped.",
-        "3. **No questions except the two.**",
+        "**Coding never tests.** From the plan until every story is coded and merged to `dev`, "
+        "no test is written or run",
+        "Coders and the step-3 merger run only lint and the type-check (`{code_gates}`)",
+        "Writing the plans' tests, running them, the code review and every fix happen in step "
+        "5, and only when Jonathan asks for tests in step 4.",
     )
 
 
-def test_skill_asks_with_ask_user_question_only_at_the_design_pick_and_the_decision():
+def test_code_step_writes_and_runs_no_tests():
+    step = _skill_section("Step 3 · CODE")
+    _assert_has(
+        step,
+        "**Code only:** implement the plan, then run `{code_gates}` (lint + type-check).",
+        "No test is written or run — no TDD, no unit, related or full suite, no browser, no "
+        "build.",
+        "runs `{code_gates}` once",
+        "never run against any database here",
+        "Then DB-SYNC, then `phase: testask`.",
+    )
+
+
+def test_coder_brief_writes_no_tests_and_runs_only_the_code_gates():
+    brief = _brief("coder")
+    _assert_has(
+        brief,
+        "CODE ONLY. Write no tests and run no tests",
+        "Run the code gates: {code_gates} (lint + type-check, nothing else).",
+        "never run them, locally or remotely",
+    )
+    assert "{gates}" not in brief and "{full_gates}" not in brief
+    assert "supabase start" not in brief
+
+
+def test_planner_test_plan_waits_for_step_5():
+    _assert_has(
+        _brief("planner"),
+        "3. TEST PLAN:",
+        "The coder writes none of these and runs nothing: step 5's first test run writes and "
+        "runs them, and only when Jonathan asks for tests.",
+    )
+    _assert_has(_skill_section("Step 2 · PLAN"), "nobody writes or runs these until step 5's first test run")
+
+
+def test_worker_agent_says_coders_run_no_tests():
+    _assert_has(
+        h.read(WORKER),
+        "A coder writes and runs no tests: its gates are lint and the type-check only.",
+    )
+
+
+# --- the three questions --------------------------------------------------------------------
+
+
+def test_jonathan_is_asked_three_things():
+    _assert_has(
+        _skill(),
+        "**Jonathan is asked three things:** which UI design he wants (step 1, only when the "
+        "story touches something a person looks at), whether to test and how many test → fix "
+        "→ test cycles (step 4, once all coding is done), and whether to release (step 7).",
+        "Every other open question is decided here, written down as an assumption, and shipped.",
+        "3. **No questions except the three.**",
+        "**test cycles** (step 4: whether to test, then how many)",
+    )
+
+
+def test_skill_asks_with_ask_user_question_only_at_the_three_decisions():
     text = _skill()
-    assert text.count("AskUserQuestion") == 2
-    assert "AskUserQuestion" in _skill_section("Step 1 · SPRINT").split("**1c · SPLIT")[0]
-    assert "AskUserQuestion" in _skill_section("Step 8 · RELEASE?")
+    assert text.count("AskUserQuestion") == 4
+    assert _skill_section("Step 1 · SPRINT").split("**1c · SPLIT")[0].count("AskUserQuestion") == 1
+    assert _skill_section("Step 4 · TEST?").count("AskUserQuestion") == 2
+    assert _skill_section("Step 7 · RELEASE?").count("AskUserQuestion") == 1
 
 
-def test_design_freeze_asks_nothing_until_step_8():
+def test_design_freeze_asks_nothing_until_coding_is_done():
     _assert_has(
         _skill_section("Step 1 · SPRINT"),
-        "**From here on the design is fixed and Jonathan is not asked anything until step 8.**",
+        "**From here on the design is fixed and Jonathan is not asked anything until all coding "
+        "is done (step 4).**",
+    )
+
+
+def test_test_question_comes_only_after_all_coding():
+    _assert_has(
+        _skill_section("Step 4 · TEST?"),
+        "Only once **all** coding is done: every story of every wave merged, the sprint branch "
+        "merged into `dev`",
+        "Never per wave, never earlier. A blocked run is not asked",
+    )
+
+
+def test_test_question_is_yes_or_no_without_a_recommendation():
+    _assert_has(
+        _skill_section("Step 4 · TEST?"),
+        "Run a test cycle?\". Two options:",
+        "- **Test** —",
+        "- **No tests** —",
+        "Never mark either option as recommended. **No tests** → set `tests.wanted: false`, "
+        "`phase: report`.",
+    )
+
+
+def test_yes_asks_for_the_number_of_cycles():
+    _assert_has(
+        _skill_section("Step 4 · TEST?"),
+        "On **Test**, ask a second `AskUserQuestion`: \"How many test → fix → test cycles?\".",
+        "Jonathan can enter any other number through \"Other\"",
+        "An answer that isn't a whole number of 1 or more is asked again (0 counts as **No "
+        "tests**).",
+        "Record `tests: {wanted: true, cycles: <N>, cycle: 0, runs: []}` and set `phase: test`.",
+        "Jonathan is not asked anything else until step 7.",
     )
 
 
 def test_release_question_has_two_options_and_no_recommendation():
-    step = _skill_section("Step 8 · RELEASE?")
+    step = _skill_section("Step 7 · RELEASE?")
     _assert_has(
         step,
         "ask **one** `AskUserQuestion`: \"Release v<next>?\". Two options:",
         "- **Release** —",
         "- **Not now** —",
+        "\"untested: you chose no test cycles\"",
         "Never mark either option as recommended.",
         "A blocked run (`phase: blocked`) is not asked",
     )
 
 
 def test_not_now_ends_the_run_and_jonathan_decides_whats_next():
-    step = _skill_section("Step 8 · RELEASE?")
+    step = _skill_section("Step 7 · RELEASE?")
     _assert_has(
         step,
         "`release.status: \"declined\"` and `phase: done`",
@@ -272,54 +396,92 @@ def test_not_now_ends_the_run_and_jonathan_decides_whats_next():
     _assert_has(_skill(), "Any further work is a **new goal, and only Jonathan decides whether there is one**.")
 
 
-# --- step 4: one review beside the tests; step 5 fixes; step 6 only reports ---------------
+# --- step 5: N cycles of test → fix → test ----------------------------------------------------
 
 
-def test_step_4_dispatches_testers_and_reviewer_together():
-    step = _skill_section("Step 4 · TEST① ∥ REVIEW")
+def test_step_5_runs_only_when_wanted_and_counts_the_cycles():
+    _assert_has(
+        _skill_section("Step 5 · TEST × N"),
+        "Runs only when `tests.wanted` is true, with N = `tests.cycles`.",
+        "So the step is test run 1, then for each cycle *k* = 1…N: FIX *k*, then test run *k* + 1.",
+    )
+
+
+def test_first_test_run_writes_the_tests_and_reviews_beside_them():
+    step = _skill_section("Step 5 · TEST × N")
     _assert_has(
         step,
-        "then dispatch the testers and the reviewer together",
+        "then dispatch the testers and, in run 1, the reviewer together",
+        "**Run 1 writes the tests first.** The coders wrote none",
+        "From run 2 on, a test run adds no tests.",
         "Run `/code-review` at `high` on the whole run's diff",
-        "`git diff {dev_base}...{test1_sha}`",
+        "`git diff {dev_base}...{test_sha}` (run 1's sha)",
     )
     _assert_has(_skill_section("Speed rules"), "**Review beside test.**")
+    _assert_has(
+        _brief("tester"),
+        "Run 1 writes the tests first. The coders wrote none",
+        "From run 2 on, a test run adds no tests. No test run fixes anything.",
+    )
 
 
 def test_reviewer_brief_is_the_one_review():
     _assert_has(
         _brief("reviewer"),
         "This is the run's ONE code review",
-        "no verifier agent re-checks you and no second review follows",
+        "It runs beside test run 1; no verifier agent re-checks you and no second review follows",
         "Run /code-review at high effort, never max or ultra",
     )
 
 
-def test_step_5_fixes_findings_and_test1_failures_reproduced_first():
+def test_fix_rounds_take_each_runs_failures_reproduced_first():
     _assert_has(
-        _skill_section("Step 5 · FIX"),
-        "Input: every review finding, every severity, plus every TEST① failure",
+        _skill_section("Step 5 · TEST × N"),
+        "Input: every failure of test run *k*, plus, in cycle 1 only, every review finding, "
+        "every severity",
         "reproduces each item as a failing test",
-        "One attempt per fixer, no retry loop.",
+        "One attempt per fixer per cycle, no retry loop inside it",
+        "`wip/<run-slug>/<owner>-fix-<k>`",
+    )
+    _assert_has(
+        _brief("fixer"),
+        "FIX {cycle} of {cycles}.",
+        "What earlier cycles tried for the same items: {prior}",
+        "fix the test and record \"test fixed\" with why",
     )
 
 
-def test_clean_review_and_green_test1_skip_fix_and_retest():
+def test_green_run_ends_the_cycles_early():
     _assert_has(
-        _skill_section("Step 4 · TEST① ∥ REVIEW"),
-        "When the review found nothing and TEST① was green, skip steps 5 and 6: set "
-        "`phase: report`.",
+        _skill_section("Step 5 · TEST × N"),
+        "**Green, with nothing to fix** (and, in run 1, a review that found nothing): the cycles "
+        "end early",
+        "the report says how many of the N cycles ran",
     )
 
 
-def test_step_6_failures_go_to_the_report_and_are_never_fixed():
+def test_the_last_test_run_is_reported_and_never_fixed():
     _assert_has(
-        _skill_section("Step 6 · TEST②"),
-        "**Nothing TEST② finds is fixed.**",
+        _skill_section("Step 5 · TEST × N"),
+        "**Run N + 1**, the run that closes the last cycle: **nothing it finds is fixed.**",
         "goes straight to the report under *Left open*",
     )
-    _assert_has(_brief("tester"), "TEST2 adds no tests and fixes nothing.")
     _assert_has(h.read(REPORT_TEMPLATE), "## Left open — not fixed by this run")
+
+
+def test_report_says_how_it_was_tested_or_that_it_is_untested():
+    template = h.read(REPORT_TEMPLATE)
+    _assert_has(
+        template,
+        "**Tested:** {N} test → fix → test cycles asked, {n} run",
+        "⚠ **untested** — you chose no test cycles",
+        "**Test runs:** {one line per run",
+    )
+    _assert_has(
+        _skill_section("Step 6 · REPORT"),
+        "(the cycles Jonathan asked for and how many ran, each test run's pass and fail counts — "
+        "or **untested** when he chose no tests)",
+    )
 
 
 # --- the release ------------------------------------------------------------------------
@@ -346,12 +508,14 @@ def test_release_preflight_checks_main_and_the_tested_sha():
     _assert_has(
         preflight,
         "`git log --oneline origin/dev..origin/main` is empty",
-        "`dev`'s code is what TEST② tested",
+        "`dev`'s code is what the last test run tested",
+        "when Jonathan chose no tests there is no tested sha, and this check is skipped",
         "`gh auth status`, `vercel whoami`",
         "`vercel env ls production`",
         "the tag `v<next>` doesn't exist yet",
         "Any problem stops the release before anything changes",
     )
+    _assert_has(_brief("release-prep"), "{test_sha} \"none\" (Jonathan chose no tests): skip this check")
 
 
 def test_release_commit_is_the_last_commit_and_marks_the_run_done():
@@ -426,9 +590,9 @@ def test_report_checklist_follows_the_release_order():
     checklist = checklist.split("**Manual items")[0]
     rows = [row for row in h.table_rows(checklist) if row[0].strip().isdigit()]
     assert [row[1] for row in rows] == list(CHECKLIST_ORDER)
-    step7 = _skill_section("Step 7 · REPORT")
+    step6 = _skill_section("Step 6 · REPORT")
     assert _in_order(
-        step7,
+        step6,
         (
             "the preflight", "the Supabase migrations that will go to **main**",
             "the release commit", "the `dev` → `main` merge and tag",
@@ -447,7 +611,7 @@ def test_release_prep_brief_never_deploys():
     assert "BMN_USER_APPROVED_DEPLOY" not in _brief("release-prep")
 
 
-# --- full suite once per test step, only by the tester ---------------------------------
+# --- gates: code gates while coding, scoped in fix rounds, full only by the tester -------
 
 
 @pytest.mark.parametrize("name", SCOPED_BRIEFS)
@@ -460,8 +624,8 @@ def test_scoped_briefs_run_scoped_gates_never_the_full_suite(name):
             assert NEGATED.search(sentence), f"{name}: {sentence}"
 
 
-@pytest.mark.parametrize("name", SCOPED_BRIEFS)
-def test_scoped_briefs_never_run_next_build(name):
+@pytest.mark.parametrize("name", ("coder",) + SCOPED_BRIEFS)
+def test_coding_and_fixing_briefs_never_run_next_build(name):
     assert "next build" not in _brief(name)
 
 
@@ -471,42 +635,53 @@ def test_tester_brief_is_the_only_one_running_the_full_suite_and_build():
         "run {full_gates}: the full suite with coverage",
         "then the build (`next build` for a TypeScript / Next.js repo",
         "The tester is the only agent that runs the full suite and the build",
+        "coders run only lint and the type-check",
     )
 
 
-def test_briefs_define_scoped_and_full_gates():
+def test_briefs_define_code_scoped_and_full_gates():
     intro = h.read(BRIEFS).split("## Common preamble")[0]
     _assert_has(
         intro,
+        "`{code_gates}` = lint + type-check only (`gates.lint`, `gates.types`): no test of any "
+        "kind and no build.",
+        "steps 2–3 never write or run a test",
         "`{gates}` = the **scoped gates**",
         "`{gates}` never includes the full test suite or the build",
+        "`{merge_gates}` = `{code_gates}` in step 3, `{gates}` in step 5",
         "`{full_gates}` = the full suite with coverage, then the build",
-        "only the tester (and the release preflight, when code changed after TEST②) runs it",
+        "only the tester (and the release preflight, when code changed after the last test run) "
+        "runs it",
     )
 
 
-def test_speed_rules_state_the_full_suite_rule():
+def test_speed_rules_state_the_gate_rules():
     _assert_has(
         _skill_section("Speed rules"),
-        "**The full suite runs once per test step.**",
+        "**Coding runs no tests.** Coders and the step-3 merger gate on lint + type-check only",
+        "**The full suite runs once per test run.**",
         "None of them runs the full test suite or the build.",
-        "run only in TEST① and TEST②, by the tester (`{full_gates}`)",
+        "run only in step 5's test runs, by the tester (`{full_gates}`)",
     )
 
 
-def test_code_and_fix_steps_use_the_scoped_gates():
-    _assert_has(_skill_section("Step 3 · CODE"), "run the scoped gates")
-    _assert_has(_skill_section("Step 5 · FIX"), "runs the scoped gates", "gates once")
+def test_fix_rounds_use_the_scoped_gates_and_test_runs_the_full_suite():
+    step = _skill_section("Step 5 · TEST × N")
     _assert_has(
-        _skill_section("Step 4 · TEST① ∥ REVIEW"),
+        step,
+        "runs the scoped gates",
+        "gates once (`{gates}`)",
         "the full `pytest` (or `vitest`/`jest`) run, plus coverage, plus the build",
     )
 
 
-def test_stack_routing_keeps_next_build_in_test_only():
+def test_stack_routing_keeps_tests_out_of_coding():
     _assert_has(
         h.read(STACK_ROUTING),
+        "Coders and the step-3 merger run the **code gates**: `lint` and `types` only, no test "
+        "of any kind.",
         "`next build` (TEST only: coder, fixer and merger gates stop after the linter",
+        "coders run no tests",
         "Only the tester runs `test` (the full suite, with coverage) and `build`",
     )
 
@@ -525,8 +700,10 @@ def test_stack_scout_reports_related_and_build_gates():
 def test_speed_rules_have_one_merger_per_step_with_gates_once():
     _assert_has(
         _skill_section("Speed rules"),
-        "**One merge agent per step, gates once.** Steps 3 and 5 each end with a single merger.",
-        "runs the scoped gates **once** over the combined change",
+        "**One merge agent per step, gates once.** Step 3 and every step-5 cycle each end with a "
+        "single merger.",
+        "runs its gates **once** over the combined change (`{code_gates}` in step 3, the scoped "
+        "`{gates}` in step 5)",
         "reverts branch by branch to find the one that broke them",
     )
 
@@ -538,6 +715,9 @@ def test_merger_brief_merges_into_the_sprint_branch_then_dev_with_gates_once():
         "Merge these branches into {integration}, then {integration} into dev, running the gates "
         "ONCE.",
         "Branches, deps first: {branches}",
+        "Gates: {merge_gates}.",
+        "Run {merge_gates} ONCE",
+        "step 3: {code_gates}, lint and type-check only, no test",
         "`git merge --no-ff origin/<branch>`",
         "merge origin/dev into {integration}",
         "git merge --no-ff {integration}",
@@ -558,7 +738,7 @@ def test_speed_rules_build_deps_against_planned_interfaces():
         "**Deps by interface.**",
         "When every dep of a story has a planned, stated interface, that story builds in the "
         "**same wave**",
-        "its coder stubs or mocks it",
+        "its coder codes against the stated contract",
         "the merger merges deps first",
         "Only a dep whose interface is truly unplannable (`plannable: false`)",
     )
@@ -585,7 +765,7 @@ def test_coder_builds_against_the_interface():
     _assert_has(
         _brief("coder"),
         "build against the contract in the dep's plan",
-        "stub or mock it in your tests",
+        "never write the dep's code yourself",
         "The merger merges deps first.",
     )
 
@@ -615,12 +795,15 @@ def test_first_step_line_states_a_time_estimate():
     _assert_has(
         _skill_section("Silence"),
         "the first one states the story count, the waves and a time estimate",
+        "the test-cycle questions",
         "a one-line acknowledgement when Jonathan asks for speed",
     )
     _assert_has(
         _skill_section("Speed rules"),
         "**Up-front time estimate.**",
         "first step line states the story count, the waves and a rough wall-clock estimate",
+        "30–45 min per test → fix → test cycle",
+        "Step 4's question states the per-cycle estimate.",
         "`bmn.json.estimate`",
     )
     _assert_has(h.read(REPORT_TEMPLATE), "**Time:** estimated {estimate} · actual {actual}")
@@ -632,29 +815,33 @@ def test_speed_on_request_messages_in_flight_agents():
         "**Speed on request.**",
         "sends every in-flight agent a message (load `SendMessage` with ToolSearch)",
         "skip non-essential gates",
-        "Never skipped: the agent's own red → green tests, the type-check, the test steps' full "
-        "suite, and every hard line.",
+        "Never skipped: a fixer's reproducing test, the type-check, each test run's full suite, "
+        "and every hard line.",
     )
     preamble = h.code_blocks(h.section(h.read(BRIEFS), "Common preamble"))[0][1]
     _assert_has(
         preamble,
         "Jonathan asked for speed, skip the non-essential gates it names",
-        "Never skip your own red → green tests, the type-check, or any rule above.",
+        "Never skip a reproducing test you wrote, the type-check, or any rule above.",
     )
 
 
 # --- plugin.json ---------------------------------------------------------------------------
 
 
-def test_plugin_description_names_the_eight_steps_and_the_release():
+def test_plugin_description_names_the_seven_steps_and_the_release():
     description = json.loads(h.read(PLUGIN_JSON))["description"]
     _assert_has(
         description,
-        "Eight-step build pipeline",
-        "4 test (full suite plus headless Playwright) with one code review beside it",
-        "6 test again (whatever still fails is reported, never fixed)",
-        "8 Jonathan decides: release?",
+        "Seven-step build pipeline",
+        "3 code only",
+        "no test is written or run while coding, only lint and the type-check",
+        "4 once all coding is done ask Jonathan whether to run a test cycle and, on yes, how "
+        "many test, fix, test cycles he wants (he enters a number)",
+        "5 run exactly that many cycles",
+        "whatever the last test run still finds is reported, never fixed",
+        "7 Jonathan decides: release?",
         "dev fast-forwarded so dev and main are the same commit",
-        "The design pick and the release decision are the only questions.",
-        "the full suite and the build run only in the test steps",
+        "The design pick, the test cycles and the release decision are the only questions.",
+        "the full suite and the build run only in the test runs",
     )

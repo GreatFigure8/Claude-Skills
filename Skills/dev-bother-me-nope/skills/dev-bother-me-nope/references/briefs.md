@@ -3,29 +3,35 @@
 Fill every `{placeholder}`; paste the **Common preamble** at the top of every brief.
 From `bmn.json`: `{integration}` = the sprint branch `sprint/<run-slug>` (or a pre-2.0.0
 run's `<type>/<run-slug>`), `{run_worktree}` = `worktree`, `{dev_base}` = `dev_base`,
-`{test1_sha}` / `{test2_sha}` = `test_shas`, `{run_slug}` = `run` without `bmn-`,
-`{dev_worktree}` = `../<repo-name>-<run-slug>-dev`, `{repo_path}` = the main checkout.
+`{run_slug}` = `run` without `bmn-`, `{dev_worktree}` = `../<repo-name>-<run-slug>-dev`,
+`{repo_path}` = the main checkout. Step 5: `{run_n}` = the test run's number, `{cycle}` /
+`{cycles}` = `tests.cycle` / `tests.cycles`, `{test_sha}` = that test run's
+`tests.runs[].sha` (for the reviewer, run 1's; for the release preflight, the last run's, or
+"none" when Jonathan chose no tests).
+`{code_gates}` = lint + type-check only (`gates.lint`, `gates.types`): no test of any kind
+and no build. The coder and the step-3 merger run it; steps 2–3 never write or run a test.
 `{gates}` = the **scoped gates** from stack.md: lint + type-check + the tests for the files
 the agent touched (for a merge, the files the merge changed) and their related tests
 (`gates.related`, e.g. `vitest related --run <files>`, `jest --findRelatedTests <files>`, or
-pytest on the touched modules' test files). `{gates}` never includes the full test suite or
-the build. `{full_gates}` = the full suite with coverage, then the build (`gates.test`,
-`gates.build`; `next build` for a TypeScript / Next.js repo); only the tester (and the
-release preflight, when code changed after TEST②) runs it. When Jonathan asked for speed
-(`bmn.json.speed.requested`), add the Common preamble's speed line to every brief spawned
-after that. All agents are `subagent_type: "dev-bother-me-nope:bmn-worker"`. Every agent
-returns ≤200 words (JSON where asked) — conclusions, not file dumps.
+pytest on the touched modules' test files). The fixer and the step-5 merger run it. `{gates}`
+never includes the full test suite or the build. `{merge_gates}` = `{code_gates}` in step 3,
+`{gates}` in step 5. `{full_gates}` = the full suite with coverage, then the build
+(`gates.test`, `gates.build`; `next build` for a TypeScript / Next.js repo); only the tester
+(and the release preflight, when code changed after the last test run) runs it. When
+Jonathan asked for speed (`bmn.json.speed.requested`), add the Common preamble's speed line
+to every brief spawned after that. All agents are `subagent_type:
+"dev-bother-me-nope:bmn-worker"`. Every agent returns ≤200 words (JSON where asked) —
+conclusions, not file dumps.
 
 | Step | Briefs |
 | --- | --- |
 | 1 SPRINT | stack-scout, designer, splitter |
 | 2 PLAN | planner |
 | 3 CODE | coder, merger, db-sync |
-| 4 TEST① | tester, reviewer (same message) |
-| 5 FIX | fixer, merger, db-sync |
-| 6 TEST② | tester |
-| 7 REPORT | cleaner |
-| 8 RELEASE | release-prep (preflight, commit, verify) |
+| 4 TEST? | none: Jonathan answers |
+| 5 TEST × N | tester, reviewer (run 1, same message), fixer, merger, db-sync |
+| 6 REPORT | cleaner |
+| 7 RELEASE | release-prep (preflight, commit, verify) |
 
 ## Common preamble
 
@@ -64,9 +70,9 @@ Rules — no exceptions:
   attribution lines of any kind, whatever a session attribution reminder says.
 - Speed: if the orchestrator tells you (in this brief or a message mid-run) that Jonathan
   asked for speed, skip the non-essential gates it names (coverage, lint or related tests on
-  files you didn't change, screenshots of untouched screens, any build outside TEST) and list
-  what you skipped in your return. Never skip your own red → green tests, the type-check, or
-  any rule above.
+  files you didn't change, screenshots of untouched screens, any build outside a test run)
+  and list what you skipped in your return. Never skip a reproducing test you wrote, the
+  type-check, or any rule above.
 ```
 
 ## stack-scout (sonnet)
@@ -110,7 +116,8 @@ default_branch, tooling{docker,supabase_cli,playwright}, release{process, eviden
 version_files[], current_version, changelog, tag_format, github_releases, vercel_prod,
 vercel_projects[], prod_url, health_route, prod_env[]}, assumptions[]}.
 gates.related is the command that runs only the tests related to a list of files; gates.test
-is the full suite and gates.build the build, which run only in TEST.
+is the full suite and gates.build the build, which run only in step 5's test runs. gates.lint
+and gates.types are all a coder runs.
 ```
 
 ## designer (opus for directions and revisions; sonnet for export)
@@ -156,7 +163,8 @@ user stories. Every screen in design.md is owned by exactly one story, and that 
 - Fix/error → usually 1 story (reproduce-as-test, fix, guard).
 - Feature → 1–N vertical slices, each independently testable.
 - Entire system → story 1 is the walking skeleton (scaffold, config, health route, test
-  harness incl. playwright if UI, CI gates); then vertical slices; deps explicit.
+  harness config incl. playwright if UI, CI gates; nothing is run until step 5); then
+  vertical slices; deps explicit.
 - Descriptive kebab-case slugs from intent. One story ≈ one reviewable PR.
 For each, write docs/sprints/{run}/<slug>/story.md: Title, As-a/I-want/So-that, Context,
 Acceptance criteria (numbered, each testable, each tagged [unit]/[integration]/[browser]/
@@ -180,16 +188,18 @@ Topic index routes this story to; list every rule id you apply in the plan's App
 Write docs/sprints/{run}/{slug}/{slug}-plan.md:
 1. Approach (≤10 lines) and why, citing the skill guidance applied.
 2. Files to create/change, each with its purpose.
-3. TEST PLAN FIRST: every acceptance criterion → named test(s) with file path and type;
-   browser criteria → Playwright test names + the page/flow driven.
+3. TEST PLAN: every acceptance criterion → named test(s) with file path and type;
+   browser criteria → Playwright test names + the page/flow driven. The coder writes none of
+   these and runs nothing: step 5's first test run writes and runs them, and only when
+   Jonathan asks for tests.
 4. Data: models, migrations (supabase/migrations/<ts>_<name>.sql if Supabase), RLS.
 5. Config/env vars (names only) and deploy_pending entries this story will create.
-6. Risks and the gate commands to run (the scoped gates; the full suite runs in TEST).
+6. Risks and the coder's gate commands (lint + type-check only; every test runs in step 5).
 7. Interfaces provided: for every story that lists {slug} in its deps (see their story.md),
    the exact contract it consumes, starting from what the splitter wrote and pinned down so
    the dependent story can build against it in the same wave, or "plannable: false — <why>"
    when it truly can't be fixed before this story is coded. If a dep of {slug} is not merged
-   yet, build against its stated interface and plan the stubs or mocks your tests use.
+   yet, the code is written against its stated interface.
 UI: build to docs/sprints/{run}/design.md and design/*.html — same tokens, layout,
 components, copy. Don't invent a look; a gap is filled from the picked direction and logged
 as an assumption.
@@ -203,31 +213,31 @@ interfaces[{consumer, contract, plannable}].
 ```
 Implement docs/sprints/{run}/{slug}/{slug}-plan.md. In your isolated worktree, branch
 {story_branch} (wip/{run_slug}/{slug}) from origin/{integration} (fetch first).
-Strict TDD: write the plan's tests → run them → confirm they FAIL for the right reason →
-implement minimally → run → PASS → refactor. UI matches docs/sprints/{run}/design.md and
-design/*.html. Immutable data patterns; small functions;
-validate input at boundaries; explicit error handling.
+CODE ONLY. Write no tests and run no tests: no TDD, no unit, related or full suite, no
+browser, no build, no local database. The plan's test plan is not yours: step 5's first test
+run writes and runs it, and only when Jonathan asks for tests.
+Implement the plan's files. UI matches docs/sprints/{run}/design.md and design/*.html.
+Immutable data patterns; small functions; validate input at boundaries; explicit error
+handling.
 TypeScript/Next.js story: follow the rule ids the plan lists from
 ${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs.md and its topic files.
 Deps not merged into {integration} yet: build against the contract in the dep's plan
-(Interfaces provided) and stub or mock it in your tests; never write the dep's code yourself.
-The merger merges deps first.
-Run the scoped gates: {gates}. All green before you finish. Never run the full test suite or
-the build; the tester runs those once per test step.
-Supabase: migration files only; verify with local `supabase start` + `supabase db reset`
-if Docker is available, else note it.
+(Interfaces provided); never write the dep's code yourself. The merger merges deps first.
+Run the code gates: {code_gates} (lint + type-check, nothing else). Both clean before you
+finish.
+Supabase: migration files only; never run them, locally or remotely.
 Commit in logical units and push {story_branch} only — never push {integration}; the
-merger merges it. Return: commits, test counts (before-fail / after-pass), gate results,
-new migrations/env vars, anything skipped and why.
+merger merges it. Return: commits, files changed, gate results, new migrations/env vars,
+anything skipped and why.
 ```
 
-## merger (sonnet; one per step — the end of CODE and of FIX)
+## merger (sonnet; one per step — the end of each CODE wave and of each step-5 FIX)
 
 ```
 Merge these branches into {integration}, then {integration} into dev, running the gates ONCE.
-Branches, deps first: {branches}. TEST evidence branches that ride along: {evidence_branches}
-(may be none). Last merge of the step: {last} (true → also merge into dev; false → a later
-CODE wave still follows, stop after step 4).
+Branches, deps first: {branches}. Branches from the test run that ride along: {evidence_branches}
+(step 5 only; may be none). Last merge of the step: {last} (true → also merge into dev;
+false → a later CODE wave still follows, stop after step 4). Gates: {merge_gates}.
 Load python-library-quality:keeping-git-repos-clean.
 Work in {run_worktree}, which has {integration} checked out (verify with
 `git branch --show-current` in the same command as every merge and push). Never check out dev
@@ -245,8 +255,9 @@ CLEANUP does, after the last merge to dev, because FIX still branches from it.
    merge commit; anything larger is a gate failure. If pull or merge refuses because of
    uncommitted changes you didn't make, leave them and do steps 2–3 in a throwaway
    `git worktree add --detach` of origin/{integration}, push HEAD:{integration}, then remove it.
-3. Run the scoped gates {gates} ONCE, on every file these merges changed (never the full suite
-   or the build: TEST runs those). Red: revert the newest branch merge (`git revert -m 1`),
+3. Run {merge_gates} ONCE, on every file these merges changed (step 3: {code_gates}, lint and
+   type-check only, no test; step 5: the scoped gates {gates}; never the full suite or the
+   build: step 5's test runs run those). Red: revert the newest branch merge (`git revert -m 1`),
    re-run, and repeat until green, so the branch that broke them is found and left out; report
    each reverted branch with its failing gate output. Then push {integration} (never --force).
 4. For each branch you merged, clean it up with the helper (worktree paths from {temp_refs}):
@@ -269,14 +280,15 @@ sha, merge sha / reverted + failing gate output (≤20 lines); dev merge commit 
 entries); left[{ref, why}].
 ```
 
-## reviewer (opus; step 4, beside the testers; one per area when the pass is split)
+## reviewer (opus; step 5, beside test run 1; one per area when the pass is split)
 
 ```
 This is the run's ONE code review, area {area} ("whole run", or the stories/paths you own
-when the pass is split). It runs beside TEST①; no verifier agent re-checks you and no second
-review follows. A fixer's reproducing test is what checks your findings.
-Review the code the run implemented: `git diff {dev_base}...{test1_sha}` (read it in full
-first) and every docs/sprints/{run}/*/story.md. TEST① is running beside you; don't wait for it.
+when the pass is split). It runs beside test run 1; no verifier agent re-checks you and no
+second review follows. A fixer's reproducing test is what checks your findings.
+Review the code the run implemented: `git diff {dev_base}...{test_sha}` (read it in full
+first) and every docs/sprints/{run}/*/story.md. Test run 1 is running beside you and is
+writing the plans' tests now (the coders wrote none); don't wait for it.
 Run /code-review at high effort, never max or ultra, whatever the session's effort setting.
 Then apply these lenses via the Skill tool: {review_lenses} (add nextjs-fullstack-standards
 for any TypeScript in the diff, when the session has it). For TypeScript/Next.js code also read
@@ -297,45 +309,58 @@ Read-only on code. Return JSON: {area, critical:n, high:n, medium:n, low:n,
 findings:[{id, sev, file, line, owner, summary}]}.
 ```
 
-## fixer (step 5 only; sonnet, opus when the root cause is unclear; one per owning story)
+## fixer (step 5 FIX rounds; sonnet, opus when the root cause is unclear; one per owning story)
 
 ```
-FIX is the run's only fix round. Fix these for {owner} (a story slug, or "run"):
-{findings} (review findings by id, every severity, plus TEST① failures). In your isolated
-worktree, branch {fix_branch} (wip/{run_slug}/{owner}-fix) from origin/{integration}.
+FIX {cycle} of {cycles}. Fix these for {owner} (a story slug, or "run"): {findings} (the
+failures of test run {cycle}, plus, in cycle 1 only, the review findings by id, every
+severity). What earlier cycles tried for the same items: {prior} ("none" in cycle 1); don't
+repeat an approach that already failed. In your isolated worktree, branch {fix_branch}
+(wip/{run_slug}/{owner}-fix-{cycle}) from origin/{integration}.
 Reproduce each item first: write a test that fails because of it and confirm it fails. That
-failing test IS the verification; nobody else re-checks it. Then fix → pass. An item you
-can't reproduce is recorded as not-reproducible with the evidence (what you ran, what
-happened). Don't argue it, retry it or fix it blind. One attempt: an item you can't fix is
-recorded as blocked with the reason, not looped on.
+failing test IS the verification; nobody else re-checks it. Then fix → pass. The coders
+wrote no tests; test run 1 wrote them from the plans, so when the failing test itself is
+wrong (it contradicts the story's acceptance criterion), fix the test and record "test
+fixed" with why. An item you can't reproduce is recorded as not-reproducible with the
+evidence (what you ran, what happened). Don't argue it, retry it or fix it blind. One
+attempt this cycle: an item you can't fix is recorded as blocked with the reason, not looped
+on; if it still fails in the next test run, a later cycle (when one is left) gets it.
 For a TypeScript/Next.js finding, name in validation.md the rule id from
 ${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs.md that the fix restores.
-Run the scoped gates {gates} (never the full suite or the build; TEST runs those). Push
-{fix_branch} only — the merger merges it. Append a "FIX" section
+Run the scoped gates {gates} (never the full suite or the build; the test runs run those).
+Push {fix_branch} only — the merger merges it. Append a "FIX {cycle}" section
 to docs/sprints/{run}/{owner}/validation.md (owner "run" → docs/sprints/{run}/validation.md):
-id → fixed (test name) / not-reproducible (evidence) / blocked (reason). Return that list
-plus the names of your reproducing tests (TEST② re-runs them).
+id → fixed (test name) / test fixed (why) / not-reproducible (evidence) / blocked (reason).
+Return that list plus the names of your reproducing tests (the next test run re-runs them).
 ```
 
 ## tester (sonnet, one per surface)
 
 ```
-Surface: {surface}, TEST{test_n} (1 = step 4, after CODE; 2 = step 6, after FIX). In your
-isolated worktree, `git switch --detach {sha}` (origin/dev).
+Surface: {surface}, test run {run_n} of step 5 (Jonathan asked for {cycles} test → fix →
+test cycles, so there are at most {cycles} + 1 runs; run 1 follows CODE, run k + 1 follows
+FIX k). In your isolated worktree, `git switch --detach {test_sha}` (origin/dev).
+Run 1 writes the tests first. The coders wrote none: write every test this surface owns from
+the test plan in each docs/sprints/{run}/<slug>/<slug>-plan.md for stories {slugs}, one or
+more per acceptance criterion, then run everything below. A test that fails is a finding for
+FIX; never change the code under test.
 Tooling comes from docs/sprints/{run}/stack.md and the Test surfaces table in
 {skill_dir}/references/stack-routing.md. A TypeScript / Next.js repo uses that table's
 TypeScript row in place of every python tool named below: Vitest or Jest with coverage for
 unit/integration, `@playwright/test` against `next build && next start` for browser, and
-Playwright's `request` fixture against the same `webServer` for api.
+Playwright's `request` fixture against the same `webServer` for api. In run 1 it writes its
+tests by the TEST-<n> rules in
+${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs/testing-and-observability.md.
 - unit/integration: run {full_gates}: the full suite with coverage (pytest + pytest-cov, or
   the repo's runner), then the build (`next build` for a TypeScript / Next.js repo; skip it
-  when the browser surface already builds in the same TEST); report per-story coverage of
-  touched files; target ≥80%. The tester is the only agent that runs the full suite and the
-  build; coders, fixers and mergers run only the scoped gates.
+  when the browser surface already builds in the same test run); report per-story coverage
+  of touched files; target ≥80%. The tester is the only agent that runs the full suite and
+  the build; coders run only lint and the type-check, fixers and mergers only the scoped
+  gates.
 - browser: install deps, start the app locally (and `supabase start` if used), run
   Playwright headless (pytest-playwright, or the TypeScript row's `@playwright/test`) for every
-  [browser] acceptance criterion in stories {slugs}; TEST1 only: add missing Playwright tests
-  for any [browser] criterion lacking one. Save screenshots under
+  [browser] acceptance criterion in stories {slugs} (run 1 writes these tests first). Save
+  screenshots under
   docs/sprints/{run}/{slug}/evidence/. Capture console errors + failed requests. If
   design.md exists, screenshot every design screen and compare it with its design/*.html
   reference; a structural mismatch (missing/extra region, wrong component, wrong copy) is a
@@ -344,12 +369,14 @@ Playwright's `request` fixture against the same `webServer` for api.
   Playwright `request` fixture); assert status + schema.
 - mcp: start the server over stdio with an mcp ClientSession; list tools; call each new or
   changed tool with valid and invalid input.
-TEST2 also re-runs every TEST① failure ({test1_failures}) and every fixer's reproducing test
-({repro_tests}), and reports each as PASS/FAIL. TEST2 adds no tests and fixes nothing.
+From run 2 on, also re-run every failure of the previous run ({prev_failures}) and every
+fixer's reproducing test ({repro_tests}), and report each as PASS/FAIL. From run 2 on, a test
+run adds no tests. No test run fixes anything.
 Stop every server you started. Write/append docs/sprints/{run}/{slug}/validation.md per story:
-command, result, evidence paths, each criterion PASS/FAIL. Every time, commit validation.md and
-evidence/ (plus, in TEST1, any new tests) on `wip/{run_slug}/tests-<surface>-{test_n}`, push it,
-and report that branch for the merger (TEST1) or the cleaner (TEST2). Leave the worktree clean.
+command, result, evidence paths, each criterion PASS/FAIL, under a "Test run {run_n}"
+heading. Every time, commit validation.md and evidence/ (plus, in run 1, the tests you wrote)
+on `wip/{run_slug}/tests-<surface>-{run_n}`, push it, and report that branch: the next FIX
+round's merger merges it, or the cleaner when no fix round follows. Leave the worktree clean.
 Return JSON: {surface, pass:n, fail:n, failures:[{slug, criterion, error, repro}] , coverage,
 branch}.
 ```
@@ -369,17 +396,18 @@ Apply dev's new Supabase migrations to the DEV project ONLY (ref {dev_ref}; main
 Return JSON: {applied[], held_back[{file, reason}], error}.
 ```
 
-## cleaner (sonnet, one per run — step 7 CLEANUP)
+## cleaner (sonnet, one per run — step 6 CLEANUP)
 
 ```
 Clean up run {run}. Touch ONLY these, recorded in bmn.json: sprint branch {integration}, run
-worktree {run_worktree}, temp refs {temp_refs}, TEST② evidence branches {evidence_branches}.
+worktree {run_worktree}, temp refs {temp_refs}, the last test run's branches {evidence_branches}.
 Ref and worktree commands run as `git -C {repo_path} …` (changes no file or branch there).
 Never --force anything; a dirty worktree or an unmerged branch is left and reported with the
 reason.
 0. Land the report. In {run_worktree}: `git pull --rebase=merges origin {integration}`, merge
-   each evidence branch with `git merge --no-ff origin/<branch>` (they carry only
-   validation.md and screenshots, so no gates run), push {integration}. Unless
+   each evidence branch with `git merge --no-ff origin/<branch>` (they carry validation.md
+   and screenshots, plus the tests run 1 wrote when no fix round followed it, which passed in
+   that run, so no gates run), push {integration}. Unless
    stack.dev_push_deploys is true, in ONE command:
    `git worktree add --detach {dev_worktree} origin/dev && cd {dev_worktree} &&
    git merge --no-ff {integration} -m "docs(bmn): report for {run_slug}" && git push origin HEAD:dev`,
@@ -422,7 +450,7 @@ Commit title: `chore(bmn): record git cleanup for {run_slug}`.
 Return JSON: {deleted[], left[{ref, why}], commit_sha, pushed_to}.
 ```
 
-## release-prep (sonnet; step 8 RELEASE only, after Jonathan said yes)
+## release-prep (sonnet; step 7 RELEASE only, after Jonathan said yes)
 
 ```
 Release v{version} of run {run}. Mode: {mode} (preflight | commit | verify). Release profile:
@@ -433,8 +461,10 @@ preflight (read-only, except the main → dev back-merge):
 1. `git log --oneline origin/dev..origin/main` must print nothing. If it prints commits, merge
    origin/main into dev in your worktree (`git merge --no-ff origin/main`), run {gates} on the
    files it changed, and `git push origin HEAD:dev`; report it.
-2. `git diff --stat {test2_sha} origin/dev` touches only docs/ and the run folder → code is
-   what TEST② tested. Anything else → run {full_gates}; red is a problem.
+2. `git diff --stat {test_sha} origin/dev` (the last test run's sha) touches only docs/ and
+   the run folder → code is what the last test run tested. Anything else → run {full_gates};
+   red is a problem. {test_sha} "none" (Jonathan chose no tests): skip this check; the release
+   ships untested code, as he was told.
 3. Signed in: `gh auth status`; `vercel whoami` when vercel_prod is set; the supabase CLI can
    list projects when main migrations are on the checklist. Never enter a credential: a
    missing login is a problem.
