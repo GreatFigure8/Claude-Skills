@@ -179,8 +179,8 @@ def _intake():
 
 
 def _cleanup():
-    """Step 7's CLEANUP part, up to the ALERT."""
-    return _part(_section(_skill(), "Step 7 · REPORT"), "**CLEANUP", "**ALERT.**")
+    """Step 6's CLEANUP part, up to the ALERT."""
+    return _part(_section(_skill(), "Step 6 · REPORT"), "**CLEANUP", "**ALERT.**")
 
 
 def _table_row(section, lead):
@@ -204,9 +204,9 @@ def _bmn_json_schema():
 # --- AC1: plugin.json -------------------------------------------------------------
 
 
-def test_plugin_json_is_version_2_0_0():
+def test_plugin_json_is_version_3_0_0():
     data = json.loads(_read(PLUGIN_JSON))
-    assert data["version"] == "2.0.0"
+    assert data["version"] == "3.0.0"
 
 
 def test_plugin_description_names_merge_commits_and_branch_cleanup():
@@ -294,7 +294,7 @@ def test_branches_table_deleted_column_timing():
     )
     _assert_has(
         sprint_cell,
-        "at CLEANUP (step 7), after its last merge to `dev` — not after step 3, "
+        "at CLEANUP (step 6), after its last merge to `dev` — not after step 3, "
         "because FIX still branches from it",
     )
 
