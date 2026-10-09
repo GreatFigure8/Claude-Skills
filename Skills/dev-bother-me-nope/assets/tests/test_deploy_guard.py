@@ -288,9 +288,10 @@ def test_finished_run_is_not_guarded(phase):
     assert guard_in(root, "vercel --prod").returncode == 0
 
 
-@pytest.mark.parametrize("phase", ["intake", "design", "split", "plan", "code", "test1", "fix",
-                                   "test2", "report",
-                                   # phases of runs from before 2.0.0
+@pytest.mark.parametrize("phase", ["intake", "design", "split", "plan", "code", "testask", "test",
+                                   "fix", "report",
+                                   # phases of runs from before 3.0.0
+                                   "test1", "test2",
                                    "build", "merge1", "review1", "fix1", "merge2", "review2"])
 def test_every_unfinished_phase_is_guarded(phase):
     root = new_repo(active=False)

@@ -48,15 +48,16 @@ build output or scratch DB ever lands on `dev`.
 If a routed skill isn't in the session's skill list, say so in `stack.md` and continue with
 the rest — never approximate a skill from memory.
 
-## Gates — scoped per agent, full once per test step
+## Gates — code only while coding, scoped per agent, full once per test run
 
-The scout reports `gates{lint, types, related, test, build}`. Coders, fixers and mergers run
+The scout reports `gates{lint, types, related, test, build}`. Coders and the step-3 merger run
+the **code gates**: `lint` and `types` only, no test of any kind. Fixers and step-5 mergers run
 the **scoped gates**: lint, type-check, and `related` (the tests for the files they touched or
 the merge changed). Only the tester runs `test` (the full suite, with coverage) and `build`,
-once in each test step (TEST① and TEST②). Python default for `related`: pytest on the test
-files of the touched modules (`pytest tests/test_<module>.py …`).
+once in each of step 5's test runs. Python default for `related`: pytest on the test files of
+the touched modules (`pytest tests/test_<module>.py …`).
 
-## Test surfaces (drives TEST)
+## Test surfaces (drives step 5's test runs)
 
 | Condition | Surface | Tooling |
 | --- | --- | --- |
@@ -65,4 +66,4 @@ files of the touched modules (`pytest tests/test_<module>.py …`).
 | `api` / `web-app` | HTTP black-box | `httpx` against the running server |
 | `mcp-server` | MCP black-box | `mcp` client session over stdio: list tools, call each new/changed tool |
 | `supabase` | DB | local `supabase start`; `supabase db reset` (local) applies migrations |
-| TypeScript / Next.js repo (replaces the python tooling above) | unit + integration, browser, HTTP black-box, gates | unit + integration: the repo's runner (Vitest or Jest) with coverage; browser (`ui`): Playwright (`@playwright/test`) against `next build && next start` run locally; HTTP black-box: Playwright's `request` fixture against the same `webServer` (TEST-15); gates, in order: `next typegen && tsc --noEmit` (`next typegen` writes the route types and `next-env.d.ts` that `tsc` needs), then the repo's configured linter (`eslint .` with `eslint-config-next`, or `biome check .` in a repo that already uses Biome; `next lint` was removed in Next.js 16), then `next build` (TEST only: coder, fixer and merger gates stop after the linter plus `vitest related --run <files>` / `jest --findRelatedTests <files>`). Details: [nextjs/testing-and-observability.md](nextjs/testing-and-observability.md) |
+| TypeScript / Next.js repo (replaces the python tooling above) | unit + integration, browser, HTTP black-box, gates | unit + integration: the repo's runner (Vitest or Jest) with coverage; browser (`ui`): Playwright (`@playwright/test`) against `next build && next start` run locally; HTTP black-box: Playwright's `request` fixture against the same `webServer` (TEST-15); gates, in order: `next typegen && tsc --noEmit` (`next typegen` writes the route types and `next-env.d.ts` that `tsc` needs), then the repo's configured linter (`eslint .` with `eslint-config-next`, or `biome check .` in a repo that already uses Biome; `next lint` was removed in Next.js 16), then `next build` (TEST only: coder, fixer and merger gates stop after the linter; fixers and step-5 mergers add `vitest related --run <files>` / `jest --findRelatedTests <files>`, coders run no tests). Details: [nextjs/testing-and-observability.md](nextjs/testing-and-observability.md) |

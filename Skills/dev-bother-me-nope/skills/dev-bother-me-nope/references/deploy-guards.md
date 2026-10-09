@@ -1,10 +1,10 @@
 # Deploy and merge guards — Vercel, Supabase, git
 
 Jonathan decides every deploy. This file is what "never deploy" means concretely, what the
-hook blocks, and how the report hands the decision back to him: step 8 asks "release?", and
+hook blocks, and how the report hands the decision back to him: step 7 asks "release?", and
 his yes runs the whole release checklist (SKILL.md *RELEASE*).
 
-## Never, without Jonathan saying so in chat this session (his "release" at step 8 counts)
+## Never, without Jonathan saying so in chat this session (his "release" at step 7 counts)
 
 **Vercel** — every deploy is Jonathan's, dev included ("deploy to dev" = a real Vercel
 deployment to the dev environment, e.g. `vercel deploy --target=<dev env>`).
@@ -55,7 +55,7 @@ Allowed: `supabase start|stop|status`, `supabase db reset` (local), `supabase mi
 
 The `BMN_USER_APPROVED_DEPLOY=1` pass-through works on trust: it catches accidents, it does
 not stop an agent that decides to type it. Briefs forbid workers from ever using it; only the
-orchestrator may, and only after Jonathan's chat instruction: his yes to step 8's release
+orchestrator may, and only after Jonathan's chat instruction: his yes to step 7's release
 question, or a named deploy he asks for in chat.
 
 ## Merge commits only — no squash merges, PR merges delete their branch
@@ -179,13 +179,13 @@ applied there.
 
 ## When approved
 
-**Release (step 8).** Jonathan's yes covers every automatic step on that run's Release
+**Release (step 7).** Jonathan's yes covers every automatic step on that run's Release
 checklist, in SKILL.md's order, for that release only: Supabase main migrations already on dev,
 the `dev` → `main` merge and tag, the fast-forward of `dev` onto `main`, the Vercel production
 deploy, the GitHub release. Manual items stay his. A failed step stops the release and is
 reported; nothing is rolled back or retried without him.
 
-**A named deploy outside step 8.** Only the named step, only for the named target. Prefix the CLI command with
+**A named deploy outside step 7.** Only the named step, only for the named target. Prefix the CLI command with
 `BMN_USER_APPROVED_DEPLOY=1` (the guard's pass-through), show the output, confirm it
 landed (e.g. `supabase migration list --linked`), tick it off in `report.md`, and commit.
 MCP deploy tools stay blocked even then — use the CLI. Approval never carries to the next

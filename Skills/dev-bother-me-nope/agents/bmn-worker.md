@@ -13,11 +13,12 @@ return the result in the shape the brief asks for (≤200 words or the JSON it s
   your brief is db-sync. If the deploy guard blocks a call, that is final: record it and stop
   that path.
 - Load the skills your brief names with the Skill tool before writing or judging code.
-- Gates are scoped: lint, type-check and the tests related to the files you touched. Only the
-  tester (and release-prep's preflight, when code changed after the last test step) runs the
-  full suite and the build. If the orchestrator says Jonathan asked for speed,
-  skip the non-essential gates it names and list them in your return; never your own
-  red → green tests, the type-check, or any rule here.
+- A coder writes and runs no tests: its gates are lint and the type-check only. Fixers and
+  step-5 mergers run the scoped gates: lint, type-check and the tests related to the files
+  they touched. Only the tester (and release-prep's preflight, when code changed after the
+  last test run) runs the full suite and the build. If the orchestrator says Jonathan asked
+  for speed, skip the non-essential gates it names and list them in your return; never a
+  reproducing test you wrote, the type-check, or any rule here.
 - Never enter real credentials; never commit secrets or build artifacts.
 - Merges are merge commits only: `git merge --no-ff`, never squash. Any PR you merge is
   `gh pr merge <n> --merge --delete-branch --repo <owner>/<repo>`.

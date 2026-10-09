@@ -17,7 +17,9 @@ in `nextjs/`.
 - **Planner** reads `nextjs.md` plus the topic files the Topic index routes the story to (it
   always includes `typescript.md` and `testing-and-observability.md`), and **lists the rule ids**
   it applies in the plan.
-- **Coder** follows those rules.
+- **Coder** follows those rules. It writes no tests.
+- **Tester** writes the plan's tests in step 5's first test run, by the `TEST-<n>` rules in
+  `testing-and-observability.md`.
 - **Reviewer** cites the violated rule id in each finding.
 - **Fixer** names the rule id its fix restores.
 

@@ -5,20 +5,21 @@
 **Stack:** {kind} · skills used: {routed skills}
 **Design:** {picked direction} — {Claude Design link} / no UI in this run / Claude Design unavailable, built to existing conventions
 **Merged to dev:** {merge shas}
+**Tested:** {N} test → fix → test cycles asked, {n} run ({"ended early: run k was green" / "all ran"}) / ⚠ **untested** — you chose no test cycles
 
 ## Your decision: release?
 
-1 sprint → 2 plan → 3 code → 4 test + review → 5 fix → 6 test → 7 report. The run did each
-step once and stopped here. Nothing was released, merged to `main` or deployed. Step 8 is
-yours: **release v{next}** (the checklist below runs as one unit), or **not now**, and you
-decide what's next.
+1 sprint → 2 plan → 3 code (no tests) → 4 your test choice → 5 {N} test → fix → test cycles
+/ no tests → 6 report. The run stopped here. Nothing was released, merged to `main` or
+deployed. Step 7 is yours: **release v{next}** (the checklist below runs as one unit), or
+**not now**, and you decide what's next.
 
 **Built:** {one line per story: what works now}
-**FIX fixed:** {n} of {n} review findings + {n} TEST① failures — {ids}
-**FIX not reproducible / blocked:** {id → evidence or reason; "none"}
-**TEST②:** {pass}/{total} green · {n} failures left open (listed under *Left open*, HIGH first)
-**Left open:** {n} TEST② failures + {n} review findings FIX didn't close. Releasing ships them
-as they are; fixing them is a new goal you start.
+**Test runs:** {one line per run: run k @ {sha} — {pass}/{total} green, {n} failures} / ⚠ untested: no test was written or run, and no code review happened
+**FIX fixed:** {per cycle: FIX k — {n} test failures{ + n review findings in cycle 1} — {ids}}
+**FIX not reproducible / blocked / test fixed:** {id → evidence or reason; "none"}
+**Left open:** {n} failures of the last test run + {n} review findings no fix closed. Releasing
+ships them as they are; fixing them is a new goal you start.
 **Speed:** {"not requested" / requested at {step}; gates skipped: {list}}
 
 ## Release checklist — runs only when you say "release"
@@ -28,7 +29,7 @@ as they are; fixing them is a new goal you start.
 
 | # | Step | What happens | Ready? |
 | - | --- | --- | --- |
-| 1 | Preflight | `main` has nothing `dev` lacks; `dev` is what TEST② tested; gh / Vercel / Supabase signed in; production env vars exist; tag is free | {✅ / ⚠ what's missing} |
+| 1 | Preflight | `main` has nothing `dev` lacks; `dev` is what the last test run tested (skipped when untested); gh / Vercel / Supabase signed in; production env vars exist; tag is free | {✅ / ⚠ what's missing} |
 | 2 | Supabase **main** | `supabase db push` of {n} migrations already on dev: {files} | {✅ / none / ⚠ held back: {file → why}} |
 | 3 | Release commit | version bump + changelog on `dev` | ✅ |
 | 4 | `dev` → `main` | `--no-ff` merge + tag `{tag}`, pushed | ✅ |
@@ -59,22 +60,24 @@ Vercel doesn't document whether a commit's own vercel.json governs its push."
 {3–6 sentences: what was asked, what was built, what state it's in.}
 
 ## Stories
-| Story | Result | Tests (unit/int/browser) | Review C/H/M/L | Fixed in FIX | TEST② | Left open | Notes |
+| Story | Result | Tests (unit/int/browser) | Review C/H/M/L | Fixed (cycle) | Last test run | Left open | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 
-**Review (`/code-review` high, one pass, beside TEST①):** C/H/M/L {c/h/m/l} ·
+**Review (`/code-review` high, one pass, beside test run 1; none when untested):** C/H/M/L {c/h/m/l} ·
 `docs/sprints/{run}/review.md`
 
 ## Assumptions I made instead of asking
 {numbered list — every decision taken without Jonathan}
 
-## FIX — what the fix round did
-{one line per item: id → fixed (test name) / not reproducible (evidence) / blocked (reason)}
+## FIX — what each fix round did
+{per cycle, one line per item: id → fixed (test name) / test fixed (why) / not reproducible
+(evidence) / blocked (reason)}
 
 ## Left open — not fixed by this run
-{every TEST② failure, HIGH first, with the criterion, error and repro; review findings FIX
-marked blocked or not-reproducible whose TEST② re-run still fails; skipped surfaces (e.g. no
-Docker → DB not validated); blocker if any. Fixing any of it is a new goal you start.}
+{every failure of the last test run, HIGH first, with the criterion, error and repro; review
+findings no fix closed; skipped surfaces (e.g. no Docker → DB not validated); "everything:
+untested" when you chose no test cycles; blocker if any. Fixing any of it is a new goal you
+start.}
 
 ## Repo merge settings
 From `bmn.json.repo_policy` (INTAKE ran `repo-merge-policy.py`): `allow_squash_merge`
@@ -91,4 +94,4 @@ worktree that had the branch checked out, including ones bmn didn't create
 merged, …); "nothing" when clean}
 
 ## Evidence
-Run-level `review.md`, per-story `validation.md` (TEST①, FIX and TEST②), screenshots under `docs/sprints/{run}/<slug>/evidence/`.
+Run-level `review.md`, per-story `validation.md` (every test run and FIX round), screenshots under `docs/sprints/{run}/<slug>/evidence/`.
