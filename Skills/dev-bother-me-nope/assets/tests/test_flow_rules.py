@@ -53,7 +53,7 @@ STEP_PHASES = {
 PHASES = "intake|design|split|plan|code|testask|test|fix|report|decision|done|blocked"
 BRIEF_NAMES = (
     "stack-scout", "designer", "splitter", "planner", "coder", "merger", "db-sync", "tester",
-    "reviewer", "fixer", "cleaner", "release-prep",
+    "reviewer", "fixer", "retro", "cleaner", "release-prep",
 )
 RELEASE_ORDER = (
     "**Preflight", "**Supabase MAIN**", "**Release commit", "**Main and tag**", "**Sync dev**",
