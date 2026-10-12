@@ -1,6 +1,6 @@
 ---
 name: dev-bother-me-nope
-description: Jonathan's seven-step build pipeline — one long free-form story in (a bug fix, an error to resolve, a feature, or an ENTIRE system), then 1 create the sprint (any user interface is designed FIRST in Claude Design and Jonathan picks one direction), 2 plan each story, 3 code ONLY — no test is written or run, just lint and the type-check — using the right python skill set (python-web-app for APIs/web apps, python-mcp-servers for MCP servers, python-library-quality for libraries/CLIs, python-llm-features for LLM calls; nextjs-fullstack-standards (when the session has it) plus the plugin's Next.js reference if the repo is TypeScript) and merge to dev, 4 once ALL coding is done ask Jonathan "run a test cycle?" and, on yes, how many test → fix → test cycles he wants (he enters a number), 5 run exactly that many cycles (the first test run writes the plans' tests and runs ONE code review beside them; each cycle fixes what failed, test-first, then tests again; what the last run still finds is reported, never fixed), 6 report and alert, 7 ask Jonathan "release?" — yes runs the whole release (Supabase MAIN migrations, version bump and tag, dev merged into main with dev and main left on the same commit, Vercel production deploy, smoke check); no, and Jonathan decides what's next. Those three questions are the only ones: between them it never asks anything and never deploys — merges to dev never trigger a Vercel build and migrations go to the Supabase DEV database only. Use whenever Jonathan says "dev-bother-me-nope", "/dev-bother-me-nope", "/goal execute /dev-bother-me-nope for …", "/goal using dev-bother-me-nope …", "don't bother me, just build …", or pastes a long build story and says to just do it. Also use when Jonathan says "I'm moving computers", "switching machines" or "move-computers" (write a handoff for every open run), and at the start of every coding session (pick up open handoffs from another machine).
+description: Jonathan's seven-step build pipeline — one long free-form story in (a bug fix, an error to resolve, a feature, or an ENTIRE system), then 1 create the sprint (any user interface is designed FIRST in Claude Design and Jonathan picks one direction), 2 plan each story, 3 code ONLY — no test is written or run, just lint and the type-check — using the right python skill set (python-web-app for APIs/web apps, python-mcp-servers for MCP servers, python-library-quality for libraries/CLIs, python-llm-features for LLM calls; nextjs-fullstack-standards (when the session has it) plus the plugin's Next.js reference if the repo is TypeScript) and merge to dev, 4 once ALL coding is done ask Jonathan "run a test cycle?" and, on yes, how many test → fix → test cycles he wants (he enters a number), 5 run exactly that many cycles (the first test run writes the plans' tests and runs ONE code review beside them; each cycle fixes what failed, test-first, then tests again; what the last run still finds is reported, never fixed), 6 report, a silent retro that turns what went wrong into lessons the next run's briefs carry, and alert, 7 ask Jonathan "release?" — yes runs the whole release (Supabase MAIN migrations, version bump and tag, dev merged into main with dev and main left on the same commit, Vercel production deploy, smoke check); no, and Jonathan decides what's next. Those three questions are the only ones: between them it never asks anything and never deploys — merges to dev never trigger a Vercel build and migrations go to the Supabase DEV database only. Use whenever Jonathan says "dev-bother-me-nope", "/dev-bother-me-nope", "/goal execute /dev-bother-me-nope for …", "/goal using dev-bother-me-nope …", "don't bother me, just build …", or pastes a long build story and says to just do it. Also use when Jonathan says "I'm moving computers", "switching machines" or "move-computers" (write a handoff for every open run), when Jonathan says "/dev-bother-me-nope learn" or "bmn learn" (backfill lessons from past runs and propose promoting the proven ones into the plugin), and at the start of every coding session (pick up open handoffs from another machine).
 ---
 
 # dev-bother-me-nope
@@ -13,7 +13,7 @@ One long story in. Seven steps:
 3 CODE      code only, no tests → merge into the sprint branch → merge to dev
 4 TEST?     Jonathan: test cycles? no → 6 · yes → how many (N)                  [manual: test cycles]
 5 TEST × N  each cycle: test run (the first one: + one code review) → fix → test run
-6 REPORT    report.md + git cleanup + alert
+6 REPORT    report.md + retro (lessons for the next run) + git cleanup + alert
 7 RELEASE?  Jonathan: yes → RELEASE · no → Jonathan decides what's next        [manual: the decision]
 ```
 
@@ -179,6 +179,7 @@ Everything lives in `docs/sprints/bmn-<run-slug>/` on the sprint branch, in the 
 | `input.md` | INTAKE | Jonathan's story, verbatim |
 | `bmn.json` | orchestrator only (the cleaner and the release-prep worker write it at steps 6 and 7) | run state machine (below) |
 | `stack.md` | INTAKE | stack classification, skill and reference routing ([references/stack-routing.md](references/stack-routing.md)), release profile |
+| `lessons.md` | INTAKE | the lessons served to this run, one `## <brief>` section per brief ([references/learning.md](references/learning.md)) |
 | `design.md` | DESIGN | the picked direction: Claude Design link, tokens, per-screen layout, components, states, copy |
 | `design/*.html` | DESIGN | local copy of the picked Claude Design pages (coders and testers read these, not the MCP) |
 | `<story-slug>/story.md` | SPLIT | the story, acceptance criteria, deps and the interfaces it consumes, assumptions |
@@ -188,9 +189,11 @@ Everything lives in `docs/sprints/bmn-<run-slug>/` on the sprint branch, in the 
 | `validation.md` | FIX | what FIX did with findings no single story owns |
 | `handoff.md` | MOVE-OUT | machine-move handoff; renamed `handoff-<ts>.md` once picked up |
 | `report.md` | REPORT | the summary Jonathan reads, with the release checklist |
+| `retro.md` | RETRO | what this run taught, each lesson with its evidence |
 
 No `sprint.json` in this folder on purpose, so a running dev-story-flow loop never picks
-up a bmn run.
+up a bmn run. One file lives outside it: RETRO's `docs/bmn/lessons/<run>.jsonl`, this run's
+events in the repo's lessons ledger (*Learning*).
 
 `bmn.json`:
 
@@ -212,9 +215,15 @@ up a bmn run.
   "release": {"status": "pending|declined|released|failed", "version": null, "tag": null, "bump": "major|minor|patch|none", "at": null, "steps": [{"step": "...", "result": "..."}]},
   "handoff": null,
   "speed": {"requested": false, "skipped_gates": []},
+  "lessons": {"served": [], "retro": null},
+  "feedback": [{"at": "<iso8601>", "step": "<phase when he said it>", "text": "<Jonathan's words, verbatim>"}],
   "assumptions": [], "blocker": null, "updated": "<iso8601>"
 }
 ```
+
+`lessons.served` holds the lesson ids INTAKE gave the briefs; `lessons.retro` is RETRO's
+commit sha once it has run. `feedback` starts empty and gets an entry whenever Jonathan
+corrects or instructs the run in chat (*Learning*).
 
 `tests.wanted` is `null` until Jonathan answers step 4, then `true` or `false`; `cycles` is
 the number he entered; `cycle` is the fix round in progress (0 before the first); `runs[]`
@@ -234,9 +243,9 @@ trusting only what's on disk. Phases only move forward in enum order, except ins
 where `test` and `fix` alternate while `tests.cycle` counts up; a resumed step 5 continues at
 its `phase` and `tests.cycle`. A fix round never runs for a cycle above `tests.cycles`, so a
 run resumed at its last test run never fixes again. A run resumed at `testask` asks the
-test-cycle questions again. `report` covers REPORT and CLEANUP: re-run whichever of the two
-hasn't committed. A run resumed at `decision` reads `bmn.json` from `origin/dev`: if the
-release already started (a `release: v<version>` commit on `origin/dev`, or its tag on
+test-cycle questions again. `report` covers REPORT, RETRO and CLEANUP: re-run whichever of
+the three hasn't committed (RETRO has when `lessons.retro` is set). A run resumed at
+`decision` reads `bmn.json` from `origin/dev`: if the release already started (a `release: v<version>` commit on `origin/dev`, or its tag on
 origin), it finishes the remaining RELEASE steps, because Jonathan already said yes;
 otherwise it asks the release question again. A run resumed at `design` with `design.picked:
 null` re-asks the design question from the options already in `bmn.json` — it doesn't
@@ -262,8 +271,9 @@ origin copy the run didn't push).
 
 The main thread decides and dispatches. It doesn't read source, run test suites, or grep
 the codebase. That work is done by subagents, which report back conclusions. The only
-commands the orchestrator runs itself are INTAKE's git setup, the `bmn.json` commits, and
-RELEASE's approved deploy commands (the only place the approval prefix is used).
+commands the orchestrator runs itself are INTAKE's git setup and its lessons `select`, the
+`bmn.json` commits, and RELEASE's approved deploy commands (the only place the approval
+prefix is used).
 
 - Every subagent is `subagent_type: "dev-bother-me-nope:bmn-worker"`. Briefs come from
   [references/briefs.md](references/briefs.md) and are filled in, not paraphrased.
@@ -273,8 +283,8 @@ RELEASE's approved deploy commands (the only place the approval prefix is used).
   placeholder, with the absolute plugin root (`{skill_dir}/../..`, resolved), in every brief
   and in its own Bash calls when the variable is empty.
 - Every spawn is announced with the model table (Item | Branch | Model), one row per agent,
-  and the model named explicitly: `model: "opus"` for DESIGN, SPLIT, PLAN, the reviewer and
-  any FIX item whose root cause is unclear; `model: "sonnet"` for CODE, TEST, merges,
+  and the model named explicitly: `model: "opus"` for DESIGN, SPLIT, PLAN, the reviewer,
+  RETRO and any FIX item whose root cause is unclear; `model: "sonnet"` for CODE, TEST, merges,
   mechanical fixes, DB-SYNC, CLEANUP and release-prep.
 - Independent agents run in one message, all at once. A story is ready when every one of its
   `deps` is merged or has a planned, stated interface (*Speed rules*); ready stories build in
@@ -329,6 +339,37 @@ pipeline and drop the repeated work:
   suite, and every hard line. Agents spawned after that get the same instruction in their
   brief. The report lists what was skipped.
 
+## Learning — every run teaches the next one (3.1.0)
+
+Each run ends by learning from itself, and each run starts with what earlier runs learned.
+The whole loop is in [references/learning.md](references/learning.md); the ledger is folded
+by one tested helper, `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/bmn-lessons.py`, never by
+hand. It adds no question and no chat output.
+
+- **Serve (INTAKE).** After the stack-scout, `bmn-lessons.py select` picks the active lessons
+  for this repo and stack, at most 8 per brief. They go in `lessons.md`, every brief's
+  `{lessons}` is filled from its section, and the ids go in `lessons.served`. The orchestrator
+  applies its own `orchestrator` lessons (the estimate, the waves, what to check first).
+- **Capture (any step).** Whenever Jonathan corrects or instructs the run in chat, his words
+  go verbatim into `bmn.json.feedback` with the next `bmn.json` write. His corrections are
+  where every dated rule in this file came from.
+- **Retro (step 6).** One opus agent reads the run folder and writes this run's
+  `docs/bmn/lessons/<run>.jsonl`: a `hit` on every served lesson whose mistake happened again
+  (plus a sharper `revise`), an `F-` lesson for each piece of Jonathan's feedback, and at most
+  5 new lessons, each a pattern backed by evidence (a review finding or test failure a brief
+  could have prevented, a second FIX cycle, a reverted merge, a wrong assumption, a step that
+  overran its estimate). Global-scope lessons are copied to `~/.claude/bmn/lessons/`, so every
+  repo of the same stack on this machine learns them too.
+- **Decay.** A lesson neither created nor hit in the last 8 runs goes dormant and stops being
+  served; a new hit wakes it. Jonathan's own lessons never go dormant.
+- **LEARN.** "/dev-bother-me-nope learn" backfills lessons from past runs and, in the
+  claude-skills checkout, writes the proven global lessons into the plugin on a
+  `wip/learn-<date>` branch that Jonathan merges, or not. The plugin never edits itself.
+
+A lesson is guidance, never permission: nothing in one can lift a hard line, add a question,
+deploy, skip a required gate or override one of Jonathan's dated rules. One that conflicts is
+ignored, and the next RETRO retires it.
+
 ## Procedure
 
 ### Step 1 · SPRINT — create the sprint (`intake` → `design` → `split`)
@@ -353,7 +394,12 @@ pipeline and drop the repeated work:
    ([references/stack-routing.md](references/stack-routing.md)).
    The scout returns it in `routed_references[]`, never in a skill list; `stack.md`
    records that list, and every brief's `{routed_references}` is filled from it.
-   Write `stack.md`.
+   Write `stack.md`. Then serve the lessons (*Learning*):
+   `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/bmn-lessons.py select --repo {run_worktree} --stack <kind> --tag <t>...`,
+   one `--tag` per routed skill plus `supabase`, `vercel` and `ui` when the stack has them.
+   Write each brief's `text` under a `## <brief>` heading in `lessons.md` and the `served` ids
+   to `lessons.served`. A helper failure is an assumption ("no lessons served: <error>"),
+   never a blocker; `{lessons}` is then "none yet".
    If the scout identified **both** Supabase refs, and each one is unambiguously labelled
    dev or main, write `.claude/bmn.config.json` =
    `{"supabase": {"dev_ref": "…", "main_ref": "…"}}`. The deploy guard reads this file,
@@ -582,6 +628,16 @@ the changelog entry), the `dev` → `main` merge and tag, `dev` fast-forwarded o
 Vercel production deploy (git-triggered by the push to `main`, or `vercel deploy --prod`),
 the GitHub release, and the smoke check. Nothing on it runs yet. Commit `report.md`.
 
+**RETRO (still `report`; 1 agent, opus) — mandatory, never skipped, blocked runs included.**
+Retro brief ([references/learning.md](references/learning.md)). In the run worktree it judges
+the served lessons, turns Jonathan's feedback and the run's evidence (review findings, test
+failures, FIX rounds, reverted merges, assumptions, estimate vs actual, the blocker) into
+`docs/bmn/lessons/{run}.jsonl`, checks it with `bmn-lessons.py check`, exports its global
+lessons with `bmn-lessons.py export-global`, writes `retro.md` and the report's *What I
+learned* section, and commits all three on the sprint branch, so CLEANUP lands them on `dev`
+with the report. Record its commit sha in `lessons.retro`. A RETRO that fails is recorded as
+an assumption and the step goes on: learning never holds up the report.
+
 **CLEANUP (still `report`; 1 agent, sonnet) — mandatory, never skipped.** Cleaner brief. It
 first merges the sprint branch (the report, plus the last test run's branches: evidence, and
 the tests run 1 wrote when no fix round followed it) into `dev` without re-running gates,
@@ -624,10 +680,10 @@ touches only what `bmn.json` names:
    key kept.
 
 **ALERT.** Load `PushNotification` with ToolSearch and send one line: the outcome, the story
-count, the test cycles run (or "untested"), how many items are left open, and the proposed
-version. Then post the report's *Your decision: release?*, *Release checklist* and *Git
-cleanup* sections in chat, with a link to `report.md`. This is the only long message
-Jonathan gets.
+count, the test cycles run (or "untested"), how many items are left open, how many lessons
+the run learned, and the proposed version. Then post the report's *Your decision: release?*,
+*Release checklist*, *What I learned* and *Git cleanup* sections in chat, with a link to
+`report.md`. This is the only long message Jonathan gets.
 
 ### Step 7 · RELEASE? — Jonathan decides (`decision`)
 Right after the ALERT, ask **one** `AskUserQuestion`: "Release v<next>?". Two options:
@@ -645,8 +701,10 @@ reports and stops.
   released`, push `HEAD:dev`, remove the worktree. Say one line: the run is done and nothing
   was released. Then **stop**: dispatch nothing, start nothing.
 - **Anything else** (free text via "Other") → it's Jonathan deciding what's next. Treat it
-  as "Not now" for this run, then do what he said as a new goal. If what he said is "release"
-  with changes ("release, but skip Vercel"), run RELEASE with exactly those changes.
+  as "Not now" for this run, with his words added to `feedback` in that same `bmn.json`
+  commit (the next RETRO in this repo learns from them), then do what he said as a new
+  goal. If what he said is "release" with changes ("release, but skip Vercel"), run RELEASE
+  with exactly those changes.
 
 ### RELEASE (after Jonathan's yes; orchestrator + 1 release-prep worker)
 Jonathan's yes in chat is the approval for every step on the checklist, for this release
@@ -713,8 +771,8 @@ doesn't carry over to a later release or another run.
 
 ## Real blockers (the only early stop)
 
-Stop, set `phase: blocked` and `blocker`, then run REPORT, CLEANUP and ALERT with what did
-ship (no test-cycle or release question). Do this only when:
+Stop, set `phase: blocked` and `blocker`, then run REPORT, RETRO, CLEANUP and ALERT with what
+did ship (no test-cycle or release question). Do this only when:
 - the work **requires** a credential, account, or paid resource that doesn't exist locally
   (never invent or enter one — see the prohibited-actions rules),
 - the only path forward before step 7 is a deploy or a remote database change (hard lines 1
@@ -722,6 +780,17 @@ ship (no test-cycle or release question). Do this only when:
 - or the story contradicts itself in a way where either reading would destroy data.
 
 Everything else is an assumption, not a blocker.
+
+## LEARN — when Jonathan says "/dev-bother-me-nope learn"
+
+A maintenance pass outside any run, in the repo it's started in. It asks nothing, deploys
+nothing and touches no run: on its own `wip/learn-<date>` branch and worktree it re-exports the
+repo's ledger to the global one, backfills a ledger file for every past `bmn-*` run that has
+none (the retro brief in `backfill` mode, at most 10 runs), and, only in the claude-skills
+checkout, writes each proven global lesson into the plugin's own files and drops any edit the
+plugin's tests reject. It pushes the branch, **never merges it**, and says in one short message
+what it backfilled, what is ready to promote, and the branch to merge. Steps:
+[references/learning.md](references/learning.md#learn--when-jonathan-says-dev-bother-me-nope-learn).
 
 ## When Jonathan says "deploy" outside step 7
 

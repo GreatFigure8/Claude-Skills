@@ -204,9 +204,9 @@ def _bmn_json_schema():
 # --- AC1: plugin.json -------------------------------------------------------------
 
 
-def test_plugin_json_is_version_3_0_0():
+def test_plugin_json_is_version_3_1_0():
     data = json.loads(_read(PLUGIN_JSON))
-    assert data["version"] == "3.0.0"
+    assert data["version"] == "3.1.0"
 
 
 def test_plugin_description_names_merge_commits_and_branch_cleanup():
