@@ -79,6 +79,16 @@ findings no fix closed; skipped surfaces (e.g. no Docker → DB not validated); 
 untested" when you chose no test cycles; blocker if any. Fixing any of it is a new goal you
 start.}
 
+## What I learned
+{RETRO fills this in; "nothing new" when the run taught nothing.}
+**Served:** {n} lessons from earlier runs · held: {ids whose mistake didn't come back} ·
+recurred: {id → evidence; sharper rule written} / "untested: code lessons not judged"
+**New:** {one line per lesson: id · project/global · rule — evidence}
+**From your feedback:** {F- id → your words; "none"}
+**Retired:** {id → why; "none"}
+Ledger: `docs/bmn/lessons/{run}.jsonl` (global lessons also in `~/.claude/bmn/lessons/`) ·
+details in `retro.md`. Promoting proven lessons into the plugin: "/dev-bother-me-nope learn".
+
 ## Repo merge settings
 From `bmn.json.repo_policy` (INTAKE ran `repo-merge-policy.py`): `allow_squash_merge`
 {old} → {new}, `delete_branch_on_merge` {old} → {new}; or `unchanged: {reason}` (already set,

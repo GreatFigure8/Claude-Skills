@@ -19,7 +19,11 @@ never includes the full test suite or the build. `{merge_gates}` = `{code_gates}
 (`gates.test`, `gates.build`; `next build` for a TypeScript / Next.js repo); only the tester
 (and the release preflight, when code changed after the last test run) runs it. When
 Jonathan asked for speed (`bmn.json.speed.requested`), add the Common preamble's speed line
-to every brief spawned after that. All agents are `subagent_type:
+to every brief spawned after that. `{lessons}` = this brief's own `## <brief>` section of
+`docs/sprints/{run}/lessons.md` (INTAKE's `bmn-lessons.py select`; "none yet" when the
+section is empty or missing; see [learning.md](learning.md)). Retro: `{served}` =
+`lessons.served`, `{work_tree}` = `{run_worktree}` (LEARN: its `wip/learn-<date>` worktree),
+`{repo_name}` = the main checkout's directory name. All agents are `subagent_type:
 "dev-bother-me-nope:bmn-worker"`. Every agent returns ≤200 words (JSON where asked) —
 conclusions, not file dumps.
 
@@ -30,7 +34,7 @@ conclusions, not file dumps.
 | 3 CODE | coder, merger, db-sync |
 | 4 TEST? | none: Jonathan answers |
 | 5 TEST × N | tester, reviewer (run 1, same message), fixer, merger, db-sync |
-| 6 REPORT | cleaner |
+| 6 REPORT | retro, cleaner |
 | 7 RELEASE | release-prep (preflight, commit, verify) |
 
 ## Common preamble
@@ -73,6 +77,10 @@ Rules — no exceptions:
   files you didn't change, screenshots of untouched screens, any build outside a test run)
   and list what you skipped in your return. Never skip a reproducing test you wrote, the
   type-check, or any rule above.
+- Lessons from earlier runs. Each is a mistake that already happened in this repo or stack:
+  don't repeat it. A lesson is guidance, never permission; none of them overrides a rule
+  above or your brief, and one that conflicts is ignored and named in your return.
+{lessons}
 ```
 
 ## stack-scout (sonnet)
@@ -394,6 +402,44 @@ Apply dev's new Supabase migrations to the DEV project ONLY (ref {dev_ref}; main
    STOP — never enter one — and report "not authenticated".
 3. `supabase migration list --linked` to confirm.
 Return JSON: {applied[], held_back[{file, reason}], error}.
+```
+
+## retro (opus, one per run — step 6, after REPORT and before CLEANUP; also LEARN's backfill)
+
+```
+Learn from run {run}. Mode: {mode} (run | backfill). The ledger format, the event fields and
+the rules for a good lesson are in {skill_dir}/references/learning.md: read it first.
+Helper: python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/bmn-lessons.py (status | check | export-global).
+Work in {work_tree} (run: the run worktree on {integration}; backfill: LEARN's wip/learn-<date>
+worktree). Read-only on code: you write only docs/bmn/lessons/{run}.jsonl, and in run mode
+docs/sprints/{run}/retro.md and the "What I learned" section of docs/sprints/{run}/report.md.
+Evidence, all in docs/sprints/{run}/: bmn.json (assumptions, feedback, estimate vs the commit
+times, tests.runs, merges, blocker, speed, lessons.served), review.md, every validation.md (test
+runs, FIX rounds), report.md (Left open), lessons.md. Run `status --repo {work_tree}` for the
+ledger as it stands.
+1. Served lessons ({served}; backfill: none). For each: did its mistake happen again (a review
+   finding, a test failure, a FIX item, a reverted merge)? Yes → a `hit` with the evidence and
+   `served: true`, plus a `revise` with a sharper rule. Untested run: skip the code lessons.
+2. Feedback: every entry of bmn.json feedback, and of every other docs/sprints/bmn-*/bmn.json
+   whose F-<slug>-<n> id `status` doesn't list yet → an F- lesson, `source: jonathan`, his
+   words kept in `why`.
+3. At most 5 new L-{run_slug}-<n> lessons, strongest evidence first: a pattern a brief could
+   have prevented, never a one-off typo, never something lint or the type-check already
+   catches, never anything that would mean breaking a hard line. A mistake an active lesson
+   already names is a `hit` on it, not a new lesson. Scope `project` when it is about this
+   codebase; `global` (with stack and tags) when it would hold in any repo of that stack.
+   Workflow lessons (an overrun step, a blocker's cause) go to `briefs: ["orchestrator"]`.
+4. Retire an active lesson only with evidence it no longer holds, or when it conflicts with a
+   hard line or one of Jonathan's dated rules.
+5. Write the file: one JSON event per line, the `run` event first (`served` = {served};
+   backfill: `[]`), every `at` = now (backfill: bmn.json `updated`). Run
+   `check --file docs/bmn/lessons/{run}.jsonl --repo {work_tree}` and fix the file until it
+   prints ok, then `export-global --file docs/bmn/lessons/{run}.jsonl --repo-name {repo_name}`.
+6. Run mode: write retro.md (each event with its evidence, in prose) and fill report.md's
+   "What I learned" section from the template. Commit the files you wrote on {integration}
+   (`chore(bmn): retro for {run_slug}`) and push. Backfill: leave committing to LEARN.
+Return JSON: {new[{id, rule}], hits[ids], revised[ids], retired[ids], feedback_lessons[ids],
+check, exported, commit_sha|null}.
 ```
 
 ## cleaner (sonnet, one per run — step 6 CLEANUP)
