@@ -21,8 +21,9 @@ BRIEFS = SKILL_DIR / "references" / "briefs.md"
 MOVE_COMPUTERS = SKILL_DIR / "references" / "move-computers.md"
 REPORT_TEMPLATE = SKILL_DIR / "references" / "report-template.md"
 WORKER = PLUGIN / "agents" / "bmn-worker.md"
+TEACH = PLUGIN / "skills" / "teach" / "SKILL.md"
 PLUGIN_JSON = PLUGIN / ".claude-plugin" / "plugin.json"
-OWNED_MARKDOWN = (SKILL, BRIEFS, MOVE_COMPUTERS, REPORT_TEMPLATE, WORKER)
+OWNED_MARKDOWN = (SKILL, BRIEFS, MOVE_COMPUTERS, REPORT_TEMPLATE, WORKER, TEACH)
 
 HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
 NEGATION = re.compile(r"never|no |not|block|forbidden", re.IGNORECASE)
@@ -204,9 +205,9 @@ def _bmn_json_schema():
 # --- AC1: plugin.json -------------------------------------------------------------
 
 
-def test_plugin_json_is_version_3_1_0():
+def test_plugin_json_is_version_3_2_0():
     data = json.loads(_read(PLUGIN_JSON))
-    assert data["version"] == "3.1.0"
+    assert data["version"] == "3.2.0"
 
 
 def test_plugin_description_names_merge_commits_and_branch_cleanup():

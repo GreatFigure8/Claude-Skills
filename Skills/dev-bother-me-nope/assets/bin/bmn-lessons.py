@@ -3,8 +3,8 @@
 
 Purpose:
   Every bmn run's RETRO writes one append-only event file, docs/bmn/lessons/<run>.jsonl, in the
-  project repo. This helper folds those files, plus the machine's global ledger
-  (~/.claude/bmn/lessons/), into the current state of every lesson; picks the lessons each brief
+  project repo; TEACH writes one, chat-<date>-<slug>.jsonl, from any conversation. This helper
+  folds those files, plus the machine's global ledger (~/.claude/bmn/lessons/), into the current state of every lesson; picks the lessons each brief
   is given; validates a run file before it is committed; and copies a run's global-scope events
   into the global ledger so every repo on the machine learns from them.
 
@@ -16,7 +16,9 @@ Contract:
     stdout {"runs": n, "served": [ids], "briefs": {<brief>: [{id, rule, why, hits, source}]},
             "text": {<brief>: "- [id] rule — why"}}; every brief name is a key.
   bmn-lessons.py check --file <run.jsonl> [--repo <dir>] [--global-dir <dir>]
-    stdout {"ok": bool, "errors": [...]}; exit 1 when not ok.
+    stdout {"ok": bool, "errors": [...]}; exit 1 when not ok. A bmn-<slug> file needs its run
+    event; a chat-<date>-<slug> file (TEACH) must not have one, since it is not a run. A chat
+    event counts toward dormancy after the last run that started before it.
   bmn-lessons.py export-global --file <run.jsonl> --repo-name <name> [--global-dir <dir>]
     stdout {"written": <path>, "events": n}; exit 1 when the file fails check.
   Exit 2 = usage error, stdout {"error": "..."}.
@@ -32,6 +34,7 @@ Safety:
 from __future__ import annotations
 
 import argparse
+import bisect
 import json
 import re
 import sys
@@ -41,7 +44,9 @@ from types import MappingProxyType
 EVENTS = frozenset({"run", "lesson", "hit", "revise", "retire", "promoted"})
 KINDS = frozenset({"code", "workflow"})
 SCOPES = frozenset({"project", "global"})
-SOURCES = frozenset({"review", "test", "fix", "merge", "assumption", "timing", "blocker", "jonathan"})
+SOURCES = frozenset({
+    "review", "test", "fix", "merge", "assumption", "timing", "blocker", "jonathan", "chat",
+})
 BRIEFS = (
     "orchestrator", "stack-scout", "designer", "splitter", "planner", "coder", "merger", "db-sync",
     "tester", "reviewer", "fixer", "cleaner", "release-prep", "retro",
@@ -60,7 +65,9 @@ DORMANT_AFTER = 8
 DEFAULT_LIMIT = 8
 SERVED_FIELDS = ("id", "rule", "why", "hits", "source")
 ID_RE = re.compile(r"^[LF]-[a-z0-9][a-z0-9-]*-\d+$")
-RUN_RE = re.compile(r"^(bmn-[a-z0-9][a-z0-9-]*|learn-\d{4}-\d{2}-\d{2})$")
+RUN_RE = re.compile(
+    r"^(bmn-[a-z0-9][a-z0-9-]*|learn-\d{4}-\d{2}-\d{2}|chat-\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*)$"
+)
 AT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}")
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
@@ -114,11 +121,12 @@ def load_events(repo, global_dir) -> list:
     return sorted(events, key=lambda e: e["at"])
 
 
-def run_order(events: list) -> list:
-    runs = []
+def run_order(events: list) -> dict:
+    """Each run's name -> the `at` of its run event, in run order (events are sorted by `at`)."""
+    runs = {}
     for event in events:
-        if event["event"] == "run" and event["run"] not in runs:
-            runs.append(event["run"])
+        if event["event"] == "run":
+            runs.setdefault(event["run"], event["at"])
     return runs
 
 
@@ -127,7 +135,7 @@ def new_lesson(event: dict) -> dict:
         "id": event["id"], "scope": event.get("scope"), "kind": event.get("kind"),
         "source": event.get("source"), "rule": event.get("rule", ""), "why": event.get("why", ""),
         "briefs": list(event.get("briefs") or []), "stack": event.get("stack", "any"),
-        "tags": list(event.get("tags") or []), "hits": 0, "seen": [event["run"]],
+        "tags": list(event.get("tags") or []), "hits": 0, "seen": [(event["run"], event["at"])],
         "repos": [event["repo"]], "retired": False, "promoted": False,
     }
 
@@ -140,7 +148,7 @@ def apply_event(lessons: dict, event: dict) -> None:
         return
     elif kind == "hit":
         lesson["hits"] += 1
-        lesson["seen"] = lesson["seen"] + [event["run"]]
+        lesson["seen"] = lesson["seen"] + [(event["run"], event["at"])]
         lesson["repos"] = sorted(set(lesson["repos"]) | {event["repo"]})
     elif kind == "revise":
         lesson["rule"], lesson["why"] = event.get("rule", lesson["rule"]), event.get("why", lesson["why"])
@@ -163,9 +171,15 @@ def fold(events: list) -> list:
     ]
 
 
-def finish(lesson: dict, runs: list) -> dict:
-    indexes = [runs.index(run) for run in lesson["seen"] if run in runs]
-    last = max(indexes) if indexes else len(runs) - 1
+def position(run: str, at: str, runs: dict) -> int:
+    """A bmn run's own index; a chat or learn event sits after the last run started before it."""
+    if run in runs:
+        return list(runs).index(run)
+    return bisect.bisect_right(list(runs.values()), at) - 1
+
+
+def finish(lesson: dict, runs: dict) -> dict:
+    last = max(position(run, at, runs) for run, at in lesson["seen"])
     idle = len(runs) - 1 - last
     if lesson["retired"]:
         status = "retired"
@@ -176,8 +190,8 @@ def finish(lesson: dict, runs: list) -> dict:
     else:
         status = "active"
     out = {k: v for k, v in lesson.items() if k not in ("seen", "retired", "promoted")}
-    return dict(out, status=status, seen_runs=len(set(lesson["seen"])),
-                last_run=lesson["seen"][-1], last_index=last)
+    return dict(out, status=status, seen_runs=len({run for run, _ in lesson["seen"]}),
+                last_run=lesson["seen"][-1][0], last_index=last)
 
 
 def matches(lesson: dict, stack: str, tags: set) -> bool:
@@ -282,8 +296,11 @@ def file_errors(path: Path, events: list) -> list:
     run = runs.pop()
     if not RUN_RE.match(run) or path.name != f"{run}.jsonl":
         errors.append(f"file must be named <run>.jsonl for run {run!r}")
-    if run.startswith("bmn-") and not any(e["event"] == "run" for e in events):
+    has_run = any(e["event"] == "run" for e in events)
+    if run.startswith("bmn-") and not has_run:
         errors.append("a bmn run file needs one run event")
+    if run.startswith("chat-") and has_run:
+        errors.append("a chat file holds no run event: a conversation is not a bmn run")
     ids = [e["id"] for e in events if e["event"] == "lesson"]
     errors += [f"lesson {i} is defined twice" for i in sorted({i for i in ids if ids.count(i) > 1})]
     return errors
