@@ -6,9 +6,10 @@ actual time, and whatever Jonathan said mid-run. Before 3.1.0 all of that ended 
 and was never read again. Now a **RETRO** turns it into *lessons*, short rules each one
 backed by evidence, and the next run's briefs carry the lessons that apply to them. A lesson
 that keeps coming back gets sharper, a lesson that stops mattering goes quiet, and one that
-holds across repos is offered to the plugin itself through `LEARN`.
+holds across repos is offered to the plugin itself through `LEARN`. A conversation that was
+not a bmn run can teach it too, through `TEACH`.
 
-Nothing here adds a question. RETRO runs silently inside step 6, lessons are served
+Nothing here adds a question to a run. RETRO runs silently inside step 6, lessons are served
 automatically, and the only place Jonathan sees any of it is the report's *What I learned*
 section. Changing the plugin is always his call: LEARN only ever proposes it, on a branch.
 
@@ -17,6 +18,7 @@ section. Changing the plugin is always his call: LEARN only ever proposes it, on
 | Where | What | Travels |
 | --- | --- | --- |
 | `docs/bmn/lessons/<run>.jsonl` in the project repo | every event one run's RETRO wrote: the run, its new lessons, hits, revisions, retirements | with git: on the sprint branch, then `dev` at CLEANUP |
+| `docs/bmn/lessons/chat-<date>-<slug>.jsonl` in the project repo (project lessons) or in claude-skills (global lessons) | what one conversation taught through TEACH: lessons, hits, revisions; never a `run` event | with git: pushed straight to `dev` |
 | `~/.claude/bmn/lessons/<repo-name>--<run>.jsonl` | the global-scope subset of a run file, copied by `export-global` | per machine; LEARN rebuilds it from the project ledgers |
 
 One file per run, written once and never appended to by another run, so parallel runs never
@@ -42,9 +44,11 @@ Each line of a run file is one JSON event. Every event has `event`, `run` and `a
 | `promoted` | `id`, `to` | LEARN moved the lesson into the plugin; it is no longer served from the ledger |
 
 - **`id`**: `L-<run-slug>-<n>` for a lesson RETRO found, `F-<run-slug>-<n>` for one made from
-  Jonathan's feedback, `<n>` being that entry's index in `bmn.json.feedback`. Ids never repeat.
+  Jonathan's feedback, `<n>` being that entry's index in `bmn.json.feedback`. TEACH uses its
+  file's name: `L-chat-<date>-<slug>-<n>` and `F-chat-<date>-<slug>-<n>`. Ids never repeat.
 - **`source`**: `review`, `test`, `fix`, `merge` (a merger revert), `assumption`, `timing`,
-  `blocker` or `jonathan`.
+  `blocker`, `jonathan`, or `chat` (something a TEACH conversation showed that Jonathan didn't
+  say himself).
 - **`briefs`**: which briefs carry it: any brief name in [briefs.md](briefs.md), `retro`, or
   `orchestrator` for a workflow lesson the orchestrator applies itself (an estimate, a wave
   plan, a tooling check).
@@ -65,7 +69,8 @@ Each line of a run file is one JSON event. Every event has `event`, `run` and `a
 - **dormant**: neither created nor hit in the last 8 runs on this machine's ledger. Not served.
   A lesson that works stops recurring and eventually goes dormant; if the mistake comes back,
   RETRO records a hit and the lesson is active again. That keeps the briefs short without
-  forgetting anything. A `jonathan` lesson never goes dormant.
+  forgetting anything. A `jonathan` lesson never goes dormant. A chat file is not a run: its
+  lessons and hits count from the last run that started before them.
 - **promoted**: now lives in the plugin's own files. Not served.
 - **retired**: no longer true. Not served.
 
@@ -171,3 +176,15 @@ nothing. In the repo it is started in:
    `main` release. Remove the worktree once pushed.
 6. **Say** one short message: what was backfilled, how many lessons are active, the ones ready
    to promote, and the branch to merge.
+
+## TEACH — from any conversation ("/dev-bother-me-nope:teach")
+
+The plugin's second skill, [skills/teach/SKILL.md](../../teach/SKILL.md), for a conversation that
+was not a bmn run. It summarizes what the conversation taught, keeps only what a bmn worker
+would get wrong again (Jonathan's corrections always count), drops what the ledger or the
+plugin already says, shows Jonathan the result and asks **once** whether to record it. Then it
+does every step: it writes `docs/bmn/lessons/chat-<date>-<slug>.jsonl` (project lessons in the
+conversation's repo when bmn has run there, global ones in claude-skills), runs `check`,
+commits that one file and pushes it to `dev` from a detached worktree, and runs `export-global`
+for the global ones, so the next bmn run on this machine is served them. It never edits the
+plugin's files: the proven lessons reach the plugin through LEARN, like every other lesson.
