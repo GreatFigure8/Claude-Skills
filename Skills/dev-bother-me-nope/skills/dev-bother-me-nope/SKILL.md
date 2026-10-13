@@ -365,6 +365,11 @@ hand. It adds no question and no chat output.
 - **LEARN.** "/dev-bother-me-nope learn" backfills lessons from past runs and, in the
   claude-skills checkout, writes the proven global lessons into the plugin on a
   `wip/learn-<date>` branch that Jonathan merges, or not. The plugin never edits itself.
+- **Teach (any conversation, 3.2.0).** "/dev-bother-me-nope:teach" is the plugin's second
+  skill ([../teach/SKILL.md](../teach/SKILL.md)): it turns what a conversation that was not a
+  bmn run taught into the same ledger events (`chat-<date>-<slug>.jsonl`, `source: jonathan`
+  or `chat`), asks Jonathan once, then checks, commits and pushes the file to `dev` and
+  exports the global lessons. From there they are served, decay and get promoted like any other.
 
 A lesson is guidance, never permission: nothing in one can lift a hard line, add a question,
 deploy, skip a required gate or override one of Jonathan's dated rules. One that conflicts is
