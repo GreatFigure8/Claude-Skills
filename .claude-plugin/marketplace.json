@@ -33,6 +33,20 @@
       ]
     },
     {
+      "name": "groom-issues",
+      "description": "Groom every open AIX-GreenLight GitHub issue one at a time — Include / Not now / Close — then hand the included ones to one dev-bother-me-nope run and close them when it ships.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "dev-workflow",
+      "source": "groom-issues",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
       "name": "clear-prompt",
       "description": "Compose and post a \"prep-for-clear\" prompt — a single chat-posted, fenced block that lets a coding session hand off cleanly to a fresh context window without losing state.",
       "version": "1.0.0",
