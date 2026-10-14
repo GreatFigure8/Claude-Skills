@@ -48,7 +48,7 @@ nothing else is optional — a section with nothing to say says "none" rather th
 | `### Gates & verification commands` | The exact commands, copy-pasteable, that decide whether the item is done — the repo's own `make`/CI target where one exists. |
 | `### Risks & rollback` | What could break outside the diff, and the concrete undo — revert the commit, down-migration, feature flag off. |
 | `### Open questions` | Everything Claude would otherwise have invented, phrased as a question for Jonathan; an empty list here on a non-trivial item is a smell. |
-| `### Size` | The verdict — `single work item`, or `decompose` with the suggested split numbered and `dev-epic-workflow` recommended. |
+| `### Size` | The verdict — `single work item`, or `decompose` with the suggested split numbered and a dev-bother-me-nope run recommended. |
 | `## Loop admission` | The four checkboxes, checked only when actually true; this is what the session-scoped issue loop reads to admit the item. |
 
 ## Worked example — a short bug, filed end to end

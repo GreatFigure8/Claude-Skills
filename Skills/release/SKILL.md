@@ -1,6 +1,6 @@
 ---
 name: release
-description: Cut a release for the current repo — open a PR into the repo's default branch, merge it on confirmation, tag the merged commit as major.minor.build (e.g. 0.1.1757520123), push the tag, then ask whether to release to prod and, if yes, detect and run whatever deploy process the repo actually has. Use whenever Jonathan says "release this", "cut a release", "ship a release", "tag a release", "version bump", "release to prod", or asks to turn the current branch's work into a versioned release. Generic across repos — no claude-skills-specific assumptions; works on any git repo with a `gh`-visible remote. Not for epic/story planning (that's dev-epic-workflow / dev-story-sprint) — this skill only handles the release mechanics once the code is ready to ship.
+description: Cut a release for the current repo — open a PR into the repo's default branch, merge it on confirmation, tag the merged commit as major.minor.build (e.g. 0.1.1757520123), push the tag, then ask whether to release to prod and, if yes, detect and run whatever deploy process the repo actually has. Use whenever Jonathan says "release this", "cut a release", "ship a release", "tag a release", "version bump", "release to prod", or asks to turn the current branch's work into a versioned release. Generic across repos — no claude-skills-specific assumptions; works on any git repo with a `gh`-visible remote. Not for epic/story planning (that's dev-bother-me-nope) — this skill only handles the release mechanics once the code is ready to ship.
 ---
 
 # Release
@@ -109,12 +109,4 @@ Ask exactly: **"Do you want to release this to prod?"**
 
 ## Install
 
-Stateless markdown, no scripts or hooks. Symlink it into the working checkout the same way as
-the other orchestration skills:
-
-```bash
-ln -s ~/Source/claude-skills/Skills/release ~/.claude/skills/release
-```
-
-There is no separate worktree pinned to `main` — this symlink follows whatever is currently
-checked out in `~/Source/claude-skills` (`CLAUDE.md` rule 3).
+Installed as the `release@claude-skills` plugin from this repo's marketplace (`claude plugin install release@claude-skills`); no symlink. Stateless markdown, no scripts or hooks.

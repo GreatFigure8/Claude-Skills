@@ -6,7 +6,7 @@ in the body — that's `references/issue-body.md` — only on the tracker calls
 themselves.
 
 **Detection and auth are not repeated here.** Before any command below, follow
-`Skills/dev-epic-workflow/references/issue-intake.md` ("Detecting the tracker" /
+`references/issue-intake.md` ("Detecting the tracker" /
 "Prerequisites") to decide GitHub vs. Azure DevOps from the origin remote (or the
 repo's `CLAUDE.md` `Tracker:` override) and to verify `gh auth status` /
 `az boards query --top 1` before running anything in this file.

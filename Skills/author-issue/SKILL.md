@@ -1,6 +1,6 @@
 ---
 name: author-issue
-description: Turn a bug or feature Jonathan describes in chat into a fully specified, codebase-grounded GitHub issue or Azure DevOps work item — his requirements and acceptance criteria collected verbatim through an intake template, Claude's implementation plan and derived acceptance criteria grounded in real file:line citations. Use whenever Jonathan says "file a bug", "log a bug", "raise a bug", "create an issue", "open an issue", "new feature", "feature request", "work item", "ADO work item", "add this to the backlog", "write this up", "write up a proper issue", "turn this into an issue", "spec this out for the tracker", or runs /author-issue — and also for enrich mode, when he names an existing issue or work-item number and wants it filled out ("flesh out #42", "enrich that work item", "add the implementation detail to #17"). Produces the admission input for the session-scoped issue loop: nothing is drafted without human-authored requirements AND acceptance criteria, nothing is filed without explicit approval, and every derived claim is cited or tagged [unverified]. Do NOT use to plan an epic (dev-epic-workflow), to run a story (dev-story-sprint), or to pick up an issue that already exists and is already specified (dev-epic-workflow's issue intake).
+description: Turn a bug or feature Jonathan describes in chat into a fully specified, codebase-grounded GitHub issue or Azure DevOps work item — his requirements and acceptance criteria collected verbatim through an intake template, Claude's implementation plan and derived acceptance criteria grounded in real file:line citations. Use whenever Jonathan says "file a bug", "log a bug", "raise a bug", "create an issue", "open an issue", "new feature", "feature request", "work item", "ADO work item", "add this to the backlog", "write this up", "write up a proper issue", "turn this into an issue", "spec this out for the tracker", or runs /author-issue — and also for enrich mode, when he names an existing issue or work-item number and wants it filled out ("flesh out #42", "enrich that work item", "add the implementation detail to #17"). Produces the admission input for the session-scoped issue loop: nothing is drafted without human-authored requirements AND acceptance criteria, nothing is filed without explicit approval, and every derived claim is cited or tagged [unverified]. Do NOT use to plan or build the work (dev-bother-me-nope) or to pick up an issue that already exists and is already specified.
 ---
 
 # Author Issue
@@ -47,7 +47,7 @@ Triggers: "file a bug", "create an issue", "new feature", "work item", "write th
 `/author-issue`.
 
 Detect the tracker and verify auth per
-`Skills/dev-epic-workflow/references/issue-intake.md` — origin remote URL, with a
+`references/issue-intake.md` — origin remote URL, with a
 `Tracker:` line in the repo's `CLAUDE.md` as the override. Auth checks live there too
 (`gh auth status`, or the `az boards query --top 1` probe). **Do not re-implement detection
 or auth here**; that file owns them, and a second copy would drift.
@@ -110,7 +110,7 @@ constraints that matter:
   invariant**. Write the trace inline: `DAC3 → R2`. Anything that cannot be traced does not
   get softened into a criterion — it goes to **Open questions**.
 - **Size verdict.** Every draft ends with one: **single work item**, or **decompose** — and
-  if decompose, suggest the split as a numbered list and recommend `dev-epic-workflow`.
+  if decompose, suggest the split as a numbered list and recommend a dev-bother-me-nope run.
   Erring toward decomposition is cheap; a work item nobody can finish is not.
 
 ### 5. Review gate
@@ -176,4 +176,4 @@ Enrich is never a rewrite. If the existing body reads poorly, that is Jonathan's
 | `templates/feature.md` | Feature intake template |
 | `references/issue-body.md` | The issue body skeleton, section by section, with a worked example |
 | `references/trackers.md` | Every `gh` / `az` command, label constants, URL extraction |
-| `Skills/dev-epic-workflow/references/issue-intake.md` | Tracker detection, auth, status labels — pointed at, never copied |
+| `references/issue-intake.md` | Tracker detection, auth, status labels — pointed at, never copied |
