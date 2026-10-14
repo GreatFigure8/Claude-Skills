@@ -22,7 +22,7 @@
   </dataProperties>
 
   <dataSets>
-    <dataSet name="Q_MAIN" type="simple">
+    <dataSet name="Q_MAIN" type="complex">
       <sql dataSourceRef="{{DATA_SOURCE_REF}}">
         <![CDATA[
 {{MAIN_SQL_QUERY}}
