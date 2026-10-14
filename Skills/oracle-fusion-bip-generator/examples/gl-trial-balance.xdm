@@ -21,7 +21,7 @@
   </dataProperties>
 
   <dataSets>
-    <dataSet name="Q_MAIN" type="simple">
+    <dataSet name="Q_MAIN" type="complex">
       <sql dataSourceRef="ApplicationDB_FSCM">
         <![CDATA[
           /* GL Trial Balance — one row per natural account, summed per period */

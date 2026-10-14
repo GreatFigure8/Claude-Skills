@@ -23,7 +23,7 @@
   </dataProperties>
 
   <dataSets>
-    <dataSet name="Q_MAIN" type="simple">
+    <dataSet name="Q_MAIN" type="complex">
       <sql dataSourceRef="ApplicationDB_FSCM">
         <![CDATA[
           /* AR Invoice Aging — one row per AR transaction line, aged by due date */

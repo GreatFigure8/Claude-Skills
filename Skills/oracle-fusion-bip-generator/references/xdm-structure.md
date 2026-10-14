@@ -63,7 +63,7 @@ The `<dataSets>` block holds one or more SQL queries. For v1, the skill emits a 
 
 ```xml
 <dataSets>
-  <dataSet name="Q_MAIN" type="simple">
+  <dataSet name="Q_MAIN" type="complex">
     <sql dataSourceRef="ApplicationDB_FSCM">
       <![CDATA[
         SELECT gjh.name             AS journal_name,
@@ -88,7 +88,7 @@ The `<dataSets>` block holds one or more SQL queries. For v1, the skill emits a 
 
 Notes:
 - `name="Q_MAIN"` is conventional; use a meaningful dataset name when there are multiple.
-- `type="simple"` for plain SQL queries. Other types include `bursting`, `summary`, `aggregate`.
+- `type="complex"` for plain SQL queries — ALWAYS. `type="complex"` + no `nsQuery`/`sp` is what BIP renders as **"Standard SQL"**; `type="simple"` renders as **"Non-Standard SQL"** (broken) even with no `nsQuery`. Never use `type="simple"` for a SQL dataset. (The server enforces this on upload via `normalize_report_datasets`, but author it correctly.)
 - The SQL goes inside `<![CDATA[ ... ]]>` to avoid XML escaping the `<`, `>`, `&` characters.
 - `dataSourceRef` on `<sql>` overrides the root-level `defaultDataSourceRef` if a specific dataset needs a different source.
 
@@ -285,7 +285,7 @@ A complete, valid `.xdm` for a simple report:
   </dataProperties>
 
   <dataSets>
-    <dataSet name="Q_MAIN" type="simple">
+    <dataSet name="Q_MAIN" type="complex">
       <sql dataSourceRef="ApplicationDB_FSCM">
         <![CDATA[
           /* GL Trial Balance — one row per natural account, summed per period */

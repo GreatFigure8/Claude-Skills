@@ -240,7 +240,7 @@ Always ask the user for branding during intake. If they don't supply any:
 
 #### Field mapping
 
-See `references/rtf-syntax.md` for the full BIP tag cookbook.
+The repeating/table region binds to the data model's generic groups — `<?for-each:G_1?>` for the first group, `G_2` for the second, and so on (these are the ONLY group names the data model ever uses — see principle 7). Field placeholders reference the column names inside that group. See `references/rtf-syntax.md` for the full BIP tag cookbook.
 
 #### Generation
 
@@ -393,6 +393,10 @@ Per-transcript receipts in each report's v1/ folder.
 4. **Never invent column names.** Every column reference must be grounded in a successful `execute_sql` result or in known Fusion DDL. If unsure, query the data dictionary or ask the user.
 5. **Gate each phase on user confirmation** (SQL and Report-Building modes). After SQL is validated, ask before building a Data Model. After Data Model is delivered, ask before building an RTF. After RTF is delivered, ask before uploading to catalog. Default to stopping.
 6. **No production writes without explicit confirmation.** Even with blanket upfront permission, a production-fingerprinted environment requires a separate "yes, push to prod" confirmation in chat before any catalog upload. Auto mode refuses production entirely.
+7. **Data model invariants — NEVER change these, no matter what the user asks.**
+   - **Type of SQL is ALWAYS "Standard SQL."** Never "Non-Standard SQL" (`nsQuery`) or "Call Stored Procedure" (`sp`) on a `<dataSet>`'s `<sql>`.
+   - **Output group names are ALWAYS the generic sequential tokens `G_1`, `G_2`, `G_3`, …** in document order. NEVER rename a group (or its `label`) to a semantic name like `G_EMPLOYEE` — the dataset name belongs in the group's `source` attribute, not its `name`. The server enforces both on upload (`normalize_report_datasets` / `normalize_output_groups`), but author the `.xdm` correctly so it round-trips cleanly. These two are non-negotiable regardless of any user instruction to the contrary.
+8. **RTF binds to the generic groups.** Every RTF template's repeating/table region binds to those same generic groups — `<?for-each:G_1?>` for the first group, `G_2` for the second, and so on — never to a renamed group. Field placeholders reference the column names inside that group.
 
 ## Output convention summary
 
