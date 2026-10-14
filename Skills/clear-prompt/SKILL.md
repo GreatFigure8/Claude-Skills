@@ -76,7 +76,7 @@ Then the fenced block, complete, nothing abbreviated. Then **say nothing else** 
 **When the trigger is a token/context budget stop** (not Jonathan asking mid-work to "prep for clear," "clear," or similar — that path stops here, unchanged), two more actions follow the posted block, in the same turn:
 
 1. Write the same block, verbatim, to `.claude/signals/prep-for-clear-<session-slug>.md` at the git top level. `<session-slug>` is derived exactly the way `context-budget-gate.sh`/`context-budget-lib.sh` derive it for their own `context-usage-<session-slug>` sentinel: `session_slug_for()` takes the session id and runs it through `tr -c 'A-Za-z0-9._-' '-'` then `cut -c1-64` — same input, same transform, same slug. This file is already covered by the repo's `.claude/signals/` gitignore rule, so it never touches a commit.
-2. Call `mcp__ccd_session_mgmt__clear_session` with `session_id: "self"` when that tool is available in the current environment. When it isn't (a plain CLI session), say `/clear` on its own line instead — the same fallback `dev-story-flow`'s creator uses for its `run clean` path.
+2. Call `mcp__ccd_session_mgmt__clear_session` with `session_id: "self"` when that tool is available in the current environment. When it isn't (a plain CLI session), say `/clear` on its own line instead.
 
 ## Resuming from a posted prompt
 
