@@ -5,9 +5,8 @@ description: Pursue a stated objective with a named skill until that skill's own
 
 # Goal
 
-A one-line launcher. It turns `/goal using dev-story-flow execute until all the planned
-sprints are completed` into a call to the `dev-story-flow` skill with the objective
-`execute until all the planned sprints are completed`, and then gets out of the way.
+A one-line launcher. It turns `/goal using dev-bother-me-nope <story>` into a call to the `dev-bother-me-nope` skill with the objective
+`<story>`, and then gets out of the way.
 
 ## Procedure
 
@@ -17,15 +16,14 @@ sprints are completed` into a call to the `dev-story-flow` skill with the object
    same way — but only when it exactly matches a loaded skill's name (so `/api/users` in an
    objective is never a skill); the objective is the argument with that token removed.
    Without either, match the
-   objective's nouns against the loaded skills' descriptions ("sprint", "story" → dev-story-flow
-   when `docs/sprints` exists, else dev-story-sprint; "epic", "issue" → dev-epic-workflow;
-   "release" → release). State the choice in one line. No clear match → ask, in one line.
+   objective's nouns against the loaded skills' descriptions ("build", "story", "bug", "feature" →
+   dev-bother-me-nope; "release" → release). State the choice in one line. No clear match → ask, in one line.
 2. **Load.** `Skill({skill: "<skill-name>", args: "<objective>"})`. If the skill is not in the
    available list, say so in one line and stop — never approximate a skill from memory.
 3. **Pursue.** Follow the loaded skill exactly, including its silence rules, model-table rule,
    claim/hand-off mechanics, and budget gate. The objective is the completion condition:
-   "until all the planned sprints are completed" means loop the skill's execute phase while
-   its work-discovery step still returns work. Never idle, never ask permission to continue,
+   "until all the stories are done" means keep running the skill's phases while its
+   work-discovery step still returns work. Never idle, never ask permission to continue,
    never re-post a plan the skill already posted.
 4. **Stop only where the skill stops.** Done (its closing message), blocked (its blocker
    message), or its budget gate (its prep-for-clear prompt). Add nothing after that message.

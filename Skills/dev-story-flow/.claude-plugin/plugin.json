@@ -1,8 +1,0 @@
-{
-  "name": "dev-story-flow",
-  "description": "File-driven pipeline for shipping sprints of user stories autonomously. Two skills: dev-story-intake (conversational — turns Jonathan's stories into story.md files and closes a sprint ready-to-plan) and dev-story-flow (the silent loop — plans every ready-to-plan sprint with parallel sub-agents, executes every planned sprint with parallel executors, reviews each story's diff with a code-review sub-agent, validates acceptance criteria, opens a PR to live, and rescans for the next sprint; run as `/loop /goal using dev-story-flow run` it re-arms itself until Jonathan stops it; no go-ahead awaited).",
-  "version": "1.3.2",
-  "author": {
-    "name": "Jonathan Stevenson"
-  }
-}

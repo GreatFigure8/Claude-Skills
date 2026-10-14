@@ -122,8 +122,8 @@ issue/work-item URL, or the `/intake <ref>` command.
      per work item, each related to the source item
      (`az boards work-item relation add --id <task> --relation-type parent --target-id <n>`).
 5. **Stop.** Intake's job ends at filing and linking — an intake session never dispatches, not
-   even to a subagent (dev-epic-workflow's Session mode). Run `clear-prompt` with caller
-   `dev-epic-workflow`, post the block, then stop — the block already carries the source ref,
+   even to a subagent (an intake session is not a coding session). Run `clear-prompt` with caller
+   `issue-intake`, post the block, then stop — the block already carries the source ref,
    the epic path, and the work-item list with branches. Phase 3 dispatch happens in a coding
    session: either Jonathan says so explicitly later in this same session (which switches the
    mode) or a fresh coding session picks up the approved epic from there, recognising the

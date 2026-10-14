@@ -13,14 +13,11 @@
    `git rev-parse origin/dev origin/main` prints the same sha twice.
 2. **Every sprint gets its own branch**, `sprint/<sprint>`, cut from `origin/dev` and merged back
    to `dev` when the sprint completes. Parallel sprints may use worktrees but never have to.
-   For dev-story-flow this means `sprint-state.sh new --live dev` (integration defaults to
-   `sprint/<sprint>`); in a `dev-story-sprint` plan message the branch line reads
-   `live=dev  integration=sprint/<slug>`.
 3. **Skills install from this repo's marketplace, not `~/.claude/skills` symlinks.** Every skill
    is a plugin in `.claude-plugin/marketplace.json` (repo root), a local-directory marketplace
    named `claude-skills`, installed and updated through the Claude Code plugin manager (UI or
-   `claude plugin install <skill>@claude-skills`). dev-story-flow and dev-bother-me-nope ship
-   their own `Skills/<name>/.claude-plugin/`; every other entry has no `plugin.json` — the
+   `claude plugin install <skill>@claude-skills`). Only dev-bother-me-nope ships
+   its own `Skills/dev-bother-me-nope/.claude-plugin/`; every other entry has no `plugin.json` — the
    marketplace entry is the manifest (`source: <skill dir>`, `strict: false`, `skills: ["./"]`,
    plus a `category` for its type). A new skill folder needs its own entry there, or it won't
    appear. Do not add symlinks into `~/.claude/skills` for skills in this repo — that loads
@@ -31,8 +28,7 @@
    (`claude plugin marketplace update claude-skills`, then update the changed plugins) after a
    release so installed copies pick it up. See "The checkout is shared" below.
    A plugin install only loads the skill; anything a skill's `assets/install.sh` does beyond
-   that (e.g. dev-story-sprint's settings.json allowlist merge, dev-epic-workflow's commands
-   and hooks) still has to be run separately.
+   that (e.g. a settings.json merge, commands or hooks) still has to be run separately.
 
 ## The checkout is shared
 

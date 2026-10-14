@@ -9,11 +9,6 @@
   },
   "plugins": [
     {
-      "name": "dev-story-flow",
-      "source": "dev-story-flow",
-      "category": "dev-workflow"
-    },
-    {
       "name": "dev-bother-me-nope",
       "source": "dev-bother-me-nope",
       "category": "dev-workflow"
@@ -55,34 +50,6 @@
       },
       "category": "dev-workflow",
       "source": "clear-prompt",
-      "strict": false,
-      "skills": [
-        "./"
-      ]
-    },
-    {
-      "name": "dev-epic-workflow",
-      "description": "Jonathan's development process for any code change — plan first as an epic, one branch and one executor context per work item, commit early and often, verify what actually landed.",
-      "version": "1.0.0",
-      "author": {
-        "name": "Jonathan Stevenson"
-      },
-      "category": "dev-workflow",
-      "source": "dev-epic-workflow",
-      "strict": false,
-      "skills": [
-        "./"
-      ]
-    },
-    {
-      "name": "dev-story-sprint",
-      "description": "Jonathan's fast lane for shipping ONE user story — plan in the chat where the story is written, stop and wait for an explicit go-ahead, then dispatch code via silent, parallel executors.",
-      "version": "1.0.0",
-      "author": {
-        "name": "Jonathan Stevenson"
-      },
-      "category": "dev-workflow",
-      "source": "dev-story-sprint",
       "strict": false,
       "skills": [
         "./"
