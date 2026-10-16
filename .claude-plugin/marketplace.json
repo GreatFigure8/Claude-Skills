@@ -502,6 +502,20 @@
       "skills": [
         "./"
       ]
+    },
+    {
+      "name": "gp-customer-conversion",
+      "description": "'Convert Microsoft Dynamics GP (Great Plains) customers into Oracle Fusion Receivables customers (party, account, site, site use, profile) through the Customer Import FBDI, for the Regal / Cineworld Picturehouse UK companies (GP databases PHTRA, PHEN2, PHBOO, PHGAP on the Regal SQL Server MCP) landi…",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "regal",
+      "source": "gp-customer-conversion",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
     }
   ]
 }
