@@ -502,6 +502,20 @@
       "skills": [
         "./"
       ]
+    },
+    {
+      "name": "bmn-issue",
+      "description": "Create a GitHub story issue for the dev-bother-me-nope pipeline from a one-line summary, shaped like the story template and labelled bmn.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "dev-workflow",
+      "source": "bmn-issue",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
     }
   ]
 }
