@@ -13,20 +13,6 @@
       "category": "dev-workflow"
     },
     {
-      "name": "author-issue",
-      "description": "Turn a bug or feature Jonathan describes in chat into a fully specified, codebase-grounded GitHub issue or Azure DevOps work item — his requirements and acceptance criteria collected verbatim through an intake template, Claude's implementation plan and derived acceptance criteria grounded in…",
-      "version": "1.0.0",
-      "author": {
-        "name": "Jonathan Stevenson"
-      },
-      "category": "dev-workflow",
-      "source": "./Skills/author-issue",
-      "strict": false,
-      "skills": [
-        "./"
-      ]
-    },
-    {
       "name": "groom-issues",
       "description": "Groom every open AIX-GreenLight GitHub issue one at a time — Include / Not now / Close — then hand the included ones to one dev-bother-me-nope run and close them when it ships.",
       "version": "1.0.0",
@@ -35,34 +21,6 @@
       },
       "category": "dev-workflow",
       "source": "./Skills/groom-issues",
-      "strict": false,
-      "skills": [
-        "./"
-      ]
-    },
-    {
-      "name": "clear-prompt",
-      "description": "Compose and post a \"prep-for-clear\" prompt — a single chat-posted, fenced block that lets a coding session hand off cleanly to a fresh context window without losing state.",
-      "version": "1.0.0",
-      "author": {
-        "name": "Jonathan Stevenson"
-      },
-      "category": "dev-workflow",
-      "source": "./Skills/clear-prompt",
-      "strict": false,
-      "skills": [
-        "./"
-      ]
-    },
-    {
-      "name": "goal",
-      "description": "Pursue a stated objective with a named skill until that skill's own completion condition is met, autonomously — \"/goal using SKILL OBJECTIVE\".",
-      "version": "1.0.0",
-      "author": {
-        "name": "Jonathan Stevenson"
-      },
-      "category": "dev-workflow",
-      "source": "./Skills/goal",
       "strict": false,
       "skills": [
         "./"
