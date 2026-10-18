@@ -27,6 +27,20 @@
       ]
     },
     {
+      "name": "clear-prompt",
+      "description": "Compose and post a \"prep-for-clear\" prompt — a single chat-posted, fenced block that lets a coding session hand off cleanly to a fresh context window without losing state.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "dev-workflow",
+      "source": "./Skills/clear-prompt",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
       "name": "release",
       "description": "Cut a release for the current repo — open a PR into the repo's default branch, merge it on confirmation, tag the merged commit as major.minor.build (e.g.",
       "version": "1.0.0",
@@ -413,6 +427,20 @@
       },
       "category": "regal",
       "source": "./Skills/regal-technical-standards",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
+    },
+    {
+      "name": "regal-gp-customer-research",
+      "description": "Convert Microsoft Dynamics GP (Great Plains) customers for the Regal / Cineworld Picturehouse UK companies into Oracle Fusion Receivables customers through the Customer Import FBDI.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "regal",
+      "source": "./Skills/regal-gp-customer-research",
       "strict": false,
       "skills": [
         "./"
