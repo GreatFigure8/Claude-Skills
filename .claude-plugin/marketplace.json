@@ -4,13 +4,12 @@
     "name": "Jonathan Stevenson"
   },
   "metadata": {
-    "description": "Jonathan Stevenson's Claude Code skills: dev workflow, Oracle Fusion HCM/Finance/SCM conversion profiling, OIC integration, Fusion reporting, Regal engagement, and brand/document formats. One plugin per skill.",
-    "pluginRoot": "./Skills"
+    "description": "Jonathan Stevenson's Claude Code skills: dev workflow, Oracle Fusion HCM/Finance/SCM conversion profiling, OIC integration, Fusion reporting, Regal engagement, and brand/document formats. One plugin per skill."
   },
   "plugins": [
     {
       "name": "dev-bother-me-nope",
-      "source": "dev-bother-me-nope",
+      "source": "./Skills/dev-bother-me-nope",
       "category": "dev-workflow"
     },
     {
@@ -21,7 +20,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "dev-workflow",
-      "source": "author-issue",
+      "source": "./Skills/author-issue",
       "strict": false,
       "skills": [
         "./"
@@ -35,7 +34,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "dev-workflow",
-      "source": "groom-issues",
+      "source": "./Skills/groom-issues",
       "strict": false,
       "skills": [
         "./"
@@ -49,7 +48,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "dev-workflow",
-      "source": "clear-prompt",
+      "source": "./Skills/clear-prompt",
       "strict": false,
       "skills": [
         "./"
@@ -63,7 +62,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "dev-workflow",
-      "source": "goal",
+      "source": "./Skills/goal",
       "strict": false,
       "skills": [
         "./"
@@ -77,7 +76,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "dev-workflow",
-      "source": "release",
+      "source": "./Skills/release",
       "strict": false,
       "skills": [
         "./"
@@ -91,7 +90,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-hcm",
-      "source": "hcm-config-readiness-report",
+      "source": "./Skills/hcm-config-readiness-report",
       "strict": false,
       "skills": [
         "./"
@@ -105,7 +104,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-hcm",
-      "source": "hcm-grades-data-profiling",
+      "source": "./Skills/hcm-grades-data-profiling",
       "strict": false,
       "skills": [
         "./"
@@ -119,7 +118,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-hcm",
-      "source": "hcm-job-conversion-profiling",
+      "source": "./Skills/hcm-job-conversion-profiling",
       "strict": false,
       "skills": [
         "./"
@@ -133,7 +132,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-hcm",
-      "source": "hcm-location-conversion-profiling",
+      "source": "./Skills/hcm-location-conversion-profiling",
       "strict": false,
       "skills": [
         "./"
@@ -147,7 +146,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-hcm",
-      "source": "hcm-organization-conversion-profiling",
+      "source": "./Skills/hcm-organization-conversion-profiling",
       "strict": false,
       "skills": [
         "./"
@@ -161,7 +160,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-hcm",
-      "source": "hcm-position-conversion-profiling",
+      "source": "./Skills/hcm-position-conversion-profiling",
       "strict": false,
       "skills": [
         "./"
@@ -175,7 +174,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-hcm",
-      "source": "hcm-production-health-check",
+      "source": "./Skills/hcm-production-health-check",
       "strict": false,
       "skills": [
         "./"
@@ -189,7 +188,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-hcm",
-      "source": "hcm-salary-conversion-profiling",
+      "source": "./Skills/hcm-salary-conversion-profiling",
       "strict": false,
       "skills": [
         "./"
@@ -203,7 +202,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-hcm",
-      "source": "hcm-worker-data-profiling",
+      "source": "./Skills/hcm-worker-data-profiling",
       "strict": false,
       "skills": [
         "./"
@@ -217,7 +216,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-finance-scm",
-      "source": "ap-invoice-conversion-profiling",
+      "source": "./Skills/ap-invoice-conversion-profiling",
       "strict": false,
       "skills": [
         "./"
@@ -231,7 +230,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-finance-scm",
-      "source": "ar-transaction-conversion-profiling",
+      "source": "./Skills/ar-transaction-conversion-profiling",
       "strict": false,
       "skills": [
         "./"
@@ -245,7 +244,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-finance-scm",
-      "source": "fa-asset-conversion-profiling",
+      "source": "./Skills/fa-asset-conversion-profiling",
       "strict": false,
       "skills": [
         "./"
@@ -259,7 +258,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-finance-scm",
-      "source": "finance-data-profiling",
+      "source": "./Skills/finance-data-profiling",
       "strict": false,
       "skills": [
         "./"
@@ -273,7 +272,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-finance-scm",
-      "source": "gl-journal-conversion-profiling",
+      "source": "./Skills/gl-journal-conversion-profiling",
       "strict": false,
       "skills": [
         "./"
@@ -287,7 +286,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-finance-scm",
-      "source": "inventory-onhand-conversion-profiling",
+      "source": "./Skills/inventory-onhand-conversion-profiling",
       "strict": false,
       "skills": [
         "./"
@@ -301,7 +300,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-integration",
-      "source": "oic-iar-integration-review",
+      "source": "./Skills/oic-iar-integration-review",
       "strict": false,
       "skills": [
         "./"
@@ -315,7 +314,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-integration",
-      "source": "oic-integration-build",
+      "source": "./Skills/oic-integration-build",
       "strict": false,
       "skills": [
         "./"
@@ -329,7 +328,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-integration",
-      "source": "oic-skill",
+      "source": "./Skills/oic-skill",
       "strict": false,
       "skills": [
         "./"
@@ -343,7 +342,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-integration",
-      "source": "scm-integration-functional-spec",
+      "source": "./Skills/scm-integration-functional-spec",
       "strict": false,
       "skills": [
         "./"
@@ -357,7 +356,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-reporting",
-      "source": "oracle-fusion-bip-generator",
+      "source": "./Skills/oracle-fusion-bip-generator",
       "strict": false,
       "skills": [
         "./"
@@ -371,7 +370,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "oracle-reporting",
-      "source": "oracle-fusion-oss-revenue",
+      "source": "./Skills/oracle-fusion-oss-revenue",
       "strict": false,
       "skills": [
         "./"
@@ -385,7 +384,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "regal",
-      "source": "ax-erp-source",
+      "source": "./Skills/ax-erp-source",
       "strict": false,
       "skills": [
         "./"
@@ -399,7 +398,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "regal",
-      "source": "meeting-summary",
+      "source": "./Skills/meeting-summary",
       "strict": false,
       "skills": [
         "./"
@@ -413,7 +412,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "regal",
-      "source": "regal-brand-guidelines",
+      "source": "./Skills/regal-brand-guidelines",
       "strict": false,
       "skills": [
         "./"
@@ -427,7 +426,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "regal",
-      "source": "regal-report-builder",
+      "source": "./Skills/regal-report-builder",
       "strict": false,
       "skills": [
         "./"
@@ -441,7 +440,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "regal",
-      "source": "regal-report-format",
+      "source": "./Skills/regal-report-format",
       "strict": false,
       "skills": [
         "./"
@@ -455,7 +454,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "regal",
-      "source": "regal-technical-standards",
+      "source": "./Skills/regal-technical-standards",
       "strict": false,
       "skills": [
         "./"
@@ -469,7 +468,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "brand-and-documents",
-      "source": "data-analysis-report-format",
+      "source": "./Skills/data-analysis-report-format",
       "strict": false,
       "skills": [
         "./"
@@ -483,7 +482,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "brand-and-documents",
-      "source": "digikey-brand-guidelines",
+      "source": "./Skills/digikey-brand-guidelines",
       "strict": false,
       "skills": [
         "./"
@@ -497,7 +496,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "brand-and-documents",
-      "source": "hackett-brand-guidelines",
+      "source": "./Skills/hackett-brand-guidelines",
       "strict": false,
       "skills": [
         "./"
@@ -511,7 +510,7 @@
         "name": "Jonathan Stevenson"
       },
       "category": "dev-workflow",
-      "source": "bmn-issue",
+      "source": "./Skills/bmn-issue",
       "strict": false,
       "skills": [
         "./"
