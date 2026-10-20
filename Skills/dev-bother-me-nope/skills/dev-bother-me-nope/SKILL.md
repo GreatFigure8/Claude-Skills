@@ -184,8 +184,8 @@ Everything lives in `docs/sprints/bmn-<run-slug>/` on the sprint branch, in the 
 | `research/<lens>.json` | RESEARCH (one researcher per lens) | that lens's approaches: merit, confidence, evidence, risks |
 | `research/clusters.json` | RESEARCH (synthesizer) | the lenses' approaches clustered into canonical ids, with each researcher's vote |
 | `research.md` | RESEARCH (synthesizer) | the recommended approach and why, scoreboard, dissent, runner-up, rejected approaches; the splitter and planners follow it |
-| `design.md` | DESIGN | the picked direction: Claude Design link, tokens, per-screen layout, components, states, copy |
-| `design/*.html` | DESIGN | local copy of the picked Claude Design pages (coders and testers read these, not the MCP) |
+| `design.md` | DESIGN | the picked direction: Claude Design canvas link, tokens, per-screen layout, components, states, copy |
+| `design/*.html` | DESIGN | the picked row's Claude Design artboards: each `.dc.html` source plus a static `.html` rendition (coders and testers read these, not the canvas) |
 | `<story-slug>/story.md` | SPLIT | the story, acceptance criteria, deps and the interfaces it consumes, assumptions |
 | `<story-slug>/<story-slug>-plan.md` | PLAN | implementation plan + test plan + interfaces provided |
 | `<story-slug>/validation.md` | step 5's test runs and fixers | test commands, results, browser evidence per test run; what each FIX did with each item |
@@ -546,10 +546,27 @@ designed or split, and it adds no question for Jonathan.
 
 **1c · DESIGN (UI only; designer agent, opus) — Jonathan's first decision.** Runs before
 SPLIT, so no story, plan or line of code exists yet that a design would have to bend around.
-1. **Directions.** Dispatch one **designer** (opus) with the brief in briefs.md. It works
-   only in Claude Design: one project for the run, three distinct directions, each covering
-   every screen in `ui_screens` with its key states. It returns the project link and one
-   `open_url` per direction. Record them in `bmn.json` (`design.round: 1`).
+0. **Claude Design is the Design canvas (2026-10-20).** Claude Design now lives in Claude as
+   the **Design** Artifact type: a canvas of live artboards, reached through the `Artifact`
+   tool, never through `claude_design` MCP tools (those no longer exist; standalone
+   claude.ai/design closes 2026-12-14). Before any designer runs, the orchestrator itself
+   calls `Artifact {action:"list", scope:"types"}`, takes the type named "Design", and
+   creates ONE canvas for the run with `{type_url: <its type_url>, title: "<the run's screens,
+   a short name>"}`. It writes `project/canvas.json` in a scratchpad folder: three rows of
+   artboards, one row per direction (row A first, its first artboard named `Main.dc.html`,
+   the others `<key>-<screen>.dc.html`; 1280-wide PAGE artboards with `"expand": "fill"`,
+   80 px apart in a row, 1500 px between rows, a `title1` note above each row naming the
+   direction). Record the canvas `url` as `design.url` (and its id as `design.project_id`).
+1. **Directions.** Dispatch **one designer per direction** (opus), all in one message, each
+   with the brief in briefs.md, the canvas url, the scratchpad root and its own artboard
+   files. Direction A's designer makes the canvas's first publish (the index plus
+   `Main.dc.html`); the others publish only once `project/canvas.json` reads back, and
+   every designer batches its files into as few publishes as it can, each right after a
+   plain read of the canvas: concurrent publishes are refused as stale otherwise. Three
+   genuinely different directions, each covering every screen in `ui_screens` with its
+   key states, all in the repo's own tokens and fonts. Each returns its one-line summary.
+   Record the options in `bmn.json` (`design.round: 1`; every option's `open_url` is the
+   canvas url: Jonathan picks a row).
 2. **The pick.** Ask Jonathan with **one** `AskUserQuestion`: one option per direction,
    labelled with its name, the description holding its one-line summary and its Claude
    Design link. Post the links in chat in the same turn so he can open them. This is the
@@ -559,20 +576,26 @@ SPLIT, so no story, plan or line of code exists yet that a design would have to 
      into `design.md` and become stories of this run, never dropped or deferred.
    - **A question** → not a pick: answer it in chat (how each direction handles it), then put
      the pick again. No UI planner starts until he picks.
-   - **Changes** (free text via "Other", or "see my comments" — then the designer reads that
-     project's comments, honouring only text with `author_is_you: true`) → append the
+   - **Changes** (free text via "Other", or "see my comments" — then the designer reads the
+     canvas's comments with the `ArtifactComments` tool, honouring only Jonathan's own) → append the
      feedback to `design.feedback`, dispatch the designer again with it, and ask again.
      Repeat until he picks. Revision rounds are part of the one design question.
 3. **Freeze.** Dispatch the designer in *export* mode (sonnet) for the picked direction. It
-   copies the picked pages to `docs/sprints/{run}/design/` and writes `design.md`. Record
+   reads the picked row's artboards off the canvas (`Artifact {action:"read", url, path}`),
+   copies them to `docs/sprints/{run}/design/` and writes `design.md`. Record
    `design.picked`, commit, set `phase: split`. **From here on the design is fixed and
    Jonathan is not asked anything until all coding is done (step 4).** A gap the design
    didn't cover (a screen, a state, an edge case) is filled by extending the picked
    direction's tokens and components, and logged as an assumption — never by asking, never
    by opening a new look.
-4. If Claude Design is unavailable (tools missing, not signed in), that's not a blocker and
-   not a question: the designer writes `design.md` from the repo's existing UI conventions,
-   the run continues, and the report says the design was never picked.
+4. **Never a silent fallback (Jonathan's rule, 2026-10-20: "I would like claude design to
+   ALWAYS be available ... we're not moving forward until it is").** If the Design type is
+   not listed or the canvas can't be created (not signed in with claude.ai, the Design
+   template off for the organization), stop before any designer, planner or coder: tell
+   Jonathan in one line what is missing and how to turn it on (`/login` with claude.ai,
+   `/design consent`, an Enterprise Owner enabling the Design template), set `phase: design`
+   with the reason in `assumptions`, and wait. That line is part of the design question, not
+   a new one. A run never designs from "existing conventions" on its own.
 
 **1d · SPLIT (1 agent, opus).** Splitter brief. It follows `research.md`'s recommended
 approach, so the stories build the approach the research picked. When `design.md` exists, every screen in it
@@ -737,7 +760,7 @@ migrations. Set `phase: test` for run *k* + 1.
 ### Step 6 · REPORT (`report`; orchestrator, then the cleaner)
 Fill in [references/report-template.md](references/report-template.md) and write it to
 `report.md` in the run worktree. The report names the picked design and links its Claude
-Design project. **Your decision: release?** comes first: what was built, how it was tested
+Design canvas. **Your decision: release?** comes first: what was built, how it was tested
 (the cycles Jonathan asked for and how many ran, each test run's pass and fail counts — or
 **untested** when he chose no tests), what FIX fixed, what is left open (every failure of the
 last test run, HIGH included, and every review finding no fix closed), and the proposed

@@ -717,3 +717,41 @@ def test_rules_file_never_runs_helper_scripts():
     }
     assert not imported & {"subprocess", "runpy", "importlib"}
     assert not called & {"exec", "eval", "__import__"}
+
+
+def _design_step():
+    text = SKILL.read_text(encoding="utf-8")
+    return text.split("**1c · DESIGN")[1].split("**1d · SPLIT")[0]
+
+
+def _designer_brief():
+    text = BRIEFS.read_text(encoding="utf-8")
+    return text.split("## designer")[1].split("## splitter")[0]
+
+
+def test_claude_design_is_the_design_artifact_canvas_not_mcp_tools():
+    """2026-10-20: Claude Design moved into Claude as the Design Artifact type."""
+    brief = _designer_brief()
+    assert "+claude_design" not in brief
+    assert '"Design" Artifact type' in brief
+    assert 'Artifact {action:"read", url:"{canvas_url}"}' in brief
+    step = _design_step()
+    assert "Design** Artifact type" in step
+    assert '{action:"list", scope:"types"}' in step
+
+
+def test_design_never_falls_back_silently_to_existing_conventions():
+    """Jonathan: 'I would like claude design to ALWAYS be available ... not moving forward until it is'."""
+    step = _design_step()
+    assert "Never a silent fallback" in step
+    assert "stop before any designer, planner or coder" in step
+    assert "never designs from \"existing conventions\"" in step
+    assert "existing conventions" not in REPORT_TEMPLATE.read_text(encoding="utf-8")
+    assert "never write design.md from" in _designer_brief()
+
+
+def test_parallel_designers_batch_publishes_after_a_plain_read():
+    brief = _designer_brief()
+    assert "PLAIN read" in brief
+    assert "Never send canvas.json" in brief
+    assert "plain read of the canvas" in _design_step()

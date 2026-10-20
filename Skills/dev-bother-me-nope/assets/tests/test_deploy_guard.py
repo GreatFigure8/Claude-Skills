@@ -192,6 +192,16 @@ def test_claude_design_mcp_tools_allowed():
     assert mcp("mcp__claude_design__ack_comments", project_id="abc").returncode == 0
 
 
+def test_claude_design_canvas_artifact_calls_allowed():
+    """Claude Design is the Design Artifact type now; the designer publishes artboards."""
+    canvas = "https://claude.ai/artifact/K9yV1uQcMYw8pJkzxsKZ2y"
+    assert run_guard({"tool_name": "Artifact", "tool_input": {"action": "list", "scope": "types"}}).returncode == 0
+    assert run_guard({"tool_name": "Artifact", "tool_input": {
+        "action": "publish", "url": canvas, "root": "/tmp/design",
+        "file_path": "/tmp/design/project/Main.dc.html"}}).returncode == 0
+    assert run_guard({"tool_name": "ArtifactComments", "tool_input": {"action": "read", "url": canvas}}).returncode == 0
+
+
 def test_vercel_mcp_read_tools_allowed():
     assert mcp("mcp__vercel__get_deployment").returncode == 0
     assert mcp("mcp__vercel__list_deployments").returncode == 0
