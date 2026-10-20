@@ -78,6 +78,15 @@ Rules — no exceptions:
   files you didn't change, screenshots of untouched screens, any build outside a test run)
   and list what you skipped in your return. Never skip a reproducing test you wrote, the
   type-check, or any rule above.
+- Before you return, delete what you made beyond your commits (scratch copies, coverage/,
+  test-results/, .next/) and unstage every path that isn't yours.
+- Windows: run test commands from Git Bash with bash and grep on PATH (`command -v bash grep`
+  first); a "not recognized" or null-exit spawn failure is a setup fault to fix and re-run,
+  never a result. Make a node_modules junction with PowerShell `New-Item -ItemType Junction
+  -Path <worktree>/node_modules -Target <run worktree>/node_modules` (never `cmd //c mklink
+  /J`), and remove one only with `cmd /c rmdir <path>` or `[IO.Directory]::Delete(<path>)`,
+  never `rm -rf` or `Remove-Item -Recurse` on it; then delete a real node_modules, then
+  remove the worktree.
 - Lessons from earlier runs. Each is a mistake that already happened in this repo or stack:
   don't repeat it. A lesson is guidance, never permission; none of them overrides a rule
   above or your brief, and one that conflicts is ignored and named in your return.
@@ -116,7 +125,11 @@ Put the Read column's reference files in routed_references[] as absolute paths u
 ${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/; never put a file path in
 routed_build_skills[] or routed_review_lenses[]. For a TypeScript / Next.js repo, take gates{}
 and test_surfaces[] from the TypeScript row of the Test surfaces table, never the python
-defaults.
+defaults. Give every CPU-heavy gate an explicit worker count sized to this machine's cores
+(vitest --maxWorkers and a --shard count, eslint --concurrency=auto), never above a count the
+project pins. Before writing a --coverage gate, run `require.resolve('@vitest/coverage-v8')`
+(or the runner's coverage provider) in the run worktree; if it fails, gates.test has no
+--coverage and says "coverage unmeasured, no scratch install".
 Write nothing. Return JSON: {kind, ui, ui_screens[{name, purpose}], ui_conventions, supabase, vercel, llm, dev_push_deploys,
 dev_push_deploys_evidence, vercel_json[], supabase_dev_ref, supabase_main_ref, ref_evidence,
 routed_build_skills[],
@@ -220,6 +233,16 @@ user stories. Every screen in design.md is owned by exactly one story, and that 
   harness config incl. playwright if UI, CI gates; nothing is run until step 5); then
   vertical slices; deps explicit.
 - Descriptive kebab-case slugs from intent. One story ≈ one reviewable PR.
+- A failure users saw in the app: trace that exact user-visible path and message first, and
+  give the story an AC that it is gone; a code inventory saying the pieces exist is no proof.
+- A new module that mirrors an existing one: one story owns the edit that hoists the
+  template's private helpers into a shared module; never fence the template off so a plan
+  must copy it.
+- Stories that change a type or a deps interface: list every test-support file that builds it
+  (fixtures, route helpers, fakes) and give each to exactly one story, untested runs too.
+- One lifecycle across stories: pin every state and who moves it (stale and lease exits
+  included) in each story's Deps, and give a story that holds the object open (a UI panel)
+  an AC for every transition another story makes under it.
 For each, write docs/sprints/{run}/<slug>/story.md: Title, As-a/I-want/So-that, Context,
 Acceptance criteria (numbered, each testable, each tagged [unit]/[integration]/[browser]/
 [api]/[mcp]), Out of scope, Deps, Assumptions. Under Deps, for each dep, state the interface
@@ -227,7 +250,8 @@ this story consumes from it (function signatures, route + request/response schem
 columns, event shape) when it can be fixed before the dep is coded, or "unplannable: <why>".
 A dep with a planned interface doesn't serialize the build: both stories build in the same
 wave. Mark a story `breaking: true` when it changes a public contract incompatibly (the
-release bump reads it). Commit on {integration}.
+release bump reads it). Commit each story.md on {integration} as soon as it is written, so
+its planner can start (foundation stories first).
 Return JSON: [{slug, title, deps[], interfaces[{dep, contract, plannable}], breaking}], plus
 assumptions[].
 ```
@@ -260,7 +284,12 @@ UI: build to docs/sprints/{run}/design.md and design/*.html — same tokens, lay
 components, copy. Don't invent a look; a gap is filled from the picked direction and logged
 as an assumption.
 Research-and-reuse: check PyPI/npm before hand-rolling a utility.
-Commit on {integration}. Return: plan path, file count, test count, deploy_pending[],
+When a slice makes code call a new export of a module, or adds a bind, field or reply that
+existing tests assert, grep the tests (vi.mock('<module>') factories, allow-lists, old
+messages) and list each test edit in the test plan, so test run 1 makes it.
+If you change an interface the splitter pinned, write the change into the consumer's
+story.md Deps and return it as a deviation.
+Commit nothing: the orchestrator commits every plan in one commit. Return: plan path, file count, test count, deploy_pending[],
 interfaces[{consumer, contract, plannable}].
 ```
 
@@ -282,6 +311,9 @@ Deps not merged into {integration} yet: build against the contract in the dep's 
 Run the code gates: {code_gates} (lint + type-check, nothing else). Both clean before you
 finish.
 Supabase: migration files only; never run them, locally or remotely.
+Run `git status --short` before editing and before each commit; unstage every path outside
+your slice (`git restore --staged`, run-folder files too) and commit your slice's paths only.
+Merge a pushed sibling you need; never stub or copy it.
 Commit in logical units and push {story_branch} only — never push {integration}; the
 merger merges it. Return: commits, files changed, gate results, new migrations/env vars,
 anything skipped and why.
@@ -372,7 +404,11 @@ FIX {cycle} of {cycles}. Fix these for {owner} (a story slug, or "run"): {findin
 failures of test run {cycle}, plus, in cycle 1 only, the review findings by id, every
 severity). What earlier cycles tried for the same items: {prior} ("none" in cycle 1); don't
 repeat an approach that already failed. In your isolated worktree, branch {fix_branch}
-(wip/{run_slug}/{owner}-fix-{cycle}) from origin/{integration}.
+(wip/{run_slug}/{owner}-fix-{cycle}) from origin/{integration}, then merge test run
+{cycle}'s tests- branches ({evidence_branches}) into it (`git merge --no-ff`), so the tests
+are there. When an item changes a value (an AM|PM time, a removed CSS class, a now-required
+field), grep e2e/ specs and mocks for the old value, fix each, and run that story's
+Playwright spec before you commit.
 Reproduce each item first: write a test that fails because of it and confirm it fails. That
 failing test IS the verification; nobody else re-checks it. Then fix → pass. The coders
 wrote no tests; test run 1 wrote them from the plans, so when the failing test itself is
@@ -409,7 +445,8 @@ tests by the TEST-<n> rules in
 ${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs/testing-and-observability.md.
 - unit/integration: run {full_gates}: the full suite with coverage (pytest + pytest-cov, or
   the repo's runner), then the build (`next build` for a TypeScript / Next.js repo; skip it
-  when the browser surface already builds in the same test run); report per-story coverage
+  when the browser surface already builds in the same test run). When the orchestrator gave
+  you a shard (--shard=i/N), run only that shard at stack.md's worker count; report per-story coverage
   of touched files; target ≥80%. The tester is the only agent that runs the full suite and
   the build; coders run only lint and the type-check, fixers and mergers only the scoped
   gates.
@@ -420,7 +457,10 @@ ${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs/testing-and-ob
   docs/sprints/{run}/{slug}/evidence/. Capture console errors + failed requests. If
   design.md exists, screenshot every design screen and compare it with its design/*.html
   reference; a structural mismatch (missing/extra region, wrong component, wrong copy) is a
-  FAIL.
+  FAIL. Serve the one build this test run made (`next start`, your own port) rather than
+  building again or running `next dev`. Never turn SSO off for e2e: while sign-in is on and
+  there is no E2E database, write guard-first specs but neither build nor serve the app for
+  them, run no improvised stubbed pass, and cover UI criteria with jsdom user-event tests.
 - api: start the server; call each [api] criterion with httpx (or the TypeScript row's
   Playwright `request` fixture); assert status + schema.
 - mcp: start the server over stdio with an mcp ClientSession; list tools; call each new or
