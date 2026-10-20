@@ -403,6 +403,21 @@ def test_export_global_refuses_a_repo_name_that_could_leave_the_global_dir(
 
 
 @pytest.mark.unit
+def test_export_global_finds_project_lessons_in_the_files_own_repo(capsys, repo, gdir):
+    _write(_ledger(repo), "bmn-a", [_run("a", 0), _lesson("a", 0, 1)])
+    path = _write(_ledger(repo), "bmn-b", [
+        _run("b", 1), {"event": "hit", "id": "L-a-1", "run": "bmn-b", "at": _at(1),
+                       "evidence": ["review.md#R-2"], "served": False},
+    ])
+    code, out = _main(capsys, "export-global", "--file", str(path), "--repo-name", "shop",
+                      "--global-dir", str(gdir))
+    assert code == 0, out
+    written = gdir / "shop--bmn-b.jsonl"
+    events = [json.loads(line) for line in written.read_text(encoding="utf-8").splitlines()]
+    assert [e["event"] for e in events] == ["run"]
+
+
+@pytest.mark.unit
 def test_export_global_refuses_a_file_that_fails_check(capsys, repo, gdir):
     path = _write(_ledger(repo), "bmn-a", [_lesson("a", 0)])
     code, out = _main(capsys, "export-global", "--file", str(path), "--repo-name", "shop",
@@ -538,9 +553,9 @@ def test_report_template_has_what_i_learned():
     _assert_has(section, "**Served:**", "**New:**", "**From your feedback:**", "**Retired:**")
 
 
-def test_plugin_json_is_3_3_0_and_describes_the_retro_learn_and_teach():
+def test_plugin_json_is_3_3_2_and_describes_the_retro_learn_and_teach():
     data = json.loads(h.read(PLUGIN_JSON))
-    assert data["version"] == "3.3.0"
+    assert data["version"] == "3.3.2"
     _assert_has(
         data["description"],
         "a silent retro turns what went wrong",

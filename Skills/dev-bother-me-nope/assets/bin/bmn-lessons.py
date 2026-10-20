@@ -19,8 +19,9 @@ Contract:
     stdout {"ok": bool, "errors": [...]}; exit 1 when not ok. A bmn-<slug> file needs its run
     event; a chat-<date>-<slug> file (TEACH) must not have one, since it is not a run. A chat
     event counts toward dormancy after the last run that started before it.
-  bmn-lessons.py export-global --file <run.jsonl> --repo-name <name> [--global-dir <dir>]
-    stdout {"written": <path>, "events": n}; exit 1 when the file fails check.
+  bmn-lessons.py export-global --file <run.jsonl> --repo-name <name> [--repo <dir>] [--global-dir <dir>]
+    stdout {"written": <path>, "events": n}; exit 1 when the file fails check. check and
+    export-global without --repo use the repo whose docs/bmn/lessons/ holds the file.
   Exit 2 = usage error, stdout {"error": "..."}.
 
 Safety:
@@ -347,7 +348,6 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--repo", required=True)
         if name in ("check", "export-global"):
             cmd.add_argument("--file", required=True)
-        if name == "check":
             cmd.add_argument("--repo", default=None)
         if name == "export-global":
             cmd.add_argument("--repo-name", required=True)
@@ -370,7 +370,9 @@ def run(args) -> tuple:
         if args.limit < 1:
             raise UsageError("--limit must be 1 or more")
         return dict(select(lessons, args.stack, set(args.tag), args.limit), runs=runs), 0
-    errors = check(Path(args.file), getattr(args, "repo", None), global_dir)
+    folder = Path(args.file).resolve().parent
+    repo = args.repo or (folder.parents[2] if folder.parts[-3:] == LEDGER else None)
+    errors = check(Path(args.file), repo, global_dir)
     if args.command == "check" or errors:
         return {"ok": not errors, "errors": errors}, 1 if errors else 0
     return export_global(Path(args.file), args.repo_name, global_dir), 0
