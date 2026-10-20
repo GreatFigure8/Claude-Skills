@@ -175,8 +175,8 @@ def _part(section, lead, until):
 
 
 def _intake():
-    """Step 1's INTAKE part (1a), up to DESIGN (1b)."""
-    return _part(_section(_skill(), "Step 1 · SPRINT"), "**1a · INTAKE", "**1b · DESIGN")
+    """Step 1's INTAKE part (1a), up to RESEARCH (1b)."""
+    return _part(_section(_skill(), "Step 1 · SPRINT"), "**1a · INTAKE", "**1b · RESEARCH")
 
 
 def _cleanup():
@@ -205,9 +205,9 @@ def _bmn_json_schema():
 # --- AC1: plugin.json -------------------------------------------------------------
 
 
-def test_plugin_json_is_version_3_2_0():
+def test_plugin_json_is_version_3_3_0():
     data = json.loads(_read(PLUGIN_JSON))
-    assert data["version"] == "3.2.0"
+    assert data["version"] == "3.3.0"
 
 
 def test_plugin_description_names_merge_commits_and_branch_cleanup():

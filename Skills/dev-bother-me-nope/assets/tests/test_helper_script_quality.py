@@ -15,7 +15,8 @@ from pathlib import Path
 import pytest
 
 BIN = Path(__file__).resolve().parents[1] / "bin"
-SCRIPTS = [BIN / "merged-branch-cleanup.py", BIN / "repo-merge-policy.py", BIN / "bmn-lessons.py"]
+SCRIPTS = [BIN / "merged-branch-cleanup.py", BIN / "repo-merge-policy.py", BIN / "bmn-lessons.py",
+           BIN / "bmn-research-score.py"]
 IDS = [script.name for script in SCRIPTS]
 MAX_SCRIPT_LINES = 400
 MAX_FUNCTION_LINES = 50

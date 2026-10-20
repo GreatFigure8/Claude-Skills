@@ -288,7 +288,7 @@ def test_finished_run_is_not_guarded(phase):
     assert guard_in(root, "vercel --prod").returncode == 0
 
 
-@pytest.mark.parametrize("phase", ["intake", "design", "split", "plan", "code", "testask", "test",
+@pytest.mark.parametrize("phase", ["intake", "research", "design", "split", "plan", "code", "testask", "test",
                                    "fix", "report",
                                    # phases of runs from before 3.0.0
                                    "test1", "test2",

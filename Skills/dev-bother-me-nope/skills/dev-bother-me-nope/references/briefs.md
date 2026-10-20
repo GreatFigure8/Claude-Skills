@@ -4,7 +4,8 @@ Fill every `{placeholder}`; paste the **Common preamble** at the top of every br
 From `bmn.json`: `{integration}` = the sprint branch `sprint/<run-slug>` (or a pre-2.0.0
 run's `<type>/<run-slug>`), `{run_worktree}` = `worktree`, `{dev_base}` = `dev_base`,
 `{run_slug}` = `run` without `bmn-`, `{dev_worktree}` = `../<repo-name>-<run-slug>-dev`,
-`{repo_path}` = the main checkout. Step 5: `{run_n}` = the test run's number, `{cycle}` /
+`{repo_path}` = the main checkout. RESEARCH: `{lens}` / `{model}` = the researcher's lens and rostered model, `{lenses}` =
+`research.roster`. Step 5: `{run_n}` = the test run's number, `{cycle}` /
 `{cycles}` = `tests.cycle` / `tests.cycles`, `{test_sha}` = that test run's
 `tests.runs[].sha` (for the reviewer, run 1's; for the release preflight, the last run's, or
 "none" when Jonathan chose no tests).
@@ -29,7 +30,7 @@ conclusions, not file dumps.
 
 | Step | Briefs |
 | --- | --- |
-| 1 SPRINT | stack-scout, designer, splitter |
+| 1 SPRINT | stack-scout, researcher (≥5, four models, one message), synthesizer, designer, splitter |
 | 2 PLAN | planner |
 | 3 CODE | coder, merger, db-sync |
 | 4 TEST? | none: Jonathan answers |
@@ -128,6 +129,50 @@ is the full suite and gates.build the build, which run only in step 5's test run
 and gates.types are all a coder runs.
 ```
 
+## researcher (haiku/sonnet/opus/fable, ≥5 per run, parallel)
+
+One per lens, all dispatched in ONE message, each on the model the roster gives it
+(`{model}`; every one of haiku, sonnet, opus and fable runs at least once). `{lens}` is one of: `reuse` (what the repo
+already has, then npm / PyPI before hand-rolling), `prior-art` (GitHub code search,
+`gh search code` / `gh search repos`, for proven implementations), `primary-docs` (vendor and
+primary docs, version-specific behaviour; Context7 when the session has it), `simplest`
+(KISS / YAGNI: the smallest change that fully meets the story), `risk` (security, failure
+modes, data and migrations, ops: what could go wrong with each approach), or a lens the
+orchestrator added for an entire system (performance / scale, UX, maintainability).
+
+```
+Lens: {lens}. Model: {model}. Read docs/sprints/{run}/input.md and stack.md. Research the best way to approach
+the story through this lens only, and think it through alone: you never see another
+researcher's work. Code is read-only; web search and `gh` are allowed. Propose up to 3
+approaches. Each: {name, summary, how (≤5 lines), merit 0–10, confidence 0–1,
+evidence[] (links or file:line), risks[]}. Merit is how well it meets the story; confidence is
+how sure you are, given the evidence.
+Write docs/sprints/{run}/research/{lens}.json = {"lens": "{lens}", "model": "{model}", "approaches": [...]}.
+Commit nothing: the orchestrator commits. Return that JSON.
+```
+
+## synthesizer (opus, one per run)
+
+```
+Read every docs/sprints/{run}/research/*.json and input.md. Researchers: {lenses}.
+1. Cluster equivalent approaches into canonical ids (a1, a2, …). A researcher counts at most
+   once per cluster: keep its highest-merit vote there. Write research/clusters.json =
+   {"researchers": [{name: lens, model}], "approaches": [{id, name, votes: [{researcher, merit,
+   confidence}]}]}.
+2. Run `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/bmn-research-score.py --clusters
+   docs/sprints/{run}/research/clusters.json` (score = 0.5 · merit + 0.3 · 10 · supporters / N
+   + 0.2 · 10 · model agreement; agreement reached independently by different models is
+   stronger evidence than agreement within one model, so cross-model consensus adds weight). If it fails, record that as an assumption, apply the same
+   formula by hand and say so in research.md.
+3. Write docs/sprints/{run}/research.md: the recommended approach and why; the scoreboard
+   table (approach, supporters, models, merit, consensus, model agreement, score); dissent worth keeping; the
+   runner-up; rejected approaches and why. You may override the helper's winner ONLY when it
+   breaks a hard line or a stated requirement of the story: record the override in
+   research.md and under Assumptions.
+Commit on {integration}. Return JSON {winner, runner_up, scores[], overridden,
+assumptions[]}.
+```
+
 ## designer (opus for directions and revisions; sonnet for export)
 
 ```
@@ -165,7 +210,8 @@ Return JSON: {project_id, project_url, options:[{key, name, summary, path, open_
 ## splitter (opus)
 
 ```
-Read docs/sprints/{run}/input.md, stack.md, and design.md if it exists. Break the story into
+Read docs/sprints/{run}/input.md, stack.md, research.md and design.md if it exists. Follow
+research.md's recommended approach; log any deviation under Assumptions. Break the story into
 user stories. Every screen in design.md is owned by exactly one story, and that story's
 [browser] criteria name the design screen they check.
 - Fix/error → usually 1 story (reproduce-as-test, fix, guard).
@@ -194,7 +240,9 @@ TypeScript/Next.js story: also read
 ${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs.md and the topic files its
 Topic index routes this story to; list every rule id you apply in the plan's Approach.
 Write docs/sprints/{run}/{slug}/{slug}-plan.md:
-1. Approach (≤10 lines) and why, citing the skill guidance applied.
+1. Approach (≤10 lines) and why, citing the skill guidance applied and
+   docs/sprints/{run}/research.md's recommended approach, which you follow; a deviation is
+   logged under Assumptions with its reason.
 2. Files to create/change, each with its purpose.
 3. TEST PLAN: every acceptance criterion → named test(s) with file path and type;
    browser criteria → Playwright test names + the page/flow driven. The coder writes none of

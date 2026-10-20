@@ -4,6 +4,7 @@
 **Time:** estimated {estimate} · actual {actual}
 **Stack:** {kind} · skills used: {routed skills}
 **Design:** {picked direction} — {Claude Design link} / no UI in this run / Claude Design unavailable, built to existing conventions
+**Research:** {winner} — score {score}, consensus {supporters}/{N} researchers, backed by {supporters' models}{; overridden: why} — see `research.md`
 **Merged to dev:** {merge shas}
 **Tested:** {N} test → fix → test cycles asked, {n} run ({"ended early: run k was green" / "all ran"}) / ⚠ **untested** — you chose no test cycles
 
