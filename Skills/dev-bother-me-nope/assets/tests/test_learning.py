@@ -538,9 +538,9 @@ def test_report_template_has_what_i_learned():
     _assert_has(section, "**Served:**", "**New:**", "**From your feedback:**", "**Retired:**")
 
 
-def test_plugin_json_is_3_2_0_and_describes_the_retro_learn_and_teach():
+def test_plugin_json_is_3_3_0_and_describes_the_retro_learn_and_teach():
     data = json.loads(h.read(PLUGIN_JSON))
-    assert data["version"] == "3.2.0"
+    assert data["version"] == "3.3.0"
     _assert_has(
         data["description"],
         "a silent retro turns what went wrong",

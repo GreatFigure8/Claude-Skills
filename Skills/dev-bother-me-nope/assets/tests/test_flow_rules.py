@@ -1,6 +1,6 @@
 """Text-presence tests for the 3.0.0 seven-step flow and the speed rules it keeps.
 
-3.0.0 runs every story through seven steps: 1 SPRINT (intake, the UI design pick, split) →
+3.0.0 runs every story through seven steps: 1 SPRINT (intake, research, the UI design pick, split) →
 2 PLAN → 3 CODE (code only: no test is written or run, just lint and the type-check) → 4 TEST?
 (once all coding is done, Jonathan says whether to test and, on yes, how many test → fix →
 test cycles) → 5 TEST × N (the first test run writes the plans' tests with one code review
@@ -42,7 +42,7 @@ STEPS = (
     ("5", "TEST"), ("6", "REPORT"), ("7", "RELEASE?"),
 )
 STEP_PHASES = {
-    "Step 1 · SPRINT": "(`intake` → `design` → `split`)",
+    "Step 1 · SPRINT": "(`intake` → `research` → `design` → `split`)",
     "Step 2 · PLAN": "(`plan`;",
     "Step 3 · CODE": "(`code`;",
     "Step 4 · TEST?": "(`testask`)",
@@ -50,9 +50,9 @@ STEP_PHASES = {
     "Step 6 · REPORT": "(`report`;",
     "Step 7 · RELEASE?": "(`decision`)",
 }
-PHASES = "intake|design|split|plan|code|testask|test|fix|report|decision|done|blocked"
+PHASES = "intake|research|design|split|plan|code|testask|test|fix|report|decision|done|blocked"
 BRIEF_NAMES = (
-    "stack-scout", "designer", "splitter", "planner", "coder", "merger", "db-sync", "tester",
+    "stack-scout", "researcher", "synthesizer", "designer", "splitter", "planner", "coder", "merger", "db-sync", "tester",
     "reviewer", "fixer", "retro", "cleaner", "release-prep",
 )
 RELEASE_ORDER = (
@@ -845,3 +845,44 @@ def test_plugin_description_names_the_seven_steps_and_the_release():
         "The design pick, the test cycles and the release decision are the only questions.",
         "the full suite and the build run only in the test runs",
     )
+
+
+# --- RESEARCH step (3.3.0): multi-model fan-out / fan-in -------------------------------------
+
+
+def _research():
+    sprint = h.section(h.read(SKILL), "Step 1 · SPRINT", prefix=True)
+    return sprint.split("**1b · RESEARCH")[1].split("**1c · DESIGN")[0]
+
+
+def test_research_step_sits_between_intake_and_design_and_is_numbered():
+    sprint = h.section(h.read(SKILL), "Step 1 · SPRINT", prefix=True)
+    order = [sprint.index(f"**{tag}") for tag in ("1a · INTAKE", "1b · RESEARCH", "1c · DESIGN",
+                                                   "1d · SPLIT")]
+    assert order == sorted(order)
+    assert "Then `phase: research`" in sprint.split("**1b · RESEARCH")[0]
+
+
+def test_research_runs_four_models_and_scores_cross_model_agreement():
+    text = " ".join(_research().split())
+    for needle in ("every one of `haiku`, `sonnet`, `opus` and `fable`", "ONE message",
+                   "bmn-research-score.py", "model agreement",
+                   "stronger evidence than agreement within one model", "research.roster"):
+        assert needle in text, needle
+
+
+def test_researcher_and_synthesizer_briefs_exist_with_model_heading():
+    titles = h.headings(h.read(BRIEFS), 2)
+    assert "researcher (haiku/sonnet/opus/fable, ≥5 per run, parallel)" in titles
+    assert "synthesizer (opus, one per run)" in titles
+
+
+def test_bmn_json_schema_has_research_and_phase():
+    text = h.read(SKILL)
+    assert "intake|research|design|split" in text
+    assert '"research": {"lenses": [], "roster": [], "files": [], "winner": null, "overridden": false}' in text
+
+
+def test_splitter_planner_and_report_follow_research():
+    assert "research.md" in _brief("splitter") and "research.md" in _brief("planner")
+    assert "**Research:**" in h.read(REPORT_TEMPLATE)

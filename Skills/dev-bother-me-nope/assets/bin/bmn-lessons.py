@@ -48,8 +48,8 @@ SOURCES = frozenset({
     "review", "test", "fix", "merge", "assumption", "timing", "blocker", "jonathan", "chat",
 })
 BRIEFS = (
-    "orchestrator", "stack-scout", "designer", "splitter", "planner", "coder", "merger", "db-sync",
-    "tester", "reviewer", "fixer", "cleaner", "release-prep", "retro",
+    "orchestrator", "stack-scout", "researcher", "synthesizer", "designer", "splitter", "planner",
+    "coder", "merger", "db-sync", "tester", "reviewer", "fixer", "cleaner", "release-prep", "retro",
 )
 REQUIRED = MappingProxyType({
     "run": ("stack", "tested", "served"),

@@ -8,7 +8,7 @@ description: Jonathan's seven-step build pipeline — one long free-form story i
 One long story in. Seven steps:
 
 ```
-1 SPRINT    intake → DESIGN (UI only: Jonathan picks) → split into stories     [manual: design pick]
+1 SPRINT    intake → RESEARCH (≥5 haiku/sonnet/opus/fable → opus) → DESIGN (UI only: Jonathan picks) → split into stories     [manual: design pick]
 2 PLAN      one plan per story, its test plan included
 3 CODE      code only, no tests → merge into the sprint branch → merge to dev
 4 TEST?     Jonathan: test cycles? no → 6 · yes → how many (N)                  [manual: test cycles]
@@ -180,6 +180,9 @@ Everything lives in `docs/sprints/bmn-<run-slug>/` on the sprint branch, in the 
 | `bmn.json` | orchestrator only (the cleaner and the release-prep worker write it at steps 6 and 7) | run state machine (below) |
 | `stack.md` | INTAKE | stack classification, skill and reference routing ([references/stack-routing.md](references/stack-routing.md)), release profile |
 | `lessons.md` | INTAKE | the lessons served to this run, one `## <brief>` section per brief ([references/learning.md](references/learning.md)) |
+| `research/<lens>.json` | RESEARCH (one researcher per lens) | that lens's approaches: merit, confidence, evidence, risks |
+| `research/clusters.json` | RESEARCH (synthesizer) | the lenses' approaches clustered into canonical ids, with each researcher's vote |
+| `research.md` | RESEARCH (synthesizer) | the recommended approach and why, scoreboard, dissent, runner-up, rejected approaches; the splitter and planners follow it |
 | `design.md` | DESIGN | the picked direction: Claude Design link, tokens, per-screen layout, components, states, copy |
 | `design/*.html` | DESIGN | local copy of the picked Claude Design pages (coders and testers read these, not the MCP) |
 | `<story-slug>/story.md` | SPLIT | the story, acceptance criteria, deps and the interfaces it consumes, assumptions |
@@ -200,7 +203,7 @@ events in the repo's lessons ledger (*Learning*).
 ```json
 {
   "run": "bmn-<run-slug>", "estimate": "<first step line's estimate, e.g. ~2 h>",
-  "phase": "intake|design|split|plan|code|testask|test|fix|report|decision|done|blocked",
+  "phase": "intake|research|design|split|plan|code|testask|test|fix|report|decision|done|blocked",
   "integration": "sprint/<run-slug>", "worktree": "<abs path of ../<repo-name>-<run-slug>>", "live": "dev", "dev_base": "<sha of origin/dev when the run started>",
   "tests": {"wanted": null, "cycles": 0, "cycle": 0, "runs": [{"n": 1, "sha": "<sha the test run tested>", "pass": 0, "fail": 0, "branches": []}]},
   "stack": {"kind": "web-app|api|mcp-server|library|cli|mixed", "ui": true, "supabase": false, "vercel": false, "vercel_json": [], "dev_push_deploys": false, "supabase_dev_ref": null, "supabase_main_ref": null},
@@ -211,6 +214,7 @@ events in the repo's lessons ledger (*Learning*).
   "repo_policy": null,
   "deploy_pending": {"vercel": [], "supabase_migrations": [], "env": []},
   "supabase_dev_applied": [],
+  "research": {"lenses": [], "roster": [], "files": [], "winner": null, "overridden": false},
   "design": {"needed": false, "project_id": null, "url": null, "round": 0, "options": [{"key": "a", "name": "...", "open_url": "..."}], "picked": null, "feedback": []},
   "release": {"status": "pending|declined|released|failed", "version": null, "tag": null, "bump": "major|minor|patch|none", "at": null, "steps": [{"step": "...", "result": "..."}]},
   "handoff": null,
@@ -249,7 +253,8 @@ the three hasn't committed (RETRO has when `lessons.retro` is set). A run resume
 origin), it finishes the remaining RELEASE steps, because Jonathan already said yes;
 otherwise it asks the release question again. A run resumed at `design` with `design.picked:
 null` re-asks the design question from the options already in `bmn.json` — it doesn't
-redesign.
+redesign. A run resumed at `research` dispatches only the lenses without a file in
+`research/`, then the synthesizer.
 
 A run from before 3.0.0 (its `bmn.json` has `test_shas` and no `tests`) maps its old phase
 first: `build` and `merge1` → `code`; `review1` and `test1` → `testask` (its code was built
@@ -283,7 +288,8 @@ prefix is used).
   placeholder, with the absolute plugin root (`{skill_dir}/../..`, resolved), in every brief
   and in its own Bash calls when the variable is empty.
 - Every spawn is announced with the model table (Item | Branch | Model), one row per agent,
-  and the model named explicitly: `model: "opus"` for DESIGN, SPLIT, PLAN, the reviewer,
+  and the model named explicitly: the RESEARCH researchers' rostered model (`haiku`, `sonnet`,
+  `opus` or `fable`, at least one of each) and `model: "opus"` for the RESEARCH synthesizer, DESIGN, SPLIT, PLAN, the reviewer,
   RETRO and any FIX item whose root cause is unclear; `model: "sonnet"` for CODE, TEST, merges,
   mechanical fixes, DB-SYNC, CLEANUP and release-prep.
 - Independent agents run in one message, all at once. A story is ready when every one of its
@@ -326,7 +332,8 @@ pipeline and drop the repeated work:
   one that broke them. Then it merges the sprint branch into `dev`.
 - **Up-front time estimate.** The orchestrator's first step line states the story count,
   the waves and a rough wall-clock estimate up to step 4, e.g. "4 stories, 1 wave, ~1.5 h to
-  code". Rough guide: about 20 min each for SPRINT (plus however long the design pick takes),
+  code". Rough guide: about 20 min each for SPRINT (plus ~15 min for RESEARCH and however
+  long the design pick takes),
   PLAN, a merge and REPORT; 20–40 min per CODE wave; and, when Jonathan asks for tests,
   30–45 min per test → fix → test cycle (the first a little longer: it writes the plans'
   tests and runs the review beside them). Step 4's question states the per-cycle estimate.
@@ -377,7 +384,7 @@ ignored, and the next RETRO retires it.
 
 ## Procedure
 
-### Step 1 · SPRINT — create the sprint (`intake` → `design` → `split`)
+### Step 1 · SPRINT — create the sprint (`intake` → `research` → `design` → `split`)
 
 **1a · INTAKE (orchestrator).**
 1. MOVE-IN check, then the resume check (above). Then `git fetch --prune origin`. Leave the
@@ -431,10 +438,49 @@ ignored, and the next RETRO retires it.
    still never squashes (*Merge commits only*). The report's *Repo merge settings* section
    shows each old → new value.
 6. Set `design.needed` from the scout: true when `ui_screens` is non-empty (the story adds
-   or changes something a person looks at). Then `phase: design`, or `phase: split` when
-   it's false.
+   or changes something a person looks at). Then `phase: research`.
 
-**1b · DESIGN (UI only; designer agent, opus) — Jonathan's first decision.** Runs before
+**1b · RESEARCH (fan-out / fan-in; researchers on four different models, synthesizer opus) — Jonathan's rule,
+2026-10-20.** Every run researches the best way to approach the story before anything is
+designed or split, and it adds no question for Jonathan.
+1. **Lenses.** At least 5, never fewer. The defaults: `reuse` (what the repo already has,
+   then npm / PyPI before hand-rolling), `prior-art` (GitHub code search for proven
+   implementations), `primary-docs` (vendor docs and version-specific behaviour, Context7 when
+   available), `simplest` (KISS / YAGNI: the smallest change that fully meets the story) and
+   `risk` (security, failure modes, data and migrations, ops: what could go wrong with each
+   approach). For an entire system the orchestrator adds lenses (performance / scale, UX,
+   maintainability). Record them in `bmn.json.research.lenses`.
+2. **Roster.** Each lens gets a model, and every one of `haiku`, `sonnet`, `opus` and `fable`
+   runs at least one researcher. Default for the five lenses: `reuse` haiku, `prior-art`
+   sonnet, `primary-docs` sonnet, `simplest` fable, `risk` opus. Record it in
+   `research.roster` (`[{lens, model}]`). Each researcher is an independent stochastic sample:
+   same input, no sight of the others, its own lens and its own model.
+3. **Fan-out.** Dispatch one **researcher** per lens on its rostered model
+   (`model: "haiku"|"sonnet"|"opus"|"fable"`, named in the model table), all in ONE message so
+   they run in parallel. Each researches and contemplates on its own and never sees another's
+   work. It writes `research/<lens>.json` (with its `model`) and returns the same JSON. The orchestrator commits the
+   files, appends them to `research.files` and does not read them.
+4. **Fan-in.** Dispatch ONE **synthesizer** (opus). It clusters equivalent approaches into
+   canonical ids, scores them with
+   `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/bmn-research-score.py --clusters <path>`
+   (score = 0.5 · merit + 0.3 · 10 · supporters / N + 0.2 · 10 · model agreement, where model
+   agreement is the distinct models among an approach's supporters over the models in the
+   roster) and writes `research.md` with the recommended approach and why, the scoreboard
+   (approach, supporters, models, merit, consensus, model agreement, score), dissent worth
+   keeping, the runner-up and the rejected approaches. Agreement reached independently by
+   different models is stronger evidence than agreement within one model, which is why
+   cross-model consensus adds weight of its own. It overrides the helper's winner only when that
+   winner breaks a hard line or a stated requirement of the story, and records the override
+   in `research.md` and as an assumption. A helper failure is an assumption; the synthesizer
+   applies the same formula by hand and says so. Record `research.winner` and
+   `research.overridden`, commit, set `phase: design`, or `phase: split` when `design.needed`
+   is false.
+5. **Resume.** A run resumed at `research` dispatches only the lenses without a file in
+   `research/`, then the synthesizer; it never redoes a lens that has one.
+6. **Downstream.** The splitter and every planner read `research.md` and follow its
+   recommended approach; a plan that departs from it logs the deviation as an assumption.
+
+**1c · DESIGN (UI only; designer agent, opus) — Jonathan's first decision.** Runs before
 SPLIT, so no story, plan or line of code exists yet that a design would have to bend around.
 1. **Directions.** Dispatch one **designer** (opus) with the brief in briefs.md. It works
    only in Claude Design: one project for the run, three distinct directions, each covering
@@ -460,7 +506,8 @@ SPLIT, so no story, plan or line of code exists yet that a design would have to 
    not a question: the designer writes `design.md` from the repo's existing UI conventions,
    the run continues, and the report says the design was never picked.
 
-**1c · SPLIT (1 agent, opus).** Splitter brief. When `design.md` exists, every screen in it
+**1d · SPLIT (1 agent, opus).** Splitter brief. It follows `research.md`'s recommended
+approach, so the stories build the approach the research picked. When `design.md` exists, every screen in it
 is owned by a story and its `[browser]` criteria name the design screen they check. It writes
 one `story.md` per story, with its slug, title, acceptance criteria, deps, the interface it
 consumes from each dep, and the assumptions it made. Sizing: one story is roughly one
@@ -470,7 +517,8 @@ It returns the story list plus deps and interfaces as JSON. Record it in `bmn.js
 the estimate (*Speed rules*), set `phase: plan`.
 
 ### Step 2 · PLAN (`plan`; one agent per story, parallel, opus)
-Planner brief. Each planner writes `<slug>-plan.md` covering files to touch, the
+Planner brief. Each planner follows `research.md`'s recommended approach (a deviation is
+logged as an assumption) and writes `<slug>-plan.md` covering files to touch, the
 skill-routed standards it will follow, a **test plan** (unit, integration, and browser checks
 mapped 1:1 to acceptance criteria, with test names and paths: nobody writes or runs these
 until step 5's first test run, and only when Jonathan asks for tests), the interfaces it

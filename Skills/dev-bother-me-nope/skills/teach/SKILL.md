@@ -70,7 +70,7 @@ For each one you keep, settle its fields (learning.md, *The ledger*):
 | `kind` | `code` (what the code should look like) or `workflow` (how the work is run) |
 | `scope` | `project` when it is about one codebase; `global` when it holds in any repo of that stack |
 | `source` | `jonathan` for his correction or instruction; `chat` for anything else this conversation showed |
-| `briefs` | who must act on it: `planner`, `coder`, `merger`, `db-sync`, `tester`, `reviewer`, `fixer`, `cleaner`, `release-prep`, `stack-scout`, `designer`, `splitter`, `retro`, or `orchestrator` for a workflow lesson the orchestrator applies itself |
+| `briefs` | who must act on it: `planner`, `coder`, `merger`, `db-sync`, `tester`, `reviewer`, `fixer`, `cleaner`, `release-prep`, `stack-scout`, `researcher`, `synthesizer`, `designer`, `splitter`, `retro`, or `orchestrator` for a workflow lesson the orchestrator applies itself |
 | `stack` | the bmn stack kind (`web-app`, `api`, `mcp-server`, `library`, `cli`, `mixed`), or `any` |
 | `tags` | the words INTAKE's `select` matches: a routed skill name, or `supabase`, `vercel`, `ui`. Empty = every repo of that stack |
 | `rule` | one imperative line a coder can follow without the story, at most 240 characters |

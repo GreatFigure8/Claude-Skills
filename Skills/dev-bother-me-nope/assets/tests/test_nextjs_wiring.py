@@ -23,10 +23,12 @@ PLUGIN_JSON = h.PLUGIN / ".claude-plugin" / "plugin.json"
 
 NEXTJS_PATH = "${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs.md"
 SKILL_DESCRIPTION_SHA256 = "4345591e806e391b68454de3110bb7555c41449ef876e2c87a27763c86035436"
-PLUGIN_DESCRIPTION_SHA256 = "efff0439b39d4f6b6b48aa6b8c4d807ef9e010b892126f48c16280b4a004805f"
+PLUGIN_DESCRIPTION_SHA256 = "0b6845fe2f56625a9afa592a7a9cedb3f76eccf8f049c1cead4f860d4565cc73"
 EDITED_BRIEFS = ("planner", "coder", "reviewer", "fixer")
 OTHER_BRIEFS = (
     "stack-scout",
+    "researcher",
+    "synthesizer",
     "designer",
     "splitter",
     "merger",
@@ -197,10 +199,10 @@ def test_stack_routing_test_surfaces_keeps_the_python_rows():
 
 
 def _intake():
-    """Step 1's INTAKE part (1a): everything in the SPRINT step before DESIGN (1b)."""
+    """Step 1's INTAKE part (1a): everything in the SPRINT step before RESEARCH (1b)."""
     sprint = h.section(h.read(SKILL), "Step 1 · SPRINT", prefix=True)
-    assert "**1a · INTAKE" in sprint and "**1b · DESIGN" in sprint
-    return sprint.split("**1b · DESIGN")[0]
+    assert "**1a · INTAKE" in sprint and "**1b · RESEARCH" in sprint
+    return sprint.split("**1b · RESEARCH")[0]
 
 
 def test_skill_intake_links_the_nextjs_reference():
