@@ -78,6 +78,9 @@ Rules — no exceptions:
   files you didn't change, screenshots of untouched screens, any build outside a test run)
   and list what you skipped in your return. Never skip a reproducing test you wrote, the
   type-check, or any rule above.
+- Run every test, build and server command in the foreground with a timeout, never in the
+  background; browser specs run once plus one re-run of the failures; stop every process you
+  started.
 - Before you return, delete what you made beyond your commits (scratch copies, coverage/,
   test-results/, .next/) and unstage every path that isn't yours.
 - Windows: run test commands from Git Bash with bash and grep on PATH (`command -v bash grep`
@@ -127,7 +130,8 @@ routed_build_skills[] or routed_review_lenses[]. For a TypeScript / Next.js repo
 and test_surfaces[] from the TypeScript row of the Test surfaces table, never the python
 defaults. Give every CPU-heavy gate an explicit worker count sized to this machine's cores
 (vitest --maxWorkers and a --shard count, eslint --concurrency=auto), never above a count the
-project pins. Before writing a --coverage gate, run `require.resolve('@vitest/coverage-v8')`
+project pins. For a Next.js 16 repo gates.types starts with `npx next typegen &&`, so every
+brief that type-checks a fresh worktree runs it. Before writing a --coverage gate, run `require.resolve('@vitest/coverage-v8')`
 (or the runner's coverage provider) in the run worktree; if it fails, gates.test has no
 --coverage and says "coverage unmeasured, no scratch install".
 Write nothing. Return JSON: {kind, ui, ui_screens[{name, purpose}], ui_conventions, supabase, vercel, llm, dev_push_deploys,
@@ -192,10 +196,11 @@ assumptions[]}.
 Design the UI for run {run} in Claude Design — and only there. Story:
 docs/sprints/{run}/input.md. Screens to design: {ui_screens}. Existing UI conventions:
 {ui_conventions}. Mode: {mode} (directions | revise | export).
-Load the Claude Design tools with ToolSearch ("+claude_design"). If they aren't available or
-a call says you're not signed in, write docs/sprints/{run}/design.md from the existing UI
-conventions instead, note "Claude Design unavailable" at its top, commit, and return
-{unavailable: true}.
+Claude Design is the "Design" Artifact type: start with the Artifact tool's quickstart,
+intent "design", and follow the instructions it returns (the tool names below are the steps
+it covers). Never search ToolSearch for claude_design tools and never fall back to HTML
+(Jonathan's rule, 2026-10-28). If the canvas cannot be created, write nothing and return
+{unavailable: true, why}: the orchestrator stops the run at DESIGN.
 directions:
 - list_design_systems; use the one matching this repo's existing look, else the default.
   get_claude_design_prompt (with that design_system_id) before any write. read_design_skill
@@ -243,6 +248,19 @@ user stories. Every screen in design.md is owned by exactly one story, and that 
 - One lifecycle across stories: pin every state and who moves it (stale and lease exits
   included) in each story's Deps, and give a story that holds the object open (a UI panel)
   an AC for every transition another story makes under it.
+- Pin every cross-story export by exact name and signature (functions, DTO fields, props,
+  constants) and every new shared helper or response schema, each with one owner story and
+  path; planners copy the pins verbatim, and a change to one is made here, never by a rename
+  in a plan.
+- A versioned object others read: pin create+activate inside the consumer's transaction, the
+  one-active invariant (lock, or supersede all others), and that every reader uses the id
+  pinned on its row, never "current active".
+- One-wave stories that add lines to a new file another story owns (a registry, a links
+  list): pin its initial text, and tell each adding story to create it verbatim if missing,
+  then add its line.
+- ACs that seed, sync or copy data into a second store that already has an owner: question
+  it; design one store with readers on it (a view or pinned snapshot), and keep a copy only
+  with its reason under Assumptions.
 For each, write docs/sprints/{run}/<slug>/story.md: Title, As-a/I-want/So-that, Context,
 Acceptance criteria (numbered, each testable, each tagged [unit]/[integration]/[browser]/
 [api]/[mcp]), Out of scope, Deps, Assumptions. Under Deps, for each dep, state the interface
@@ -282,11 +300,30 @@ Write docs/sprints/{run}/{slug}/{slug}-plan.md:
    yet, the code is written against its stated interface.
 UI: build to docs/sprints/{run}/design.md and design/*.html — same tokens, layout,
 components, copy. Don't invent a look; a gap is filled from the picked direction and logged
-as an assumption.
-Research-and-reuse: check PyPI/npm before hand-rolling a utility.
+as an assumption. List, per design.md screen the story builds, every label, state
+icon/colour, copy string and shared component as a checklist; the coder ticks each in
+validation.md.
+Research-and-reuse: check PyPI/npm before hand-rolling a utility. Before adding a helper or
+constant, grep src for one with the same shape and reuse or extract a shared one; a file the
+plan touches also moves its hand-rolled copies onto the shared helper. A name the splitter
+pinned to another story is imported from its owner, never redefined.
+Every claim about the code (a path exists, no caller passes X) cites file:line and the git
+grep proving it; every planned test path is checked against the runner config it must match
+(Playwright testDir/testMatch, vitest include).
+A field inside a stored column (a JSON key, a prefix): grep every reader of that column
+(views, mapping, audits), route all of them through one lenient read schema (z.object, no
+length or count limits, never the strict input schema) and test each. Migrations only add, so
+dev's code keeps working on the shared dev DB. Several Alembic migrations in one wave: pin
+each one's down_revision in merge order.
+Every application setting except database connection info lives in the database, editable in
+the UI; never add an env-only or code-constant setting (Jonathan's rule, 2026-10-28).
+A plan that edits a file another story creates says so, and the story goes in a later wave.
 When a slice makes code call a new export of a module, or adds a bind, field or reply that
 existing tests assert, grep the tests (vi.mock('<module>') factories, allow-lists, old
-messages) and list each test edit in the test plan, so test run 1 makes it.
+messages) and list each test edit in the test plan, so test run 1 makes it. A changed
+signature, payload type, removed export or return shape also breaks type-only fixtures and
+vi.mock factories or stubs: list those files under Files, because the coder updates them in
+the same slice so the type-check gate stays green.
 If you change an interface the splitter pinned, write the change into the consumer's
 story.md Deps and return it as a deviation.
 Commit nothing: the orchestrator commits every plan in one commit. Return: plan path, file count, test count, deploy_pending[],
@@ -301,7 +338,10 @@ Implement docs/sprints/{run}/{slug}/{slug}-plan.md. In your isolated worktree, b
 CODE ONLY. Write no tests and run no tests: no TDD, no unit, related or full suite, no
 browser, no build, no local database. The plan's test plan is not yours: step 5's first test
 run writes and runs it, and only when Jonathan asks for tests.
-Implement the plan's files. UI matches docs/sprints/{run}/design.md and design/*.html.
+Implement the plan's files. UI matches docs/sprints/{run}/design.md and design/*.html; tick
+each item of the plan's per-screen checklist in docs/sprints/{run}/{slug}/validation.md.
+Update the type-only fixtures and vi.mock factories/stubs the plan lists in this slice, so
+the type-check stays green; that is not writing a test.
 Immutable data patterns; small functions; validate input at boundaries; explicit error
 handling.
 TypeScript/Next.js story: follow the rule ids the plan lists from
@@ -340,8 +380,11 @@ CLEANUP does, after the last merge to dev, because FIX still branches from it.
    each evidence branch; when {last}, then merge origin/dev into {integration}. Resolve
    conflicts preserving both intents. A story built against a dep's planned interface may need
    a small reconciliation once the dep is in (a renamed field, an import path): make it in the
-   merge commit; anything larger is a gate failure. If pull or merge refuses because of
-   uncommitted changes you didn't make, leave them and do steps 2–3 in a throwaway
+   merge commit; anything larger is a gate failure. Before every merge or conflict-resolution
+   commit, grep the staged files for lines starting <<<<<<<, ======= or >>>>>>> and run
+   `git diff --cached --check`; take a stub conflict's owner side whole; never commit a
+   marker. With Alembic, `alembic heads` shows one head after every merge. If pull or merge
+   refuses because of uncommitted changes you didn't make, leave them and do steps 2–3 in a throwaway
    `git worktree add --detach` of origin/{integration}, push HEAD:{integration}, then remove it.
 3. Run {merge_gates} ONCE, on every file these merges changed (step 3: {code_gates}, lint and
    type-check only, no test; step 5: the scoped gates {gates}; never the full suite or the
@@ -356,7 +399,8 @@ CLEANUP does, after the last merge to dev, because FIX still branches from it.
    paired harness branch only when it has no commits unique to it (`git rev-list <harness> --not
    --exclude=refs/heads/<harness> --branches --remotes` prints nothing), with `git branch -D`
    once its worktree is gone; else leave it and record it. A reverted branch is not merged:
-   leave it. Never touch a ref not in {temp_refs}.
+   leave it. Never touch a ref not in {temp_refs}. Never run `git worktree prune`, and never
+   remove a worktree or branch this brief does not name.
 5. When {last} and stack.dev_push_deploys is false, in ONE command:
    `git worktree add --detach {dev_worktree} origin/dev && cd {dev_worktree} &&
    git merge --no-ff {integration} -m "<conventional title>" && git push origin HEAD:dev`,
@@ -387,7 +431,9 @@ across stories; contracts that disagree between stories; migrations that conflic
 on names or apply in the wrong order; config/env keys defined but unread or read but
 undefined; acceptance criteria no test covers. Standing checks: no mutation where a new
 object was required, no swallowed errors, no secrets, no unbounded queries / N+1,
-parameterized SQL, RLS on new Supabase tables. If design.md exists: a screen that departs
+parameterized SQL, RLS on new Supabase tables, worktree-removing code that skips a
+`git status --porcelain --ignored` check (it deletes ignored files like .env), a UI plan
+checklist item left unticked in validation.md. If design.md exists: a screen that departs
 from it (layout, components, tokens, copy) is HIGH.
 Rank findings CRITICAL / HIGH / MEDIUM / LOW, each with an id (R-<n>), file:line, a
 concrete failure scenario, and the owning story slug ("run" when no single story owns it).
@@ -409,6 +455,9 @@ repeat an approach that already failed. In your isolated worktree, branch {fix_b
 are there. When an item changes a value (an AM|PM time, a removed CSS class, a now-required
 field), grep e2e/ specs and mocks for the old value, fix each, and run that story's
 Playwright spec before you commit.
+A failure outside this list that your related run shows goes in your return, never fixed by
+you: each failing test has one owner, test-fixed repairs included. Before a conflict-resolution
+commit, grep for conflict markers and run `git diff --cached --check`.
 Reproduce each item first: write a test that fails because of it and confirm it fails. That
 failing test IS the verification; nobody else re-checks it. Then fix → pass. The coders
 wrote no tests; test run 1 wrote them from the plans, so when the failing test itself is
@@ -446,7 +495,9 @@ ${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs/testing-and-ob
 - unit/integration: run {full_gates}: the full suite with coverage (pytest + pytest-cov, or
   the repo's runner), then the build (`next build` for a TypeScript / Next.js repo; skip it
   when the browser surface already builds in the same test run). When the orchestrator gave
-  you a shard (--shard=i/N), run only that shard at stack.md's worker count; report per-story coverage
+  you a shard (--shard=i/N), run only that shard at stack.md's worker count. An area unit
+  tester runs only its stories' test files, never `npm test`; one unit-full tester runs the
+  full suite once. Report per-story coverage
   of touched files; target ≥80%. The tester is the only agent that runs the full suite and
   the build; coders run only lint and the type-check, fixers and mergers only the scoped
   gates.
