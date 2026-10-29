@@ -289,7 +289,9 @@ prefix is used).
   loads.
 - `${CLAUDE_PLUGIN_ROOT}` is empty in a worker's Bash. The orchestrator fills it like a
   placeholder, with the absolute plugin root (`{skill_dir}/../..`, resolved), in every brief
-  and in its own Bash calls when the variable is empty.
+  and in its own Bash calls when the variable is empty. It resolves the root afresh before
+  each dispatch and never stores that path in `bmn.json`, `stack.md` or `lessons.md`: the
+  root moves on a plugin update or a resume.
 - Every spawn is announced with the model table (Item | Branch | Model), one row per agent,
   and the model named explicitly: the RESEARCH researchers' rostered model (`haiku`, `sonnet`,
   `opus` or `fable`, at least one of each) and `model: "opus"` for the RESEARCH synthesizer, DESIGN, SPLIT, PLAN, the reviewer,
@@ -300,7 +302,10 @@ prefix is used).
   parallel, each in `isolation: "worktree"`. Record every harness worktree path and branch
   the Agent result names, plus each `wip/` branch, in `temp_refs`.
 - CODE, FIX, TEST and DB-SYNC agents always run in `isolation: "worktree"`; every other
-  agent works in the run worktree (`{run_worktree}` in the briefs).
+  agent works in the run worktree (`{run_worktree}` in the briefs). Each isolated brief opens
+  with its own worktree path and "cd there"; the run worktree is read-only to it (no new
+  branch, checkout, reset or detach there), and the orchestrator runs `git reflog -3` in the
+  run worktree after each one returns.
 - Output to Jonathan while running: see *Silence* above.
 - **Read Jonathan first (Jonathan's rules, 2026-10-14 to 2026-10-18).** Before any dispatch,
   read his latest message ("Other" text included) for a question and answer each one in plain
@@ -309,7 +314,9 @@ prefix is used).
   just code" is `tests.wanted: false` (lint and type-check only, the run reported untested);
   "deploy when you're done" is step 7's yes for this run's tested sprint. When the run starts
   from a conversation rather than a go-ahead ("go", "execute", a `/goal`), stop after INTAKE
-  until he gives one.
+  until he gives one. "Slow down and help me understand", or a question about where something
+  lives: stop dispatching, answer in plain words (screen, role, file path) and wait for his
+  go-ahead (2026-10-28).
 - **Scope phrases (Jonathan's rules, 2026-10-14 to 2026-10-18).** "The issue(s) I just
   opened/created" are the open issues he filed just before intake, and "execute" is the
   go-ahead; "open issues from #N forward" are issues N and up; "issues from today, close all
@@ -319,7 +326,19 @@ prefix is used).
   not a later wave). Record which issues in `assumptions`. "Pause": dispatch nothing new, let
   running workers finish, record the phase, and recount the cores on resume. "Push to the
   open PR": `gh pr list --base dev --state open` first; when none is open, open this sprint's
-  PR into `dev`, leave it unmerged, and say so in one line.
+  PR into `dev`, leave it unmerged, and say so in one line. "Fix all the issues": done means
+  the report's *Left open* is empty, so every cheap leftover (stale specs, races, scope gaps,
+  leftover data) is fixed in the run and only what is beyond its reach goes to him, once, at
+  step 7. "File and run all" on an earlier run's left-open findings: file one story issue per
+  finding group and run them all in one run, without asking which (2026-10-28).
+- **Issue watch (Jonathan's rules, 2026-10-28).** When the issue-watch loop finds a new bmn
+  issue, plan it at once without asking, then park at "awaiting approval for coding" and say
+  in one line which issue is ready and where its plans are; never code before his approval.
+  On "approved for coding", code the parked plans as written (no re-research, re-split or
+  re-plan): merge `origin/dev` into the sprint branch, then dispatch every coder in the same
+  turn. Never propose or start child sessions (`start_session`) from the loop or a run. When a
+  loop or background step acts, say in one plain line what it is doing; never present a side
+  task as the main workflow.
 - **Keep the task list live (Jonathan's rule, 2026-10-15).** The app's task list holds one
   item per phase or wave, exactly one in progress, updated at every phase change and worker
   return. When he asks where things are, answer with the phase and counts and refresh the list
@@ -334,14 +353,18 @@ prefix is used).
   disk-heavy installs serialize). When he says the machine is underused or "run more",
   re-slice the running phase into file-disjoint pieces up to the cap at once and say in one
   line agents × workers, and that CPU stays low because workers wait on the model (the cap is
-  `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, which he can raise).
+  `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, which he can raise). Never leave him waiting on one
+  agent: the stack-scout and the intake checks run side by side, one designer per direction,
+  and the stories that need no design are split and planned while he picks.
 - A worker running past 3× its slowest peer gets a status message and is stopped if hung;
   merge its siblings meanwhile and re-dispatch its open items. A planner's change to a pinned
   interface is relayed at once to every consumer planner, and consumer plans already written
   are amended.
-- **Windows `node_modules`.** One `npm ci` in the run worktree; isolated worktrees junction
-  `node_modules` to it, never to the main checkout's, and INTAKE writes that line into
-  `stack.md` before planners start. `next build` (Turbopack) rejects a junction, so a test run
+- **Windows `node_modules`.** One `npm ci` in the run worktree, run by the orchestrator
+  before CODE; isolated worktrees junction `node_modules` to it, never to the main
+  checkout's, and INTAKE writes that line into `stack.md` before planners start. `npm ci`
+  itself is never written into `stack.md` or a coder or fixer brief (a carried-over
+  `stack.md` included). `next build` (Turbopack) rejects a junction, so a test run
   builds once (`next build --webpack`, or in a worktree with its own `npm ci`) and serves that
   build with `next start`, one port per browser tester; never `next dev`, never a build per
   tester.
@@ -370,7 +393,8 @@ pipeline and drop the repeated work:
   dep of a story has a planned, stated interface, that story builds in the **same wave**
   against the interface (its coder codes against the stated contract) and the merger merges
   deps first. Only a dep whose interface is truly unplannable (`plannable: false`) makes a
-  story wait for the next wave.
+  story wait for the next wave. A story whose plan edits a file another story creates goes in
+  a later wave than that story, never the same one; its planner flags the edit.
 - **One merge agent per step, gates once.** Step 3 and every step-5 cycle each end with a
   single merger. It merges every branch of the step into the sprint branch (`--no-ff`, deps
   first), runs its gates **once** over the combined change (`{code_gates}` in step 3, the
@@ -382,7 +406,9 @@ pipeline and drop the repeated work:
   long the design pick takes),
   PLAN, a merge and REPORT; 20–40 min per CODE wave; and, when Jonathan asks for tests,
   30–45 min per test → fix → test cycle (the first a little longer: it writes the plans'
-  tests and runs the review beside them). Step 4's question states the per-cycle estimate.
+  tests and runs the review beside them); a ~20-slice web run's cycle is ~1.5 h (run 1 with
+  written tests and the review ~50 min, FIX and merge ~25 min, run 2 and the build ~25 min),
+  never ~40 min. Step 4's question states the per-cycle estimate.
   Measured, a file-level wave runs split ~10 min, plan and code overlapping ~20 min, merge
   batches ~10 min (8 stories coded in ~40–55 min); never quote a flat figure. The estimate
   names every part: code (with that breakdown), tests or none, the merge to `dev`, the total.
@@ -398,7 +424,11 @@ pipeline and drop the repeated work:
   suite, and every hard line. Agents spawned after that get the same instruction in their
   brief. The report lists what was skipped. Also cut at once (Jonathan's rule, 2026-10-18):
   extra review lenses beyond security, a second build in a test run and any improvised
-  stubbed pass; the acknowledgement says what still runs and when it ends.
+  stubbed pass; the acknowledgement says what still runs and when it ends. When he says the
+  run is taking too long or is urgent (2026-10-28), testing shrinks to the critical tests (the
+  reported failure path, data safety, regressions on shared paths): one test run, one FIX
+  round whose reproducing tests are the re-check (no further test run), review findings
+  CRITICAL/HIGH only, and the report lists what was skipped.
 - **Size workers to the cores (Jonathan's rules, 2026-10-16 to 2026-10-20).** Every CPU-heavy
   command carries an explicit worker count sized to the machine's cores (vitest `--maxWorkers`
   and `--shard`, eslint `--concurrency`). The stack-scout writes them into `stack.md`'s gates,
@@ -513,7 +543,9 @@ designed or split, and it adds no question for Jonathan.
    available), `simplest` (KISS / YAGNI: the smallest change that fully meets the story) and
    `risk` (security, failure modes, data and migrations, ops: what could go wrong with each
    approach). For an entire system the orchestrator adds lenses (performance / scale, UX,
-   maintainability). Record them in `bmn.json.research.lenses`.
+   maintainability). Record them in `bmn.json.research.lenses`. When Jonathan asks to vet a
+   redesign, there is one lens per section or workflow, and the winner is adopted even when
+   it means redesigning from scratch (Jonathan's rule, 2026-10-28).
 2. **Roster.** Each lens gets a model, and every one of `haiku`, `sonnet`, `opus` and `fable`
    runs at least one researcher. Default for the five lenses: `reuse` haiku, `prior-art`
    sonnet, `primary-docs` sonnet, `simplest` fable, `risk` opus. Record it in
@@ -546,17 +578,26 @@ designed or split, and it adds no question for Jonathan.
 
 **1c · DESIGN (UI only; designer agent, opus) — Jonathan's first decision.** Runs before
 SPLIT, so no story, plan or line of code exists yet that a design would have to bend around.
+Claude Design is always available: it is the **Design** Artifact type (Artifact `quickstart`
+with intent `design`). The designer starts there, never searches ToolSearch for
+`claude_design` tools and never falls back to HTML (Jonathan's rules, 2026-10-28).
 1. **Directions.** Dispatch one **designer** (opus) with the brief in briefs.md. It works
    only in Claude Design: one project for the run, three distinct directions, each covering
    every screen in `ui_screens` with its key states. It returns the project link and one
-   `open_url` per direction. Record them in `bmn.json` (`design.round: 1`).
-2. **The pick.** Ask Jonathan with **one** `AskUserQuestion`: one option per direction,
+   `open_url` per direction. Record them in `bmn.json` (`design.round: 1`). Before the pick
+   is shown, dispatch the judge vote over the directions and write its tally line into
+   `design.md`; a pick with no tally line is not ready to show Jonathan.
+2. **The pick.** Open with one plain sentence on the problem the screens solve and what
+   each option changes for the user, before naming or linking the options. Then ask Jonathan
+   with **one** `AskUserQuestion`: one option per direction,
    labelled with its name, the description holding its one-line summary and its Claude
    Design link. Post the links in chat in the same turn so he can open them. This is the
    sanctioned design question. Whatever he answers:
    - **A direction** → that's the pick.
    - **A direction plus additions** ("A + chat hand-off") → that's the pick; the additions go
      into `design.md` and become stories of this run, never dropped or deferred.
+   - **"X + grafts"** → freeze direction X with the named grafts from the other directions
+     folded in; `design.md` records each graft and its source.
    - **A question** → not a pick: answer it in chat (how each direction handles it), then put
      the pick again. No UI planner starts until he picks.
    - **Changes** (free text via "Other", or "see my comments" — then the designer reads that
@@ -570,9 +611,9 @@ SPLIT, so no story, plan or line of code exists yet that a design would have to 
    didn't cover (a screen, a state, an edge case) is filled by extending the picked
    direction's tokens and components, and logged as an assumption — never by asking, never
    by opening a new look.
-4. If Claude Design is unavailable (tools missing, not signed in), that's not a blocker and
-   not a question: the designer writes `design.md` from the repo's existing UI conventions,
-   the run continues, and the report says the design was never picked.
+4. No UI story is planned or coded before Jonathan picks a direction on the Design canvas.
+   If the canvas cannot be created, that is a real blocker: stop the run at DESIGN and say so
+   in one line; never proceed on a fallback design.
 
 **1d · SPLIT (1 agent, opus).** Splitter brief. It follows `research.md`'s recommended
 approach, so the stories build the approach the research picked. When `design.md` exists, every screen in it
@@ -664,8 +705,18 @@ FIX *k* fixes them, and test run *k* + 1 checks the fixes and opens the next cyc
 step is test run 1, then for each cycle *k* = 1…N: FIX *k*, then test run *k* + 1.
 
 **5a · Test run k (`phase: test`; testers per surface, plus the reviewer in run 1, all in one message).**
+When another session's merged work must ship in this release, first merge `origin/dev` into
+the sprint branch (`--no-ff`) before the last test run, so it is tested together, and repoint
+its specs at screens this run retired (Jonathan's rule, 2026-10-28).
 Record the sha the merged `dev` is at (the sprint branch when `stack.dev_push_deploys`) as
 `tests.runs[k-1].sha`, then dispatch the testers and, in run 1, the reviewer together.
+Before dispatching, check for another bmn run on this machine (other run worktrees testing,
+ports listening): give each tester a port checked free, never a fixed block, and sequence or
+cap the test phases, quoting the wait. Each tester brief lists every test path it will add; a
+shared path (a hoisted helper's test) gets one owner, the others add cases in their own
+files. Run 1's message also dispatches the `dev_base` baseline: the full unit suite with the
+testers' exact shards and env, plus the touched e2e specs, saved to the run folder as
+`baseline-failures.txt`, which every tester diffs against.
 
 **Testers** (1 per test surface, parallel, sonnet, each in `isolation: "worktree"`; record
 each worktree and branch in `temp_refs`). Tester brief, run against that sha, `{run_n}` = k:
@@ -717,7 +768,8 @@ When every tester (and in run 1 the reviewer) has returned:
 
 **5b · FIX k (`phase: fix`; one fixer per owning story, parallel, each in `isolation: "worktree"`; then one merger).**
 Record each worktree and branch in `temp_refs`.
-Fixer brief. Input: every failure of test run *k*, plus, in cycle 1 only, every review
+Test run *k*'s `tests-` branches are merged into the sprint branch once, before the fixers
+fork, so every fixer starts with the tests in place. Fixer brief. Input: every failure of test run *k*, plus, in cycle 1 only, every review
 finding, every severity, grouped by owning story. Findings no story owns go to one `run`
 fixer. Sonnet for mechanical fixes, opus when the root cause is unclear. Each fixer first
 reproduces each item as a failing test — that reproduction **is** the verification — then
@@ -750,7 +802,9 @@ the changelog entry; the checklist always proposes a patch bump, and a minor or 
 change seems to merit is named beside it for Jonathan to pick, never made the default:
 Jonathan's rule, 2026-10-13), the `dev` → `main` merge and tag, `dev` fast-forwarded onto `main`, the
 Vercel production deploy (git-triggered by the push to `main`, or `vercel deploy --prod`),
-the GitHub release, and the smoke check. Nothing on it runs yet. Commit `report.md`.
+the GitHub release, and the smoke check. Nothing on it runs yet. When the run leaves a known
+defect or an unrun data step, the decision section offers to fold it into the next run as a
+first-wave story, so later stories build on the fixed code (2026-10-28). Commit `report.md`.
 
 **RETRO (still `report`; 1 agent, opus) — mandatory, never skipped, blocked runs included.**
 Retro brief ([references/learning.md](references/learning.md)). In the run worktree it judges
@@ -817,7 +871,9 @@ Right after the ALERT, ask **one** `AskUserQuestion`: "Release v<next>?". Two op
 - **Not now** — description: "Nothing is released. The run ends; you decide what's next."
 
 Never mark either option as recommended. A blocked run (`phase: blocked`) is not asked: it
-reports and stops.
+reports and stops. When the repo has never been deployed, or Jonathan says there is nothing
+to release, there is no release question either: the run ends with the sprint's PR into
+`dev` as the only decision (Jonathan's rule, 2026-10-28).
 
 - **Release** → run RELEASE below.
 - **Not now** → in a throwaway detached worktree of `origin/dev`, set `bmn.json`
@@ -835,6 +891,17 @@ Jonathan's yes in chat is the approval for every step on the checklist, for this
 only. Each deploy command is prefixed with `BMN_USER_APPROVED_DEPLOY=1`. The order matters:
 nothing reaches `main` until the database is ready for it, and nothing is committed to
 either branch after `main` moves, so `dev` and `main` end on the same commit.
+
+A bare "release" approves the checklist as shown, its version and every site included: run
+it end to end (release, publish to every site, close the issues) and ask nothing about
+version or sites. Release only this run's tested sprint, never `dev` as it stands, because
+`dev` can carry another session's untested work; when `dev` holds another unfinished sprint,
+release as a hotfix from `main` (`origin/main` + the sprint branch + the release note, then
+`main` merged back into `dev`). Offer only release paths that keep these rules, never a
+shortcut they exclude (shipping untested `dev`, skipping tests on what ships). When Jonathan
+makes this run the release owner for other sessions, ship them together: confirm each
+session's work is in `dev`, run every migration and one deploy of the combined tip, then
+close all their issues (Jonathan's rules, 2026-10-28).
 
 1. **Preflight (release-prep worker, sonnet, read-only).** Release-prep brief, mode
    `preflight`. In a detached worktree of `origin/dev` it checks: `git log --oneline
@@ -904,6 +971,8 @@ did ship (no test-cycle or release question). Do this only when:
   (never invent or enter one — see the prohibited-actions rules),
 - the only path forward before step 7 is a deploy or a remote database change (hard lines 1
   and 2),
+- the story touches UI and the Claude Design canvas cannot be created (Jonathan's rule,
+  2026-10-28),
 - or the story contradicts itself in a way where either reading would destroy data.
 
 Everything else is an assumption, not a blocker.
