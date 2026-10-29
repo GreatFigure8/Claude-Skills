@@ -356,6 +356,11 @@ prefix is used).
   `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, which he can raise). Never leave him waiting on one
   agent: the stack-scout and the intake checks run side by side, one designer per direction,
   and the stories that need no design are split and planned while he picks.
+- **Use every processor (Jonathan's rule, 2026-10-29).** The system shall use all the processors
+  available to it, in every step of every run. Parallel agents fill the subagent cap, and every
+  CPU-heavy command runs at a worker count that uses all the machine's cores (*Size workers to
+  the cores*). Nothing runs serially when it could run in parallel, and no core sits idle while
+  work is ready.
 - A worker running past 3× its slowest peer gets a status message and is stopped if hung;
   merge its siblings meanwhile and re-dispatch its open items. A planner's change to a pinned
   interface is relayed at once to every consumer planner, and consumer plans already written

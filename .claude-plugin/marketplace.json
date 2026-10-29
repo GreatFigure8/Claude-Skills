@@ -10,7 +10,7 @@
     {
       "name": "dev-bother-me-nope",
       "description": "Seven-step build pipeline: one long story in, then sprint (research fan-out and design pick), plan, code, test cycles, report and an optional release. Asks only the design pick, the test cycles and the release.",
-      "version": "3.3.3",
+      "version": "3.3.4",
       "source": "./Skills/dev-bother-me-nope",
       "category": "dev-workflow"
     },
