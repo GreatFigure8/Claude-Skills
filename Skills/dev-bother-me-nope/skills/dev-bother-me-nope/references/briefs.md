@@ -24,7 +24,10 @@ to every brief spawned after that. `{lessons}` = this brief's own `## <brief>` s
 `docs/sprints/{run}/lessons.md` (INTAKE's `bmn-lessons.py select`; "none yet" when the
 section is empty or missing; see [learning.md](learning.md)). Retro: `{served}` =
 `lessons.served`, `{work_tree}` = `{run_worktree}` (LEARN: its `wip/learn-<date>` worktree),
-`{repo_name}` = the main checkout's directory name. All agents are `subagent_type:
+`{repo_name}` = the main checkout's directory name. `{cores}` = the JSON `bmn-cores.py`
+printed at INTAKE (stack.md's `## Cores`): `logical`, `agent_cap`, `shards`, `workers`,
+`flags`. `{needs_agent}` / `{already_merged}` = `needs_agent` and `merged` from
+`bmn-merge.py`'s JSON when it exited 3 ("none" when the helper refused, exit 2). All agents are `subagent_type:
 "dev-bother-me-nope:bmn-worker"`. Every agent returns ≤200 words (JSON where asked) —
 conclusions, not file dumps.
 
@@ -130,14 +133,16 @@ routed_build_skills[] or routed_review_lenses[]. For a TypeScript / Next.js repo
 and test_surfaces[] from the TypeScript row of the Test surfaces table, never the python
 defaults. Give every CPU-heavy gate an explicit worker count sized to this machine's cores
 (vitest --maxWorkers and a --shard count, eslint --concurrency=auto), never above a count the
-project pins. For a Next.js 16 repo gates.types starts with `npx next typegen &&`, so every
+project pins. The measured counts are {cores}: use its shards, workers and flags as they are,
+never your own estimate; when the project pins a lower worker count, report it as
+pinned_workers and use that. For a Next.js 16 repo gates.types starts with `npx next typegen &&`, so every
 brief that type-checks a fresh worktree runs it. Before writing a --coverage gate, run `require.resolve('@vitest/coverage-v8')`
 (or the runner's coverage provider) in the run worktree; if it fails, gates.test has no
 --coverage and says "coverage unmeasured, no scratch install".
 Write nothing. Return JSON: {kind, ui, ui_screens[{name, purpose}], ui_conventions, supabase, vercel, llm, dev_push_deploys,
 dev_push_deploys_evidence, vercel_json[], supabase_dev_ref, supabase_main_ref, ref_evidence,
 routed_build_skills[],
-routed_review_lenses[], routed_references[], test_surfaces[], gates{lint,types,related,test,build}, has_dev_branch,
+routed_review_lenses[], routed_references[], test_surfaces[], gates{lint,types,related,test,build}, pinned_workers, has_dev_branch,
 default_branch, tooling{docker,supabase_cli,playwright}, release{process, evidence[],
 version_files[], current_version, changelog, tag_format, github_releases, vercel_prod,
 vercel_projects[], prod_url, health_route, prod_env[]}, assumptions[]}.
@@ -349,7 +354,8 @@ ${CLAUDE_PLUGIN_ROOT}/skills/dev-bother-me-nope/references/nextjs.md and its top
 Deps not merged into {integration} yet: build against the contract in the dep's plan
 (Interfaces provided); never write the dep's code yourself. The merger merges deps first.
 Run the code gates: {code_gates} (lint + type-check, nothing else). Both clean before you
-finish.
+finish. Lint only the files you changed (pass them to the lint command in place of its path)
+and run the full type-check; the wave's merge lints the whole repo once.
 Supabase: migration files only; never run them, locally or remotely.
 Run `git status --short` before editing and before each commit; unstage every path outside
 your slice (`git restore --staged`, run-folder files too) and commit your slice's paths only.
@@ -360,6 +366,13 @@ anything skipped and why.
 ```
 
 ## merger (sonnet; one per step — the end of each CODE wave and of each step-5 FIX)
+
+The orchestrator runs `bmn-merge.py` first (SKILL.md, *One merge per step*). This agent is
+dispatched only when that helper exits 3 (a conflict, a gate that stays red, a file that
+looks like a secret) or 2 (it refused the run worktree), with this line ahead of the brief:
+`The merge helper stopped: {needs_agent}. It already merged: {already_merged} (local commits
+in {run_worktree}, not pushed). Finish the step from there: merge only the branches still to
+merge, then steps 3–5.`
 
 ```
 Merge these branches into {integration}, then {integration} into dev, running the gates ONCE.
