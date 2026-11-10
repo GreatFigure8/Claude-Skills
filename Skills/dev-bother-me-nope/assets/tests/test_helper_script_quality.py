@@ -16,7 +16,7 @@ import pytest
 
 BIN = Path(__file__).resolve().parents[1] / "bin"
 SCRIPTS = [BIN / "merged-branch-cleanup.py", BIN / "repo-merge-policy.py", BIN / "bmn-lessons.py",
-           BIN / "bmn-research-score.py"]
+           BIN / "bmn-research-score.py", BIN / "bmn-cores.py", BIN / "bmn-merge.py"]
 IDS = [script.name for script in SCRIPTS]
 MAX_SCRIPT_LINES = 400
 MAX_FUNCTION_LINES = 50
