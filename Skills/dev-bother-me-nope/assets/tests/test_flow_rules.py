@@ -28,12 +28,14 @@ BRIEFS = REFERENCES / "briefs.md"
 STACK_ROUTING = REFERENCES / "stack-routing.md"
 REPORT_TEMPLATE = REFERENCES / "report-template.md"
 MOVE_COMPUTERS = REFERENCES / "move-computers.md"
+RELEASE_DOC = REFERENCES / "release.md"
 DEPLOY_GUARDS = REFERENCES / "deploy-guards.md"
 NEXTJS = REFERENCES / "nextjs.md"
 WORKER = h.PLUGIN / "agents" / "bmn-worker.md"
 PLUGIN_JSON = h.PLUGIN / ".claude-plugin" / "plugin.json"
 FLOW_DOCS = (
-    SKILL, BRIEFS, STACK_ROUTING, REPORT_TEMPLATE, MOVE_COMPUTERS, DEPLOY_GUARDS, NEXTJS, WORKER,
+    SKILL, BRIEFS, STACK_ROUTING, REPORT_TEMPLATE, MOVE_COMPUTERS, RELEASE_DOC, DEPLOY_GUARDS, NEXTJS,
+    WORKER,
     PLUGIN_JSON,
 )
 
@@ -96,6 +98,24 @@ def _skill_section(heading):
     return h.section(_skill(), heading, prefix=True)
 
 
+def _release():
+    """The RELEASE procedure, which lives in references/release.md since 3.4.0."""
+    return h.section(h.read(RELEASE_DOC), "RELEASE (after Jonathan's yes", prefix=True)
+
+
+@pytest.mark.unit
+def test_skill_points_at_the_release_procedure_and_keeps_its_guarantees():
+    pointer = _skill_section("RELEASE (after Jonathan's yes")
+    _assert_has(
+        pointer,
+        "[references/release.md](references/release.md)",
+        "nothing in it runs before that yes",
+        "`BMN_USER_APPROVED_DEPLOY=1`",
+        "`dev` and `main` end on the same commit",
+    )
+    assert len(h.numbered_items(_release())) == len(RELEASE_ORDER)
+
+
 def _brief(name):
     """The code block of the brief headed ``## <name> (…)``."""
     body = h.section(h.read(BRIEFS), f"{name} (", prefix=True)
@@ -124,7 +144,7 @@ def _diagram_line(prefix):
 
 
 def _release_items():
-    return h.numbered_items(_skill_section("RELEASE (after Jonathan's yes"))
+    return h.numbered_items(_release())
 
 
 def _in_order(text, needles):
@@ -496,7 +516,7 @@ def test_release_runs_its_steps_in_order():
 
 def test_release_migrates_supabase_main_before_main_moves():
     _assert_has(
-        _skill_section("RELEASE (after Jonathan's yes"),
+        _release(),
         "nothing reaches `main` until the database is ready for it",
     )
     supabase = _release_items()[1]
@@ -551,7 +571,7 @@ def test_dev_is_fast_forwarded_onto_main_and_checked():
 
 def test_nothing_is_committed_after_main_moves():
     _assert_has(
-        _skill_section("RELEASE (after Jonathan's yes"),
+        _release(),
         "nothing is committed to either branch after `main` moves, so `dev` and `main` end on "
         "the same commit",
     )
@@ -561,7 +581,7 @@ def test_nothing_is_committed_after_main_moves():
 
 
 def test_release_deploy_commands_carry_the_approval_prefix():
-    release = _skill_section("RELEASE (after Jonathan's yes")
+    release = _release()
     _assert_has(
         release,
         "Each deploy command is prefixed with `BMN_USER_APPROVED_DEPLOY=1`.",
@@ -577,7 +597,7 @@ def test_release_deploy_commands_carry_the_approval_prefix():
 
 def test_release_approval_covers_this_release_only():
     _assert_has(
-        _skill_section("RELEASE (after Jonathan's yes"),
+        _release(),
         "Jonathan's yes in chat is the approval for every step on the checklist, for this "
         "release only.",
         "the approval doesn't carry over to a later release or another run",
@@ -700,7 +720,7 @@ def test_stack_scout_reports_related_and_build_gates():
 def test_speed_rules_have_one_merger_per_step_with_gates_once():
     _assert_has(
         _skill_section("Speed rules"),
-        "**One merge agent per step, gates once.** Step 3 and every step-5 cycle each end with a "
+        "**One merge per step, gates once, by the helper.** Step 3 and every step-5 cycle each end with a "
         "single merger.",
         "runs its gates **once** over the combined change (`{code_gates}` in step 3, the scoped "
         "`{gates}` in step 5)",

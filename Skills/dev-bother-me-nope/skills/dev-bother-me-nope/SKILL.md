@@ -279,7 +279,8 @@ origin copy the run didn't push).
 
 The main thread decides and dispatches. It doesn't read source, run test suites, or grep
 the codebase. That work is done by subagents, which report back conclusions. The only
-commands the orchestrator runs itself are INTAKE's git setup and its lessons `select`, the
+commands the orchestrator runs itself are INTAKE's git setup, its processor count
+(`bmn-cores.py`) and its lessons `select`, each step's merge (`bmn-merge.py`), the
 `bmn.json` commits, and RELEASE's approved deploy commands (the only place the approval
 prefix is used).
 
@@ -360,7 +361,15 @@ prefix is used).
   available to it, in every step of every run. Parallel agents fill the subagent cap, and every
   CPU-heavy command runs at a worker count that uses all the machine's cores (*Size workers to
   the cores*). Nothing runs serially when it could run in parallel, and no core sits idle while
-  work is ready.
+  work is ready. The count is measured, never guessed: INTAKE runs
+  `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/bmn-cores.py` (add `--pinned <n>` when the project
+  pins a worker count) and writes its JSON into `stack.md` under `## Cores`: `logical`,
+  `agent_cap` (the subagent cap, `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` or 20), `shards`,
+  `workers` and the per-tool `flags`. Every brief's `{cores}` is filled from it, a dispatch
+  never exceeds `agent_cap` agents in one message, and a resumed or un-paused run runs the
+  helper again. When `agent_cap` is below `logical`, the first step line says so once, with
+  the variable Jonathan can raise. A helper failure is an assumption; the scout then sizes
+  the gates by hand.
 - A worker running past 3× its slowest peer gets a status message and is stopped if hung;
   merge its siblings meanwhile and re-dispatch its open items. A planner's change to a pinned
   interface is relayed at once to every consumer planner, and consumer plans already written
@@ -400,11 +409,22 @@ pipeline and drop the repeated work:
   deps first. Only a dep whose interface is truly unplannable (`plannable: false`) makes a
   story wait for the next wave. A story whose plan edits a file another story creates goes in
   a later wave than that story, never the same one; its planner flags the edit.
-- **One merge agent per step, gates once.** Step 3 and every step-5 cycle each end with a
-  single merger. It merges every branch of the step into the sprint branch (`--no-ff`, deps
+- **One merge per step, gates once, by the helper.** Step 3 and every step-5 cycle each end
+  with a single merger. It merges every branch of the step into the sprint branch (`--no-ff`, deps
   first), runs its gates **once** over the combined change (`{code_gates}` in step 3, the
   scoped `{gates}` in step 5), and only when they fail reverts branch by branch to find the
-  one that broke them. Then it merges the sprint branch into `dev`.
+  one that broke them. Then it merges the sprint branch into `dev`. The merger is a script
+  first and an agent only when judgement is needed (3.4.0): the orchestrator runs
+  `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/bmn-merge.py --worktree {run_worktree} --integration {integration} --branch <b>… [--evidence <b>…] --gate "<gate>"… [--to-dev --dev-worktree {dev_worktree} --dev-title "<conventional title>"]`
+  itself, in the background, with the branches deps first, one `--gate` per gate command
+  and `--to-dev` only on the step's last merge when `stack.dev_push_deploys` is false. Exit 0:
+  record its JSON (`merged`, `reverted`, `dev_merge`, `deleted`, `left`) in `bmn.json` exactly
+  as a merger agent's return. Exit 3: dispatch ONE merger agent (sonnet) with the merger
+  brief, the helper's `needs_agent` (why, the branch, the branches still to merge, the output)
+  and what it already merged; the agent finishes the step from there. Exit 2 (refused: the
+  run worktree is dirty or on another branch): dispatch the merger agent with the whole step,
+  as before 3.4.0. The helper never squashes, forces, resolves a conflict or pushes on a red
+  gate.
 - **Up-front time estimate.** The orchestrator's first step line states the story count,
   the waves and a rough wall-clock estimate up to step 4, e.g. "4 stories, 1 wave, ~1.5 h to
   code". Rough guide: about 20 min each for SPRINT (plus ~15 min for RESEARCH and however
@@ -436,7 +456,8 @@ pipeline and drop the repeated work:
   CRITICAL/HIGH only, and the report lists what was skipped.
 - **Size workers to the cores (Jonathan's rules, 2026-10-16 to 2026-10-20).** Every CPU-heavy
   command carries an explicit worker count sized to the machine's cores (vitest `--maxWorkers`
-  and `--shard`, eslint `--concurrency`). The stack-scout writes them into `stack.md`'s gates,
+  and `--shard`, eslint `--concurrency`). The counts come from `bmn-cores.py` (`{cores}`: its
+  `shards`, `workers` and `flags`), never from an estimate. The stack-scout writes them into `stack.md`'s gates,
   so every brief inherits them, and each step line names agents × workers. Each test run
   dispatches up to the cap in one message: the full suite as shards across testers
   (shards × workers ≈ cores), the area testers, and one browser tester per spec group on its
@@ -497,7 +518,9 @@ ignored, and the next RETRO retires it.
    the run worktree, write `input.md` verbatim and `bmn.json` with `phase: intake`,
    `integration` and `worktree` **right away**. The deploy guard is only active once this
    file exists.
-3. Dispatch one **stack-scout** (sonnet) with the brief in briefs.md. It returns the stack
+3. Run `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/bmn-cores.py` and keep its JSON for
+   `{cores}` (*Use every processor*).
+   Dispatch one **stack-scout** (sonnet) with the brief in briefs.md. It returns the stack
    classification, the routing and the **release profile** (how this repo ships a new
    version). For a TypeScript / Next.js repo the routing also names
    [references/nextjs.md](references/nextjs.md), the plugin's dated Next.js + TypeScript
@@ -642,6 +665,8 @@ orchestrator commits every plan in one commit. Set `phase: code`.
 
 ### Step 3 · CODE (`code`; one coder per ready story, parallel waves, sonnet, worktree; then one merger)
 Coder brief. **Code only:** implement the plan, then run `{code_gates}` (lint + type-check).
+A coder lints only the files it changed and runs the full type-check; the wave's merge lints
+the whole repo once (3.4.0), so N parallel coders never lint the repo N times.
 No test is written or run — no TDD, no unit, related or full suite, no browser, no build.
 Load the routed python skills **before** writing code. UI is built to `design.md`. Branch
 `wip/<run-slug>/<slug>` off the sprint branch. Commit and push the **story branch only** —
@@ -649,8 +674,9 @@ coders never push the sprint branch. Supabase: migration files only, never run a
 database here (not even a local `supabase start`). Every new migration is added to
 `deploy_pending.supabase_migrations`.
 
-When a wave finishes, one **merger** (sonnet) merges that wave's story branches into the
-sprint branch in the run worktree (*One merge agent per step*), runs `{code_gates}` once, and
+When a wave finishes, one **merger** (`bmn-merge.py`, run by the orchestrator; a sonnet
+merger agent only when the helper exits 3 or 2) merges that wave's story branches into the
+sprint branch in the run worktree (*One merge per step*), runs `{code_gates}` once, and
 cleans each one up with
 `python3 ${CLAUDE_PLUGIN_ROOT}/assets/bin/merged-branch-cleanup.py --repo {run_worktree} --branch <branch> --target origin/{integration}`
 (*Cleanup is a step*): every worktree on the branch removed, and the `wip/` branch deleted
@@ -786,7 +812,8 @@ inside it: an item that fails again in run *k* + 1 comes back in cycle *k* + 1 (
 left), with what earlier cycles tried (`{prior}`), so its fixer takes a different approach.
 Each fixer works on a fresh `wip/<run-slug>/<owner>-fix-<k>` branch off the sprint branch.
 
-Then one merger merges every fix branch and every test-run-*k* `tests-` branch into the
+Then one merger (`bmn-merge.py` first, as in step 3; the `tests-` branches go in as
+`--evidence`) merges every fix branch and every test-run-*k* `tests-` branch into the
 sprint branch, gates once (`{gates}`), cleans each up with `merged-branch-cleanup.py`, and
 merges the sprint branch into `dev` exactly as in step 3. DB-SYNC if the fixes brought
 migrations. Set `phase: test` for run *k* + 1.
@@ -892,81 +919,11 @@ to release, there is no release question either: the run ends with the sprint's 
   with exactly those changes.
 
 ### RELEASE (after Jonathan's yes; orchestrator + 1 release-prep worker)
-Jonathan's yes in chat is the approval for every step on the checklist, for this release
-only. Each deploy command is prefixed with `BMN_USER_APPROVED_DEPLOY=1`. The order matters:
-nothing reaches `main` until the database is ready for it, and nothing is committed to
-either branch after `main` moves, so `dev` and `main` end on the same commit.
-
-A bare "release" approves the checklist as shown, its version and every site included: run
-it end to end (release, publish to every site, close the issues) and ask nothing about
-version or sites. Release only this run's tested sprint, never `dev` as it stands, because
-`dev` can carry another session's untested work; when `dev` holds another unfinished sprint,
-release as a hotfix from `main` (`origin/main` + the sprint branch + the release note, then
-`main` merged back into `dev`). Offer only release paths that keep these rules, never a
-shortcut they exclude (shipping untested `dev`, skipping tests on what ships). When Jonathan
-makes this run the release owner for other sessions, ship them together: confirm each
-session's work is in `dev`, run every migration and one deploy of the combined tip, then
-close all their issues (Jonathan's rules, 2026-10-28).
-
-1. **Preflight (release-prep worker, sonnet, read-only).** Release-prep brief, mode
-   `preflight`. In a detached worktree of `origin/dev` it checks: `git log --oneline
-   origin/dev..origin/main` is empty (if not, the worker merges `origin/main` into `dev`
-   with `--no-ff`, runs the scoped gates and pushes `dev`); `dev`'s code is what the last
-   test run tested (only `docs/` and report commits since the last `tests.runs[].sha` —
-   otherwise it runs `{full_gates}` on the tip, and a failure stops the release; when
-   Jonathan chose no tests there is no tested sha, and this check is skipped: the release
-   ships untested code, as the report and the release question said); every CLI the
-   checklist needs is signed in (`gh auth status`, `vercel whoami`, the Supabase CLI for the
-   main ref); the env vars the checklist names exist on the production project (names only,
-   `vercel env ls production`); the tag `v<next>` doesn't exist yet. It returns `{ok,
-   problems[]}`. Any problem stops the release before anything changes: record it in
-   `bmn.json.release` (`status: failed`) with a `dev` commit, tell Jonathan in one line what
-   to fix, and stop. Never enter a credential.
-2. **Supabase MAIN** (orchestrator), only when the checklist has main migrations:
-   `BMN_USER_APPROVED_DEPLOY=1 supabase link --project-ref <main_ref> && BMN_USER_APPROVED_DEPLOY=1 supabase db push --linked`,
-   then `supabase migration list --linked` to confirm every migration on dev is on main. A
-   failure stops the release here (`status: failed`, recorded with a `dev` commit; `main` is
-   untouched) and goes to Jonathan in one line.
-3. **Release commit (release-prep worker, mode `commit`).** In a detached worktree of
-   `origin/dev`: bump the version in every version file the release profile names, add the
-   changelog entry, and write `bmn.json` with `phase: done` and `release: {status:
-   "released", version, tag, bump, at}`. Commit `release: v<next>` and push `HEAD:dev`. When
-   the repo has its own release tool (release-please, changesets, `npm version`, a
-   `make release`), the worker runs that tool's version step instead of editing files by
-   hand. It returns the commit sha.
-4. **Main and tag** (orchestrator), in one command:
-   `git worktree add --detach ../<repo-name>-<run-slug>-main origin/main && cd ../<repo-name>-<run-slug>-main && git merge --no-ff origin/dev -m "release: v<next>" && git tag -a v<next> -m "v<next>" && BMN_USER_APPROVED_DEPLOY=1 git push origin HEAD:main v<next>`,
-   then `git -C <main checkout> worktree remove ../<repo-name>-<run-slug>-main`. The merge is
-   a merge commit, never a squash or a fast-forward of `main`.
-5. **Sync dev** (orchestrator): `git fetch origin && git push origin origin/main:dev` (a
-   fast-forward; it never forces), then confirm `git rev-parse origin/dev origin/main` prints
-   the same sha twice. **`dev` and `main` are now the same commit; nothing is committed to
-   either after this.**
-6. **Vercel production.** When `main`'s git-triggered production build is on (the release
-   profile says so), the push in step 4 started it: wait for it with `vercel ls`/`vercel
-   inspect` until it is `READY` or `ERROR`. Otherwise run
-   `BMN_USER_APPROVED_DEPLOY=1 vercel deploy --prod` from a detached worktree at the release
-   commit, linked to the project the profile names, and remove that worktree. A Vercel MCP
-   deploy tool is never used.
-7. **GitHub release** (orchestrator), when the repo is on GitHub:
-   `gh release create v<next> --title "v<next>" --notes-file <changelog entry>`. When the
-   repo's own CI publishes on the tag, wait for that workflow instead and report its result.
-   Then close every GitHub issue the shipped work resolves (`gh issue close <n> --reason
-   completed`, comment "Shipped in v<next>: <one line>"); an unclear link is named in the
-   result, not closed (Jonathan's rule, 2026-10-20).
-8. **Smoke check (release-prep worker, mode `verify`).** Production answers on its health
-   route or home page (HTTP 200, no server error in `vercel logs` for the deployment), the
-   main database lists every released migration, and the tag points at `origin/main`. It
-   returns `{ok, checks[]}`.
-9. **Done.** Send one `PushNotification` line ("v<next> released" or what failed), and post
-   the release result in chat: the version, the main sha, the deploy URL, each step's
-   result. A failure after step 4 is reported, never rolled back or retried on its own:
-   `main` already has the release, and whether to roll back or fix forward is Jonathan's
-   call, a new goal. The record of the result lives in the chat, the notification and the
-   GitHub release, never in a new commit, so `dev` and `main` stay in sync.
-
-The release doesn't fix, review or deploy anything outside its checklist, and the approval
-doesn't carry over to a later release or another run.
+The whole procedure, nine steps in a fixed order, is in
+[references/release.md](references/release.md). Read it with the Read tool right after
+Jonathan's yes and follow it exactly; nothing in it runs before that yes. Jonathan's yes
+approves that checklist for this release only, each deploy command is prefixed with
+`BMN_USER_APPROVED_DEPLOY=1`, and `dev` and `main` end on the same commit.
 
 ## Real blockers (the only early stop)
 

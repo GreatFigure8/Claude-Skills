@@ -207,7 +207,7 @@ def _bmn_json_schema():
 
 def test_plugin_json_is_version_3_3_4():
     data = json.loads(_read(PLUGIN_JSON))
-    assert data["version"] == "3.3.4"
+    assert data["version"] == "3.4.0"
 
 
 def test_plugin_description_names_merge_commits_and_branch_cleanup():
