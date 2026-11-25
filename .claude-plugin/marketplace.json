@@ -503,6 +503,20 @@
       "skills": [
         "./"
       ]
+    },
+    {
+      "name": "bailiwick-sage500",
+      "description": "Query, explain and plan the retirement of Bailiwick's Sage 500 ERP database (MAS500_app) for the Oracle Fusion finance conversion: data model, custom-object inventory, validated T-SQL for GL, AP, AR, cash and projects, FBDI target mapping, reconciliation and decommissioning.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jonathan Stevenson"
+      },
+      "category": "eplus",
+      "source": "./Skills/sage-skill/bailiwick-sage500",
+      "strict": false,
+      "skills": [
+        "./"
+      ]
     }
   ]
 }
